@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, AlertCircle, ChevronLeft, Minus, CheckCircle } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import './styles.css';
 
@@ -60,7 +60,7 @@ export default function App() {
       } else {
         setMockAthletes();
       }
-    } catch (err) {
+    } catch {
       console.warn("Supabase fetch failed (likely placeholder keys). Falling back to mock data.");
       setMockAthletes();
     }
@@ -159,7 +159,7 @@ export default function App() {
         .limit(14);
       if (error) throw error;
       setProfileData(data || []);
-    } catch (err) {
+    } catch {
       console.warn("Could not fetch profile data");
       setProfileData([]);
     }
