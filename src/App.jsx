@@ -51,6 +51,7 @@ export default function App() {
   // App State
   const [screen, setScreen] = useState('dashboard');
   const [search, setSearch] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('ALL');
   const [athletes, setAthletes] = useState([]);
   const [isKioskMode, setIsKioskMode] = useState(false);
   
@@ -118,7 +119,24 @@ export default function App() {
   };
 
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId);
-  const filteredAthletes = athletes.filter(a => search === '' || a.name.toLowerCase().includes(search.toLowerCase()));
+  const sportsList = Array.from(new Set(athletes.map(a => a.sport).filter(Boolean)));
+  const teamsList = Array.from(new Set(athletes.map(a => a.team).filter(Boolean)));
+  const allFilters = ['ALL', ...sportsList, ...teamsList];
+
+  const filteredAthletes = athletes.filter(a => {
+    const q = search.toLowerCase();
+    const matchesSearch = search === '' || 
+      a.name.toLowerCase().includes(q) ||
+      (a.sport && a.sport.toLowerCase().includes(q)) ||
+      (a.team && a.team.toLowerCase().includes(q)) ||
+      (a.position && a.position.toLowerCase().includes(q));
+
+    const matchesFilter = selectedFilter === 'ALL' || 
+      a.sport === selectedFilter || 
+      a.team === selectedFilter;
+
+    return matchesSearch && matchesFilter;
+  });
 
   const handleSave = async () => {
     if (!selectedAthlete || !weightInput) return;
@@ -481,12 +499,13 @@ export default function App() {
             )}
 
             {screen === 'entry' && !entryAthleteId && (
-              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Search Bar */}
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <input 
                     type="text" 
                     className="input-glass"
-                    placeholder="Search athletes by name..." 
+                    placeholder="Search by name, sport, team, or grade..." 
                     value={search} 
                     onChange={e => setSearch(e.target.value)}
                     style={{ flex: 1, height: '56px', padding: '0 48px 0 20px', fontSize: 'var(--text-md)' }}
@@ -499,6 +518,30 @@ export default function App() {
                       <X size={18} />
                     </button>
                   )}
+                </div>
+
+                {/* Filter Chips / Tabs */}
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                  {allFilters.map(filter => (
+                    <button
+                      key={filter}
+                      onClick={() => setSelectedFilter(filter)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        background: selectedFilter === filter ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                        color: selectedFilter === filter ? 'var(--navy-950)' : 'var(--color-text)',
+                        border: selectedFilter === filter ? 'none' : '1px solid var(--color-border)',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {filter.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {filteredAthletes.map(a => (
