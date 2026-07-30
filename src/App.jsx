@@ -42,6 +42,8 @@ export default function App() {
   // Roster State
   const [isAddingAthlete, setIsAddingAthlete] = useState(false);
   const [editingAthleteId, setEditingAthleteId] = useState(null);
+  const [selectedProfileId, setSelectedProfileId] = useState(null);
+  const [profileData, setProfileData] = useState([]);
   const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', position: '' });
 
   useEffect(() => {
@@ -147,6 +149,22 @@ export default function App() {
     setIsAddingAthlete(true);
   };
 
+  const fetchProfileData = async (id) => {
+    try {
+      const { data, error } = await supabase
+        .from('weigh_ins')
+        .select('*')
+        .eq('athlete_id', id)
+        .order('created_at', { ascending: true })
+        .limit(14);
+      if (error) throw error;
+      setProfileData(data || []);
+    } catch (err) {
+      console.warn("Could not fetch profile data");
+      setProfileData([]);
+    }
+  };
+
   const handleUpdateAthlete = async () => {
     if (!newAthlete.name) return;
     setSaving(true);
@@ -201,7 +219,7 @@ export default function App() {
   const renderSidebarItem = (key, icon, label) => {
     const active = screen === key;
     return (
-      <div onClick={() => { setScreen(key); setSaved(false); }} 
+      <div onClick={() => { setScreen(key); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }} 
            style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', cursor: 'pointer',
                     background: active ? 'rgba(255,255,255,0.02)' : 'transparent',
                     borderLeft: active ? '4px solid var(--color-accent)' : '4px solid transparent',
@@ -215,7 +233,7 @@ export default function App() {
   const navItem = (key, icon, label) => {
     const active = screen === key;
     return (
-      <div onClick={() => { setScreen(key); setSaved(false); }} 
+      <div onClick={() => { setScreen(key); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }} 
            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', width: '64px',
                     color: active ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
         {icon}
@@ -421,7 +439,7 @@ export default function App() {
 
             {screen === 'roster' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {!isAddingAthlete ? (
+                {!isAddingAthlete && !selectedProfileId && (
                   <>
                     <button 
                       onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', position: '' }); }}
@@ -432,7 +450,7 @@ export default function App() {
                     </button>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {athletes.map(a => (
-                        <div key={a.id} onClick={() => handleEditClick(a)} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
+                        <div key={a.id} onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); }} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
                           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
                             {a.name.split(' ').map(n=>n[0]).join('')}
                           </div>
@@ -444,10 +462,12 @@ export default function App() {
                       ))}
                     </div>
                   </>
-                ) : (
+                )}
+                
+                {isAddingAthlete && (
                   <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div onClick={() => setIsAddingAthlete(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
-                      <ChevronLeft size={16} /> Back to Roster
+                    <div onClick={() => { setIsAddingAthlete(false); if(editingAthleteId) setSelectedProfileId(editingAthleteId); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
+                      <ChevronLeft size={16} /> Back
                     </div>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -491,6 +511,112 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
+                {!isAddingAthlete && selectedProfileId && (() => {
+                  const athlete = athletes.find(a => a.id === selectedProfileId);
+                  if (!athlete) return null;
+                  
+                  const latestWeight = profileData.length > 0 ? profileData[profileData.length-1].weight_lbs : '--';
+                  const latestSleep = profileData.length > 0 ? profileData[profileData.length-1].sleep_hrs : '--';
+                  const daysAgo = profileData.length > 0 ? Math.floor((new Date() - new Date(profileData[profileData.length-1].created_at)) / (1000 * 60 * 60 * 24)) : 0;
+                  
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                      <div onClick={() => setSelectedProfileId(null)} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.1em' }}>
+                        <ChevronLeft size={16} /> ROSTER / {athlete.name.toUpperCase()}
+                      </div>
+                      
+                      {/* Profile Header */}
+                      <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+                          <div style={{ width: '80px', height: '80px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>
+                            {athlete.name.split(' ').map(n=>n[0]).join('')}
+                          </div>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em' }}>ATHLETE PROFILE</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, textTransform: 'uppercase', lineHeight: 1 }}>{athlete.name}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{athlete.sport} &middot; {athlete.team} &middot; {athlete.position}</span>
+                          </div>
+                          
+                          {/* Desktop Stats */}
+                          <div style={{ display: 'flex', gap: '32px', marginLeft: 'auto', '@media (max-width: 768px)': { display: 'none' } }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>BODY MASS</span>
+                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700 }}>{latestWeight} <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>lb</span></span>
+                              <span style={{ fontSize: '10px', color: 'var(--color-accent)' }}>{profileData.length > 0 ? (daysAgo === 0 ? 'Today' : `${daysAgo}d ago`) : 'No data'}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>SESSIONS</span>
+                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700 }}>{profileData.length}</span>
+                              <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>Total</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
+                          <button onClick={() => { setScreen('entry'); setEntryAthleteId(athlete.id); }} style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: '4px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Plus size={16} /> LOG DATA
+                          </button>
+                          <button onClick={() => handleEditClick(athlete)} style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                            EDIT
+                          </button>
+                          <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>ID {athlete.id.substring(0,8).toUpperCase()}</span>
+                        </div>
+                      </div>
+                      
+                      {/* Trend Charts */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                        
+                        {/* Body Weight Chart */}
+                        <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Body Weight</span>
+                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>{latestWeight} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>lbs</span></span>
+                            </div>
+                          </div>
+                          
+                          <div style={{ height: '150px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', gap: '4px' }}>
+                            {profileData.length > 0 ? profileData.slice(-7).map((d, i) => {
+                              const minWeight = Math.min(...profileData.slice(-7).map(x=>x.weight_lbs));
+                              const maxWeight = Math.max(...profileData.slice(-7).map(x=>x.weight_lbs));
+                              const range = maxWeight - minWeight || 1;
+                              const heightPct = 20 + ((d.weight_lbs - minWeight) / range) * 80;
+                              
+                              return (
+                                <div key={i} className="chart-bar-container" style={{ flex: 1, alignItems: 'center' }}>
+                                  <div className="chart-bar" style={{ height: `${heightPct}%`, background: 'var(--color-accent)', width: '100%', maxWidth: '24px', opacity: i === profileData.slice(-7).length - 1 ? 1 : 0.6 }} />
+                                </div>
+                              )
+                            }) : <div style={{ width: '100%', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px' }}>No data logged yet</div>}
+                          </div>
+                        </div>
+
+                        {/* Sleep Chart */}
+                        <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Sleep Hours</span>
+                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>{latestSleep} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>hrs</span></span>
+                            </div>
+                          </div>
+                          
+                          <div style={{ height: '150px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', gap: '4px' }}>
+                            {profileData.length > 0 ? profileData.slice(-7).map((d, i) => {
+                              const heightPct = Math.min(100, (d.sleep_hrs / 12) * 100);
+                              return (
+                                <div key={i} className="chart-bar-container" style={{ flex: 1, alignItems: 'center' }}>
+                                  <div className="chart-bar" style={{ height: `${heightPct}%`, background: 'var(--color-text)', width: '100%', maxWidth: '24px', opacity: i === profileData.slice(-7).length - 1 ? 1 : 0.3 }} />
+                                </div>
+                              )
+                            }) : <div style={{ width: '100%', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px' }}>No data logged yet</div>}
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
