@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import './styles.css';
 
@@ -369,6 +369,7 @@ export default function App() {
             {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
+            {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS')}
           </div>
           <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 700 }}>CM</div>
@@ -461,13 +462,13 @@ export default function App() {
                     </div>
                   </div>
                   
-                  <div onClick={() => { setScreen('roster'); setIsAddingAthlete(true); }} className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Users size={20} color="var(--color-text-muted)" />
+                  <div onClick={() => setScreen('alerts')} className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <AlertTriangle size={20} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase' }}>Add an Athlete</span>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Name, Sport, Pos</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase' }}>Risk Alerts</span>
+                      <span style={{ fontSize: '12px', color: 'var(--status-error)', fontWeight: 600 }}>Dehydration & Sleep</span>
                     </div>
                   </div>
                 </div>
@@ -639,6 +640,52 @@ export default function App() {
                     <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>Saved successfully to database</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {screen === 'alerts' && (
+              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.1em', marginBottom: '4px' }}>TRAINING SAFETY &middot; RISK ALERTS</div>
+                  <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>ATHLETE RECOVERY ALERTS</h1>
+                  <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>Automated flags for rapid mass loss (&gt;2%) and low sleep (&lt;6.5h)</div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Alert Card 1 */}
+                  <div className="card-glass" style={{ padding: '20px', borderLeft: '4px solid var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <AlertTriangle size={22} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>JAYLEN CARTER</span>
+                          <span style={{ fontSize: '10px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--status-error)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>DEHYDRATION RISK</span>
+                        </div>
+                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Football &middot; Wide Receiver &middot; -4.5 lbs drop (-2.3% body mass)</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--color-accent)', fontWeight: 700 }}>INCREASE HYDRATION</span>
+                  </div>
+
+                  {/* Alert Card 2 */}
+                  <div className="card-glass" style={{ padding: '20px', borderLeft: '4px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Activity size={22} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>MICAH REEVES</span>
+                          <span style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>LOW SLEEP</span>
+                        </div>
+                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Football &middot; Linebacker &middot; 5.5 hrs sleep logged</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>MONITOR CNS LOAD</span>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -840,6 +887,7 @@ export default function App() {
         <div className="bottom-nav">
           {navItem('dashboard', <Users size={22} />, 'Home')}
           {navItem('entry', <Plus size={22} />, 'Log')}
+          {navItem('alerts', <AlertTriangle size={22} />, 'Alerts')}
           {navItem('roster', <Shield size={22} />, 'Roster')}
         </div>
       )}
