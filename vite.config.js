@@ -8,16 +8,27 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['logo1.png', 'logo2.png', 'favicon.svg'],
       manifest: {
-        name: 'Shiloh Athletics Tracker',
-        short_name: 'Shiloh Tracker',
-        description: 'Record body weights for athletes.',
+        name: 'HPD APP',
+        short_name: 'HPD APP',
+        description: 'High Performance Development & Athletic Weight Tracker.',
         theme_color: '#030e20',
         background_color: '#030e20',
         display: 'standalone',
         orientation: 'portrait',
-        icons: []
+        icons: [
+          {
+            src: '/logo1.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/logo1.png',
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
       }
     })
   ]
