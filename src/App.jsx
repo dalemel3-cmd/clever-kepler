@@ -51,7 +51,8 @@ export default function App() {
   // App State
   const [screen, setScreen] = useState('dashboard');
   const [search, setSearch] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('ALL');
+  const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
   const [athletes, setAthletes] = useState([]);
   const [isKioskMode, setIsKioskMode] = useState(false);
   
@@ -121,7 +122,6 @@ export default function App() {
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId);
   const sportsList = Array.from(new Set(athletes.map(a => a.sport).filter(Boolean)));
   const teamsList = Array.from(new Set(athletes.map(a => a.team).filter(Boolean)));
-  const allFilters = ['ALL', ...sportsList, ...teamsList];
 
   const filteredAthletes = athletes.filter(a => {
     const q = search.toLowerCase();
@@ -131,11 +131,10 @@ export default function App() {
       (a.team && a.team.toLowerCase().includes(q)) ||
       (a.position && a.position.toLowerCase().includes(q));
 
-    const matchesFilter = selectedFilter === 'ALL' || 
-      a.sport === selectedFilter || 
-      a.team === selectedFilter;
+    const matchesSport = selectedSportFilter === 'ALL' || a.sport === selectedSportFilter;
+    const matchesTeam = selectedTeamFilter === 'ALL' || a.team === selectedTeamFilter;
 
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesSport && matchesTeam;
   });
 
   const handleSave = async () => {
@@ -520,28 +519,31 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Filter Chips / Tabs */}
-                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                  {allFilters.map(filter => (
-                    <button
-                      key={filter}
-                      onClick={() => setSelectedFilter(filter)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '20px',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        background: selectedFilter === filter ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
-                        color: selectedFilter === filter ? 'var(--navy-950)' : 'var(--color-text)',
-                        border: selectedFilter === filter ? 'none' : '1px solid var(--color-border)',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {filter.toUpperCase()}
-                    </button>
-                  ))}
+                {/* Drop-down Menus for Sport and Team/Grade */}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <select
+                    value={selectedSportFilter}
+                    onChange={e => setSelectedSportFilter(e.target.value)}
+                    className="input-glass"
+                    style={{ flex: 1, height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                  >
+                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL SPORTS</option>
+                    {sportsList.map(sport => (
+                      <option key={sport} value={sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{sport.toUpperCase()}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedTeamFilter}
+                    onChange={e => setSelectedTeamFilter(e.target.value)}
+                    className="input-glass"
+                    style={{ flex: 1, height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                  >
+                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL TEAMS / GRADES</option>
+                    {teamsList.map(team => (
+                      <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
+                    ))}
+                  </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {filteredAthletes.map(a => (
