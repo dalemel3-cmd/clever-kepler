@@ -2,78 +2,54 @@
 
 :root {
   /* Colors */
-  --navy-950: #030e20;
+  --navy-950: #030a14;
   --navy-900: #061c41; /* primary */
   --navy-800: #08295c;
   --navy-700: #0d3b84;
   --navy-600: #1551ad;
   --navy-500: #296cd1;
-  --navy-100: #e6f0ff;
-  --navy-50: #f2f7ff;
-
+  
   --gold-900: #5c4e2e;
   --gold-700: #8a7545;
   --gold-500: #b89c5b; /* accent */
   --gold-300: #d1b87a;
-  --gold-100: #ebe1c5;
-  --gold-50: #f5f0e3;
-
+  
   --neutral-900: #0f1217;
-  --neutral-700: #424956;
+  --neutral-700: #2a313d;
   --neutral-500: #7a8291;
   --neutral-300: #bcc1ca;
-  --neutral-200: #d6d9de;
-  --neutral-100: #ebedef;
-  --neutral-50: #f4f5f6;
   
   --white: #ffffff;
   
   /* Semantic Aliases */
-  --color-primary: var(--navy-900);
-  --color-primary-hover: var(--navy-800);
-  --color-accent: var(--gold-500);
-  --color-accent-soft: var(--gold-50);
-  --color-bg-sunken: var(--navy-950); /* Dark mode base */
-  --color-surface: var(--navy-900); /* Dark mode card */
+  --color-bg-sunken: var(--navy-950);
+  --color-surface: #0a1120;
+  --color-surface-hover: var(--navy-900);
   --color-border: var(--neutral-700);
-  --color-border-strong: var(--neutral-500);
+  --color-accent: var(--gold-500);
   --color-text: var(--white);
   --color-text-muted: var(--neutral-300);
 
   /* Status */
   --status-success: #34d399;
-  --status-success-bg: rgba(52, 211, 153, 0.1);
-  --status-warning: #fbbf24;
-  --status-warning-bg: rgba(251, 191, 36, 0.1);
-  --status-danger: #f87171;
-  --status-danger-bg: rgba(248, 113, 113, 0.1);
+  --status-error: #f87171;
 
   /* Typography */
   --font-display: 'Oswald', sans-serif;
   --font-body: 'Manrope', sans-serif;
-  --text-xs: 12px;
-  --text-sm: 14px;
-  --text-md: 16px;
-  --text-lg: 19px;
-  --text-xl: 23px;
-  --text-2xl: 29px;
-  --text-3xl: 37px;
-  --text-4xl: 48px;
-  --tracking-display: 0.02em;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
+  --text-3xl: 42px;
 
-  /* Spacing & Radii */
+  /* Radii & Shadows */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
-  --radius-xl: 18px;
-  --radius-pill: 9999px;
-  --shadow-md: 0 4px 12px rgba(6, 28, 65, 0.2);
-  --shadow-lg: 0 8px 24px rgba(6, 28, 65, 0.3);
-  
-  /* Durations */
-  --duration-fast: 120ms;
-  --duration-base: 180ms;
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --radius-xl: 16px;
 }
 
 body {
@@ -85,31 +61,122 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 0px;
+  height: 0px;
 }
 
-/* Base Utility Classes */
+/* Glass & Card Utilities */
 .card-glass {
-  background: rgba(6, 28, 65, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 .input-glass {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-border);
   color: var(--color-text);
   border-radius: var(--radius-md);
   outline: none;
-  transition: all var(--duration-fast) var(--ease-standard);
+  transition: all 0.2s;
 }
 .input-glass:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px rgba(184, 156, 91, 0.2);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.glow-card {
+  transition: all 0.2s ease;
+}
+.glow-card:hover {
+  border-color: rgba(184, 156, 91, 0.3);
+  box-shadow: 0 4px 20px rgba(184, 156, 91, 0.1);
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--navy-950);
+  border: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+.btn-primary:disabled {
+  background: var(--neutral-700);
+  color: var(--neutral-500);
+  cursor: not-allowed;
+}
+
+/* Layout Classes */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+}
+
+.sidebar {
+  display: none;
+}
+
+.bottom-nav {
+  display: flex;
+  flex: none;
+  height: 70px;
+  background: var(--navy-950);
+  border-top: 1px solid var(--color-border);
+  align-items: center;
+  justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-bg-sunken);
+}
+
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .app-layout {
+    flex-direction: row;
+  }
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 260px;
+    background: var(--navy-950);
+    border-right: 1px solid var(--color-border);
+    flex: none;
+  }
+  .bottom-nav {
+    display: none;
+  }
+  .scroll-area {
+    padding: 32px;
+  }
 }
 
 /* Animations */
@@ -117,16 +184,27 @@ body {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 .animate-slide-up {
-  animation: slideUpFade var(--duration-base) var(--ease-standard) forwards;
+  animation: slideUpFade 0.2s cubic-bezier(0.2, 0, 0, 1) forwards;
 }
 
-.glow-card {
-  transition: all var(--duration-fast) var(--ease-standard);
+/* Chart Bars */
+.chart-bar-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
-.glow-card:hover {
-  border-color: rgba(184, 156, 91, 0.4);
-  box-shadow: 0 0 15px rgba(184, 156, 91, 0.15);
-  transform: translateY(-1px);
+.chart-bar {
+  width: 100%;
+  max-width: 64px;
+  background: var(--color-accent);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s cubic-bezier(0.2, 0, 0, 1);
+}
+.chart-bar.empty {
+  height: 2px !important;
+  background: var(--navy-700);
 }
