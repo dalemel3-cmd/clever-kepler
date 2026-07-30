@@ -39,6 +39,10 @@ export default function App() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Roster State
+  const [isAddingAthlete, setIsAddingAthlete] = useState(false);
+  const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', position: '' });
+
   useEffect(() => {
     fetchAthletes();
   }, []);
@@ -108,6 +112,31 @@ export default function App() {
       setWeightInput('');
       setSleepInput('');
       setTimeout(() => setSaved(false), 3000);
+    }
+  };
+
+  const handleCreateAthlete = async () => {
+    if (!newAthlete.name) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('athletes')
+        .insert([newAthlete])
+        .select();
+        
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        setAthletes(prev => [...prev, data[0]]);
+      }
+      setIsAddingAthlete(false);
+      setNewAthlete({ name: '', sport: '', team: '', position: '' });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error("Error adding athlete:", err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -223,6 +252,67 @@ export default function App() {
               <div className="animate-slide-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--status-success)' }}>
                 <CheckCircle size={18} />
                 <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>Saved successfully to database</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {screen === 'roster' && (
+          <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {!isAddingAthlete ? (
+              <>
+                <button 
+                  onClick={() => setIsAddingAthlete(true)}
+                  style={{ height: '56px', background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <Plus size={20} /> Add New Athlete
+                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {athletes.map(a => (
+                    <div key={a.id} className="card-glass" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
+                        {a.name.split(' ').map(n=>n[0]).join('')}
+                      </div>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{a.name}</span>
+                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport} &middot; {a.team} &middot; {a.position}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="card-glass" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div onClick={() => setIsAddingAthlete(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
+                  <ChevronLeft size={16} /> Back to Roster
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Full Name</span>
+                  <input type="text" className="input-glass" placeholder="e.g. John Doe" value={newAthlete.name} onChange={e => setNewAthlete({...newAthlete, name: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Sport</span>
+                  <input type="text" className="input-glass" placeholder="e.g. Football" value={newAthlete.sport} onChange={e => setNewAthlete({...newAthlete, sport: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Team</span>
+                    <input type="text" className="input-glass" placeholder="e.g. Varsity" value={newAthlete.team} onChange={e => setNewAthlete({...newAthlete, team: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Position</span>
+                    <input type="text" className="input-glass" placeholder="e.g. WR" value={newAthlete.position} onChange={e => setNewAthlete({...newAthlete, position: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
+                  </div>
+                </div>
+
+                <button 
+                  onClick={handleCreateAthlete}
+                  disabled={!newAthlete.name || saving}
+                  style={{ height: '56px', background: (!newAthlete.name || saving) ? 'var(--neutral-700)' : 'var(--color-accent)', color: (!newAthlete.name || saving) ? 'var(--neutral-300)' : 'var(--navy-950)', border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: (!newAthlete.name || saving) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', marginTop: '8px' }}
+                >
+                  {saving ? 'Saving...' : 'Create Athlete'}
+                </button>
               </div>
             )}
           </div>
