@@ -1,26 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import './styles.css';
 
-// Custom Confetti Component
+// Premium Celebratory Confetti Component
 const Confetti = () => {
+  const particles = React.useMemo(() => {
+    const colors = ['#b89c5b', '#ffffff', '#061c41', '#e0c380', '#3b82f6'];
+    return Array.from({ length: 45 }).map((_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      size: Math.random() * 8 + 6,
+      color: colors[i % colors.length],
+      duration: Math.random() * 1.5 + 1.2,
+      delay: Math.random() * 0.4,
+      rotation: Math.random() * 360,
+      shape: i % 3 === 0 ? '50%' : '2px'
+    }));
+  }, []);
+
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 100 }}>
-      {[...Array(30)].map((_, i) => (
-        <div key={i} style={{
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 9999 }}>
+      {particles.map(p => (
+        <div key={p.id} style={{
           position: 'absolute',
-          width: '8px', height: '8px',
-          backgroundColor: i % 2 === 0 ? 'var(--color-accent)' : 'var(--white)',
-          top: '-10px',
-          left: `${Math.random() * 100}%`,
-          animation: `fall ${1 + Math.random() * 2}s linear forwards`,
-          animationDelay: `${Math.random() * 0.5}s`
+          width: `${p.size}px`,
+          height: `${p.size}px`,
+          backgroundColor: p.color,
+          borderRadius: p.shape,
+          top: '-20px',
+          left: `${p.left}%`,
+          boxShadow: `0 0 8px ${p.color}`,
+          animation: `confettiFall ${p.duration}s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
+          animationDelay: `${p.delay}s`,
+          transform: `rotate(${p.rotation}deg)`
         }} />
       ))}
       <style>{`
-        @keyframes fall {
-          to { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        @keyframes confettiFall {
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+          80% { opacity: 1; }
+          100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
         }
       `}</style>
     </div>
@@ -38,6 +58,7 @@ export default function App() {
   const [sleepInput, setSleepInput] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [todaySessions, setTodaySessions] = useState(0);
 
   // Roster State
   const [isAddingAthlete, setIsAddingAthlete] = useState(false);
@@ -103,6 +124,7 @@ export default function App() {
       // Success (or mock success if offline/bad keys)
       setSaving(false);
       setSaved(true);
+      setTodaySessions(prev => prev + 1);
       setWeightInput('');
       setSleepInput('');
       setTimeout(() => setSaved(false), 3000);
@@ -278,7 +300,7 @@ export default function App() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 600, color: 'var(--color-accent)' }}>0</span>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 600, color: 'var(--color-accent)' }}>{todaySessions}</span>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -353,14 +375,24 @@ export default function App() {
 
             {screen === 'entry' && !entryAthleteId && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <input 
-                  type="text" 
-                  className="input-glass"
-                  placeholder="Search athletes..." 
-                  value={search} 
-                  onChange={e => setSearch(e.target.value)}
-                  style={{ height: '56px', padding: '0 20px', fontSize: 'var(--text-md)' }}
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input 
+                    type="text" 
+                    className="input-glass"
+                    placeholder="Search athletes by name..." 
+                    value={search} 
+                    onChange={e => setSearch(e.target.value)}
+                    style={{ flex: 1, height: '56px', padding: '0 48px 0 20px', fontSize: 'var(--text-md)' }}
+                  />
+                  {search && (
+                    <button 
+                      onClick={() => setSearch('')}
+                      style={{ position: 'absolute', right: '16px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {filteredAthletes.map(a => (
                     <div key={a.id} onClick={() => setEntryAthleteId(a.id)} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
@@ -409,13 +441,34 @@ export default function App() {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
+                      <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>QUICK SELECT</span>
+                    </div>
                     <input 
                       type="number" inputMode="decimal"
                       value={sleepInput} onChange={e => setSleepInput(e.target.value)}
-                      placeholder="8"
+                      placeholder="8.0"
                       style={{ height: '56px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', padding: '0 16px', color: 'var(--color-text)', fontSize: 'var(--text-lg)', fontWeight: 600, outline: 'none' }}
                     />
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                      {['6.0', '7.0', '7.5', '8.0', '8.5', '9.0'].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setSleepInput(val)}
+                          style={{
+                            flex: 1, minWidth: '48px', height: '36px',
+                            background: sleepInput === val ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                            color: sleepInput === val ? 'var(--navy-950)' : 'var(--color-text)',
+                            border: '1px solid var(--color-border)', borderRadius: '6px',
+                            fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                          }}
+                        >
+                          {val}h
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -576,16 +629,19 @@ export default function App() {
                             </div>
                           </div>
                           
-                          <div style={{ height: '150px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', gap: '4px' }}>
+                          <div style={{ height: '180px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', gap: '6px', paddingTop: '20px' }}>
                             {profileData.length > 0 ? profileData.slice(-7).map((d, i) => {
                               const minWeight = Math.min(...profileData.slice(-7).map(x=>x.weight_lbs));
                               const maxWeight = Math.max(...profileData.slice(-7).map(x=>x.weight_lbs));
                               const range = maxWeight - minWeight || 1;
-                              const heightPct = 20 + ((d.weight_lbs - minWeight) / range) * 80;
+                              const heightPct = 25 + ((d.weight_lbs - minWeight) / range) * 75;
+                              const dateStr = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : `Entry ${i+1}`;
                               
                               return (
-                                <div key={i} className="chart-bar-container" style={{ flex: 1, alignItems: 'center' }}>
-                                  <div className="chart-bar" style={{ height: `${heightPct}%`, background: 'var(--color-accent)', width: '100%', maxWidth: '24px', opacity: i === profileData.slice(-7).length - 1 ? 1 : 0.6 }} />
+                                <div key={i} className="chart-bar-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', marginBottom: '4px' }}>{d.weight_lbs}</span>
+                                  <div className="chart-bar" style={{ height: `${heightPct}%`, background: 'var(--color-accent)', width: '100%', maxWidth: '24px', opacity: i === profileData.slice(-7).length - 1 ? 1 : 0.6, borderRadius: '4px 4px 0 0' }} />
+                                  <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--color-text-muted)', marginTop: '6px' }}>{dateStr}</span>
                                 </div>
                               )
                             }) : <div style={{ width: '100%', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px' }}>No data logged yet</div>}
@@ -601,12 +657,15 @@ export default function App() {
                             </div>
                           </div>
                           
-                          <div style={{ height: '150px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', gap: '4px' }}>
+                          <div style={{ height: '180px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', gap: '6px', paddingTop: '20px' }}>
                             {profileData.length > 0 ? profileData.slice(-7).map((d, i) => {
-                              const heightPct = Math.min(100, (d.sleep_hrs / 12) * 100);
+                              const heightPct = Math.min(100, Math.max(15, (d.sleep_hrs / 12) * 100));
+                              const dateStr = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : `Entry ${i+1}`;
                               return (
-                                <div key={i} className="chart-bar-container" style={{ flex: 1, alignItems: 'center' }}>
-                                  <div className="chart-bar" style={{ height: `${heightPct}%`, background: 'var(--color-text)', width: '100%', maxWidth: '24px', opacity: i === profileData.slice(-7).length - 1 ? 1 : 0.3 }} />
+                                <div key={i} className="chart-bar-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text)', marginBottom: '4px' }}>{d.sleep_hrs}h</span>
+                                  <div className="chart-bar" style={{ height: `${heightPct}%`, background: 'var(--color-text)', width: '100%', maxWidth: '24px', opacity: i === profileData.slice(-7).length - 1 ? 1 : 0.4, borderRadius: '4px 4px 0 0' }} />
+                                  <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--color-text-muted)', marginTop: '6px' }}>{dateStr}</span>
                                 </div>
                               )
                             }) : <div style={{ width: '100%', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px' }}>No data logged yet</div>}
