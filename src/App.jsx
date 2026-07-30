@@ -41,6 +41,7 @@ export default function App() {
 
   // Roster State
   const [isAddingAthlete, setIsAddingAthlete] = useState(false);
+  const [editingAthleteId, setEditingAthleteId] = useState(null);
   const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', position: '' });
 
   useEffect(() => {
@@ -135,6 +136,63 @@ export default function App() {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Error adding athlete:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditClick = (athlete) => {
+    setEditingAthleteId(athlete.id);
+    setNewAthlete({ name: athlete.name, sport: athlete.sport, team: athlete.team, position: athlete.position });
+    setIsAddingAthlete(true);
+  };
+
+  const handleUpdateAthlete = async () => {
+    if (!newAthlete.name) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('athletes')
+        .update(newAthlete)
+        .eq('id', editingAthleteId)
+        .select();
+        
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        setAthletes(prev => prev.map(a => a.id === editingAthleteId ? data[0] : a));
+      }
+      setIsAddingAthlete(false);
+      setEditingAthleteId(null);
+      setNewAthlete({ name: '', sport: '', team: '', position: '' });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error("Error updating athlete:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteAthlete = async () => {
+    if (!window.confirm("Are you sure you want to delete this athlete?")) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .delete()
+        .eq('id', editingAthleteId);
+        
+      if (error) throw error;
+      
+      setAthletes(prev => prev.filter(a => a.id !== editingAthleteId));
+      setIsAddingAthlete(false);
+      setEditingAthleteId(null);
+      setNewAthlete({ name: '', sport: '', team: '', position: '' });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error("Error deleting athlete:", err);
     } finally {
       setSaving(false);
     }
@@ -262,14 +320,14 @@ export default function App() {
             {!isAddingAthlete ? (
               <>
                 <button 
-                  onClick={() => setIsAddingAthlete(true)}
+                  onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', position: '' }); }}
                   style={{ height: '56px', background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 >
                   <Plus size={20} /> Add New Athlete
                 </button>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {athletes.map(a => (
-                    <div key={a.id} className="card-glass" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px' }}>
+                    <div key={a.id} onClick={() => handleEditClick(a)} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', cursor: 'pointer' }}>
                       <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
                         {a.name.split(' ').map(n=>n[0]).join('')}
                       </div>
@@ -306,13 +364,25 @@ export default function App() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={handleCreateAthlete}
-                  disabled={!newAthlete.name || saving}
-                  style={{ height: '56px', background: (!newAthlete.name || saving) ? 'var(--neutral-700)' : 'var(--color-accent)', color: (!newAthlete.name || saving) ? 'var(--neutral-300)' : 'var(--navy-950)', border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: (!newAthlete.name || saving) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', marginTop: '8px' }}
-                >
-                  {saving ? 'Saving...' : 'Create Athlete'}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                  <button 
+                    onClick={editingAthleteId ? handleUpdateAthlete : handleCreateAthlete}
+                    disabled={!newAthlete.name || saving}
+                    style={{ height: '56px', background: (!newAthlete.name || saving) ? 'var(--neutral-700)' : 'var(--color-accent)', color: (!newAthlete.name || saving) ? 'var(--neutral-300)' : 'var(--navy-950)', border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: (!newAthlete.name || saving) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                  >
+                    {saving ? 'Saving...' : (editingAthleteId ? 'Save Changes' : 'Create Athlete')}
+                  </button>
+
+                  {editingAthleteId && (
+                    <button 
+                      onClick={handleDeleteAthlete}
+                      disabled={saving}
+                      style={{ height: '56px', background: 'transparent', color: 'var(--status-error)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                    >
+                      Delete Athlete
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
