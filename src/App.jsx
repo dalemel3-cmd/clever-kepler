@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import './styles.css';
 
@@ -48,9 +48,11 @@ const Confetti = () => {
 };
 
 export default function App() {
+  // App State
   const [screen, setScreen] = useState('dashboard');
   const [search, setSearch] = useState('');
   const [athletes, setAthletes] = useState([]);
+  const [isKioskMode, setIsKioskMode] = useState(false);
   
   // Entry State
   const [entryAthleteId, setEntryAthleteId] = useState(null);
@@ -69,7 +71,27 @@ export default function App() {
 
   useEffect(() => {
     fetchAthletes();
+
+    // Auto-sync offline cache when internet reconnects
+    const handleOnline = () => syncOfflineCache();
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
   }, []);
+
+  const syncOfflineCache = async () => {
+    const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+    if (offlineQueue.length === 0) return;
+
+    try {
+      const { error } = await supabase.from('weigh_ins').insert(offlineQueue);
+      if (!error) {
+        localStorage.removeItem('shiloh_offline_weigh_ins');
+        console.log("Successfully synced offline queue to Supabase!");
+      }
+    } catch {
+      console.warn("Could not sync offline queue yet.");
+    }
+  };
 
   const fetchAthletes = async () => {
     // We try to fetch from Supabase. If the keys are invalid, we fallback to mock data
@@ -102,41 +124,92 @@ export default function App() {
     if (!selectedAthlete || !weightInput) return;
     
     setSaving(true);
-    
+    const record = { 
+      athlete_id: selectedAthlete.id, 
+      athlete_name: selectedAthlete.name,
+      sport: selectedAthlete.sport,
+      weight_lbs: parseFloat(weightInput),
+      sleep_hrs: parseFloat(sleepInput || 0),
+      created_at: new Date().toISOString()
+    };
+
+    // 1. FAIL-SAFE: Always save to LocalStorage immediately
     try {
-      // Try to save to Supabase
-      const { error } = await supabase
-        .from('weigh_ins')
-        .insert([
-          { 
-            athlete_id: selectedAthlete.id, 
-            athlete_name: selectedAthlete.name,
-            sport: selectedAthlete.sport,
-            weight_lbs: parseFloat(weightInput),
-            sleep_hrs: parseFloat(sleepInput || 0)
-          }
-        ]);
-        
-      if (error && error.message !== 'FetchError: Failed to fetch') {
-        throw error; // If it's a real error, throw it
+      const existing = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+      existing.push(record);
+      localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(existing));
+    } catch (e) {
+      console.warn("LocalStorage warning:", e);
+    }
+
+    // 2. Attempt Supabase Background Sync
+    try {
+      const { error } = await supabase.from('weigh_ins').insert([record]);
+      if (!error) {
+        // If Supabase succeeds, sync/clear queue
+        syncOfflineCache();
       }
-      
-      // Success (or mock success if offline/bad keys)
-      setSaving(false);
-      setSaved(true);
-      setTodaySessions(prev => prev + 1);
-      setWeightInput('');
-      setSleepInput('');
-      setTimeout(() => setSaved(false), 3000);
-      
     } catch (err) {
-      console.error("Save error:", err);
-      // Fallback for demo purposes
-      setSaving(false);
-      setSaved(true);
-      setWeightInput('');
-      setSleepInput('');
+      console.warn("Supabase offline, record safely held in fail-safe storage:", err);
+    }
+      
+    // Success feedback
+    setSaving(false);
+    setSaved(true);
+    setTodaySessions(prev => prev + 1);
+    setWeightInput('');
+    setSleepInput('');
+
+    // KIOSK AUTO-RESET
+    if (isKioskMode) {
+      setTimeout(() => {
+        setSaved(false);
+        setEntryAthleteId(null);
+        setSearch('');
+      }, 2200);
+    } else {
       setTimeout(() => setSaved(false), 3000);
+    }
+  };
+
+  const exportToCSV = async () => {
+    try {
+      let dataToExport = [];
+      const { data, error } = await supabase.from('weigh_ins').select('*').order('created_at', { ascending: false });
+      
+      if (!error && data && data.length > 0) {
+        dataToExport = data;
+      } else {
+        // Fallback to local logs
+        const local = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+        dataToExport = local;
+      }
+
+      if (dataToExport.length === 0) {
+        alert("No weigh-in records found to export.");
+        return;
+      }
+
+      const headers = ['Athlete Name', 'Sport', 'Weight (lbs)', 'Sleep (hrs)', 'Date & Time'];
+      const rows = dataToExport.map(item => [
+        `"${item.athlete_name || ''}"`,
+        `"${item.sport || ''}"`,
+        item.weight_lbs || '',
+        item.sleep_hrs || '',
+        `"${item.created_at ? new Date(item.created_at).toLocaleString() : new Date().toLocaleString()}"`
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Shiloh_WeighIns_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      alert("Could not export CSV file.");
     }
   };
 
@@ -268,46 +341,70 @@ export default function App() {
     <div className="app-layout">
       {saved && <Confetti />}
       
-      {/* Sidebar (Desktop Only) */}
-      <div className="sidebar">
-        <div style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <img src="/logo1.png" alt="Shiloh Logo" style={{ width: '100%', objectFit: 'contain' }} />
-        </div>
-        <div style={{ padding: '0 24px 16px', fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>WORKSPACE</div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
-          {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
-          {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
-        </div>
-        <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 700 }}>CM</div>
+      {/* Sidebar (Desktop Only - Hidden in Kiosk Mode) */}
+      {!isKioskMode && (
+        <div className="sidebar">
+          <div style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <img src="/logo1.png" alt="Shiloh Logo" style={{ width: '100%', objectFit: 'contain' }} />
+          </div>
+          <div style={{ padding: '0 24px 16px', fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>WORKSPACE</div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700 }}>COACH MASON</span>
-            <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>Shiloh Athletics</span>
+            {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
+            {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
+            {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
+          </div>
+          <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 700 }}>CM</div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700 }}>COACH MASON</span>
+              <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>Shiloh Athletics</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
       <div className="main-content">
         
         {/* Top Header */}
         <div style={{ flex: 'none', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div style={{ display: 'flex', gap: '32px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Athletes</span>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 600 }}>{athletes.length}</span>
+          {isKioskMode ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em' }}>WEIGHT ROOM KIOSK MODE</span>
+                <span style={{ fontSize: '10px', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--status-success)', padding: '4px 8px', borderRadius: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Wifi size={12} /> FAIL-SAFE ACTIVE
+                </span>
+              </div>
+              <button 
+                onClick={() => setIsKioskMode(false)}
+                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Unlock size={14} /> EXIT KIOSK
+              </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 600, color: 'var(--color-accent)' }}>{todaySessions}</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-            </span>
-          </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: '32px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Athletes</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 600 }}>{athletes.length}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 600, color: 'var(--color-accent)' }}>{todaySessions}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <button onClick={exportToCSV} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Download size={14} /> EXPORT CSV
+                </button>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Scroll Area */}
@@ -324,7 +421,7 @@ export default function App() {
 
                 {/* Action Cards */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-                  <div onClick={() => setScreen('entry')} className="card-glass glow-card" style={{ flex: '1 1 300px', padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: 'var(--color-accent)' }}>
+                  <div onClick={() => setScreen('entry')} className="card-glass glow-card" style={{ flex: '1 1 250px', padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: 'var(--color-accent)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'var(--navy-950)', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Plus size={20} />
@@ -335,6 +432,16 @@ export default function App() {
                       </div>
                     </div>
                     <ChevronLeft size={20} style={{ color: 'var(--navy-950)', transform: 'rotate(180deg)' }} />
+                  </div>
+
+                  <div onClick={() => { setIsKioskMode(true); setScreen('entry'); }} className="card-glass glow-card" style={{ flex: '1 1 250px', padding: '24px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', border: '1px solid var(--color-accent)' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(184, 156, 91, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
+                      <Lock size={20} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-accent)' }}>iPad Kiosk Mode</span>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Auto-reset for weight room</span>
+                    </div>
                   </div>
                   
                   <div onClick={() => { setScreen('roster'); setIsAddingAthlete(true); }} className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' }}>
@@ -683,12 +790,14 @@ export default function App() {
 
       </div>
 
-      {/* Bottom Nav (Mobile Only) */}
-      <div className="bottom-nav">
-        {navItem('dashboard', <Users size={22} />, 'Home')}
-        {navItem('entry', <Plus size={22} />, 'Log')}
-        {navItem('roster', <Shield size={22} />, 'Roster')}
-      </div>
+      {/* Bottom Nav (Mobile Only - Hidden in Kiosk Mode) */}
+      {!isKioskMode && (
+        <div className="bottom-nav">
+          {navItem('dashboard', <Users size={22} />, 'Home')}
+          {navItem('entry', <Plus size={22} />, 'Log')}
+          {navItem('roster', <Shield size={22} />, 'Roster')}
+        </div>
+      )}
     </div>
   );
 }
