@@ -156,11 +156,17 @@ export default function App() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (event) => {
-      const text = event.target.result;
-      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      // Remove BOM if present, and handle all types of line endings
+      let text = event.target.result;
+      if (text.charCodeAt(0) === 0xFEFF) {
+        text = text.slice(1);
+      }
+      
+      const lines = text.split(/\r\n|\r|\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) return alert("CSV appears empty or missing headers.");
       
-      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+      // Strip quotes and spaces from headers
+      const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/^"|"$/g, ''));
       const nameIdx = headers.indexOf('athlete');
       const sportIdx = headers.indexOf('sport');
       const gradeIdx = headers.indexOf('grade');
