@@ -462,7 +462,12 @@ export default function App() {
       {!isKioskMode && (
         <div className="sidebar">
           <div style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <img src="/logo1.png" alt="Shiloh Logo" style={{ width: '100%', objectFit: 'contain' }} />
+            <img 
+              src="/logo1.png" 
+              alt="Shiloh Logo" 
+              style={{ width: '100%', objectFit: 'contain', cursor: 'pointer' }} 
+              onClick={() => { setScreen('dashboard'); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+            />
           </div>
           <div style={{ padding: '0 24px 16px', fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>WORKSPACE</div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
