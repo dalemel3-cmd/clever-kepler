@@ -289,7 +289,7 @@ export default function App() {
   const handleDeleteAllWeighIns = async () => {
     if (!window.confirm("WARNING: Are you sure you want to wipe ALL weigh-in data? This cannot be undone.")) return;
     try {
-      const { error } = await supabase.from('weigh_ins').delete().neq('id', 0);
+      const { error } = await supabase.from('weigh_ins').delete().not('id', 'is', null);
       if (error) throw error;
       fetchReportData();
     } catch (err) {
