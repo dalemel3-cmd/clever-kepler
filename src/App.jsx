@@ -199,6 +199,18 @@ export default function App() {
     e.target.value = null; // Reset input
   };
 
+  const handleDownloadTemplate = () => {
+    const csvContent = "Athlete,Sport,Grade\nJohn Doe,Football,Varsity\nJane Smith,Basketball,JV";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'Roster_Upload_Template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const setMockAthletes = () => {
     setAthletes([
       { id: '1', name: 'Jaylen Carter', sport: 'Football', team: 'Varsity', position: 'WR' },
@@ -1094,6 +1106,13 @@ export default function App() {
                           <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
                         ))}
                       </select>
+                      <button 
+                        onClick={handleDownloadTemplate}
+                        className="btn-primary no-print"
+                        style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--navy-800)', border: '1px solid var(--navy-600)' }}
+                      >
+                        <Download size={18} /> Template
+                      </button>
                       <label 
                         className="btn-primary"
                         style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'var(--navy-600)' }}
