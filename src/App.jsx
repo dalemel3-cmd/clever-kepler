@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2 } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import './styles.css';
 
@@ -138,11 +138,9 @@ export default function App() {
   };
 
   const fetchAthletes = async () => {
-    // We try to fetch from Supabase. If the keys are invalid, we fallback to mock data
     try {
-      const { data, error } = await supabase.from('athletes').select('*');
-      if (error) throw error;
-      if (data && data.length > 0) {
+      const { data, error } = await supabase.from('athletes').select('*').order('name', { ascending: true });
+      if (!error && data) {
         setAthletes(data);
       } else {
         setMockAthletes();
@@ -151,6 +149,54 @@ export default function App() {
       console.warn("Supabase fetch failed (likely placeholder keys). Falling back to mock data.");
       setMockAthletes();
     }
+  };
+
+  const handleCSVUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target.result;
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lines.length < 2) return alert("CSV appears empty or missing headers.");
+      
+      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+      const nameIdx = headers.indexOf('athlete');
+      const sportIdx = headers.indexOf('sport');
+      const gradeIdx = headers.indexOf('grade');
+      
+      if (nameIdx === -1 || sportIdx === -1 || gradeIdx === -1) {
+        return alert("CSV must have headers exactly matching: Athlete, Sport, Grade");
+      }
+
+      const athletesToInsert = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        if (cols.length > Math.max(nameIdx, sportIdx, gradeIdx) && cols[nameIdx]) {
+          athletesToInsert.push({
+            name: cols[nameIdx],
+            sport: cols[sportIdx],
+            team: cols[gradeIdx],
+            position: '',
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+
+      if (athletesToInsert.length === 0) return alert("No valid athletes found in CSV.");
+
+      try {
+        const { error } = await supabase.from('athletes').insert(athletesToInsert);
+        if (error) throw error;
+        alert(`Successfully uploaded ${athletesToInsert.length} athletes!`);
+        fetchAthletes();
+      } catch (err) {
+        console.error("CSV Upload Error:", err);
+        alert("Failed to upload athletes to database.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; // Reset input
   };
 
   const setMockAthletes = () => {
@@ -1048,6 +1094,19 @@ export default function App() {
                           <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
                         ))}
                       </select>
+                      </select>
+                      <label 
+                        className="btn-primary"
+                        style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'var(--navy-600)' }}
+                      >
+                        <Upload size={18} /> Upload CSV
+                        <input 
+                          type="file" 
+                          accept=".csv" 
+                          style={{ display: 'none' }} 
+                          onChange={handleCSVUpload}
+                        />
+                      </label>
                       <button 
                         onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', position: '' }); }}
                         className="btn-primary"
