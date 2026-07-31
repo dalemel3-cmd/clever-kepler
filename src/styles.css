@@ -208,3 +208,17 @@ body {
   height: 2px !important;
   background: var(--navy-700);
 }
+
+
+/* Print Styles */
+@media print {
+  body, .app-layout, .main-content, .scroll-area { background: white !important; color: black !important; }
+  .sidebar, .bottom-nav, .no-print, [style*='height: 70px'] { display: none !important; }
+  .card-glass { background: transparent !important; border: 1px solid #ccc !important; box-shadow: none !important; color: black !important; }
+  .report-container { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+  table, th, td { border: 1px solid #ccc !important; color: black !important; }
+  th { background: #f0f0f0 !important; }
+  .status-error { color: #dc2626 !important; }
+  * { color: black !important; }
+}
+

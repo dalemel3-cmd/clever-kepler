@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import './styles.css';
 
@@ -64,6 +64,10 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [todaySessions, setTodaySessions] = useState(0);
 
+  // Reports State
+  const [reportData, setReportData] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
+
   // Roster State
   const [isAddingAthlete, setIsAddingAthlete] = useState(false);
   const [editingAthleteId, setEditingAthleteId] = useState(null);
@@ -79,6 +83,26 @@ export default function App() {
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
   }, []);
+
+  useEffect(() => {
+    if (screen === 'reports') {
+      fetchReportData();
+    }
+  }, [screen]);
+
+  const fetchReportData = async () => {
+    setReportLoading(true);
+    try {
+      const { data, error } = await supabase.from('weigh_ins').select('*').order('created_at', { ascending: false });
+      if (!error && data) {
+        setReportData(data);
+      }
+    } catch {
+      console.warn("Could not fetch report data");
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   const syncOfflineCache = async () => {
     const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
@@ -370,6 +394,7 @@ export default function App() {
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS')}
+            {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
           </div>
           <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 700 }}>CM</div>
@@ -689,6 +714,82 @@ export default function App() {
               </div>
             )}
 
+            {screen === 'reports' && (
+              <div className="animate-slide-up report-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>ANALYTICS &middot; HUMAN PERFORMANCE</div>
+                    <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>TEAM READINESS REPORT</h1>
+                    <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>Aggregate sleep and weight data across all athletes.</div>
+                  </div>
+                  <button 
+                    onClick={() => window.print()}
+                    className="btn-primary no-print"
+                    style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}
+                  >
+                    <Printer size={16} /> Export to PDF
+                  </button>
+                </div>
+
+                {reportLoading ? (
+                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading report data...</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                      <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>TOTAL LOGS (ALL TIME)</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>{reportData.length}</span>
+                      </div>
+                      <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>TEAM AVG SLEEP</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>
+                          {reportData.length > 0 ? (reportData.reduce((acc, curr) => acc + (curr.sleep_hrs || 0), 0) / reportData.filter(r => r.sleep_hrs).length).toFixed(1) : '0.0'} hrs
+                        </span>
+                      </div>
+                      <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', flexDirection: 'column', border: '1px solid var(--status-error)' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.05em' }}>CRITICAL ALERTS (&lt;6.5h SLEEP)</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700, color: 'var(--status-error)' }}>
+                          {reportData.filter(r => r.sleep_hrs && r.sleep_hrs < 6.5).length}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="card-glass" style={{ overflow: 'hidden' }}>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)' }}>
+                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>ATHLETE</th>
+                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>SPORT / TEAM</th>
+                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST WEIGHT</th>
+                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST SLEEP</th>
+                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LOG DATE</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* We just show the latest 20 logs for simplicity, or we could group by athlete. For a simple report, a chronological log is great, or grouped. Let's show recent logs. */}
+                            {reportData.slice(0, 50).map(log => (
+                              <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
+                                <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
+                                <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>{log.weight_lbs} lbs</td>
+                                <td style={{ padding: '16px', fontWeight: 700, color: log.sleep_hrs < 6.5 ? 'var(--status-error)' : 'var(--color-text)' }}>
+                                  {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
+                                </td>
+                                <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                                  {new Date(log.created_at).toLocaleDateString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {screen === 'roster' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {!isAddingAthlete && !selectedProfileId && (
@@ -889,6 +990,7 @@ export default function App() {
           {navItem('entry', <Plus size={22} />, 'Log')}
           {navItem('alerts', <AlertTriangle size={22} />, 'Alerts')}
           {navItem('roster', <Shield size={22} />, 'Roster')}
+          {navItem('reports', <FileText size={22} />, 'Reports')}
         </div>
       )}
     </div>
