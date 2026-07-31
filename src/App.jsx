@@ -329,9 +329,12 @@ export default function App() {
   };
 
   const handleDeleteAthlete = async () => {
-    if (!window.confirm("Are you sure you want to delete this athlete?")) return;
+    if (!window.confirm("Are you sure you want to delete this athlete and all their records?")) return;
     setSaving(true);
     try {
+      // Delete associated weigh-ins first to prevent foreign key constraint errors
+      await supabase.from('weigh_ins').delete().eq('athlete_id', editingAthleteId);
+
       const { error } = await supabase
         .from('athletes')
         .delete()
@@ -347,9 +350,21 @@ export default function App() {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Error deleting athlete:", err);
+      alert("Could not delete athlete: " + err.message);
     } finally {
       setSaving(false);
     }
+  };
+
+  const getLast7Days = () => {
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      result.push(days[d.getDay()]);
+    }
+    return result;
   };
 
   const renderSidebarItem = (key, icon, label) => {
@@ -506,7 +521,7 @@ export default function App() {
                   </div>
                   
                   <div style={{ height: '200px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border)', gap: '4px' }}>
-                    {['THU', 'FRI', 'SAT', 'SUN', 'MON', 'TUE', 'WED'].map((day, i) => {
+                    {getLast7Days().map((day, i) => {
                       const height = i === 6 ? '140px' : (i === 4 ? '10px' : '2px');
                       const isActive = i === 6;
                       const val = i === 6 ? '12' : (i === 4 ? '1' : '');
