@@ -1094,7 +1094,6 @@ export default function App() {
                           <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
                         ))}
                       </select>
-                      </select>
                       <label 
                         className="btn-primary"
                         style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'var(--navy-600)' }}
