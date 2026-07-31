@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import './styles.css';
 
@@ -49,7 +49,15 @@ const Confetti = () => {
 
 export default function App() {
   // App State
-  const [screen, setScreen] = useState('dashboard');
+  const [screen, setScreenState] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return hash || 'dashboard';
+  });
+
+  const setScreen = (newScreen) => {
+    setScreenState(newScreen);
+    window.location.hash = newScreen;
+  };
   const [search, setSearch] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
@@ -81,10 +89,19 @@ export default function App() {
   useEffect(() => {
     fetchAthletes();
 
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      setScreenState(hash || 'dashboard');
+    };
+    window.addEventListener('hashchange', handleHashChange);
+
     // Auto-sync offline cache when internet reconnects
     const handleOnline = () => syncOfflineCache();
     window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, []);
 
   useEffect(() => {
