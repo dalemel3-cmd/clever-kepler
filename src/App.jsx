@@ -251,8 +251,33 @@ export default function App() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch {
-      alert("Could not export CSV file.");
+    } catch (err) {
+      console.error("Export error:", err);
+      alert("Failed to export CSV.");
+    }
+  };
+
+  const handleDeleteWeighIn = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this weigh-in record?")) return;
+    try {
+      const { error } = await supabase.from('weigh_ins').delete().eq('id', id);
+      if (error) throw error;
+      fetchReportData();
+    } catch (err) {
+      console.error("Could not delete weigh in:", err);
+      alert("Failed to delete record.");
+    }
+  };
+
+  const handleDeleteAllWeighIns = async () => {
+    if (!window.confirm("WARNING: Are you sure you want to wipe ALL weigh-in data? This cannot be undone.")) return;
+    try {
+      const { error } = await supabase.from('weigh_ins').delete().neq('id', 0);
+      if (error) throw error;
+      fetchReportData();
+    } catch (err) {
+      console.error("Could not delete all:", err);
+      alert("Failed to wipe data.");
     }
   };
 
@@ -878,13 +903,22 @@ export default function App() {
                     <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>TEAM READINESS REPORT</h1>
                     <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>Aggregate sleep and weight data across all athletes.</div>
                   </div>
-                  <button 
-                    onClick={() => window.print()}
-                    className="btn-primary no-print"
-                    style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}
-                  >
-                    <Printer size={16} /> Export to PDF
-                  </button>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button 
+                      onClick={handleDeleteAllWeighIns}
+                      className="no-print"
+                      style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-error)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      <Trash2 size={16} /> Clear All Data
+                    </button>
+                    <button 
+                      onClick={() => window.print()}
+                      className="btn-primary no-print"
+                      style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}
+                    >
+                      <Printer size={16} /> Export to PDF
+                    </button>
+                  </div>
                 </div>
 
                 {reportLoading ? (
@@ -920,6 +954,7 @@ export default function App() {
                               <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST WEIGHT</th>
                               <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST SLEEP</th>
                               <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LOG DATE</th>
+                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', width: '60px' }}></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -934,6 +969,11 @@ export default function App() {
                                 </td>
                                 <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
                                   {new Date(log.created_at).toLocaleDateString()}
+                                </td>
+                                <td style={{ padding: '16px', textAlign: 'center' }}>
+                                  <button onClick={() => handleDeleteWeighIn(log.id)} className="no-print" style={{ background: 'transparent', border: 'none', color: 'var(--status-error)', cursor: 'pointer', padding: '4px' }}>
+                                    <Trash2 size={16} />
+                                  </button>
                                 </td>
                               </tr>
                             ))}
