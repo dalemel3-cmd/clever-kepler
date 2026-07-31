@@ -74,6 +74,9 @@ export default function App() {
   const [selectedProfileId, setSelectedProfileId] = useState(null);
   const [profileData, setProfileData] = useState([]);
   const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', position: '' });
+  
+  // Alerts State
+  const [alertsTab, setAlertsTab] = useState('DAILY');
 
   useEffect(() => {
     fetchAthletes();
@@ -85,10 +88,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (screen === 'reports') {
-      fetchReportData();
-    }
-  }, [screen]);
+    fetchReportData();
+  }, []);
 
   const fetchReportData = async () => {
     setReportLoading(true);
@@ -164,6 +165,13 @@ export default function App() {
   const handleSave = async () => {
     if (!selectedAthlete || !weightInput) return;
     
+    const todayStr = new Date().toISOString().slice(0,10);
+    const existingRecord = reportData.find(r => r.athlete_id === selectedAthlete.id && r.created_at.startsWith(todayStr));
+    
+    if (existingRecord) {
+      if (!window.confirm("A record already exists for today. Do you want to override it?")) return;
+    }
+    
     setSaving(true);
     const record = { 
       athlete_id: selectedAthlete.id, 
@@ -174,43 +182,37 @@ export default function App() {
       created_at: new Date().toISOString()
     };
 
-    // 1. FAIL-SAFE: Always save to LocalStorage immediately
     try {
-      const existing = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
-      existing.push(record);
-      localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(existing));
-    } catch (e) {
-      console.warn("LocalStorage warning:", e);
-    }
-
-    // 2. Attempt Supabase Background Sync
-    try {
-      const { error } = await supabase.from('weigh_ins').insert([record]);
-      if (!error) {
-        // If Supabase succeeds, sync/clear queue
-        syncOfflineCache();
+      if (existingRecord) {
+        const { error } = await supabase.from('weigh_ins').update(record).eq('id', existingRecord.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('weigh_ins').insert([record]);
+        if (error) throw error;
       }
+      
+      // Update local data immediately
+      fetchReportData();
+      syncOfflineCache();
     } catch (err) {
-      console.warn("Supabase offline, record safely held in fail-safe storage:", err);
+      console.warn("Supabase offline, saving locally:", err);
+      try {
+        const existing = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+        existing.push(record);
+        localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(existing));
+      } catch (e) {
+        console.warn("LocalStorage warning:", e);
+      }
     }
       
-    // Success feedback
+    // Instant Return
     setSaving(false);
-    setSaved(true);
+    setSaved(false); // No confetti
     setTodaySessions(prev => prev + 1);
     setWeightInput('');
     setSleepInput('');
-
-    // KIOSK AUTO-RESET
-    if (isKioskMode) {
-      setTimeout(() => {
-        setSaved(false);
-        setEntryAthleteId(null);
-        setSearch('');
-      }, 2200);
-    } else {
-      setTimeout(() => setSaved(false), 3000);
-    }
+    setEntryAthleteId(null);
+    setSearch('');
   };
 
   const exportToCSV = async () => {
@@ -356,13 +358,72 @@ export default function App() {
     }
   };
 
-  const getLast7Days = () => {
+  const getLast7DaysActivity = () => {
     const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const result = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
+      const d = new Date(today);
       d.setDate(d.getDate() - i);
-      result.push(days[d.getDay()]);
+      const dayStr = days[d.getDay()];
+      
+      // We compare based on local date string prefix if possible, 
+      // but since created_at is UTC in DB, let's just do a simple string match for now
+      // or properly check if date falls in that day
+      const startOfDay = new Date(d);
+      const endOfDay = new Date(d);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+      
+      const count = reportData.filter(r => {
+        const recordDate = new Date(r.created_at);
+        return recordDate >= startOfDay && recordDate < endOfDay;
+      }).length;
+      
+      result.push({ day: dayStr, count });
+    }
+    return result;
+  };
+
+  const getWeeklyAlerts = () => {
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const result = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dayStr = days[d.getDay()];
+      const startOfDay = new Date(d);
+      const endOfDay = new Date(d);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+      
+      const count = reportData.filter(r => {
+        const recordDate = new Date(r.created_at);
+        return recordDate >= startOfDay && recordDate < endOfDay && r.sleep_hrs < 6.5;
+      }).length;
+      result.push({ day: dayStr, count, date: startOfDay });
+    }
+    return result;
+  };
+
+  const getMonthlyAlerts = () => {
+    const result = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const startOfDay = new Date(d);
+      const endOfDay = new Date(d);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+      
+      const count = reportData.filter(r => {
+        const recordDate = new Date(r.created_at);
+        return recordDate >= startOfDay && recordDate < endOfDay && r.sleep_hrs < 6.5;
+      }).length;
+      result.push({ count, date: startOfDay });
     }
     return result;
   };
@@ -444,17 +505,16 @@ export default function App() {
           ) : (
             <>
               <div style={{ display: 'flex', gap: '32px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Athletes</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 600 }}>{athletes.length}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 600, color: 'var(--color-accent)' }}>{todaySessions}</span>
-                </div>
+                <button 
+                  onClick={() => { setIsKioskMode(true); setScreen('entry'); }}
+                  className="btn-primary no-print"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px' }}
+                >
+                  <Lock size={14} /> ACTIVATE KIOSK MODE
+                </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <button onClick={exportToCSV} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button onClick={exportToCSV} className="no-print" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Download size={14} /> EXPORT CSV
                 </button>
                 <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -491,14 +551,15 @@ export default function App() {
                     </div>
                     <ChevronLeft size={20} style={{ color: 'var(--navy-950)', transform: 'rotate(180deg)' }} />
                   </div>
-
-                  <div onClick={() => { setIsKioskMode(true); setScreen('entry'); }} className="card-glass glow-card" style={{ flex: '1 1 250px', padding: '24px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', border: '1px solid var(--color-accent)' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(184, 156, 91, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
-                      <Lock size={20} />
-                    </div>
+                  <div style={{ display: 'flex', gap: '32px', alignItems: 'center', justifyContent: 'flex-start' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-accent)' }}>iPad Kiosk Mode</span>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Auto-reset for weight room</span>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Athletes</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 600 }}>{athletes.length}</span>
+                    </div>
+                    <div style={{ width: '1px', height: '40px', background: 'var(--color-border)' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 600, color: 'var(--color-accent)' }}>{todaySessions}</span>
                     </div>
                   </div>
                   
@@ -521,15 +582,18 @@ export default function App() {
                   </div>
                   
                   <div style={{ height: '200px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border)', gap: '4px' }}>
-                    {getLast7Days().map((day, i) => {
-                      const height = i === 6 ? '140px' : (i === 4 ? '10px' : '2px');
+                    {getLast7DaysActivity().map((item, i) => {
+                      const activityData = getLast7DaysActivity();
+                      const maxCount = Math.max(...activityData.map(d => d.count), 1);
+                      const heightPx = Math.max((item.count / maxCount) * 140, 2);
+                      const height = `${heightPx}px`;
                       const isActive = i === 6;
-                      const val = i === 6 ? '12' : (i === 4 ? '1' : '');
+                      const val = item.count > 0 ? item.count.toString() : '';
                       return (
-                        <div key={day} className="chart-bar-container">
+                        <div key={i} className="chart-bar-container">
                           <span style={{ fontSize: '14px', fontFamily: 'var(--font-display)', fontWeight: 600, color: isActive ? 'var(--color-accent)' : 'var(--color-text)', minHeight: '20px' }}>{val}</span>
-                          <div className={`chart-bar ${height === '2px' ? 'empty' : ''}`} style={{ height, background: isActive ? 'var(--color-accent)' : 'var(--navy-600)' }} />
-                          <span style={{ fontSize: '10px', fontWeight: 700, color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)', marginTop: '8px' }}>{day}</span>
+                          <div className={`chart-bar ${item.count === 0 ? 'empty' : ''}`} style={{ height, background: isActive ? 'var(--color-accent)' : 'var(--navy-600)' }} />
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)', marginTop: '8px' }}>{item.day}</span>
                         </div>
                       );
                     })}
@@ -685,47 +749,119 @@ export default function App() {
 
             {screen === 'alerts' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.1em', marginBottom: '4px' }}>TRAINING SAFETY &middot; RISK ALERTS</div>
-                  <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>ATHLETE RECOVERY ALERTS</h1>
-                  <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>Automated flags for rapid mass loss (&gt;2%) and low sleep (&lt;6.5h)</div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {/* Alert Card 1 */}
-                  <div className="card-glass" style={{ padding: '20px', borderLeft: '4px solid var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <AlertTriangle size={22} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>JAYLEN CARTER</span>
-                          <span style={{ fontSize: '10px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--status-error)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>DEHYDRATION RISK</span>
-                        </div>
-                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Football &middot; Wide Receiver &middot; -4.5 lbs drop (-2.3% body mass)</span>
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '11px', color: 'var(--color-accent)', fontWeight: 700 }}>INCREASE HYDRATION</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.1em', marginBottom: '4px' }}>TRAINING SAFETY &middot; RISK ALERTS</div>
+                    <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>ATHLETE RECOVERY ALERTS</h1>
+                    <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>Automated flags for rapid mass loss (&gt;2%) and low sleep (&lt;6.5h)</div>
                   </div>
-
-                  {/* Alert Card 2 */}
-                  <div className="card-glass" style={{ padding: '20px', borderLeft: '4px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Activity size={22} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>MICAH REEVES</span>
-                          <span style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>LOW SLEEP</span>
-                        </div>
-                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Football &middot; Linebacker &middot; 5.5 hrs sleep logged</span>
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>MONITOR CNS LOAD</span>
+                  
+                  <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '4px' }}>
+                    {['DAILY', 'WEEKLY', 'MONTHLY'].map(tab => (
+                      <button 
+                        key={tab}
+                        onClick={() => setAlertsTab(tab)}
+                        style={{ 
+                          background: alertsTab === tab ? 'var(--color-accent)' : 'transparent', 
+                          color: alertsTab === tab ? 'var(--navy-950)' : 'var(--color-text-muted)', 
+                          border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                      >
+                        {tab}
+                      </button>
+                    ))}
                   </div>
                 </div>
+
+                {alertsTab === 'DAILY' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* Alert Card 1 */}
+                    <div className="card-glass" style={{ padding: '20px', borderLeft: '4px solid var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <AlertTriangle size={22} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>JAYLEN CARTER</span>
+                            <span style={{ fontSize: '10px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--status-error)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>DEHYDRATION RISK</span>
+                          </div>
+                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Football &middot; Wide Receiver &middot; -4.5 lbs drop (-2.3% body mass)</span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--color-accent)', fontWeight: 700 }}>INCREASE HYDRATION</span>
+                    </div>
+
+                    {/* Alert Card 2 */}
+                    <div className="card-glass" style={{ padding: '20px', borderLeft: '4px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Activity size={22} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>MICAH REEVES</span>
+                            <span style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>LOW SLEEP</span>
+                          </div>
+                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Football &middot; Linebacker &middot; 5.5 hrs sleep logged</span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>MONITOR CNS LOAD</span>
+                    </div>
+                  </div>
+                )}
+
+                {alertsTab === 'WEEKLY' && (
+                  <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Past 7 Days - Alert Volume</h3>
+                    <div style={{ height: '240px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '8px' }}>
+                      {getWeeklyAlerts().map((item, i) => {
+                        const maxCount = Math.max(...getWeeklyAlerts().map(d => d.count), 1);
+                        const heightPx = Math.max((item.count / maxCount) * 200, 4);
+                        return (
+                          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: item.count > 0 ? 'var(--status-error)' : 'var(--color-text-muted)' }}>{item.count}</span>
+                            <div style={{ width: '100%', maxWidth: '40px', height: `${heightPx}px`, background: item.count > 0 ? 'var(--status-error)' : 'var(--navy-600)', borderRadius: '4px' }} />
+                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)' }}>{item.day}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {alertsTab === 'MONTHLY' && (
+                  <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>30-Day Heat Map</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+                      {getMonthlyAlerts().map((item, i) => {
+                        let bgColor = 'var(--navy-600)'; // 0 alerts
+                        if (item.count > 0 && item.count <= 2) bgColor = 'rgba(245, 158, 11, 0.4)'; // Yellow
+                        if (item.count > 2) bgColor = 'rgba(239, 68, 68, 0.6)'; // Red
+                        
+                        return (
+                          <div key={i} style={{ 
+                            aspectRatio: '1', 
+                            background: bgColor, 
+                            borderRadius: '8px', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            flexDirection: 'column'
+                          }}>
+                            <span style={{ fontSize: '10px', color: 'var(--white)', opacity: 0.5 }}>{item.date.getDate()}</span>
+                            {item.count > 0 && <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--white)' }}>{item.count}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--color-text-muted)', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'var(--navy-600)', borderRadius: '2px' }}/> 0 Alerts</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'rgba(245, 158, 11, 0.4)', borderRadius: '2px' }}/> 1-2 Alerts</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'rgba(239, 68, 68, 0.6)', borderRadius: '2px' }}/> 3+ Alerts</div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -809,15 +945,58 @@ export default function App() {
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {!isAddingAthlete && !selectedProfileId && (
                   <>
-                    <button 
-                      onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', position: '' }); }}
-                      className="btn-primary"
-                      style={{ height: '56px', fontSize: '16px' }}
-                    >
-                      <Plus size={20} /> Add New Athlete
-                    </button>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div style={{ position: 'relative', flex: '1 1 200px', display: 'flex', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          className="input-glass"
+                          placeholder="Search roster..." 
+                          value={search} 
+                          onChange={e => setSearch(e.target.value)}
+                          style={{ flex: 1, height: '48px', padding: '0 40px 0 16px', fontSize: '14px' }}
+                        />
+                        {search && (
+                          <button 
+                            onClick={() => setSearch('')}
+                            style={{ position: 'absolute', right: '12px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
+                      <select
+                        value={selectedSportFilter}
+                        onChange={e => setSelectedSportFilter(e.target.value)}
+                        className="input-glass"
+                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                      >
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL SPORTS</option>
+                        {sportsList.map(sport => (
+                          <option key={sport} value={sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{sport.toUpperCase()}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedTeamFilter}
+                        onChange={e => setSelectedTeamFilter(e.target.value)}
+                        className="input-glass"
+                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                      >
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL GRADES / TEAMS</option>
+                        {teamsList.map(team => (
+                          <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
+                        ))}
+                      </select>
+                      <button 
+                        onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', position: '' }); }}
+                        className="btn-primary"
+                        style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
+                      >
+                        <Plus size={18} /> New Athlete
+                      </button>
+                    </div>
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {athletes.map(a => (
+                      {filteredAthletes.map(a => (
                         <div key={a.id} onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); }} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
                           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
                             {a.name.split(' ').map(n=>n[0]).join('')}
