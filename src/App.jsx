@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v2.2';
+const APP_VERSION = 'v2.3';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -1175,6 +1175,52 @@ export default function App() {
                           <option key={pos} value={pos} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{pos.toUpperCase()}</option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Sort Order Toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 2px', marginTop: '2px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                        {filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? 's' : ''} shown
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sort by:</span>
+                        <div style={{ display: 'flex', background: 'var(--navy-900)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '2px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setNameSortOrder('first')}
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: '16px',
+                              border: 'none',
+                              background: nameSortOrder === 'first' ? 'var(--color-accent)' : 'transparent',
+                              color: nameSortOrder === 'first' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            First Name
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNameSortOrder('last')}
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: '16px',
+                              border: 'none',
+                              background: nameSortOrder === 'last' ? 'var(--color-accent)' : 'transparent',
+                              color: nameSortOrder === 'last' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            Last Name
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Scrollable List of Athlete Cards */}
