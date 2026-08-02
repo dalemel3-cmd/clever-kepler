@@ -772,7 +772,6 @@ export default function App() {
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em' }}>HPD APP &middot; KIOSK MODE</span>
-                <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
                 <span style={{ fontSize: '10px', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--status-success)', padding: '4px 8px', borderRadius: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Wifi size={12} /> FAIL-SAFE ACTIVE
                 </span>
@@ -794,7 +793,6 @@ export default function App() {
                 >
                   <Lock size={14} /> ACTIVATE KIOSK MODE
                 </button>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '4px 10px', borderRadius: '6px' }}>{APP_VERSION}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <button onClick={exportToCSV} className="no-print" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -977,10 +975,10 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="card-glass" style={{ padding: '24px', display: 'flex', gap: '32px' }}>
+                <div className="card-glass" style={{ padding: '24px', display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
                   
                   {/* Left Column: Inputs */}
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div style={{ flex: '1 1 260px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1028,7 +1026,7 @@ export default function App() {
                   </div>
 
                   {/* Right Column: KioskNumpad */}
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ flex: '1 1 260px', display: 'flex', flexDirection: 'column' }}>
                     <KioskNumpad 
                       value={focusedField === 'weight' ? weightInput : sleepInput}
                       onChange={val => focusedField === 'weight' ? setWeightInput(val) : setSleepInput(val)}
