@@ -3982,13 +3982,13 @@ export default function App() {
             </div>
           </div>
 
-          {/* Glassmorphic Slide-Up "More" Tools & Analytics Sheet */}
+          {/* Glassmorphic Centered "More" Tools & Analytics Modal */}
           {showMobileMore && (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(3, 10, 20, 0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(3, 10, 20, 0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
                  onClick={() => setShowMobileMore(false)}>
               <div className="card-glass animate-slide-up" 
                    onClick={e => e.stopPropagation()} 
-                   style={{ width: '100%', maxWidth: '600px', padding: '24px 20px calc(28px + env(safe-area-inset-bottom, 0px))', background: 'var(--navy-950)', borderRadius: '24px 24px 0 0', border: '1px solid var(--color-accent)', borderBottom: 'none', boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(184, 156, 91, 0.15)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                   style={{ width: '100%', maxWidth: '540px', maxHeight: '88vh', overflowY: 'auto', padding: '28px', background: 'var(--navy-950)', borderRadius: '24px', border: '1px solid var(--color-accent)', boxShadow: '0 16px 48px rgba(0, 0, 0, 0.7), 0 0 24px rgba(184, 156, 91, 0.25)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
