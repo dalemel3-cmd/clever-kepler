@@ -2061,7 +2061,7 @@ export default function App() {
                           HOW TO INSTALL & DOWNLOAD APP
                         </h2>
                         <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                          Install HPD App as a native application on your iPhone, iPad, Android, or Laptop for 1-tap home screen access and offline support.
+                          Installs HPD App as a standalone native application (not a bookmark) with its own home screen icon, fullscreen view, and offline fail-safe cache.
                         </div>
                       </div>
                     </div>
