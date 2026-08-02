@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -115,6 +115,17 @@ export default function App() {
   // Reports State
   const [reportData, setReportData] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
+  const [reportMode, setReportMode] = useState('quick'); // 'quick' | 'custom'
+  const [reportSportFilter, setReportSportFilter] = useState('ALL');
+  const [reportTimeframe, setReportTimeframe] = useState('all'); // 'today' | '7d' | '30d' | 'all'
+  const [enabledMetrics, setEnabledMetrics] = useState({
+    teamSummary: true,
+    dehydration: true,
+    sleepDeficit: true,
+    expiredBaselines: true,
+    weightLeaderboard: true,
+    rawLogs: true
+  });
 
   // Roster State
   const [isAddingAthlete, setIsAddingAthlete] = useState(false);
@@ -1136,96 +1147,485 @@ export default function App() {
               </div>
             )}
 
-            {screen === 'reports' && (
-              <div className="animate-slide-up report-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>ANALYTICS &middot; HUMAN PERFORMANCE</div>
-                    <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>TEAM READINESS REPORT</h1>
-                    <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>Aggregate sleep and weight data across all athletes.</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button 
-                      onClick={handleDeleteAllWeighIns}
-                      className="no-print"
-                      style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-error)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-                    >
-                      <Trash2 size={16} /> Clear All Data
-                    </button>
-                    <button 
-                      onClick={() => window.print()}
-                      className="btn-primary no-print"
-                      style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}
-                    >
-                      <Printer size={16} /> Export to PDF
-                    </button>
-                  </div>
-                </div>
+            {screen === 'reports' && (() => {
+              // 1. Filter logs
+              let filteredLogs = [...reportData];
+              if (reportSportFilter !== 'ALL') {
+                filteredLogs = filteredLogs.filter(r => r.sport === reportSportFilter);
+              }
+              const now = new Date();
+              if (reportTimeframe === 'today') {
+                filteredLogs = filteredLogs.filter(r => {
+                  const rd = new Date(r.created_at);
+                  return rd.getFullYear() === now.getFullYear() && rd.getMonth() === now.getMonth() && rd.getDate() === now.getDate();
+                });
+              } else if (reportTimeframe === '7d') {
+                const cut = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                filteredLogs = filteredLogs.filter(r => new Date(r.created_at) >= cut);
+              } else if (reportTimeframe === '30d') {
+                const cut = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                filteredLogs = filteredLogs.filter(r => new Date(r.created_at) >= cut);
+              }
 
-                {reportLoading ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading report data...</div>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                      <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>TOTAL LOGS (ALL TIME)</span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>{reportData.length}</span>
+              // 2. Dehydration Roster (>=2% drop)
+              const dehydrationList = [];
+              filteredLogs.forEach(r => {
+                const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+                const idx = athleteRecords.findIndex(x => x.id === r.id);
+                if (idx > 0) {
+                  const prev = athleteRecords[idx - 1];
+                  if (prev && prev.weight_lbs && r.weight_lbs) {
+                    const drop = prev.weight_lbs - r.weight_lbs;
+                    const dropPercent = drop / prev.weight_lbs;
+                    if (dropPercent >= 0.02) {
+                      dehydrationList.push({
+                        id: r.id,
+                        athlete_name: r.athlete_name,
+                        sport: r.sport,
+                        prev_weight: prev.weight_lbs,
+                        curr_weight: r.weight_lbs,
+                        drop_lbs: drop,
+                        drop_percent: (dropPercent * 100).toFixed(1),
+                        date: new Date(r.created_at).toLocaleDateString()
+                      });
+                    }
+                  }
+                }
+              });
+
+              // 3. Sleep Deficit Roster (<6.5h)
+              const sleepDeficitList = filteredLogs.filter(r => r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5);
+
+              // 4. Expired Baselines (>14d Inactivity)
+              const filteredAthletes = reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter);
+              const expiredBaselinesList = [];
+              filteredAthletes.forEach(a => {
+                const aRecs = reportData.filter(r => r.athlete_id === a.id).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+                if (aRecs.length === 0) {
+                  expiredBaselinesList.push({ athlete_name: a.name, sport: a.sport, team: a.team, status: 'No Weight Log Yet' });
+                } else {
+                  const lastLog = aRecs[aRecs.length - 1];
+                  const gapDays = Math.floor((now - new Date(lastLog.created_at)) / (1000 * 60 * 60 * 24));
+                  if (gapDays >= 14) {
+                    expiredBaselinesList.push({ athlete_name: a.name, sport: a.sport, team: a.team, status: `${gapDays} Days Inactive`, last_date: new Date(lastLog.created_at).toLocaleDateString() });
+                  }
+                }
+              });
+
+              // 5. Weight Fluctuation Leaderboard
+              const gains = [];
+              filteredAthletes.forEach(a => {
+                const aRecs = reportData.filter(r => r.athlete_id === a.id).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+                if (aRecs.length >= 2) {
+                  const first = aRecs[0];
+                  const latest = aRecs[aRecs.length - 1];
+                  const diff = latest.weight_lbs - first.weight_lbs;
+                  gains.push({
+                    athlete_name: a.name,
+                    sport: a.sport,
+                    initial_weight: first.weight_lbs,
+                    latest_weight: latest.weight_lbs,
+                    diff
+                  });
+                }
+              });
+              const topGains = [...gains].sort((a,b) => b.diff - a.diff).slice(0, 5);
+              const topDrops = [...gains].sort((a,b) => a.diff - b.diff).slice(0, 5);
+
+              // Toggles
+              const showTeamSummary = reportMode === 'quick' || enabledMetrics.teamSummary;
+              const showDehydration = reportMode === 'quick' || enabledMetrics.dehydration;
+              const showSleepDeficit = reportMode === 'quick' || enabledMetrics.sleepDeficit;
+              const showExpiredBaselines = reportMode === 'quick' || enabledMetrics.expiredBaselines;
+              const showLeaderboard = reportMode === 'custom' && enabledMetrics.weightLeaderboard;
+              const showRawLogs = reportMode === 'custom' ? enabledMetrics.rawLogs : true;
+
+              const toggleMetric = (key) => {
+                setEnabledMetrics(prev => ({ ...prev, [key]: !prev[key] }));
+              };
+
+              return (
+                <div className="animate-slide-up report-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  {/* Title & Action Buttons Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>ANALYTICS &middot; HUMAN PERFORMANCE</div>
+                      <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                        {reportMode === 'quick' ? '⚡ QUICK PRIORITY READINESS REPORT' : '⚙️ CUSTOM METRIC PERFORMANCE REPORT'}
+                      </h1>
+                      <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                        {reportMode === 'quick' ? 'High-priority performance indicators (Dehydration risk, sleep deficits, baseline audits).' : 'Customized metric view tailored for coaching analysis.'}
                       </div>
-                      <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>TEAM AVG SLEEP</span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>
-                          {reportData.length > 0 ? (reportData.reduce((acc, curr) => acc + (curr.sleep_hrs || 0), 0) / reportData.filter(r => r.sleep_hrs).length).toFixed(1) : '0.0'} hrs
-                        </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <button 
+                        onClick={handleDeleteAllWeighIns}
+                        className="no-print"
+                        style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-error)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        <Trash2 size={16} /> Clear All Data
+                      </button>
+                      <button 
+                        onClick={() => window.print()}
+                        className="btn-primary no-print"
+                        style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}
+                      >
+                        <Printer size={16} /> Export to PDF
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Mode & Filters Toolbar (hidden in PDF print) */}
+                  <div className="card-glass no-print" style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                      {/* Mode Switcher */}
+                      <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+                        <button
+                          onClick={() => setReportMode('quick')}
+                          style={{
+                            padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 700,
+                            background: reportMode === 'quick' ? 'var(--color-accent)' : 'transparent',
+                            color: reportMode === 'quick' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                            border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
+                          }}
+                        >
+                          <Zap size={15} /> QUICK PRIORITY REPORT
+                        </button>
+                        <button
+                          onClick={() => setReportMode('custom')}
+                          style={{
+                            padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 700,
+                            background: reportMode === 'custom' ? 'var(--color-accent)' : 'transparent',
+                            color: reportMode === 'custom' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                            border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
+                          }}
+                        >
+                          <Sliders size={15} /> CUSTOM BUILDER
+                        </button>
                       </div>
-                      <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', flexDirection: 'column', border: '1px solid var(--status-error)' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.05em' }}>CRITICAL ALERTS (&lt;6.5h SLEEP)</span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700, color: 'var(--status-error)' }}>
-                          {reportData.filter(r => r.sleep_hrs && r.sleep_hrs < 6.5).length}
-                        </span>
+
+                      {/* Dropdown Filters */}
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {/* Sport Filter */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Filter size={14} style={{ color: 'var(--color-accent)' }} />
+                          <select
+                            value={reportSportFilter}
+                            onChange={e => setReportSportFilter(e.target.value)}
+                            style={{ background: 'var(--navy-900)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            <option value="ALL">ALL SPORTS</option>
+                            {sportsList.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+                          </select>
+                        </div>
+
+                        {/* Timeframe Filter */}
+                        <select
+                          value={reportTimeframe}
+                          onChange={e => setReportTimeframe(e.target.value)}
+                          style={{ background: 'var(--navy-900)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          <option value="all">TIMEFRAME: ALL TIME</option>
+                          <option value="today">TIMEFRAME: TODAY</option>
+                          <option value="7d">TIMEFRAME: LAST 7 DAYS</option>
+                          <option value="30d">TIMEFRAME: LAST 30 DAYS</option>
+                        </select>
                       </div>
                     </div>
 
-                    <div className="card-glass" style={{ overflow: 'hidden' }}>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                          <thead>
-                            <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)' }}>
-                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>ATHLETE</th>
-                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>SPORT / TEAM</th>
-                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST WEIGHT</th>
-                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST SLEEP</th>
-                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LOG DATE</th>
-                              <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', width: '60px' }}></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {/* We just show the latest 20 logs for simplicity, or we could group by athlete. For a simple report, a chronological log is great, or grouped. Let's show recent logs. */}
-                            {reportData.slice(0, 50).map(log => (
-                              <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
-                                <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
-                                <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>{log.weight_lbs} lbs</td>
-                                <td style={{ padding: '16px', fontWeight: 700, color: log.sleep_hrs < 6.5 ? 'var(--status-error)' : 'var(--color-text)' }}>
-                                  {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
-                                </td>
-                                <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                                  {new Date(log.created_at).toLocaleDateString()}
-                                </td>
-                                <td style={{ padding: '16px', textAlign: 'center' }}>
-                                  <button onClick={() => handleDeleteWeighIn(log.id)} className="no-print" style={{ background: 'transparent', border: 'none', color: 'var(--status-error)', cursor: 'pointer', padding: '4px' }}>
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </tr>
+                    {/* Custom Metric Selector Panel */}
+                    {reportMode === 'custom' && (
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                          SELECT METRICS & SECTIONS TO INCLUDE IN REPORT:
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+                          {[
+                            { key: 'teamSummary', label: 'Team Readiness Cards', desc: 'Overview totals & averages' },
+                            { key: 'dehydration', label: 'Dehydration Roster', desc: 'Athletes dropping ≥2% weight' },
+                            { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: 'Athletes logging <6.5h sleep' },
+                            { key: 'expiredBaselines', label: 'Expired Baseline Roster', desc: 'Athletes inactive >14 days' },
+                            { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
+                            { key: 'rawLogs', label: 'Log History Table', desc: 'Chronological weigh-in table' },
+                          ].map(item => {
+                            const isSelected = enabledMetrics[item.key];
+                            return (
+                              <div
+                                key={item.key}
+                                onClick={() => toggleMetric(item.key)}
+                                style={{
+                                  padding: '12px 14px', borderRadius: '8px',
+                                  background: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255,255,255,0.02)',
+                                  border: isSelected ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.08)',
+                                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'all 0.2s'
+                                }}
+                              >
+                                {isSelected ? <CheckSquare size={18} style={{ color: 'var(--color-accent)' }} /> : <Square size={18} style={{ color: 'var(--color-text-muted)' }} />}
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: 700, color: isSelected ? 'var(--white)' : 'var(--color-text-muted)' }}>{item.label}</span>
+                                  <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{item.desc}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {reportLoading ? (
+                    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading report data...</div>
+                  ) : (
+                    <>
+                      {/* Section 1: Executive Summary Cards */}
+                      {showTeamSummary && (
+                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>TOTAL LOGS</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700 }}>{filteredLogs.length}</span>
+                          </div>
+                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>TEAM AVG SLEEP</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700 }}>
+                              {(() => {
+                                const validSleep = filteredLogs.filter(r => r.sleep_hrs != null && r.sleep_hrs > 0);
+                                return validSleep.length > 0 ? (validSleep.reduce((acc, curr) => acc + Number(curr.sleep_hrs), 0) / validSleep.length).toFixed(1) : '0.0';
+                              })()} hrs
+                            </span>
+                          </div>
+                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column', border: '1px solid var(--status-error)' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.05em' }}>DEHYDRATION ALERTS (≥2% DROP)</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--status-error)' }}>{dehydrationList.length}</span>
+                          </div>
+                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column', border: '1px solid #f59e0b' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b', letterSpacing: '0.05em' }}>SLEEP DEFICITS (&lt;6.5h)</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: '#f59e0b' }}>{sleepDeficitList.length}</span>
+                          </div>
+                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.2)' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>EXPIRED BASELINES (&gt;14d)</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--color-accent)' }}>{expiredBaselinesList.length}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Section 2: Priority Dehydration Roster */}
+                      {showDehydration && (
+                        <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid var(--status-error)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <AlertTriangle size={20} style={{ color: 'var(--status-error)' }} />
+                              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                DEHYDRATION & MASS DROP RISK (≥2% MASS LOSS)
+                              </h3>
+                            </div>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)' }}>{dehydrationList.length} ATHLETES AT RISK</span>
+                          </div>
+                          
+                          {dehydrationList.length === 0 ? (
+                            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>Clean! No athletes currently showing ≥2% body mass drops.</div>
+                          ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <thead>
+                                  <tr style={{ background: 'rgba(239, 68, 68, 0.1)', borderBottom: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>ATHLETE</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>SPORT</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>PREVIOUS WEIGHT</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>CURRENT WEIGHT</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>TOTAL DROP</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>LOG DATE</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {dehydrationList.map(item => (
+                                    <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <td style={{ padding: '12px 16px', fontWeight: 700 }}>{item.athlete_name}</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.sport}</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '13px' }}>{item.prev_weight} lbs</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: 'var(--status-error)' }}>{item.curr_weight} lbs</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: 'var(--status-error)' }}>
+                                        -{item.drop_lbs.toFixed(1)} lbs (-{item.drop_percent}%)
+                                      </td>
+                                      <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.date}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Section 3: Sleep Deficiency Roster */}
+                      {showSleepDeficit && (
+                        <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #f59e0b' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <Activity size={20} style={{ color: '#f59e0b' }} />
+                              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                CRITICAL SLEEP DEFICIENCY (&lt;6.5 HOURS LOGGED)
+                              </h3>
+                            </div>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: '#f59e0b' }}>{sleepDeficitList.length} LOGS AFFECTED</span>
+                          </div>
+
+                          {sleepDeficitList.length === 0 ? (
+                            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>Optimal CNS sleep scores recorded across all athletes!</div>
+                          ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <thead>
+                                  <tr style={{ background: 'rgba(245, 158, 11, 0.1)', borderBottom: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: '#f59e0b' }}>ATHLETE</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: '#f59e0b' }}>SPORT</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: '#f59e0b' }}>SLEEP LOGGED</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: '#f59e0b' }}>RECOMMENDED ACTION</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: '#f59e0b' }}>LOG DATE</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {sleepDeficitList.slice(0, 25).map(item => (
+                                    <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <td style={{ padding: '12px 16px', fontWeight: 700 }}>{item.athlete_name}</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.sport}</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: '#f59e0b' }}>{item.sleep_hrs} hrs</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Reduce High-Intensity CNS Volume</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{new Date(item.created_at).toLocaleDateString()}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Section 4: Expired Baselines Roster */}
+                      {showExpiredBaselines && (
+                        <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid var(--color-accent)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <Shield size={20} style={{ color: 'var(--color-accent)' }} />
+                              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                EXPIRED BASELINE AUDIT (&gt;14 DAYS INACTIVE)
+                              </h3>
+                            </div>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)' }}>{expiredBaselinesList.length} ATHLETES NEED BASELINE</span>
+                          </div>
+
+                          {expiredBaselinesList.length === 0 ? (
+                            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>All active athletes have logged weight within the last 14 days!</div>
+                          ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <thead>
+                                  <tr style={{ background: 'rgba(59, 130, 246, 0.1)', borderBottom: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)' }}>ATHLETE</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)' }}>SPORT / TEAM</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)' }}>INACTIVITY STATUS</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)' }}>LAST LOGGED DATE</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {expiredBaselinesList.map((item, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <td style={{ padding: '12px 16px', fontWeight: 700 }}>{item.athlete_name}</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.sport} &middot; {item.team}</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: 'var(--color-accent)' }}>{item.status}</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.last_date || 'N/A'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Section 5: Weight Leaderboard (Custom Mode) */}
+                      {showLeaderboard && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                          <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              📈 TOP WEIGHT GAINS (SEASON PROGRESSION)
+                            </h3>
+                            {topGains.map((item, idx) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div>
+                                  <div style={{ fontSize: '13px', fontWeight: 700 }}>{item.athlete_name}</div>
+                                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{item.sport} ({item.initial_weight} → {item.latest_weight} lbs)</div>
+                                </div>
+                                <span style={{ fontSize: '14px', fontWeight: 700, color: '#10b981' }}>+{item.diff.toFixed(1)} lbs</span>
+                              </div>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+                          </div>
+
+                          <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              📉 TOP WEIGHT DROPS (MASS CUTS / LOSSES)
+                            </h3>
+                            {topDrops.map((item, idx) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div>
+                                  <div style={{ fontSize: '13px', fontWeight: 700 }}>{item.athlete_name}</div>
+                                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{item.sport} ({item.initial_weight} → {item.latest_weight} lbs)</div>
+                                </div>
+                                <span style={{ fontSize: '14px', fontWeight: 700, color: '#ef4444' }}>{item.diff.toFixed(1)} lbs</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Section 6: Chronological Raw Log Table */}
+                      {showRawLogs && (
+                        <div className="card-glass" style={{ overflow: 'hidden' }}>
+                          <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>
+                              CHRONOLOGICAL WEIGH-IN LOG HISTORY ({filteredLogs.length} RECORDS)
+                            </span>
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                              <thead>
+                                <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)' }}>
+                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>ATHLETE</th>
+                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>SPORT / TEAM</th>
+                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST WEIGHT</th>
+                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST SLEEP</th>
+                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LOG DATE</th>
+                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', width: '60px' }}></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredLogs.slice(0, 50).map(log => (
+                                  <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
+                                    <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
+                                    <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>{log.weight_lbs} lbs</td>
+                                    <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < 6.5) ? 'var(--status-error)' : 'var(--color-text)' }}>
+                                      {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
+                                    </td>
+                                    <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                                      {new Date(log.created_at).toLocaleDateString()}
+                                    </td>
+                                    <td style={{ padding: '16px', textAlign: 'center' }}>
+                                      <button onClick={() => handleDeleteWeighIn(log.id)} className="no-print" style={{ background: 'transparent', border: 'none', color: 'var(--status-error)', cursor: 'pointer', padding: '4px' }}>
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {screen === 'roster' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
