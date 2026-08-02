@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal } from 'lucide-react';
+import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -65,7 +65,7 @@ const Confetti = () => {
 // App Version Tracking
 const APP_VERSION = 'v3.0';
 
-const KioskNumpad = ({ value, onChange, onEnter }) => {
+const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
     if (key === 'DEL') return onChange(value.slice(0, -1));
     if (key === '.' && value.includes('.')) return;
@@ -186,6 +186,7 @@ export default function App() {
   }, [reportData]);
 
   const athletesRecordedToday = React.useMemo(() => {
+    void todaySessions;
     const recordedSet = new Set();
     const now = new Date();
     if (reportData && Array.isArray(reportData)) {
@@ -213,6 +214,7 @@ export default function App() {
 
   // Executive Insights & 24h Deltas calculation
   const executiveInsights = React.useMemo(() => {
+    void todaySessions; // Trigger re-computation when sessions are logged
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
@@ -3280,7 +3282,6 @@ export default function App() {
               const maxWeight = weightLogs.length > 0 ? Math.max(...weightLogs.map(l => Number(l.weight_lbs))) : '--';
               const minWeight = weightLogs.length > 0 ? Math.min(...weightLogs.map(l => Number(l.weight_lbs))) : '--';
               
-              const latestSleep = sleepLogs.length > 0 ? Number(sleepLogs[sleepLogs.length-1].sleep_hrs) : '--';
               const avgSleep = sleepLogs.length > 0 ? (sleepLogs.reduce((sum, l) => sum + Number(l.sleep_hrs), 0) / sleepLogs.length).toFixed(1) : '--';
               const maxSleep = sleepLogs.length > 0 ? Math.max(...sleepLogs.map(l => Number(l.sleep_hrs))) : '--';
               const deficitNights = sleepLogs.filter(l => Number(l.sleep_hrs) < 6.5).length;
