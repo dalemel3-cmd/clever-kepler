@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2, Search } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2, Search, Grid } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v1.9';
+const APP_VERSION = 'v2.0';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -898,7 +898,7 @@ export default function App() {
     const active = screen === key;
     return (
       <div onClick={() => { setScreen(key); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }} 
-           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', width: '56px',
+           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '40px',
                     color: active ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
         {icon}
         <span style={{ fontSize: '9px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{label}</span>
@@ -926,6 +926,7 @@ export default function App() {
             {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
+            {renderSidebarItem('groups', <Grid size={18} />, 'SPORT GROUPS')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getDailyAlerts().length > 0 ? ` (${getDailyAlerts().length})` : ''))}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
             {renderSidebarItem('settings', <Settings size={18} />, 'SETTINGS')}
@@ -1084,231 +1085,394 @@ export default function App() {
               </div>
             )}
 
-            {screen === 'entry' && !entryAthleteId && (
-              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {/* Search Bar */}
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input 
-                    type="text" 
-                    className="input-glass"
-                    placeholder="Search by name, sport, team, or grade..." 
-                    value={search} 
-                    onChange={e => setSearch(e.target.value)}
-                    style={{ flex: 1, height: '56px', padding: '0 48px 0 20px', fontSize: 'var(--text-md)' }}
-                  />
-                  {search && (
-                    <button 
-                      onClick={() => setSearch('')}
-                      style={{ position: 'absolute', right: '16px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <X size={18} />
-                    </button>
-                  )}
+            {screen === 'entry' && (
+              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
+                  <div>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>QUICK ENTRY</h2>
+                    <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Log a weigh-in</span>
+                  </div>
                 </div>
 
-                {/* Drop-down Menus for Filters */}
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <select
-                    value={selectedSportFilter}
-                    onChange={e => setSelectedSportFilter(e.target.value)}
-                    className="input-glass"
-                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                  >
-                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL SPORTS</option>
-                    {sportsList.map(sport => (
-                      <option key={sport} value={sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{sport.toUpperCase()}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={selectedTeamFilter}
-                    onChange={e => setSelectedTeamFilter(e.target.value)}
-                    className="input-glass"
-                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                  >
-                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL TEAMS</option>
-                    {teamsList.map(team => (
-                      <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
-                    ))}
-                  </select>
+                {/* Split Layout Container */}
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                   
-                  <select
-                    value={selectedGradeFilter}
-                    onChange={e => setSelectedGradeFilter(e.target.value)}
-                    className="input-glass"
-                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                  >
-                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL GRADES</option>
-                    {gradesList.map(grade => (
-                      <option key={grade} value={grade} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{grade.toUpperCase()}</option>
-                    ))}
-                  </select>
-                  
-                  <select
-                    value={selectedPositionFilter}
-                    onChange={e => setSelectedPositionFilter(e.target.value)}
-                    className="input-glass"
-                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                  >
-                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL POSITIONS</option>
-                    {positionsList.map(pos => (
-                      <option key={pos} value={pos} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{pos.toUpperCase()}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={nameSortOrder}
-                    onChange={e => setNameSortOrder(e.target.value)}
-                    className="input-glass"
-                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                  >
-                    <option value="first" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>SORT: FIRST NAME</option>
-                    <option value="last" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>SORT: LAST NAME</option>
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {filteredAthletes.map(a => (
-                    <div key={a.id} onClick={() => handleSelectAthleteForEntry(a.id)} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
-                        {nameSortOrder === 'last' 
-                          ? `${getLastName(a.name)[0] || ''}${getFirstName(a.name)[0] || ''}` 
-                          : a.name.split(' ').map(n=>n[0]).join('')}
-                      </div>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>
-                          {nameSortOrder === 'last' ? `${getLastName(a.name)}, ${getFirstName(a.name)}` : a.name}
-                        </span>
-                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport} &middot; {a.team}</span>
-                      </div>
+                  {/* Left Column: SELECT ATHLETE List */}
+                  <div style={{ flex: '1 1 340px', maxWidth: '440px', width: '100%', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      SELECT ATHLETE
                     </div>
-                  ))}
+
+                    {/* Search Bar */}
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <Search size={16} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+                      <input 
+                        type="text" 
+                        className="input-glass"
+                        placeholder="Search athletes..." 
+                        value={search} 
+                        onChange={e => setSearch(e.target.value)}
+                        style={{ width: '100%', height: '44px', padding: '0 40px 0 44px', fontSize: '14px', borderRadius: '8px' }}
+                      />
+                      {search && (
+                        <button 
+                          onClick={() => setSearch('')}
+                          style={{ position: 'absolute', right: '12px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Drop-down Menus for Filters */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <select
+                        value={selectedSportFilter}
+                        onChange={e => setSelectedSportFilter(e.target.value)}
+                        className="input-glass"
+                        style={{ height: '38px', padding: '0 12px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '6px' }}
+                      >
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Sports</option>
+                        {sportsList.map(sport => (
+                          <option key={sport} value={sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{sport.toUpperCase()}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={selectedGradeFilter}
+                        onChange={e => setSelectedGradeFilter(e.target.value)}
+                        className="input-glass"
+                        style={{ height: '38px', padding: '0 12px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '6px' }}
+                      >
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Grades</option>
+                        {gradesList.map(grade => (
+                          <option key={grade} value={grade} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{grade.toUpperCase()}</option>
+                        ))}
+                      </select>
+                      
+                      <select
+                        value={selectedTeamFilter}
+                        onChange={e => setSelectedTeamFilter(e.target.value)}
+                        className="input-glass"
+                        style={{ height: '38px', padding: '0 12px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '6px' }}
+                      >
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Teams</option>
+                        {teamsList.map(team => (
+                          <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
+                        ))}
+                      </select>
+                      
+                      <select
+                        value={selectedPositionFilter}
+                        onChange={e => setSelectedPositionFilter(e.target.value)}
+                        className="input-glass"
+                        style={{ height: '38px', padding: '0 12px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '6px' }}
+                      >
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Positions</option>
+                        {positionsList.map(pos => (
+                          <option key={pos} value={pos} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{pos.toUpperCase()}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Scrollable List of Athlete Cards */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '620px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {filteredAthletes.map(a => {
+                        const isSelected = entryAthleteId === a.id;
+                        const initials = nameSortOrder === 'last' 
+                          ? `${getLastName(a.name)[0] || ''}${getFirstName(a.name)[0] || ''}` 
+                          : a.name.split(' ').map(n=>n[0]).join('');
+                        
+                        const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
+                        let hash = 0;
+                        for (let i = 0; i < a.name.length; i++) hash = a.name.charCodeAt(i) + ((hash << 5) - hash);
+                        const avatarBg = avatarColors[Math.abs(hash) % avatarColors.length];
+
+                        return (
+                          <div 
+                            key={a.id} 
+                            onClick={() => handleSelectAthleteForEntry(a.id)} 
+                            className="card-glass" 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '12px', 
+                              padding: '12px 16px', 
+                              cursor: 'pointer',
+                              borderRadius: '12px',
+                              border: isSelected ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.08)',
+                              background: isSelected ? 'rgba(194, 164, 80, 0.12)' : 'rgba(255,255,255,0.02)',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
+                              {initials}
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                              <span style={{ fontSize: '15px', fontWeight: 600, color: isSelected ? 'var(--color-accent)' : 'var(--white)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                {nameSortOrder === 'last' ? `${getLastName(a.name)}, ${getFirstName(a.name)}` : a.name}
+                              </span>
+                              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                                {a.sport}{a.position ? ` · ${a.position}` : (a.team ? ` · ${a.team}` : '')}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {filteredAthletes.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+                          No athletes found matching filters.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Logging Panel / Empty State */}
+                  <div 
+                    className="card-glass glow-card" 
+                    style={{ 
+                      flex: '1 1 440px', 
+                      minHeight: '620px', 
+                      padding: '32px', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      justifyContent: (!entryAthleteId || !selectedAthlete) ? 'center' : 'flex-start',
+                      alignItems: (!entryAthleteId || !selectedAthlete) ? 'center' : 'stretch',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(255,255,255,0.08)'
+                    }}
+                  >
+                    {(!entryAthleteId || !selectedAthlete) ? (
+                      <div style={{ fontSize: '17px', color: 'var(--color-text-muted)', fontWeight: 500, textAlign: 'center' }}>
+                        Select an athlete to log a weigh-in
+                      </div>
+                    ) : (
+                      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        {/* Athlete Profile Title inside Form Panel */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            {(() => {
+                              const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
+                              let hash = 0;
+                              for (let i = 0; i < selectedAthlete.name.length; i++) hash = selectedAthlete.name.charCodeAt(i) + ((hash << 5) - hash);
+                              const avatarBg = avatarColors[Math.abs(hash) % avatarColors.length];
+                              return (
+                                <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 700, fontSize: '20px' }}>
+                                  {selectedAthlete.name.split(' ').map(n=>n[0]).join('')}
+                                </div>
+                              );
+                            })()}
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-accent)', textTransform: 'uppercase' }}>{selectedAthlete.name}</span>
+                              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                {selectedAthlete.sport}{selectedAthlete.grade ? ` · ${selectedAthlete.grade}` : ''} &middot; {selectedAthlete.position}
+                              </span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setEntryAthleteId(null)}
+                            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '8px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            title="Deselect athlete"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+
+                        {/* Form Inputs & Numpad Layout */}
+                        <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap' }}>
+                          {/* Left Column: Inputs */}
+                          <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
+                                <div 
+                                  onClick={() => setFocusedField('weight')}
+                                  style={{ flex: 1, height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                                >
+                                  {weightInput || '0.0'}
+                                </div>
+                                <button onClick={() => setWeightInput(prev => String((parseFloat(prev||0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
+                                <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>QUICK SELECT</span>
+                              </div>
+                              <div 
+                                onClick={() => setFocusedField('sleep')}
+                                style={{ height: '56px', background: focusedField === 'sleep' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'sleep' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', padding: '0 16px', color: focusedField === 'sleep' ? 'var(--color-accent)' : 'var(--white)', fontSize: 'var(--text-lg)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                              >
+                                {sleepInput || '8.0'}
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                {['6.0', '7.0', '7.5', '8.0', '8.5', '9.0'].map(val => (
+                                  <button
+                                    key={val}
+                                    type="button"
+                                    onClick={() => { setSleepInput(val); setFocusedField('sleep'); }}
+                                    style={{
+                                      flex: 1, minWidth: '48px', height: '36px',
+                                      background: sleepInput === val ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                                      color: sleepInput === val ? 'var(--navy-950)' : 'var(--color-text)',
+                                      border: '1px solid var(--color-border)', borderRadius: '6px',
+                                      fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                                    }}
+                                  >
+                                    {val}h
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right Column: KioskNumpad */}
+                          <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column' }}>
+                            <KioskNumpad 
+                              value={focusedField === 'weight' ? weightInput : sleepInput}
+                              onChange={val => focusedField === 'weight' ? setWeightInput(val) : setSleepInput(val)}
+                              onEnter={handleSave}
+                            />
+                          </div>
+                        </div>
+
+                        {(() => {
+                          const athleteRecords = reportData.filter(r => r.athlete_id === selectedAthlete.id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+                          const isFirstEntry = athleteRecords.length === 0;
+                          const hasLongGap = athleteRecords.length > 0 && (new Date() - new Date(athleteRecords[athleteRecords.length - 1].created_at)) > 14 * 24 * 60 * 60 * 1000;
+                          const requiresBaseline = isFirstEntry || hasLongGap;
+                          
+                          if (requiresBaseline) {
+                            return (
+                              <div style={{ display: 'flex', gap: '16px', marginTop: 'auto' }}>
+                                <button 
+                                  onClick={handleSave}
+                                  disabled={!weightInput || saving}
+                                  className="btn-primary"
+                                  style={{ flex: 1, height: '60px', fontSize: '17px', background: 'var(--color-accent)', color: 'var(--navy-950)' }}
+                                >
+                                  {saving ? 'Saving...' : 'This is my baseline'}
+                                </button>
+                                <button 
+                                  onClick={handleSave}
+                                  disabled={!weightInput || saving}
+                                  className="btn-primary"
+                                  style={{ flex: 1, height: '60px', fontSize: '17px', background: 'transparent', border: '2px solid var(--color-border)', color: 'var(--white)' }}
+                                >
+                                  {saving ? 'Saving...' : 'Save as new entry'}
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <button 
+                              onClick={handleSave}
+                              disabled={!weightInput || saving}
+                              className="btn-primary"
+                              style={{ height: '60px', fontSize: '19px', marginTop: 'auto' }}
+                            >
+                              {saving ? 'Saving...' : 'Save Record'}
+                            </button>
+                          );
+                        })()}
+
+                        {saved && (
+                          <div className="animate-slide-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--status-success)' }}>
+                            <CheckCircle size={18} />
+                            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>Saved successfully to database</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {screen === 'entry' && entryAthleteId && selectedAthlete && (
+            {screen === 'groups' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div onClick={() => setEntryAthleteId(null)} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
-                  <ChevronLeft size={16} /> Back to Search
-                </div>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 700, fontSize: '24px' }}>
-                    {selectedAthlete.name.split(' ').map(n=>n[0]).join('')}
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
+                  <div>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>SPORT GROUPS</h2>
+                    <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{sportsList.length} sport{sportsList.length !== 1 ? 's' : ''} tracked</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 600, color: 'var(--color-accent)', textTransform: 'uppercase' }}>{selectedAthlete.name}</span>
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{selectedAthlete.sport}{selectedAthlete.grade ? ` · ${selectedAthlete.grade}` : ''} &middot; {selectedAthlete.position}</span>
-                  </div>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
+                  </span>
                 </div>
 
-                <div className="card-glass" style={{ padding: '24px', display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
-                  
-                  {/* Left Column: Inputs */}
-                  <div style={{ flex: '1 1 260px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
-                        <div 
-                          onClick={() => setFocusedField('weight')}
-                          style={{ flex: 1, height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-                        >
-                          {weightInput || '0.0'}
-                        </div>
-                        <button onClick={() => setWeightInput(prev => String((parseFloat(prev||0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
-                      </div>
-                    </div>
+                {/* Sport Groups Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                  {sportsList.map(sport => {
+                    const sportAthletes = athletes.filter(a => (a.sport || '').toLowerCase() === sport.toLowerCase());
+                    
+                    // Calculate average weight for this sport group from latest logged records
+                    let totalW = 0;
+                    let countW = 0;
+                    sportAthletes.forEach(a => {
+                      const latestRecord = reportData
+                        .filter(r => r.athlete_id === a.id && r.weight_lbs)
+                        .sort((x, y) => new Date(y.created_at) - new Date(x.created_at))[0];
+                      if (latestRecord && latestRecord.weight_lbs) {
+                        totalW += parseFloat(latestRecord.weight_lbs);
+                        countW += 1;
+                      }
+                    });
+                    const avgW = countW > 0 ? Math.round(totalW / countW) : 0;
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
-                        <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>QUICK SELECT</span>
-                      </div>
-                      <div 
-                        onClick={() => setFocusedField('sleep')}
-                        style={{ height: '56px', background: focusedField === 'sleep' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'sleep' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', padding: '0 16px', color: focusedField === 'sleep' ? 'var(--color-accent)' : 'var(--white)', fontSize: 'var(--text-lg)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-                      >
-                        {sleepInput || '8.0'}
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-                        {['6.0', '7.0', '7.5', '8.0', '8.5', '9.0'].map(val => (
-                          <button
-                            key={val}
-                            type="button"
-                            onClick={() => { setSleepInput(val); setFocusedField('sleep'); }}
-                            style={{
-                              flex: 1, minWidth: '48px', height: '36px',
-                              background: sleepInput === val ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
-                              color: sleepInput === val ? 'var(--navy-950)' : 'var(--color-text)',
-                              border: '1px solid var(--color-border)', borderRadius: '6px',
-                              fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
-                            }}
-                          >
-                            {val}h
-                          </button>
-                      ))}
-                    </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column: KioskNumpad */}
-                  <div style={{ flex: '1 1 260px', display: 'flex', flexDirection: 'column' }}>
-                    <KioskNumpad 
-                      value={focusedField === 'weight' ? weightInput : sleepInput}
-                      onChange={val => focusedField === 'weight' ? setWeightInput(val) : setSleepInput(val)}
-                      onEnter={handleSave}
-                    />
-                  </div>
-                </div>
-
-                {(() => {
-                  const athleteRecords = reportData.filter(r => r.athlete_id === selectedAthlete.id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-                  const isFirstEntry = athleteRecords.length === 0;
-                  const hasLongGap = athleteRecords.length > 0 && (new Date() - new Date(athleteRecords[athleteRecords.length - 1].created_at)) > 14 * 24 * 60 * 60 * 1000;
-                  const requiresBaseline = isFirstEntry || hasLongGap;
-                  
-                  if (requiresBaseline) {
                     return (
-                      <div style={{ display: 'flex', gap: '16px' }}>
-                        <button 
-                          onClick={handleSave}
-                          disabled={!weightInput || saving}
-                          className="btn-primary"
-                          style={{ flex: 1, height: '64px', fontSize: '18px', background: 'var(--color-accent)', color: 'var(--navy-950)' }}
-                        >
-                          {saving ? 'Saving...' : 'This is my baseline'}
-                        </button>
-                        <button 
-                          onClick={handleSave}
-                          disabled={!weightInput || saving}
-                          className="btn-primary"
-                          style={{ flex: 1, height: '64px', fontSize: '18px', background: 'transparent', border: '2px solid var(--color-border)', color: 'var(--white)' }}
-                        >
-                          {saving ? 'Saving...' : 'Save as new entry'}
-                        </button>
+                      <div
+                        key={sport}
+                        onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }}
+                        className="card-glass glow-card"
+                        style={{
+                          padding: '24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '24px',
+                          cursor: 'pointer',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-lg)',
+                          transition: 'transform 0.2s, border-color 0.2s'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                      >
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--white)' }}>
+                          {sport}
+                        </div>
+                        <div style={{ display: 'flex', gap: '48px', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: 'var(--white)' }}>
+                              {sportAthletes.length}
+                            </span>
+                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              ATHLETES
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: countW > 0 ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+                              {avgW > 0 ? avgW : '--'}
+                            </span>
+                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              AVG LB
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     );
-                  }
-
-                  return (
-                    <button 
-                      onClick={handleSave}
-                      disabled={!weightInput || saving}
-                      className="btn-primary"
-                      style={{ height: '64px', fontSize: '20px' }}
-                    >
-                      {saving ? 'Saving...' : 'Save Record'}
-                    </button>
-                  );
-                })()}
-
-                {saved && (
-                  <div className="animate-slide-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--status-success)' }}>
-                    <CheckCircle size={18} />
-                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>Saved successfully to database</span>
-                  </div>
-                )}
+                  })}
+                  {sportsList.length === 0 && (
+                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px', color: 'var(--color-text-muted)' }}>
+                      No sports currently tracked. Add athletes with sport tags to populate group statistics.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2577,8 +2741,9 @@ export default function App() {
         <div className="bottom-nav">
           {navItem('dashboard', <Users size={20} />, 'Home')}
           {navItem('entry', <Plus size={20} />, 'Log')}
-          {navItem('alerts', <AlertTriangle size={20} />, 'Alerts')}
           {navItem('roster', <Shield size={20} />, 'Roster')}
+          {navItem('groups', <Grid size={20} />, 'Groups')}
+          {navItem('alerts', <AlertTriangle size={20} />, 'Alerts')}
           {navItem('reports', <FileText size={20} />, 'Reports')}
           {navItem('settings', <Settings size={20} />, 'Settings')}
         </div>
