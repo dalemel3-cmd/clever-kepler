@@ -1,7 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: 'rgba(6, 28, 65, 0.85)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '12px', borderRadius: '8px', color: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+        <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginBottom: '4px' }}>{label}</p>
+        <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: payload[0].color || 'var(--color-accent)' }}>
+          {payload[0].value} {payload[0].name === 'Weight' ? 'lbs' : 'hrs'}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
 
 // Premium Celebratory Confetti Component
 const Confetti = () => {
@@ -961,9 +976,12 @@ export default function App() {
                 </div>
 
                 {(() => {
-                  const isFirstEntry = reportData.filter(r => r.athlete_id === selectedAthlete.id).length === 0;
+                  const athleteRecords = reportData.filter(r => r.athlete_id === selectedAthlete.id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+                  const isFirstEntry = athleteRecords.length === 0;
+                  const hasLongGap = athleteRecords.length > 0 && (new Date() - new Date(athleteRecords[athleteRecords.length - 1].created_at)) > 14 * 24 * 60 * 60 * 1000;
+                  const requiresBaseline = isFirstEntry || hasLongGap;
                   
-                  if (isFirstEntry) {
+                  if (requiresBaseline) {
                     return (
                       <div style={{ display: 'flex', gap: '16px' }}>
                         <button 
@@ -1408,40 +1426,32 @@ export default function App() {
                             </div>
                           </div>
                           
-                          <div style={{ height: '180px', position: 'relative', borderBottom: '1px dashed rgba(255,255,255,0.1)', borderLeft: '1px dashed rgba(255,255,255,0.1)', paddingLeft: '8px', paddingTop: '16px', paddingBottom: '16px' }}>
+                          <div style={{ height: '220px', position: 'relative', paddingTop: '16px', marginLeft: '-24px' }}>
                             {profileData.length > 1 ? (() => {
-                              const trendData = profileData.slice(-14);
-                              const minW = Math.min(...trendData.map(d=>d.weight_lbs));
-                              const maxW = Math.max(...trendData.map(d=>d.weight_lbs));
-                              const range = (maxW - minW) || 1;
-                              const points = trendData.map((d, i) => {
-                                const x = (i / (trendData.length - 1)) * 100;
-                                const y = 100 - (((d.weight_lbs - minW) / range) * 80 + 10);
-                                return `${x},${y}`;
-                              }).join(' ');
-
+                              const trendData = profileData.slice(-14).map(d => ({
+                                date: new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
+                                Weight: d.weight_lbs
+                              }));
+                              const minW = Math.min(...trendData.map(d=>d.Weight));
+                              const maxW = Math.max(...trendData.map(d=>d.Weight));
+                              
                               return (
-                                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
-                                    <polyline points={points} fill="none" stroke="var(--color-accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 4px 6px rgba(59, 130, 246, 0.4))' }} />
-                                    {trendData.map((d, i) => {
-                                      const x = (i / (trendData.length - 1)) * 100;
-                                      const y = 100 - (((d.weight_lbs - minW) / range) * 80 + 10);
-                                      return <circle key={i} cx={x} cy={y} r="3" fill="var(--white)" stroke="var(--color-accent)" strokeWidth="1.5" />;
-                                    })}
-                                  </svg>
-                                  <div style={{ position: 'absolute', bottom: '-24px', left: 0, right: 0, display: 'flex', justifyContent: 'space-between' }}>
-                                    {trendData.map((d, i) => {
-                                      const isEdgeOrMiddle = i === 0 || i === trendData.length - 1 || i === Math.floor(trendData.length / 2);
-                                      if (!isEdgeOrMiddle) return <span key={i} style={{ width: 0 }} />;
-                                      return <span key={i} style={{ fontSize: '10px', color: 'var(--color-text-muted)', transform: 'translateX(-50%)', left: `${(i / (trendData.length - 1)) * 100}%`, position: 'absolute' }}>
-                                        {new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
-                                      </span>;
-                                    })}
-                                  </div>
-                                </div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                                    <defs>
+                                      <linearGradient id="colorWeight" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.4}/>
+                                        <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0}/>
+                                      </linearGradient>
+                                    </defs>
+                                    <XAxis dataKey="date" stroke="rgba(255,255,255,0.2)" fontSize={10} tickMargin={10} minTickGap={20} />
+                                    <YAxis domain={[Math.floor(minW - 5), Math.ceil(maxW + 5)]} hide />
+                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                                    <Area type="monotone" dataKey="Weight" stroke="var(--color-accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorWeight)" activeDot={{ r: 6, fill: 'var(--color-accent)', stroke: '#fff', strokeWidth: 2 }} />
+                                  </AreaChart>
+                                </ResponsiveContainer>
                               );
-                            })() : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '12px' }}>Need at least 2 entries for trend line</div>}
+                            })() : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '12px', paddingLeft: '24px' }}>Need at least 2 entries for trend line</div>}
                           </div>
                         </div>
 
@@ -1454,18 +1464,24 @@ export default function App() {
                             </div>
                           </div>
                           
-                          <div style={{ height: '180px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', gap: '6px', paddingTop: '20px' }}>
-                            {profileData.length > 0 ? profileData.slice(-7).map((d, i) => {
-                              const heightPct = Math.min(100, Math.max(15, (d.sleep_hrs / 12) * 100));
-                              const dateStr = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : `Entry ${i+1}`;
+                          <div style={{ height: '220px', position: 'relative', paddingTop: '16px', marginLeft: '-24px' }}>
+                            {profileData.length > 0 ? (() => {
+                              const sleepData = profileData.slice(-7).map(d => ({
+                                date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : 'Unknown',
+                                Sleep: d.sleep_hrs
+                              }));
+                              
                               return (
-                                <div key={i} className="chart-bar-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text)', marginBottom: '4px' }}>{d.sleep_hrs}h</span>
-                                  <div className="chart-bar" style={{ height: `${heightPct}%`, background: 'var(--color-text)', width: '100%', maxWidth: '24px', opacity: i === profileData.slice(-7).length - 1 ? 1 : 0.4, borderRadius: '4px 4px 0 0' }} />
-                                  <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--color-text-muted)', marginTop: '6px' }}>{dateStr}</span>
-                                </div>
-                              )
-                            }) : <div style={{ width: '100%', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px' }}>No data logged yet</div>}
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={sleepData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                                    <XAxis dataKey="date" stroke="rgba(255,255,255,0.2)" fontSize={10} tickMargin={10} minTickGap={20} />
+                                    <YAxis domain={[0, 12]} hide />
+                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                                    <Bar dataKey="Sleep" fill="var(--color-text)" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              );
+                            })() : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '12px', paddingLeft: '24px' }}>No sleep data</div>}
                           </div>
                         </div>
 
