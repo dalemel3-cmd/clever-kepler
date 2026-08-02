@@ -160,6 +160,9 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [todaySessions, setTodaySessions] = useState(0);
   const [focusedField, setFocusedField] = useState('weight');
+  const [kioskTrackMode, setKioskTrackMode] = useState(() => {
+    try { return localStorage.getItem('shiloh_kiosk_track_mode') || 'both'; } catch (e) { return 'both'; }
+  });
 
   // Reports State
   const [reportData, setReportData] = useState([]);
@@ -659,20 +662,22 @@ export default function App() {
     setEntryAthleteId(athleteId);
     setScreen('entry');
     
-    // Find latest record for baseline
-    const records = reportData.filter(r => r.athlete_id === athleteId);
+    // Find latest record for baseline weight
+    const records = reportData.filter(r => r.athlete_id === athleteId && r.weight_lbs && Number(r.weight_lbs) > 0);
     if (records.length > 0) {
       const sorted = [...records].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       setWeightInput(String(sorted[sorted.length - 1].weight_lbs));
     } else {
       setWeightInput('0.0');
     }
-    setSleepInput('');
-    setFocusedField('weight');
+    setSleepInput('8.0');
+    setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight');
   };
 
   const handleSave = async () => {
-    if (!selectedAthlete || !weightInput) return;
+    if (!selectedAthlete) return;
+    if (kioskTrackMode !== 'sleep_only' && (!weightInput || weightInput === '0.0' || weightInput === '')) return;
+    if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
     
     const now = new Date();
     const existingRecord = reportData.find(r => {
@@ -688,21 +693,32 @@ export default function App() {
     }
     
     setSaving(true);
+    const weightVal = (kioskTrackMode !== 'sleep_only' && weightInput && weightInput !== '0.0') ? parseFloat(weightInput) : null;
     const record = { 
       athlete_id: selectedAthlete.id, 
       athlete_name: selectedAthlete.name,
       sport: selectedAthlete.sport,
-      weight_lbs: parseFloat(weightInput),
+      weight_lbs: weightVal,
       sleep_hrs: parseFloat(sleepInput || 0),
       created_at: new Date().toISOString()
     };
 
     try {
       if (existingRecord) {
-        const { error } = await supabase.from('weigh_ins').update(record).eq('id', existingRecord.id);
+        let { error } = await supabase.from('weigh_ins').update(record).eq('id', existingRecord.id);
+        if (error && error.message && error.message.toLowerCase().includes('null')) {
+          record.weight_lbs = 0;
+          const res = await supabase.from('weigh_ins').update(record).eq('id', existingRecord.id);
+          error = res.error;
+        }
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('weigh_ins').insert([record]);
+        let { error } = await supabase.from('weigh_ins').insert([record]);
+        if (error && error.message && error.message.toLowerCase().includes('null')) {
+          record.weight_lbs = 0;
+          const res = await supabase.from('weigh_ins').insert([record]);
+          error = res.error;
+        }
         if (error) throw error;
       }
       
@@ -829,7 +845,7 @@ export default function App() {
           setEntryAthleteId(createdAthlete.id);
           setWeightInput('');
           setSleepInput('8.0');
-          setFocusedField('weight');
+          setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight');
         }
       }
       setIsAddingAthlete(false);
@@ -847,21 +863,30 @@ export default function App() {
     setEditingAthleteId(athlete.id);
     setNewAthlete({ name: athlete.name, sport: athlete.sport, team: athlete.team, grade: athlete.grade || '', position: athlete.position });
     setIsAddingAthlete(true);
+    setScreen('roster');
   };
 
   const fetchProfileData = async (id) => {
+    // Instantly pre-populate from local reportData for snappy zero-delay transitions
+    const localData = reportData
+      .filter(r => r.athlete_id === id)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    if (localData.length > 0) {
+      setProfileData(localData);
+    }
+    
     try {
       const { data, error } = await supabase
         .from('weigh_ins')
         .select('*')
         .eq('athlete_id', id)
         .order('created_at', { ascending: true })
-        .limit(14);
+        .limit(180);
       if (error) throw error;
-      setProfileData(data || []);
+      setProfileData(data || localData);
     } catch {
-      console.warn("Could not fetch profile data");
-      setProfileData([]);
+      console.warn("Could not fetch profile data online, using local data");
+      setProfileData(localData);
     }
   };
 
@@ -1050,7 +1075,7 @@ export default function App() {
   const renderSidebarItem = (key, icon, label) => {
     const active = screen === key;
     return (
-      <div onClick={() => { setScreen(key); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }} 
+      <div onClick={() => { setScreen(key); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
            style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', cursor: 'pointer',
                     background: active ? 'rgba(255,255,255,0.02)' : 'transparent',
                     borderLeft: active ? '4px solid var(--color-accent)' : '4px solid transparent',
@@ -1064,7 +1089,7 @@ export default function App() {
   const navItem = (key, icon, label) => {
     const active = screen === key;
     return (
-      <div onClick={() => { setScreen(key); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }} 
+      <div onClick={() => { setScreen(key); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '40px',
                     color: active ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
         {icon}
@@ -1094,6 +1119,7 @@ export default function App() {
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
             {renderSidebarItem('groups', <Grid size={18} />, 'SPORT GROUPS')}
+            {renderSidebarItem('profiles', <User size={18} />, 'PROFILES')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getDailyAlerts().length > 0 ? ` (${getDailyAlerts().length})` : ''))}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
             {renderSidebarItem('settings', <Settings size={18} />, 'SETTINGS')}
@@ -1474,9 +1500,61 @@ export default function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>QUICK ENTRY</h2>
-                    <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Tap your card to log today's weigh-in</span>
+                    <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                      Tap your card to log today's {kioskTrackMode === 'sleep_only' ? 'sleep & recovery' : 'weigh-in & sleep'}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    {/* Track Mode Toggle Pill */}
+                    <div style={{ display: 'flex', background: 'rgba(0,0,0,0.35)', padding: '3px', borderRadius: '22px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setKioskTrackMode('both');
+                          try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch(e) {}
+                        }}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '19px',
+                          background: kioskTrackMode === 'both' ? 'var(--color-accent)' : 'transparent',
+                          color: kioskTrackMode === 'both' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        ⚖️ Weight + Sleep
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setKioskTrackMode('sleep_only');
+                          try { localStorage.setItem('shiloh_kiosk_track_mode', 'sleep_only'); } catch(e) {}
+                        }}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '19px',
+                          background: kioskTrackMode === 'sleep_only' ? 'var(--color-accent)' : 'transparent',
+                          color: kioskTrackMode === 'sleep_only' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        😴 Sleep Only
+                      </button>
+                    </div>
+
                     <button
                       onClick={() => {
                         setIsAddingAthlete(true);
@@ -1784,23 +1862,72 @@ export default function App() {
                         </button>
                       </div>
 
+                      {/* Track Mode Indicator / Rapid Switch */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Mode: <span style={{ color: 'var(--white)' }}>{kioskTrackMode === 'sleep_only' ? '😴 Sleep & Recovery Only' : '⚖️ Weight + Sleep'}</span>
+                        </span>
+                        <div style={{ display: 'flex', background: 'rgba(0,0,0,0.4)', padding: '2px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setKioskTrackMode('both');
+                              try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch(e){}
+                              setFocusedField('weight');
+                            }}
+                            style={{ padding: '4px 10px', borderRadius: '14px', background: kioskTrackMode === 'both' ? 'var(--color-accent)' : 'transparent', color: kioskTrackMode === 'both' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', fontWeight: 700, fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s' }}
+                          >
+                            ⚖️ + 😴 Both
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setKioskTrackMode('sleep_only');
+                              try { localStorage.setItem('shiloh_kiosk_track_mode', 'sleep_only'); } catch(e){}
+                              setFocusedField('sleep');
+                            }}
+                            style={{ padding: '4px 10px', borderRadius: '14px', background: kioskTrackMode === 'sleep_only' ? 'var(--color-accent)' : 'transparent', color: kioskTrackMode === 'sleep_only' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', fontWeight: 700, fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s' }}
+                          >
+                            😴 Sleep Only
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Form Inputs & Numpad Layout */}
                       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
                         {/* Left Column: Inputs */}
                         <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
-                              <div 
-                                onClick={() => setFocusedField('weight')}
-                                style={{ flex: 1, height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-                              >
-                                {weightInput || '0.0'}
+                          {kioskTrackMode === 'sleep_only' ? (
+                            <div 
+                              onClick={() => {
+                                setKioskTrackMode('both');
+                                try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch(e){}
+                                setFocusedField('weight');
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px dashed rgba(59, 130, 246, 0.4)', padding: '16px', borderRadius: 'var(--radius-md)', cursor: 'pointer', transition: 'all 0.2s' }}
+                              title="Click to enable body weight tracking for this session"
+                            >
+                              <div style={{ fontSize: '28px' }}>⚖️</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--white)', letterSpacing: '0.02em' }}>Weight Tracking Disabled</span>
+                                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: 1.3 }}>Scale recording skipped in Sleep Only Mode. Tap here to enable body weight.</span>
                               </div>
-                              <button onClick={() => setWeightInput(prev => String((parseFloat(prev||0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
                             </div>
-                          </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
+                                <div 
+                                  onClick={() => setFocusedField('weight')}
+                                  style={{ flex: 1, height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                                >
+                                  {weightInput || '0.0'}
+                                </div>
+                                <button onClick={() => setWeightInput(prev => String((parseFloat(prev||0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
+                              </div>
+                            </div>
+                          )}
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1845,17 +1972,19 @@ export default function App() {
                       </div>
 
                       {(() => {
-                        const athleteRecords = reportData.filter(r => r.athlete_id === selectedAthlete.id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+                        const athleteRecords = reportData.filter(r => r.athlete_id === selectedAthlete.id && r.weight_lbs && Number(r.weight_lbs) > 0).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
                         const isFirstEntry = athleteRecords.length === 0;
                         const hasLongGap = athleteRecords.length > 0 && (new Date() - new Date(athleteRecords[athleteRecords.length - 1].created_at)) > 14 * 24 * 60 * 60 * 1000;
-                        const requiresBaseline = isFirstEntry || hasLongGap;
+                        const requiresBaseline = kioskTrackMode !== 'sleep_only' && (isFirstEntry || hasLongGap);
                         
+                        const disableSubmit = saving || (kioskTrackMode === 'sleep_only' ? (!sleepInput || parseFloat(sleepInput) <= 0) : (!weightInput || weightInput === '0.0'));
+
                         if (requiresBaseline) {
                           return (
                             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '4px' }}>
                               <button 
                                 onClick={handleSave}
-                                disabled={!weightInput || saving}
+                                disabled={disableSubmit}
                                 className="btn-primary"
                                 style={{ flex: '1 1 200px', height: '56px', fontSize: '16px', background: 'var(--color-accent)', color: 'var(--navy-950)' }}
                               >
@@ -1863,7 +1992,7 @@ export default function App() {
                               </button>
                               <button 
                                 onClick={handleSave}
-                                disabled={!weightInput || saving}
+                                disabled={disableSubmit}
                                 className="btn-primary"
                                 style={{ flex: '1 1 200px', height: '56px', fontSize: '16px', background: 'transparent', border: '2px solid var(--color-border)', color: 'var(--white)' }}
                               >
@@ -1876,11 +2005,11 @@ export default function App() {
                         return (
                           <button 
                             onClick={handleSave}
-                            disabled={!weightInput || saving}
+                            disabled={disableSubmit}
                             className="btn-primary"
                             style={{ height: '58px', fontSize: '18px', marginTop: '4px' }}
                           >
-                            {saving ? 'Saving...' : 'Save Record & Complete'}
+                            {saving ? 'Saving...' : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : 'Save Record & Complete')}
                           </button>
                         );
                       })()}
@@ -2681,7 +2810,9 @@ export default function App() {
                                   <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
                                     <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
-                                    <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>{log.weight_lbs} lbs</td>
+                                    <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>
+                                      {log.weight_lbs && Number(log.weight_lbs) > 0 ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>😴 Sleep Only</span>}
+                                    </td>
                                     <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < 6.5) ? 'var(--status-error)' : 'var(--color-text)' }}>
                                       {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
                                     </td>
@@ -2708,7 +2839,7 @@ export default function App() {
 
             {screen === 'roster' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {!isAddingAthlete && !selectedProfileId && (
+                {!isAddingAthlete && (
                   <>
                     {/* Roster Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px' }}>
@@ -2805,12 +2936,14 @@ export default function App() {
                     {/* Card Grid */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
                       {filteredAthletes.map(a => {
-                        // Find latest weigh-in for this athlete from reportData
+                        // Find latest weigh-in and recovery logs for this athlete from reportData
                         const athleteLogs = reportData.filter(r => r.athlete_name === a.name).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+                        const weightLogs = athleteLogs.filter(r => r.weight_lbs && Number(r.weight_lbs) > 0);
                         const latestLog = athleteLogs[0];
-                        const prevLog = athleteLogs[1];
-                        const latestWeight = latestLog ? latestLog.weight_lbs : null;
-                        const weightDelta = (latestLog && prevLog) ? (latestLog.weight_lbs - prevLog.weight_lbs) : null;
+                        const latestWeightLog = weightLogs[0];
+                        const prevWeightLog = weightLogs[1];
+                        const latestWeight = latestWeightLog ? latestWeightLog.weight_lbs : null;
+                        const weightDelta = (latestWeightLog && prevWeightLog) ? (latestWeightLog.weight_lbs - prevWeightLog.weight_lbs) : null;
                         const lastLoggedDate = latestLog ? new Date(latestLog.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
 
                         // Deterministic avatar color based on name
@@ -2821,7 +2954,7 @@ export default function App() {
                         return (
                           <div 
                             key={a.id} 
-                            onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); }} 
+                            onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); setScreen('profiles'); }} 
                             className="card-glass glow-card" 
                             style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '18px 20px', cursor: 'pointer', minHeight: '88px' }}
                           >
@@ -2862,7 +2995,7 @@ export default function App() {
                               </span>
                             </div>
 
-                            {/* Weight + Delta */}
+                            {/* Weight + Delta or Sleep Only */}
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
                               {latestWeight != null ? (
                                 <>
@@ -2879,7 +3012,9 @@ export default function App() {
                                   )}
                                 </>
                               ) : (
-                                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>--</span>
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.05)', padding: '5px 12px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
+                                  {athleteLogs.length > 0 && athleteLogs[0].sleep_hrs ? `😴 ${athleteLogs[0].sleep_hrs} hrs (Sleep Only)` : '--'}
+                                </span>
                               )}
                             </div>
                           </div>
@@ -2892,7 +3027,7 @@ export default function App() {
                 
                 {isAddingAthlete && (
                   <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div onClick={() => { setIsAddingAthlete(false); if(editingAthleteId) setSelectedProfileId(editingAthleteId); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
+                    <div onClick={() => { setIsAddingAthlete(false); if(editingAthleteId) { setSelectedProfileId(editingAthleteId); setScreen('profiles'); } }} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
                       <ChevronLeft size={16} /> Back
                     </div>
                     
@@ -2967,136 +3102,576 @@ export default function App() {
                   </div>
                 )}
 
-                {!isAddingAthlete && selectedProfileId && (() => {
-                  const athlete = athletes.find(a => a.id === selectedProfileId);
-                  if (!athlete) return null;
-                  
-                  const latestWeight = profileData.length > 0 ? profileData[profileData.length-1].weight_lbs : '--';
-                  const latestSleep = profileData.length > 0 ? profileData[profileData.length-1].sleep_hrs : '--';
-                  const daysAgo = profileData.length > 0 ? Math.floor((new Date() - new Date(profileData[profileData.length-1].created_at)) / (1000 * 60 * 60 * 24)) : 0;
-                  
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                      <div onClick={() => setSelectedProfileId(null)} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.1em' }}>
-                        <ChevronLeft size={16} /> ROSTER / {athlete.name.toUpperCase()}
-                      </div>
-                      
-                      {/* Profile Header */}
-                      <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                        <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
-                          <div style={{ width: '80px', height: '80px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>
-                            {athlete.name.split(' ').map(n=>n[0]).join('')}
-                          </div>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em' }}>ATHLETE PROFILE</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, textTransform: 'uppercase', lineHeight: 1 }}>{athlete.name}</span>
-                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{athlete.sport} &middot; {athlete.team}{athlete.grade ? ` · ${athlete.grade}` : ''} &middot; {athlete.position}</span>
-                          </div>
-                          
-                          {/* Desktop Stats */}
-                          <div style={{ display: 'flex', gap: '32px', marginLeft: 'auto', '@media (max-width: 768px)': { display: 'none' } }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>BODY MASS</span>
-                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700 }}>{latestWeight} <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>lb</span></span>
-                              <span style={{ fontSize: '10px', color: 'var(--color-accent)' }}>{profileData.length > 0 ? (daysAgo === 0 ? 'Today' : `${daysAgo}d ago`) : 'No data'}</span>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>SESSIONS</span>
-                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700 }}>{profileData.length}</span>
-                              <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>Total</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
-                          <button onClick={() => handleSelectAthleteForEntry(athlete.id)} style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: '4px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Plus size={16} /> LOG DATA
-                          </button>
-                          <button onClick={() => handleEditClick(athlete)} style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                            EDIT
-                          </button>
-                          <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>ID {athlete.id.substring(0,8).toUpperCase()}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Trend Charts */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-                        
-                        {/* Body Weight Chart */}
-                        <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Body Weight</span>
-                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>{latestWeight} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>lbs</span></span>
-                            </div>
-                          </div>
-                          
-                          <div style={{ height: '220px', position: 'relative', paddingTop: '16px', marginLeft: '-24px' }}>
-                            {profileData.length > 1 ? (() => {
-                              const trendData = profileData.slice(-14).map(d => ({
-                                date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : 'Unknown',
-                                Weight: Number(d.weight_lbs) || 0
-                              }));
-                              const validWeights = trendData.map(d=>d.Weight).filter(w => w > 0);
-                              const minW = validWeights.length > 0 ? Math.min(...validWeights) : 100;
-                              const maxW = validWeights.length > 0 ? Math.max(...validWeights) : 200;
-                              
-                              return (
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                                    <defs>
-                                      <linearGradient id="colorWeight" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.4}/>
-                                        <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0}/>
-                                      </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="date" stroke="rgba(255,255,255,0.2)" fontSize={10} tickMargin={10} minTickGap={20} />
-                                    <YAxis domain={[Math.floor(minW - 5), Math.ceil(maxW + 5)]} hide />
-                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                                    <Area type="monotone" dataKey="Weight" stroke="var(--color-accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorWeight)" activeDot={{ r: 6, fill: 'var(--color-accent)', stroke: '#fff', strokeWidth: 2 }} />
-                                  </AreaChart>
-                                </ResponsiveContainer>
-                              );
-                            })() : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '12px', paddingLeft: '24px' }}>Need at least 2 entries for trend line</div>}
-                          </div>
-                        </div>
-
-                        {/* Sleep Chart */}
-                        <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Sleep Hours</span>
-                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700 }}>{latestSleep} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>hrs</span></span>
-                            </div>
-                          </div>
-                          
-                          <div style={{ height: '220px', position: 'relative', paddingTop: '16px', marginLeft: '-24px' }}>
-                            {profileData.length > 0 ? (() => {
-                              const sleepData = profileData.slice(-7).map(d => ({
-                                date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : 'Unknown',
-                                Sleep: d.sleep_hrs
-                              }));
-                              
-                              return (
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart data={sleepData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                                    <XAxis dataKey="date" stroke="rgba(255,255,255,0.2)" fontSize={10} tickMargin={10} minTickGap={20} />
-                                    <YAxis domain={[0, 12]} hide />
-                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
-                                    <Bar dataKey="Sleep" fill="var(--color-text)" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              );
-                            })() : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '12px', paddingLeft: '24px' }}>No sleep data</div>}
-                          </div>
-                        </div>
-
-                      </div>
-                    </div>
-                  );
-                })()}
               </div>
             )}
+
+            {/* STANDALONE PROFILES TAB */}
+            {screen === 'profiles' && (() => {
+              if (!selectedProfileId) {
+                return (
+                  <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    {/* Hub Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.12em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          <User size={14} /> ATHLETE INTELLIGENCE DIRECTORY
+                        </span>
+                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', margin: 0, lineHeight: 1.1 }}>
+                          PERFORMANCE & BIOMETRIC PROFILES
+                        </h1>
+                        <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                          Select an athlete to evaluate body weight fluctuation trends, sleep recovery patterns, and historical log ledgers over time.
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.15)', padding: '6px 16px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {filteredAthletes.length} ATHLETES LISTED
+                      </span>
+                    </div>
+
+                    {/* Search and Sport Filter Row */}
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div style={{ position: 'relative', flex: '1 1 280px', display: 'flex', alignItems: 'center' }}>
+                        <Search size={18} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+                        <input 
+                          type="text" 
+                          className="input-glass"
+                          placeholder="Search profile by athlete name or position..." 
+                          value={search} 
+                          onChange={e => setSearch(e.target.value)}
+                          style={{ width: '100%', height: '48px', padding: '0 38px 0 44px', fontSize: '14px' }}
+                        />
+                        {search && (
+                          <button 
+                            onClick={() => setSearch('')}
+                            style={{ position: 'absolute', right: '14px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          >
+                            <X size={18} />
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {['ALL', ...sportsList].map(sport => (
+                          <button
+                            key={sport}
+                            onClick={() => setSelectedSportFilter(sport)}
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: '20px',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              cursor: 'pointer',
+                              border: selectedSportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
+                              background: selectedSportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
+                              color: selectedSportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {sport}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Glowing Cards Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '16px' }}>
+                      {filteredAthletes.map(a => {
+                        const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
+                        const colorIdx = a.name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length;
+                        const avatarBg = avatarColors[colorIdx];
+
+                        const aLogs = reportData.filter(r => r.athlete_id === a.id).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+                        const latestLog = aLogs[0];
+
+                        return (
+                          <div
+                            key={a.id}
+                            onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); }}
+                            className="card-glass glow-card"
+                            style={{
+                              padding: '20px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '16px',
+                              cursor: 'pointer',
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              borderRadius: '16px',
+                              transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <div style={{
+                                width: '56px', height: '56px', borderRadius: '16px',
+                                background: avatarBg, border: '2px solid rgba(255,255,255,0.15)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#fff', fontWeight: 800, fontSize: '20px', fontFamily: 'var(--font-display)',
+                                flexShrink: 0, boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                              }}>
+                                {a.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, margin: 0, color: '#fff', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {a.name}
+                                </h3>
+                                <div style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 600, marginTop: '2px', textTransform: 'uppercase' }}>
+                                  {a.sport || 'General'} &middot; {a.position || 'Athlete'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* KPI mini row */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                              <div>
+                                <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Current Mass</span>
+                                <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>
+                                  {latestLog && latestLog.weight_lbs && Number(latestLog.weight_lbs) > 0 ? `${latestLog.weight_lbs} lb` : (latestLog ? '😴 Sleep Only' : 'No logs')}
+                                </div>
+                              </div>
+                              <div>
+                                <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Total Records</span>
+                                <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px' }}>
+                                  {aLogs.length} session{aLogs.length !== 1 ? 's' : ''}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                {latestLog && latestLog.created_at ? `Active: ${new Date(latestLog.created_at).toLocaleDateString()}` : 'No history yet'}
+                              </span>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                VIEW TRENDS <ArrowUpRight size={14} />
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {filteredAthletes.length === 0 && (
+                      <div className="card-glass" style={{ padding: '48px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                        No athletes found matching "{search}". Try adjusting your search filters above.
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // SELECTED ATHLETE PROFILE DASHBOARD
+              const athlete = athletes.find(a => a.id === selectedProfileId);
+              if (!athlete) {
+                return (
+                  <div className="card-glass" style={{ padding: '48px', textAlign: 'center' }}>
+                    <p style={{ color: 'var(--color-text-muted)' }}>Selected athlete profile not found.</p>
+                    <button onClick={() => setSelectedProfileId(null)} className="btn-secondary" style={{ marginTop: '16px' }}>Return to Profiles</button>
+                  </div>
+                );
+              }
+
+              const sortedLogs = [...profileData].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+              const weightLogs = sortedLogs.filter(l => l.weight_lbs && Number(l.weight_lbs) > 0);
+              const sleepLogs = sortedLogs.filter(l => l.sleep_hrs && Number(l.sleep_hrs) > 0);
+              
+              const latestWeight = weightLogs.length > 0 ? Number(weightLogs[weightLogs.length-1].weight_lbs) : null;
+              const baselineWeight = weightLogs.length > 0 ? Number(weightLogs[0].weight_lbs) : null;
+              const weightDelta = (latestWeight && baselineWeight && weightLogs.length > 1) ? (latestWeight - baselineWeight) : 0;
+              const maxWeight = weightLogs.length > 0 ? Math.max(...weightLogs.map(l => Number(l.weight_lbs))) : '--';
+              const minWeight = weightLogs.length > 0 ? Math.min(...weightLogs.map(l => Number(l.weight_lbs))) : '--';
+              
+              const latestSleep = sleepLogs.length > 0 ? Number(sleepLogs[sleepLogs.length-1].sleep_hrs) : '--';
+              const avgSleep = sleepLogs.length > 0 ? (sleepLogs.reduce((sum, l) => sum + Number(l.sleep_hrs), 0) / sleepLogs.length).toFixed(1) : '--';
+              const maxSleep = sleepLogs.length > 0 ? Math.max(...sleepLogs.map(l => Number(l.sleep_hrs))) : '--';
+              const deficitNights = sleepLogs.filter(l => Number(l.sleep_hrs) < 6.5).length;
+              const recoveryScore = sleepLogs.length > 0 ? Math.round((sleepLogs.filter(l => Number(l.sleep_hrs) >= 7.0).length / sleepLogs.length) * 100) : null;
+
+              const daysAgo = sortedLogs.length > 0 && sortedLogs[sortedLogs.length-1].created_at ? Math.floor((new Date() - new Date(sortedLogs[sortedLogs.length-1].created_at)) / (1000 * 60 * 60 * 24)) : null;
+
+              const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
+              const colorIdx = athlete.name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length;
+              const avatarBg = avatarColors[colorIdx];
+
+              return (
+                <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  {/* Top Control & Switcher Bar */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '16px' }}>
+                    <div onClick={() => setSelectedProfileId(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.1em', background: 'rgba(184, 156, 91, 0.12)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.3)', transition: 'all 0.2s' }}>
+                      <ChevronLeft size={16} /> ALL PROFILES / {athlete.name.toUpperCase()}
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <RefreshCw size={12} style={{ cursor: 'pointer' }} onClick={() => fetchProfileData(athlete.id)} title="Refresh Data" /> SWITCH ATHLETE:
+                      </span>
+                      <select
+                        className="input-glass"
+                        value={selectedProfileId}
+                        onChange={e => {
+                          if (e.target.value) {
+                            setSelectedProfileId(e.target.value);
+                            fetchProfileData(e.target.value);
+                          }
+                        }}
+                        style={{ height: '38px', padding: '0 16px', fontSize: '13px', borderRadius: '8px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', minWidth: '220px' }}
+                      >
+                        {athletes.slice().sort((a,b) => a.name.localeCompare(b.name)).map(a => (
+                          <option key={a.id} value={a.id} style={{ background: '#0a192f', color: '#fff' }}>
+                            {a.name.toUpperCase()} &bull; {a.sport || 'General'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Hero Athlete Dossier Card */}
+                  <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '28px', border: '1px solid rgba(184, 156, 91, 0.3)', position: 'relative', overflow: 'hidden', boxShadow: '0 12px 36px rgba(0,0,0,0.4)' }}>
+                    <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '280px', height: '280px', background: 'radial-gradient(circle, rgba(184, 156, 91, 0.12) 0%, rgba(0,0,0,0) 70%)', pointerEvents: 'none' }} />
+                    
+                    <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ width: '88px', height: '88px', borderRadius: '20px', background: avatarBg, border: '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'var(--font-display)', fontSize: '34px', fontWeight: 800, flexShrink: 0, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                        {athlete.name.split(' ').map(n=>n[0]).join('')}
+                      </div>
+                      <div style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>ATHLETE BIOMETRIC DOSSIER</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, background: weightLogs.length > 0 ? 'rgba(59, 130, 246, 0.2)' : 'rgba(139, 92, 246, 0.2)', color: weightLogs.length > 0 ? '#60a5fa' : '#c084fc', padding: '3px 10px', borderRadius: '12px', border: `1px solid ${weightLogs.length > 0 ? 'rgba(59, 130, 246, 0.4)' : 'rgba(139, 92, 246, 0.4)'}`, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            {weightLogs.length > 0 ? '⚖️ STANDARD TRACKING' : '😴 SLEEP ONLY MODE'}
+                          </span>
+                        </div>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '34px', fontWeight: 800, textTransform: 'uppercase', lineHeight: 1, color: '#fff', letterSpacing: '0.02em' }}>{athlete.name}</span>
+                        <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                          <strong style={{ color: '#fff' }}>{athlete.sport || 'Athletics'}</strong> &middot; {athlete.team || 'Shiloh'}{athlete.grade ? ` · Class of ${athlete.grade}` : ''} &middot; {athlete.position || 'General Athlete'}
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
+                        <button onClick={() => handleSelectAthleteForEntry(athlete.id)} className="glow-card" style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: '8px', padding: '12px 22px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <Plus size={18} /> LOG DATA
+                        </button>
+                        <button onClick={() => handleEditClick(athlete)} style={{ background: 'rgba(255,255,255,0.04)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          EDIT INFO
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Executive KPI Stat Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', paddingTop: '8px' }}>
+                      
+                      <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>CURRENT BODY MASS</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, color: '#fff' }}>
+                            {latestWeight != null ? `${latestWeight} lb` : '😴 Sleep Only'}
+                          </span>
+                        </div>
+                        {latestWeight != null && (
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: weightDelta > 0 ? 'var(--status-success)' : weightDelta < 0 ? 'var(--status-error)' : 'var(--color-text-muted)' }}>
+                            {weightDelta > 0 ? `▲ +${weightDelta.toFixed(1)} lb from baseline` : weightDelta < 0 ? `▼ ${weightDelta.toFixed(1)} lb from baseline` : '• Unchanged vs baseline'}
+                          </span>
+                        )}
+                        {latestWeight == null && (
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Scale weight not recorded</span>
+                        )}
+                      </div>
+
+                      <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>AVERAGE SLEEP DURATION</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, color: '#fff' }}>
+                            {avgSleep} <span style={{ fontSize: '16px', color: 'var(--color-text-muted)' }}>hrs</span>
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: avgSleep !== '--' && Number(avgSleep) >= 7.5 ? 'var(--status-success)' : avgSleep !== '--' && Number(avgSleep) >= 6.5 ? '#f59e0b' : 'var(--status-error)' }}>
+                          {avgSleep !== '--' ? (Number(avgSleep) >= 7.5 ? '🟢 Optimal Rest Standard' : Number(avgSleep) >= 6.5 ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning') : 'No sleep data'}
+                        </span>
+                      </div>
+
+                      <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>RECOVERY INDEX SCORE</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, color: 'var(--color-accent)' }}>
+                            {recoveryScore != null ? `${recoveryScore}%` : '--'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                          {recoveryScore != null ? `${sleepLogs.length - deficitNights} / ${sleepLogs.length} sessions optimal` : 'Awaiting sleep check-ins'}
+                        </span>
+                      </div>
+
+                      <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>TOTAL RECORDED LOGS</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, color: '#fff' }}>
+                            {sortedLogs.length}
+                          </span>
+                          <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 700 }}>SESSIONS</span>
+                        </div>
+                        <span style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 700 }}>
+                          {daysAgo != null ? (daysAgo === 0 ? '✨ Active Today' : `Last active ${daysAgo}d ago`) : 'No historical sessions'}
+                        </span>
+                      </div>
+
+                    </div>
+                  </div>
+                  
+                  {/* Trend Analytics Section (2 Columns) */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
+                    
+                    {/* Body Weight Evolution Curve */}
+                    <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <TrendingUp size={15} /> MASS EVOLUTION CURVE
+                          </span>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, margin: '4px 0 0', color: '#fff', textTransform: 'uppercase' }}>
+                            BODY WEIGHT TRENDS
+                          </h3>
+                        </div>
+                        {weightLogs.length > 0 && (
+                          <div style={{ display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.25)', padding: '8px 14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div>
+                              <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', display: 'block' }}>LOW</span>
+                              <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>{minWeight}</span>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', display: 'block' }}>HIGH</span>
+                              <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>{maxWeight}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div style={{ height: '260px', position: 'relative', paddingTop: '16px', marginLeft: '-20px' }}>
+                        {weightLogs.length > 1 ? (() => {
+                          const trendData = weightLogs.slice(-20).map(d => ({
+                            date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown',
+                            Weight: Number(d.weight_lbs) || 0
+                          }));
+                          const validW = trendData.map(d=>d.Weight).filter(w => w > 0);
+                          const minW = validW.length > 0 ? Math.min(...validW) : 100;
+                          const maxW = validW.length > 0 ? Math.max(...validW) : 200;
+                          
+                          return (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                                <defs>
+                                  <linearGradient id="colorWeightProfile" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.5}/>
+                                    <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0}/>
+                                  </linearGradient>
+                                </defs>
+                                <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
+                                <YAxis domain={[Math.floor(minW - 4), Math.ceil(maxW + 4)]} hide />
+                                <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                                <Area type="monotone" dataKey="Weight" stroke="var(--color-accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorWeightProfile)" activeDot={{ r: 7, fill: 'var(--color-accent)', stroke: '#fff', strokeWidth: 2 }} />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          );
+                        })() : weightLogs.length === 1 ? (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: '8px' }}>
+                            <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-accent)' }}>{weightLogs[0].weight_lbs} lbs recorded</span>
+                            <span style={{ fontSize: '13px' }}>Need at least 2 weigh-in entries to generate visual trend line</span>
+                          </div>
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: '12px', background: 'rgba(139, 92, 246, 0.05)', borderRadius: '12px', border: '1px dashed rgba(139, 92, 246, 0.25)', padding: '24px' }}>
+                            <span style={{ fontSize: '24px' }}>😴</span>
+                            <span style={{ fontSize: '15px', fontWeight: 700, color: '#c084fc', textAlign: 'center' }}>SLEEP & RECOVERY ONLY TRACKING</span>
+                            <span style={{ fontSize: '13px', textAlign: 'center', maxWidth: '320px', lineHeight: 1.5 }}>
+                              This athlete is configured for recovery tracking without scale body mass recordings. No weight trends to display.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Sleep Duration & Recovery Pattern */}
+                    <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Clock size={15} /> RECOVERY & REST PATTERN
+                          </span>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, margin: '4px 0 0', color: '#fff', textTransform: 'uppercase' }}>
+                            SLEEP DURATION TRENDS
+                          </h3>
+                        </div>
+                        {sleepLogs.length > 0 && (
+                          <div style={{ display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.25)', padding: '8px 14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div>
+                              <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', display: 'block' }}>PEAK REST</span>
+                              <span style={{ fontSize: '14px', fontWeight: 800, color: '#60a5fa' }}>{maxSleep}h</span>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', display: 'block' }}>DEFICITS</span>
+                              <span style={{ fontSize: '14px', fontWeight: 800, color: deficitNights > 0 ? '#ef4444' : 'var(--status-success)' }}>{deficitNights}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div style={{ height: '260px', position: 'relative', paddingTop: '16px', marginLeft: '-20px' }}>
+                        {sleepLogs.length > 0 ? (() => {
+                          const sleepData = sleepLogs.slice(-14).map(d => ({
+                            date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown',
+                            Sleep: Number(d.sleep_hrs) || 0,
+                            fillColor: Number(d.sleep_hrs) >= 7.5 ? '#34d399' : Number(d.sleep_hrs) >= 6.5 ? '#f59e0b' : '#ef4444'
+                          }));
+                          
+                          return (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={sleepData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                                <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
+                                <YAxis domain={[0, 12]} hide />
+                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                                <Bar dataKey="Sleep" fill="#60a5fa" radius={[6, 6, 0, 0]} fillOpacity={0.9} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          );
+                        })() : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+                            No sleep duration recordings logged yet
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* All Attributes Over Time - Full Chronological Ledger */}
+                  <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          <Activity size={14} /> COMPLETE ATTRIBUTE TIMELINE
+                        </span>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, margin: 0, color: '#fff', textTransform: 'uppercase' }}>
+                          HISTORICAL LOG LEDGER ({sortedLogs.length})
+                        </h3>
+                        <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                          Comprehensive log of every check-in session showing body weight deltas, sleep duration, and recovery classifications over time.
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '12px', color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.12)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.25)', fontWeight: 700, textTransform: 'uppercase' }}>
+                        CHRONOLOGICAL ORDER (NEWEST FIRST)
+                      </span>
+                    </div>
+
+                    {sortedLogs.length > 0 ? (
+                      <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '680px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+                              <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>DATE & TIME</th>
+                              <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>BODY WEIGHT</th>
+                              <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>SESSION DELTA</th>
+                              <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>SLEEP DURATION</th>
+                              <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>RECOVERY STATUS</th>
+                              <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right' }}>ACTION</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedLogs.slice().reverse().map((log, idx, arr) => {
+                              // Find older record with valid weight to compute delta
+                              const currentW = log.weight_lbs && Number(log.weight_lbs) > 0 ? Number(log.weight_lbs) : null;
+                              let prevW = null;
+                              for (let j = idx + 1; j < arr.length; j++) {
+                                if (arr[j].weight_lbs && Number(arr[j].weight_lbs) > 0) {
+                                  prevW = Number(arr[j].weight_lbs);
+                                  break;
+                                }
+                              }
+                              const delta = (currentW && prevW) ? (currentW - prevW) : null;
+                              const sleepH = Number(log.sleep_hrs);
+
+                              return (
+                                <tr key={log.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.03)' } }}>
+                                  <td style={{ padding: '16px 20px' }}>
+                                    <span style={{ fontWeight: 700, color: '#fff', fontSize: '14px', display: 'block' }}>
+                                      {new Date(log.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                                      {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </td>
+
+                                  <td style={{ padding: '16px 20px' }}>
+                                    {currentW ? (
+                                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: '#fff' }}>
+                                        {currentW.toFixed(1)} <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>lb</span>
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '12px', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', padding: '4px 12px', borderRadius: '12px', fontWeight: 700, border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+                                        😴 Sleep Only Mode
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  <td style={{ padding: '16px 20px' }}>
+                                    {delta != null ? (
+                                      <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                        padding: '4px 10px', borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+                                        background: delta > 0 ? 'rgba(52, 211, 153, 0.12)' : delta < 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.05)',
+                                        color: delta > 0 ? 'var(--status-success)' : delta < 0 ? 'var(--status-error)' : 'var(--color-text-muted)',
+                                        border: `1px solid ${delta > 0 ? 'rgba(52, 211, 153, 0.3)' : delta < 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.1)'}`
+                                      }}>
+                                        {delta > 0 ? `▲ +${delta.toFixed(1)} lb` : delta < 0 ? `▼ ${delta.toFixed(1)} lb` : '• Unchanged'}
+                                      </span>
+                                    ) : currentW ? (
+                                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Initial baseline</span>
+                                    ) : (
+                                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>--</span>
+                                    )}
+                                  </td>
+
+                                  <td style={{ padding: '16px 20px' }}>
+                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: '#fff' }}>
+                                      {log.sleep_hrs ? Number(log.sleep_hrs).toFixed(1) : '--'} <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>hrs</span>
+                                    </span>
+                                  </td>
+
+                                  <td style={{ padding: '16px 20px' }}>
+                                    <span style={{
+                                      display: 'inline-block', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                                      background: sleepH >= 7.5 ? 'rgba(52, 211, 153, 0.15)' : sleepH >= 6.5 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.2)',
+                                      color: sleepH >= 7.5 ? 'var(--status-success)' : sleepH >= 6.5 ? '#f59e0b' : '#ef4444',
+                                      border: `1px solid ${sleepH >= 7.5 ? 'rgba(52, 211, 153, 0.4)' : sleepH >= 6.5 ? 'rgba(245, 158, 11, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+                                    }}>
+                                      {sleepH >= 7.5 ? '🟢 Optimal Rest' : sleepH >= 6.5 ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning'}
+                                    </span>
+                                  </td>
+
+                                  <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                                    <button
+                                      onClick={async () => {
+                                        if (window.confirm('Delete this recorded weigh-in session?')) {
+                                          await handleDeleteWeighIn(log.id);
+                                          setTimeout(() => fetchProfileData(athlete.id), 300);
+                                        }
+                                      }}
+                                      style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, transition: 'all 0.2s' }}
+                                      title="Delete Log Entry"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '48px', textAlign: 'center', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px', background: 'rgba(0,0,0,0.15)' }}>
+                        <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📋</span>
+                        No check-in session logs recorded for this athlete yet. Click "+ LOG DATA" above or enter via Kiosk Mode.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {screen === 'settings' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 
@@ -3394,6 +3969,7 @@ export default function App() {
           {navItem('entry', <Plus size={20} />, 'Log')}
           {navItem('roster', <Shield size={20} />, 'Roster')}
           {navItem('groups', <Grid size={20} />, 'Groups')}
+          {navItem('profiles', <User size={20} />, 'Profiles')}
           {navItem('alerts', <AlertTriangle size={20} />, 'Alerts')}
           {navItem('reports', <FileText size={20} />, 'Reports')}
           {navItem('settings', <Settings size={20} />, 'Settings')}
