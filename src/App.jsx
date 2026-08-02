@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v1.2';
+const APP_VERSION = 'v1.3';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -919,13 +919,28 @@ export default function App() {
       {/* Main Content */}
       <div className="main-content">
         
-        {/* Offline Banner */}
-        {!isOnline && (
-          <div style={{ background: '#ef4444', color: 'white', padding: '12px 24px', fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', zIndex: 100 }}>
-            <WifiOff size={18} />
-            <span>OFFLINE MODE - DATA SAVED LOCALLY AND WILL SYNC WHEN RECONNECTED</span>
-          </div>
-        )}
+        {/* Connection Status Badge */}
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          background: isOnline ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+          color: 'white',
+          padding: '8px 16px',
+          borderRadius: '24px',
+          fontSize: '12px',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          zIndex: 9999,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          backdropFilter: 'blur(8px)',
+          border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.5)' : 'rgba(239, 68, 68, 0.5)'}`
+        }}>
+          {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
+          {isOnline ? 'ONLINE' : 'OFFLINE MODE - SYNC PENDING'}
+        </div>
 
         {/* Top Header */}
         <div style={{ flex: 'none', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
