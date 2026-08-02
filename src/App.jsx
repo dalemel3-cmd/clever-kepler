@@ -643,7 +643,7 @@ export default function App() {
             {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
-            {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS')}
+            {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getActionRequired().length > 0 ? ` (${getActionRequired().length})` : ''))}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
           </div>
           <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -744,40 +744,9 @@ export default function App() {
                     </div>
                   </div>
                   
-                  <div onClick={() => setScreen('alerts')} className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '24px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <AlertTriangle size={20} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase' }}>Risk Alerts</span>
-                      <span style={{ fontSize: '12px', color: 'var(--status-error)', fontWeight: 600 }}>Dehydration & Sleep</span>
-                    </div>
                   </div>
                 </div>
 
-                {/* Action Required Widget */}
-                {getActionRequired().length > 0 && (
-                  <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <AlertTriangle size={18} color="var(--status-error)" />
-                      <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--white)' }}>ACTION REQUIRED TODAY</span>
-                      <span style={{ fontSize: '10px', background: 'var(--status-error)', color: 'var(--white)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>{getActionRequired().length} ATHLETES</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
-                      {getActionRequired().map(alert => (
-                        <div key={alert.id} style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-error)', fontWeight: 700, fontSize: '12px' }}>
-                            {alert.athlete_name.split(' ').map(n=>n[0]).join('')}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--white)' }}>{alert.athlete_name}</span>
-                            <span style={{ fontSize: '10px', color: 'var(--status-error)', fontWeight: 600 }}>{alert.sleep_hrs}h Sleep</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Chart */}
                 <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -947,14 +916,43 @@ export default function App() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={handleSave}
-                  disabled={!weightInput || saving}
-                  className="btn-primary"
-                  style={{ height: '64px', fontSize: '20px' }}
-                >
-                  {saving ? 'Saving...' : 'Save Record'}
-                </button>
+                {(() => {
+                  const isFirstEntry = reportData.filter(r => r.athlete_id === selectedAthlete.id).length === 0;
+                  
+                  if (isFirstEntry) {
+                    return (
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <button 
+                          onClick={handleSave}
+                          disabled={!weightInput || saving}
+                          className="btn-primary"
+                          style={{ flex: 1, height: '64px', fontSize: '18px', background: 'var(--color-accent)', color: 'var(--navy-950)' }}
+                        >
+                          {saving ? 'Saving...' : 'This is my baseline'}
+                        </button>
+                        <button 
+                          onClick={handleSave}
+                          disabled={!weightInput || saving}
+                          className="btn-primary"
+                          style={{ flex: 1, height: '64px', fontSize: '18px', background: 'transparent', border: '2px solid var(--color-border)', color: 'var(--white)' }}
+                        >
+                          {saving ? 'Saving...' : 'Save as new entry'}
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button 
+                      onClick={handleSave}
+                      disabled={!weightInput || saving}
+                      className="btn-primary"
+                      style={{ height: '64px', fontSize: '20px' }}
+                    >
+                      {saving ? 'Saving...' : 'Save Record'}
+                    </button>
+                  );
+                })()}
 
                 {saved && (
                   <div className="animate-slide-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--status-success)' }}>
