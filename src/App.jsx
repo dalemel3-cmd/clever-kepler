@@ -697,13 +697,13 @@ export default function App() {
     }
     
     setSaving(true);
-    const weightVal = (kioskTrackMode !== 'sleep_only' && weightInput && weightInput !== '0.0') ? parseFloat(weightInput) : null;
+    const weightVal = (kioskTrackMode !== 'sleep_only' && weightInput && !isNaN(parseFloat(weightInput)) && parseFloat(weightInput) > 0) ? parseFloat(weightInput) : null;
     const record = { 
       athlete_id: selectedAthlete.id, 
       athlete_name: selectedAthlete.name,
       sport: selectedAthlete.sport,
       weight_lbs: weightVal,
-      sleep_hrs: parseFloat(sleepInput || 0),
+      sleep_hrs: !isNaN(parseFloat(sleepInput)) ? parseFloat(sleepInput) : 0,
       created_at: new Date().toISOString()
     };
 
@@ -821,18 +821,19 @@ export default function App() {
   };
 
   const handleCreateAthlete = async () => {
-    if (!newAthlete.name) return;
+    if (!newAthlete.name || !newAthlete.name.trim()) return;
+    const sanitizedAthlete = { ...newAthlete, name: newAthlete.name.trim() };
     setSaving(true);
     try {
       let createdAthlete = null;
       const { data, error } = await supabase
         .from('athletes')
-        .insert([newAthlete])
+        .insert([sanitizedAthlete])
         .select();
         
       if (error) {
         console.warn("Could not insert athlete online, saving locally:", error);
-        createdAthlete = { ...newAthlete, id: 'local_' + Date.now(), created_at: new Date().toISOString() };
+        createdAthlete = { ...sanitizedAthlete, id: 'local_' + Date.now(), created_at: new Date().toISOString() };
       } else if (data && data.length > 0) {
         createdAthlete = data[0];
       }
@@ -895,19 +896,29 @@ export default function App() {
   };
 
   const handleUpdateAthlete = async () => {
-    if (!newAthlete.name) return;
+    if (!newAthlete.name || !newAthlete.name.trim()) return;
+    const sanitizedAthlete = { ...newAthlete, name: newAthlete.name.trim() };
     setSaving(true);
     try {
       const { data, error } = await supabase
         .from('athletes')
-        .update(newAthlete)
+        .update(sanitizedAthlete)
         .eq('id', editingAthleteId)
         .select();
         
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        setAthletes(prev => prev.map(a => a.id === editingAthleteId ? data[0] : a));
+      if (error || !data || data.length === 0) {
+        console.warn("Supabase update error or offline, falling back to local update.");
+        setAthletes(prev => {
+          const next = prev.map(a => a.id === editingAthleteId ? { ...a, ...sanitizedAthlete } : a);
+          try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch(e){}
+          return next;
+        });
+      } else {
+        setAthletes(prev => {
+          const next = prev.map(a => a.id === editingAthleteId ? data[0] : a);
+          try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch(e){}
+          return next;
+        });
       }
       setIsAddingAthlete(false);
       setEditingAthleteId(null);
@@ -2190,9 +2201,9 @@ export default function App() {
                     let countW = 0;
                     sportAthletes.forEach(a => {
                       const latestRecord = reportData
-                        .filter(r => r.athlete_id === a.id && r.weight_lbs)
+                        .filter(r => r.athlete_id === a.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
                         .sort((x, y) => new Date(y.created_at) - new Date(x.created_at))[0];
-                      if (latestRecord && latestRecord.weight_lbs) {
+                      if (latestRecord && latestRecord.weight_lbs && !isNaN(parseFloat(latestRecord.weight_lbs))) {
                         totalW += parseFloat(latestRecord.weight_lbs);
                         countW += 1;
                       }
