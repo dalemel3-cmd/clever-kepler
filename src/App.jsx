@@ -185,6 +185,7 @@ export default function App() {
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
 
   useEffect(() => {
@@ -218,16 +219,20 @@ export default function App() {
   }, []);
 
   const handleInstallApp = async () => {
-    if (!deferredInstallPrompt) {
-      alert("App installation guide: Tap the Share button (Safari iOS) or Chrome ⋮ menu and select 'Add to Home Screen' / 'Install App'.");
-      return;
+    if (deferredInstallPrompt) {
+      try {
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setIsAppInstalled(true);
+        }
+        setDeferredInstallPrompt(null);
+        return;
+      } catch (err) {
+        console.log("Install prompt error:", err);
+      }
     }
-    deferredInstallPrompt.prompt();
-    const { outcome } = await deferredInstallPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsAppInstalled(true);
-    }
-    setDeferredInstallPrompt(null);
+    setShowInstallModal(true);
   };
 
   const handleSaveSettings = () => {
@@ -2323,6 +2328,70 @@ export default function App() {
           {navItem('roster', <Shield size={20} />, 'Roster')}
           {navItem('reports', <FileText size={20} />, 'Reports')}
           {navItem('settings', <Settings size={20} />, 'Settings')}
+        </div>
+      )}
+
+      {showInstallModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(3, 10, 20, 0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div className="card-glass glow-card animate-slide-up" style={{ width: '100%', maxWidth: '500px', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--color-accent)', boxShadow: '0 8px 32px rgba(184, 156, 91, 0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
+                  <Smartphone size={26} />
+                </div>
+                <div>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: 0, color: 'var(--white)' }}>INSTALL HPD APP</h2>
+                  <span style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 700 }}>1-TAP HOME SCREEN ACCESS</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowInstallModal(false)}
+                style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '8px', borderRadius: '50%' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+              Install HPD App for instant 1-tap access on your home screen or desktop:
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              
+              {/* iOS Safari */}
+              <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🍎</span> iPhone & iPad (Safari)
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+                  1. Tap Safari's <strong>Share button</strong> (box with arrow pointing up <span style={{ fontSize: '14px' }}>⎘</span>)<br />
+                  2. Scroll down & tap <strong style={{ color: '#fff' }}>"Add to Home Screen"</strong><br />
+                  3. Tap <strong>"Add"</strong> in top right corner.
+                </div>
+              </div>
+
+              {/* Android / Desktop */}
+              <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🤖 / 💻</span> Android & Desktop (Chrome / Edge)
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+                  1. Tap browser menu (<strong>⋮</strong>) or URL bar install icon (<span style={{ fontSize: '14px' }}>📥</span>)<br />
+                  2. Select <strong style={{ color: '#fff' }}>"Install App"</strong> or <strong style={{ color: '#fff' }}>"Add to Home Screen"</strong><br />
+                  3. Confirm by clicking <strong>Install</strong>.
+                </div>
+              </div>
+
+            </div>
+
+            <button 
+              onClick={() => setShowInstallModal(false)}
+              className="btn-primary"
+              style={{ width: '100%', height: '48px', fontSize: '14px' }}
+            >
+              GOT IT, DONE!
+            </button>
+          </div>
         </div>
       )}
     </div>
