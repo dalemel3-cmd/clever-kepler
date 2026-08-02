@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v2.1';
+const APP_VERSION = 'v2.2';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -2133,6 +2133,15 @@ export default function App() {
                     {/* Action Buttons Row */}
                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                       <button 
+                        onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' }); }}
+                        className="btn-primary no-print glow-card"
+                        style={{ height: '40px', padding: '0 20px', fontSize: '13px', fontWeight: 700, flex: 'none', display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-accent)', color: 'var(--navy-950)', border: '1px solid var(--color-accent)', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 16px rgba(194, 164, 80, 0.3)' }}
+                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(194, 164, 80, 0.5)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(194, 164, 80, 0.3)'; }}
+                      >
+                        <Plus size={18} strokeWidth={2.5} /> Add Athlete
+                      </button>
+                      <button 
                         onClick={handleDownloadTemplate}
                         className="btn-primary no-print"
                         style={{ height: '40px', padding: '0 16px', fontSize: '13px', flex: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--navy-800)', border: '1px solid var(--navy-600)' }}
@@ -2237,31 +2246,7 @@ export default function App() {
                         );
                       })}
                     </div>
-                    {/* Floating Add Athlete Button */}
-                    <button
-                      onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' }); }}
-                      style={{
-                        position: 'fixed',
-                        bottom: 'calc(100px + env(safe-area-inset-bottom, 0px))',
-                        right: '24px',
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '50%',
-                        background: 'var(--color-accent)',
-                        border: '3px solid rgba(255,255,255,0.15)',
-                        boxShadow: '0 4px 20px rgba(194, 164, 80, 0.4)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        zIndex: 100,
-                        transition: 'transform 0.2s, box-shadow 0.2s'
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(194, 164, 80, 0.6)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(194, 164, 80, 0.4)'; }}
-                    >
-                      <Plus size={24} color="var(--navy-900)" strokeWidth={2.5} />
-                    </button>
+                    {/* Add Athlete button relocated to header action row to prevent overlapping filter pills */}
                   </>
                 )}
                 
