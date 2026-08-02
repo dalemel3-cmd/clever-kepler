@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2 } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -191,6 +191,7 @@ export default function App() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [copiedLinkToast, setCopiedLinkToast] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     fetchAthletes();
@@ -202,8 +203,14 @@ export default function App() {
     window.addEventListener('hashchange', handleHashChange);
 
     // Auto-sync offline cache when internet reconnects
-    const handleOnline = () => syncOfflineCache();
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncOfflineCache();
+    };
+    const handleOffline = () => setIsOnline(false);
+
     window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
     const handleBeforeInstall = (e) => {
       e.preventDefault();
@@ -217,6 +224,7 @@ export default function App() {
 
     return () => {
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
       window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
     };
@@ -310,6 +318,7 @@ export default function App() {
   const fetchReportData = async () => {
     setReportLoading(true);
     try {
+      if (!navigator.onLine) throw new Error('Offline');
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
@@ -320,9 +329,18 @@ export default function App() {
         .order('created_at', { ascending: false });
       if (!error && data) {
         setReportData(data);
+        localStorage.setItem('shiloh_reports', JSON.stringify(data));
+      } else if (error) {
+        throw error;
       }
     } catch {
-      console.warn("Could not fetch report data");
+      console.warn("Could not fetch report data from Supabase. Loading local cache.");
+      try {
+        const cached = JSON.parse(localStorage.getItem('shiloh_reports'));
+        if (cached && Array.isArray(cached)) setReportData(cached);
+      } catch (e) {
+        console.warn("Local cache empty or invalid.");
+      }
     } finally {
       setReportLoading(false);
     }
@@ -333,10 +351,23 @@ export default function App() {
     if (offlineQueue.length === 0) return;
 
     try {
-      const { error } = await supabase.from('weigh_ins').insert(offlineQueue);
-      if (!error) {
+      let syncFailed = false;
+      for (const item of offlineQueue) {
+        if (item.action === 'update') {
+          const { error } = await supabase.from('weigh_ins').update(item.record).eq('id', item.id);
+          if (error) syncFailed = true;
+        } else {
+          const { error } = await supabase.from('weigh_ins').insert([item.record || item]);
+          if (error) syncFailed = true;
+        }
+      }
+      
+      if (!syncFailed) {
         localStorage.removeItem('shiloh_offline_weigh_ins');
         console.log("Successfully synced offline queue to Supabase!");
+        fetchReportData();
+      } else {
+        console.warn("Some items failed to sync.");
       }
     } catch {
       console.warn("Could not sync offline queue yet.");
@@ -345,15 +376,28 @@ export default function App() {
 
   const fetchAthletes = async () => {
     try {
+      if (!navigator.onLine) throw new Error('Offline');
       const { data, error } = await supabase.from('athletes').select('*').order('name', { ascending: true });
       if (!error && data) {
         setAthletes(data);
+        localStorage.setItem('shiloh_roster', JSON.stringify(data));
       } else {
+        throw error;
+      }
+    } catch (err) {
+      console.warn("Supabase fetch failed. Loading local cache.");
+      try {
+        const cached = JSON.parse(localStorage.getItem('shiloh_roster'));
+        if (cached && Array.isArray(cached) && cached.length > 0) {
+          setAthletes(cached);
+        } else {
+          console.warn("No local roster cache. Falling back to mock data.");
+          setMockAthletes();
+        }
+      } catch (e) {
+        console.warn("No local roster cache. Falling back to mock data.");
         setMockAthletes();
       }
-    } catch {
-      console.warn("Supabase fetch failed (likely placeholder keys). Falling back to mock data.");
-      setMockAthletes();
     }
   };
 
@@ -493,7 +537,11 @@ export default function App() {
       console.warn("Supabase offline, saving locally:", err);
       try {
         const existing = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
-        existing.push(record);
+        existing.push({
+          action: existingRecord ? 'update' : 'insert',
+          id: existingRecord ? existingRecord.id : null,
+          record
+        });
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(existing));
       } catch (e) {
         console.warn("LocalStorage warning:", e);
@@ -871,6 +919,14 @@ export default function App() {
       {/* Main Content */}
       <div className="main-content">
         
+        {/* Offline Banner */}
+        {!isOnline && (
+          <div style={{ background: '#ef4444', color: 'white', padding: '12px 24px', fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', zIndex: 100 }}>
+            <WifiOff size={18} />
+            <span>OFFLINE MODE - DATA SAVED LOCALLY AND WILL SYNC WHEN RECONNECTED</span>
+          </div>
+        )}
+
         {/* Top Header */}
         <div style={{ flex: 'none', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           {isKioskMode ? (
