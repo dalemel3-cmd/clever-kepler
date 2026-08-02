@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v1.3';
+const APP_VERSION = 'v1.4';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -922,8 +922,8 @@ export default function App() {
         {/* Connection Status Badge */}
         <div style={{
           position: 'fixed',
-          bottom: '24px',
-          right: '24px',
+          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          right: '16px',
           background: isOnline ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)',
           color: 'white',
           padding: '8px 16px',
@@ -967,10 +967,10 @@ export default function App() {
                   className="btn-primary no-print"
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px' }}
                 >
-                  <Lock size={14} /> ACTIVATE KIOSK MODE
+                  <Lock size={14} /> <span className="kiosk-btn-text">ACTIVATE KIOSK MODE</span>
                 </button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} className="hide-mobile">
                 <button onClick={exportToCSV} className="no-print" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Download size={14} /> EXPORT CSV
                 </button>
