@@ -918,6 +918,16 @@ export default function App() {
                           </button>
                       ))}
                     </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: KioskNumpad */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <KioskNumpad 
+                      value={focusedField === 'weight' ? weightInput : sleepInput}
+                      onChange={val => focusedField === 'weight' ? setWeightInput(val) : setSleepInput(val)}
+                      onEnter={handleSave}
+                    />
                   </div>
                 </div>
 
