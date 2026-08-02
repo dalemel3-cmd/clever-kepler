@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v1.6';
+const APP_VERSION = 'v1.7';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -937,7 +937,7 @@ export default function App() {
       <div className="main-content">
         
         {/* Connection Status Badge */}
-        <div style={{
+        <div className="no-print" style={{
           position: 'fixed',
           bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
           right: '16px',
