@@ -100,7 +100,48 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
+  const [nameSortOrder, setNameSortOrder] = useState('first'); // 'first' | 'last'
   const [athletes, setAthletes] = useState([]);
+
+  const getLastName = (fullName) => {
+    if (!fullName) return '';
+    const parts = fullName.trim().split(/\s+/);
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  };
+
+  const getFirstName = (fullName) => {
+    if (!fullName) return '';
+    const parts = fullName.trim().split(/\s+/);
+    return parts[0];
+  };
+
+  const filteredAthletes = athletes
+    .filter(a => {
+      const q = search.toLowerCase();
+      const matchesSearch = search === '' || 
+        a.name.toLowerCase().includes(q) ||
+        (a.sport && a.sport.toLowerCase().includes(q)) ||
+        (a.team && a.team.toLowerCase().includes(q)) ||
+        (a.position && a.position.toLowerCase().includes(q));
+
+      const matchesSport = selectedSportFilter === 'ALL' || a.sport === selectedSportFilter;
+      const matchesTeam = selectedTeamFilter === 'ALL' || a.team === selectedTeamFilter;
+
+      return matchesSearch && matchesSport && matchesTeam;
+    })
+    .sort((a, b) => {
+      if (nameSortOrder === 'last') {
+        const lastA = getLastName(a.name).toLowerCase();
+        const lastB = getLastName(b.name).toLowerCase();
+        if (lastA !== lastB) return lastA.localeCompare(lastB);
+        return getFirstName(a.name).toLowerCase().localeCompare(getFirstName(b.name).toLowerCase());
+      } else {
+        const firstA = getFirstName(a.name).toLowerCase();
+        const firstB = getFirstName(b.name).toLowerCase();
+        if (firstA !== firstB) return firstA.localeCompare(firstB);
+        return getLastName(a.name).toLowerCase().localeCompare(getLastName(b.name).toLowerCase());
+      }
+    });
   const [isKioskMode, setIsKioskMode] = useState(false);
   
   // Entry State
@@ -302,20 +343,6 @@ export default function App() {
     setSleepInput('');
     setFocusedField('weight');
   };
-
-  const filteredAthletes = athletes.filter(a => {
-    const q = search.toLowerCase();
-    const matchesSearch = search === '' || 
-      a.name.toLowerCase().includes(q) ||
-      (a.sport && a.sport.toLowerCase().includes(q)) ||
-      (a.team && a.team.toLowerCase().includes(q)) ||
-      (a.position && a.position.toLowerCase().includes(q));
-
-    const matchesSport = selectedSportFilter === 'ALL' || a.sport === selectedSportFilter;
-    const matchesTeam = selectedTeamFilter === 'ALL' || a.team === selectedTeamFilter;
-
-    return matchesSearch && matchesSport && matchesTeam;
-  });
 
   const handleSave = async () => {
     if (!selectedAthlete || !weightInput) return;
@@ -870,13 +897,13 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Drop-down Menus for Sport and Team/Grade */}
-                <div style={{ display: 'flex', gap: '12px' }}>
+                {/* Drop-down Menus for Sport, Team/Grade, and First/Last Name Sort */}
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <select
                     value={selectedSportFilter}
                     onChange={e => setSelectedSportFilter(e.target.value)}
                     className="input-glass"
-                    style={{ flex: 1, height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
                   >
                     <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL SPORTS</option>
                     {sportsList.map(sport => (
@@ -888,22 +915,36 @@ export default function App() {
                     value={selectedTeamFilter}
                     onChange={e => setSelectedTeamFilter(e.target.value)}
                     className="input-glass"
-                    style={{ flex: 1, height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
                   >
                     <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL TEAMS / GRADES</option>
                     {teamsList.map(team => (
                       <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
                     ))}
                   </select>
+
+                  <select
+                    value={nameSortOrder}
+                    onChange={e => setNameSortOrder(e.target.value)}
+                    className="input-glass"
+                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                  >
+                    <option value="first" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>SORT: FIRST NAME</option>
+                    <option value="last" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>SORT: LAST NAME</option>
+                  </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {filteredAthletes.map(a => (
                     <div key={a.id} onClick={() => handleSelectAthleteForEntry(a.id)} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
-                        {a.name.split(' ').map(n=>n[0]).join('')}
+                        {nameSortOrder === 'last' 
+                          ? `${getLastName(a.name)[0] || ''}${getFirstName(a.name)[0] || ''}` 
+                          : a.name.split(' ').map(n=>n[0]).join('')}
                       </div>
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>{a.name}</span>
+                        <span style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>
+                          {nameSortOrder === 'last' ? `${getLastName(a.name)}, ${getFirstName(a.name)}` : a.name}
+                        </span>
                         <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport} &middot; {a.team}</span>
                       </div>
                     </div>
@@ -1672,6 +1713,15 @@ export default function App() {
                           <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
                         ))}
                       </select>
+                      <select
+                        value={nameSortOrder}
+                        onChange={e => setNameSortOrder(e.target.value)}
+                        className="input-glass"
+                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                      >
+                        <option value="first" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>SORT: FIRST NAME</option>
+                        <option value="last" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>SORT: LAST NAME</option>
+                      </select>
                       <button 
                         onClick={handleDownloadTemplate}
                         className="btn-primary no-print"
@@ -1704,10 +1754,14 @@ export default function App() {
                       {filteredAthletes.map(a => (
                         <div key={a.id} onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); }} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
                           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
-                            {a.name.split(' ').map(n=>n[0]).join('')}
+                            {nameSortOrder === 'last' 
+                              ? `${getLastName(a.name)[0] || ''}${getFirstName(a.name)[0] || ''}` 
+                              : a.name.split(' ').map(n=>n[0]).join('')}
                           </div>
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>{a.name}</span>
+                            <span style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>
+                              {nameSortOrder === 'last' ? `${getLastName(a.name)}, ${getFirstName(a.name)}` : a.name}
+                            </span>
                             <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport} &middot; {a.team} &middot; {a.position}</span>
                           </div>
                         </div>
