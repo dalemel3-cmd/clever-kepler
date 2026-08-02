@@ -178,6 +178,9 @@ export default function App() {
   const [profileData, setProfileData] = useState([]);
   const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', position: '' });
   
+  // Alerts State
+  const [alertsTab, setAlertsTab] = useState('DAILY');
+
   // Settings & PWA State
   const [dehydrationThreshold, setDehydrationThreshold] = useState(2.0); // %
   const [sleepThreshold, setSleepThreshold] = useState(6.5); // hrs
