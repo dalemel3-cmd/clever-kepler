@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v2.0';
+const APP_VERSION = 'v2.1';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -501,7 +501,8 @@ export default function App() {
   };
 
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId);
-  const sportsList = Array.from(new Set(athletes.map(a => a.sport).filter(Boolean)));
+  const defaultSports = ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'Softball', 'Tennis', 'Track & Field', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'];
+  const sportsList = Array.from(new Set([...defaultSports, ...athletes.map(a => a.sport).filter(Boolean)])).sort();
   const teamsList = Array.from(new Set(athletes.map(a => a.team).filter(Boolean)));
   const gradesList = Array.from(new Set(athletes.map(a => a.grade).filter(Boolean)));
   const positionsList = Array.from(new Set(athletes.map(a => a.position).filter(Boolean)));
@@ -2276,7 +2277,32 @@ export default function App() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Sport</span>
-                      <input type="text" className="input-glass" placeholder="e.g. Football" value={newAthlete.sport} onChange={e => setNewAthlete({...newAthlete, sport: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
+                      <input type="text" list="sports-datalist" className="input-glass" placeholder="e.g. Football or choose from tags below" value={newAthlete.sport} onChange={e => setNewAthlete({...newAthlete, sport: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
+                      <datalist id="sports-datalist">
+                        {sportsList.map(s => <option key={s} value={s} />)}
+                      </datalist>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                        {sportsList.map(sport => (
+                          <button
+                            key={sport}
+                            type="button"
+                            onClick={() => setNewAthlete({ ...newAthlete, sport })}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '20px',
+                              border: newAthlete.sport === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
+                              background: newAthlete.sport === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.03)',
+                              color: newAthlete.sport === sport ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {sport}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: '12px' }}>
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
