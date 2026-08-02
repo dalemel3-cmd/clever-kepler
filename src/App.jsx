@@ -261,6 +261,22 @@ export default function App() {
   const sportsList = Array.from(new Set(athletes.map(a => a.sport).filter(Boolean)));
   const teamsList = Array.from(new Set(athletes.map(a => a.team).filter(Boolean)));
 
+  const handleSelectAthleteForEntry = (athleteId) => {
+    setEntryAthleteId(athleteId);
+    setScreen('entry');
+    
+    // Find latest record for baseline
+    const records = reportData.filter(r => r.athlete_id === athleteId);
+    if (records.length > 0) {
+      const sorted = [...records].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+      setWeightInput(String(sorted[sorted.length - 1].weight_lbs));
+    } else {
+      setWeightInput('0.0');
+    }
+    setSleepInput('');
+    setFocusedField('weight');
+  };
+
   const filteredAthletes = athletes.filter(a => {
     const q = search.toLowerCase();
     const matchesSearch = search === '' || 
@@ -841,7 +857,7 @@ export default function App() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {filteredAthletes.map(a => (
-                    <div key={a.id} onClick={() => setEntryAthleteId(a.id)} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
+                    <div key={a.id} onClick={() => handleSelectAthleteForEntry(a.id)} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
                         {a.name.split(' ').map(n=>n[0]).join('')}
                       </div>
@@ -878,14 +894,14 @@ export default function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||150) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
+                        <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
                         <div 
                           onClick={() => setFocusedField('weight')}
                           style={{ flex: 1, height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
                         >
                           {weightInput || '0.0'}
                         </div>
-                        <button onClick={() => setWeightInput(prev => String((parseFloat(prev||150) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
+                        <button onClick={() => setWeightInput(prev => String((parseFloat(prev||0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
                       </div>
                     </div>
 
@@ -1337,7 +1353,7 @@ export default function App() {
                         </div>
                         
                         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
-                          <button onClick={() => { setScreen('entry'); setEntryAthleteId(athlete.id); }} style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: '4px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button onClick={() => handleSelectAthleteForEntry(athlete.id)} style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: '4px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Plus size={16} /> LOG DATA
                           </button>
                           <button onClick={() => handleEditClick(athlete)} style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
