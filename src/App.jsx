@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight } from 'lucide-react';
+import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -96,9 +96,11 @@ export default function App() {
     return hash || 'dashboard';
   });
 
+  const [showMobileMore, setShowMobileMore] = useState(false);
   const setScreen = (newScreen) => {
     setScreenState(newScreen);
     window.location.hash = newScreen;
+    setShowMobileMore(false);
   };
   const [search, setSearch] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
@@ -1087,13 +1089,13 @@ export default function App() {
   };
 
   const navItem = (key, icon, label) => {
-    const active = screen === key;
+    const active = screen === key && !showMobileMore;
     return (
-      <div onClick={() => { setScreen(key); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
-           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '40px',
-                    color: active ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+      <div onClick={() => { setScreen(key); setShowMobileMore(false); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
+           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
+                    color: active ? 'var(--color-accent)' : 'var(--color-text-muted)', transition: 'color 0.2s, transform 0.15s' }}>
         {icon}
-        <span style={{ fontSize: '9px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{label}</span>
+        <span style={{ fontSize: '11px', fontWeight: active ? 700 : 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
       </div>
     );
   };
@@ -3962,18 +3964,106 @@ export default function App() {
 
       </div>
 
-      {/* Bottom Nav (Mobile Only - Hidden in Kiosk Mode) */}
+      {/* Bottom Nav (Mobile & Tablet - Hidden in Kiosk Mode) */}
       {!isKioskMode && (
-        <div className="bottom-nav">
-          {navItem('dashboard', <Users size={20} />, 'Home')}
-          {navItem('entry', <Plus size={20} />, 'Log')}
-          {navItem('roster', <Shield size={20} />, 'Roster')}
-          {navItem('groups', <Grid size={20} />, 'Groups')}
-          {navItem('profiles', <User size={20} />, 'Profiles')}
-          {navItem('alerts', <AlertTriangle size={20} />, 'Alerts')}
-          {navItem('reports', <FileText size={20} />, 'Reports')}
-          {navItem('settings', <Settings size={20} />, 'Settings')}
-        </div>
+        <>
+          <div className="bottom-nav">
+            {navItem('dashboard', <Users size={22} />, 'Home')}
+            {navItem('entry', <Plus size={22} />, 'Log')}
+            {navItem('profiles', <User size={22} />, 'Profiles')}
+            {navItem('roster', <Shield size={22} />, 'Roster')}
+            
+            {/* Clean More / Toolbox Button */}
+            <div onClick={() => setShowMobileMore(!showMobileMore)} 
+                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
+                          color: (showMobileMore || ['groups', 'alerts', 'reports', 'settings'].includes(screen)) ? 'var(--color-accent)' : 'var(--color-text-muted)', transition: 'color 0.2s' }}>
+              <MoreHorizontal size={22} />
+              <span style={{ fontSize: '11px', fontWeight: (showMobileMore || ['groups', 'alerts', 'reports', 'settings'].includes(screen)) ? 700 : 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>More</span>
+            </div>
+          </div>
+
+          {/* Glassmorphic Slide-Up "More" Tools & Analytics Sheet */}
+          {showMobileMore && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(3, 10, 20, 0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+                 onClick={() => setShowMobileMore(false)}>
+              <div className="card-glass animate-slide-up" 
+                   onClick={e => e.stopPropagation()} 
+                   style={{ width: '100%', maxWidth: '600px', padding: '24px 20px calc(28px + env(safe-area-inset-bottom, 0px))', background: 'var(--navy-950)', borderRadius: '24px 24px 0 0', border: '1px solid var(--color-accent)', borderBottom: 'none', boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(184, 156, 91, 0.15)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.15)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
+                      <Sliders size={18} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--white)' }}>MORE TOOLS & ANALYTICS</h3>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Tap to switch workspace section</span>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowMobileMore(false)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '8px', borderRadius: '50%' }}>
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div onClick={() => { setScreen('groups'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+                       className="card-glass glow-card"
+                       style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'groups' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'groups' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Grid size={24} style={{ color: 'var(--color-accent)' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>Sport Groups</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Team comparison averages</div>
+                    </div>
+                  </div>
+
+                  <div onClick={() => { setScreen('alerts'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+                       className="card-glass glow-card"
+                       style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'alerts' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'alerts' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <AlertTriangle size={24} style={{ color: getDailyAlerts().length > 0 ? '#ef4444' : 'var(--color-accent)' }} />
+                      {getDailyAlerts().length > 0 && (
+                        <span style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>
+                          {getDailyAlerts().length}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>Alerts & Deficits</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Rest warnings & fluctuations</div>
+                    </div>
+                  </div>
+
+                  <div onClick={() => { setScreen('reports'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+                       className="card-glass glow-card"
+                       style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'reports' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'reports' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <FileText size={24} style={{ color: 'var(--color-accent)' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>Reports & CSV</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Export database & spreadsheets</div>
+                    </div>
+                  </div>
+
+                  <div onClick={() => { setScreen('settings'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+                       className="card-glass glow-card"
+                       style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'settings' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'settings' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Settings size={24} style={{ color: 'var(--color-accent)' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>System Settings</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Admin configuration & cache</div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {showInstallModal && (
