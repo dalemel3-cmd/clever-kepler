@@ -576,7 +576,7 @@ export default function App() {
       
       const count = reportData.filter(r => {
         const recordDate = new Date(r.created_at);
-        return recordDate >= startOfDay && recordDate < endOfDay && r.sleep_hrs < 6.5;
+        return recordDate >= startOfDay && recordDate < endOfDay && r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5;
       }).length;
       result.push({ day: dayStr, count, date: startOfDay });
     }
@@ -596,7 +596,7 @@ export default function App() {
       
       const count = reportData.filter(r => {
         const recordDate = new Date(r.created_at);
-        return recordDate >= startOfDay && recordDate < endOfDay && r.sleep_hrs < 6.5;
+        return recordDate >= startOfDay && recordDate < endOfDay && r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5;
       }).length;
       result.push({ count, date: startOfDay });
     }
@@ -615,10 +615,10 @@ export default function App() {
 
     todaysRecords.forEach(r => {
       const athlete = athletes.find(a => a.id === r.athlete_id);
-      const positionStr = athlete?.position ? ` \u00B7 ${athlete.position}` : '';
+      const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
       
       // Check sleep
-      if (r.sleep_hrs < 6.5) {
+      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5) {
         alerts.push({
           id: r.id + '_sleep',
           athlete_id: r.athlete_id,
@@ -627,7 +627,7 @@ export default function App() {
           type: 'LOW SLEEP',
           color: '#f59e0b',
           icon: <Activity size={22} />,
-          message: `${r.sport}${positionStr} \u00B7 ${r.sleep_hrs} hrs sleep logged`,
+          message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged`,
           action: 'MONITOR CNS LOAD'
         });
       }
@@ -637,20 +637,22 @@ export default function App() {
       const currentIndex = athleteRecords.findIndex(x => x.id === r.id);
       if (currentIndex > 0) {
         const prev = athleteRecords[currentIndex - 1];
-        const drop = prev.weight_lbs - r.weight_lbs;
-        const dropPercent = drop / prev.weight_lbs;
-        if (dropPercent >= 0.02) {
-          alerts.push({
-            id: r.id + '_weight',
-            athlete_id: r.athlete_id,
-            athlete_name: r.athlete_name,
-            sport: r.sport,
-            type: 'DEHYDRATION RISK',
-            color: 'var(--status-error)',
-            icon: <AlertTriangle size={22} />,
-            message: `${r.sport}${positionStr} \u00B7 -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% body mass)`,
-            action: 'INCREASE HYDRATION'
-          });
+        if (prev && prev.weight_lbs && r.weight_lbs) {
+          const drop = prev.weight_lbs - r.weight_lbs;
+          const dropPercent = drop / prev.weight_lbs;
+          if (dropPercent >= 0.02) {
+            alerts.push({
+              id: r.id + '_weight',
+              athlete_id: r.athlete_id,
+              athlete_name: r.athlete_name,
+              sport: r.sport,
+              type: 'DEHYDRATION RISK',
+              color: 'var(--status-error)',
+              icon: <AlertTriangle size={22} />,
+              message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% body mass)`,
+              action: 'INCREASE HYDRATION'
+            });
+          }
         }
       }
     });
@@ -1429,11 +1431,12 @@ export default function App() {
                           <div style={{ height: '220px', position: 'relative', paddingTop: '16px', marginLeft: '-24px' }}>
                             {profileData.length > 1 ? (() => {
                               const trendData = profileData.slice(-14).map(d => ({
-                                date: new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
-                                Weight: d.weight_lbs
+                                date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : 'Unknown',
+                                Weight: Number(d.weight_lbs) || 0
                               }));
-                              const minW = Math.min(...trendData.map(d=>d.Weight));
-                              const maxW = Math.max(...trendData.map(d=>d.Weight));
+                              const validWeights = trendData.map(d=>d.Weight).filter(w => w > 0);
+                              const minW = validWeights.length > 0 ? Math.min(...validWeights) : 100;
+                              const maxW = validWeights.length > 0 ? Math.max(...validWeights) : 200;
                               
                               return (
                                 <ResponsiveContainer width="100%" height="100%">
