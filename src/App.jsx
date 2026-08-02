@@ -588,13 +588,59 @@ export default function App() {
     return result;
   };
 
-  const getActionRequired = () => {
+  const getDailyAlerts = () => {
     const today = new Date();
-    return reportData.filter(r => {
+    const alerts = [];
+    
+    // Get today's records
+    const todaysRecords = reportData.filter(r => {
       const rd = new Date(r.created_at);
-      const isToday = rd.getFullYear() === today.getFullYear() && rd.getMonth() === today.getMonth() && rd.getDate() === today.getDate();
-      return isToday && r.sleep_hrs < 6.5;
+      return rd.getFullYear() === today.getFullYear() && rd.getMonth() === today.getMonth() && rd.getDate() === today.getDate();
     });
+
+    todaysRecords.forEach(r => {
+      const athlete = athletes.find(a => a.id === r.athlete_id);
+      const positionStr = athlete?.position ? ` \u00B7 ${athlete.position}` : '';
+      
+      // Check sleep
+      if (r.sleep_hrs < 6.5) {
+        alerts.push({
+          id: r.id + '_sleep',
+          athlete_id: r.athlete_id,
+          athlete_name: r.athlete_name,
+          sport: r.sport,
+          type: 'LOW SLEEP',
+          color: '#f59e0b',
+          icon: <Activity size={22} />,
+          message: `${r.sport}${positionStr} \u00B7 ${r.sleep_hrs} hrs sleep logged`,
+          action: 'MONITOR CNS LOAD'
+        });
+      }
+
+      // Check weight drop
+      const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+      const currentIndex = athleteRecords.findIndex(x => x.id === r.id);
+      if (currentIndex > 0) {
+        const prev = athleteRecords[currentIndex - 1];
+        const drop = prev.weight_lbs - r.weight_lbs;
+        const dropPercent = drop / prev.weight_lbs;
+        if (dropPercent >= 0.02) {
+          alerts.push({
+            id: r.id + '_weight',
+            athlete_id: r.athlete_id,
+            athlete_name: r.athlete_name,
+            sport: r.sport,
+            type: 'DEHYDRATION RISK',
+            color: 'var(--status-error)',
+            icon: <AlertTriangle size={22} />,
+            message: `${r.sport}${positionStr} \u00B7 -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% body mass)`,
+            action: 'INCREASE HYDRATION'
+          });
+        }
+      }
+    });
+
+    return alerts;
   };
 
   const renderSidebarItem = (key, icon, label) => {
@@ -643,7 +689,7 @@ export default function App() {
             {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
-            {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getActionRequired().length > 0 ? ` (${getActionRequired().length})` : ''))}
+            {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getDailyAlerts().length > 0 ? ` (${getDailyAlerts().length})` : ''))}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
           </div>
           <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -989,39 +1035,30 @@ export default function App() {
 
                 {alertsTab === 'DAILY' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {/* Alert Card 1 */}
-                    <div className="card-glass" style={{ padding: '20px', borderLeft: '4px solid var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--status-error)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <AlertTriangle size={22} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>JAYLEN CARTER</span>
-                            <span style={{ fontSize: '10px', background: 'rgba(239, 68, 68, 0.2)', color: 'var(--status-error)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>DEHYDRATION RISK</span>
-                          </div>
-                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Football &middot; Wide Receiver &middot; -4.5 lbs drop (-2.3% body mass)</span>
-                        </div>
+                    {getDailyAlerts().length === 0 ? (
+                      <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: 'var(--color-text-muted)' }}>
+                        <CheckCircle size={32} style={{ color: 'var(--status-success)' }} />
+                        <span style={{ fontSize: '14px', fontWeight: 600 }}>No risk alerts today. All athletes are fully recovered.</span>
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--color-accent)', fontWeight: 700 }}>INCREASE HYDRATION</span>
-                    </div>
-
-                    {/* Alert Card 2 */}
-                    <div className="card-glass" style={{ padding: '20px', borderLeft: '4px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Activity size={22} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>MICAH REEVES</span>
-                            <span style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>LOW SLEEP</span>
+                    ) : (
+                      getDailyAlerts().map(alert => (
+                        <div key={alert.id} className="card-glass animate-slide-up" style={{ padding: '20px', borderLeft: `4px solid ${alert.color}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: `${alert.color}22`, color: alert.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {alert.icon}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>{alert.athlete_name}</span>
+                                <span style={{ fontSize: '10px', background: `${alert.color}33`, color: alert.color, padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>{alert.type}</span>
+                              </div>
+                              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{alert.message}</span>
+                            </div>
                           </div>
-                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Football &middot; Linebacker &middot; 5.5 hrs sleep logged</span>
+                          <span style={{ fontSize: '11px', color: alert.type === 'DEHYDRATION RISK' ? 'var(--color-accent)' : 'var(--color-text-muted)', fontWeight: 700 }}>{alert.action}</span>
                         </div>
-                      </div>
-                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>MONITOR CNS LOAD</span>
-                    </div>
+                      ))
+                    )}
                   </div>
                 )}
 
