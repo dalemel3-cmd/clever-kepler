@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -186,6 +186,7 @@ export default function App() {
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [copiedLinkToast, setCopiedLinkToast] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
 
   useEffect(() => {
@@ -233,6 +234,32 @@ export default function App() {
       }
     }
     setShowInstallModal(true);
+  };
+
+  const handleShareApp = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'HPD APP',
+          text: 'Install HPD App for High Performance Weight Tracking',
+          url: window.location.href,
+        });
+      } catch (err) {
+        console.log("Share error:", err);
+      }
+    } else {
+      handleCopyLink();
+    }
+  };
+
+  const handleCopyLink = () => {
+    try {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedLinkToast(true);
+      setTimeout(() => setCopiedLinkToast(false), 2500);
+    } catch (err) {
+      console.log("Copy error:", err);
+    }
   };
 
   const handleSaveSettings = () => {
@@ -2333,7 +2360,7 @@ export default function App() {
 
       {showInstallModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(3, 10, 20, 0.85)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div className="card-glass glow-card animate-slide-up" style={{ width: '100%', maxWidth: '500px', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--color-accent)', boxShadow: '0 8px 32px rgba(184, 156, 91, 0.2)' }}>
+          <div className="card-glass glow-card animate-slide-up" style={{ width: '100%', maxWidth: '520px', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--color-accent)', boxShadow: '0 8px 32px rgba(184, 156, 91, 0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
@@ -2341,7 +2368,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: 0, color: 'var(--white)' }}>INSTALL HPD APP</h2>
-                  <span style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 700 }}>1-TAP HOME SCREEN ACCESS</span>
+                  <span style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 700 }}>1-TAP STANDALONE NATIVE APP</span>
                 </div>
               </div>
               <button 
@@ -2353,32 +2380,55 @@ export default function App() {
             </div>
 
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-              Install HPD App for instant 1-tap access on your home screen or desktop:
+              Tap below to install HPD App directly onto your device:
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
-              {/* iOS Safari */}
-              <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🍎</span> iPhone & iPad (Safari)
+              {/* Actionable Box 1: Android & Laptop / Desktop */}
+              <div className="card-glass glow-card" style={{ padding: '18px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🤖 / 💻</span> Android & Desktop (Chrome / Edge)
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
-                  1. Tap Safari's <strong>Share button</strong> (box with arrow pointing up <span style={{ fontSize: '14px' }}>⎘</span>)<br />
-                  2. Scroll down & tap <strong style={{ color: '#fff' }}>"Add to Home Screen"</strong><br />
-                  3. Tap <strong>"Add"</strong> in top right corner.
+
+                <button 
+                  onClick={handleInstallApp}
+                  className="btn-primary"
+                  style={{ width: '100%', height: '44px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <Download size={18} /> LAUNCH NATIVE INSTALL PROMPT
+                </button>
+
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                  Triggers browser system 1-click install dialog directly.
                 </div>
               </div>
 
-              {/* Android / Desktop */}
-              <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🤖 / 💻</span> Android & Desktop (Chrome / Edge)
+              {/* Actionable Box 2: iPhone & iPad (Safari) */}
+              <div className="card-glass glow-card" style={{ padding: '18px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid rgba(184, 156, 91, 0.3)' }}>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🍎</span> iPhone & iPad (Safari)
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
-                  1. Tap browser menu (<strong>⋮</strong>) or URL bar install icon (<span style={{ fontSize: '14px' }}>📥</span>)<br />
-                  2. Select <strong style={{ color: '#fff' }}>"Install App"</strong> or <strong style={{ color: '#fff' }}>"Add to Home Screen"</strong><br />
-                  3. Confirm by clicking <strong>Install</strong>.
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    onClick={handleShareApp}
+                    className="btn-primary"
+                    style={{ flex: 1, height: '44px', fontSize: '12px', background: 'var(--navy-800)', border: '1px solid var(--color-accent)', color: 'var(--white)' }}
+                  >
+                    <Share2 size={16} /> OPEN SAFARI SHARE MENU
+                  </button>
+                  <button 
+                    onClick={handleCopyLink}
+                    style={{ height: '44px', padding: '0 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    {copiedLinkToast ? <Check size={16} style={{ color: 'var(--status-success)' }} /> : <Copy size={16} />}
+                    {copiedLinkToast ? 'COPIED!' : 'COPY LINK'}
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                  In Safari Share sheet, select <strong>"Add to Home Screen"</strong> to place app icon.
                 </div>
               </div>
 
@@ -2387,9 +2437,9 @@ export default function App() {
             <button 
               onClick={() => setShowInstallModal(false)}
               className="btn-primary"
-              style={{ width: '100%', height: '48px', fontSize: '14px' }}
+              style={{ width: '100%', height: '48px', fontSize: '14px', marginTop: '4px' }}
             >
-              GOT IT, DONE!
+              DONE / CLOSE
             </button>
           </div>
         </div>
