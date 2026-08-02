@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v1.5';
+const APP_VERSION = 'v1.6';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -158,6 +158,23 @@ export default function App() {
 
   // Reports State
   const [reportData, setReportData] = useState([]);
+  
+  useEffect(() => {
+    if (!reportData || !reportData.length) {
+      setTodaySessions(0);
+      return;
+    }
+    const now = new Date();
+    const count = reportData.filter(r => {
+      if (!r.created_at) return false;
+      const d = new Date(r.created_at);
+      return d.getDate() === now.getDate() &&
+             d.getMonth() === now.getMonth() &&
+             d.getFullYear() === now.getFullYear();
+    }).length;
+    setTodaySessions(count);
+  }, [reportData]);
+
   const [reportLoading, setReportLoading] = useState(false);
   const [reportMode, setReportMode] = useState('quick'); // 'quick' | 'custom'
   const [reportSportFilter, setReportSportFilter] = useState('ALL');
