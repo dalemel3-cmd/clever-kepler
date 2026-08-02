@@ -1986,13 +1986,6 @@ export default function App() {
                           onChange={handleCSVUpload}
                         />
                       </label>
-                      <button 
-                        onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' }); }}
-                        className="btn-primary"
-                        style={{ height: '40px', padding: '0 16px', fontSize: '13px', flex: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        <Plus size={16} /> New Athlete
-                      </button>
                     </div>
 
                     {/* Card Grid */}
@@ -2079,6 +2072,31 @@ export default function App() {
                         );
                       })}
                     </div>
+                    {/* Floating Add Athlete Button */}
+                    <button
+                      onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' }); }}
+                      style={{
+                        position: 'fixed',
+                        bottom: 'calc(100px + env(safe-area-inset-bottom, 0px))',
+                        right: '24px',
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '50%',
+                        background: 'var(--color-accent)',
+                        border: '3px solid rgba(255,255,255,0.15)',
+                        boxShadow: '0 4px 20px rgba(194, 164, 80, 0.4)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 100,
+                        transition: 'transform 0.2s, box-shadow 0.2s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(194, 164, 80, 0.6)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(194, 164, 80, 0.4)'; }}
+                    >
+                      <Plus size={24} color="var(--navy-900)" strokeWidth={2.5} />
+                    </button>
                   </>
                 )}
                 
