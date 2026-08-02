@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2 } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2, Search } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v1.8';
+const APP_VERSION = 'v1.9';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -1905,15 +1905,28 @@ export default function App() {
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {!isAddingAthlete && !selectedProfileId && (
                   <>
+                    {/* Roster Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px' }}>
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>ATHLETE ROSTER</h2>
+                        <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* Search + Sport Pill Filters */}
                     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <div style={{ position: 'relative', flex: '1 1 200px', display: 'flex', alignItems: 'center' }}>
+                      <div style={{ position: 'relative', flex: '0 1 240px', display: 'flex', alignItems: 'center' }}>
+                        <Search size={16} style={{ position: 'absolute', left: '14px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
                         <input 
                           type="text" 
                           className="input-glass"
-                          placeholder="Search roster..." 
+                          placeholder="Search athletes..." 
                           value={search} 
                           onChange={e => setSearch(e.target.value)}
-                          style={{ flex: 1, height: '48px', padding: '0 40px 0 16px', fontSize: '14px' }}
+                          style={{ flex: 1, height: '44px', padding: '0 36px 0 40px', fontSize: '14px' }}
                         />
                         {search && (
                           <button 
@@ -1924,71 +1937,48 @@ export default function App() {
                           </button>
                         )}
                       </div>
-                      <select
-                        value={selectedSportFilter}
-                        onChange={e => setSelectedSportFilter(e.target.value)}
-                        className="input-glass"
-                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                      >
-                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL SPORTS</option>
-                        {sportsList.map(sport => (
-                          <option key={sport} value={sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{sport.toUpperCase()}</option>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {['ALL', ...sportsList].map(sport => (
+                          <button
+                            key={sport}
+                            onClick={() => setSelectedSportFilter(sport)}
+                            style={{
+                              height: '36px',
+                              padding: '0 16px',
+                              borderRadius: '20px',
+                              border: selectedSportFilter === sport ? '2px solid var(--color-accent)' : '1px solid var(--navy-600)',
+                              background: selectedSportFilter === sport ? 'var(--color-accent)' : 'transparent',
+                              color: selectedSportFilter === sport ? 'var(--navy-900)' : 'var(--color-text)',
+                              fontFamily: 'var(--font-display)',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              textTransform: 'capitalize',
+                              letterSpacing: '0.02em',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {sport === 'ALL' ? 'All' : sport}
+                          </button>
                         ))}
-                      </select>
-                      <select
-                        value={selectedTeamFilter}
-                        onChange={e => setSelectedTeamFilter(e.target.value)}
-                        className="input-glass"
-                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                      >
-                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL TEAMS</option>
-                        {teamsList.map(team => (
-                          <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedGradeFilter}
-                        onChange={e => setSelectedGradeFilter(e.target.value)}
-                        className="input-glass"
-                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                      >
-                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL GRADES</option>
-                        {gradesList.map(grade => (
-                          <option key={grade} value={grade} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{grade.toUpperCase()}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedPositionFilter}
-                        onChange={e => setSelectedPositionFilter(e.target.value)}
-                        className="input-glass"
-                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                      >
-                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL POSITIONS</option>
-                        {positionsList.map(pos => (
-                          <option key={pos} value={pos} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{pos.toUpperCase()}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={nameSortOrder}
-                        onChange={e => setNameSortOrder(e.target.value)}
-                        className="input-glass"
-                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
-                      >
-                        <option value="first" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>SORT: FIRST NAME</option>
-                        <option value="last" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>SORT: LAST NAME</option>
-                      </select>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons Row */}
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                       <button 
                         onClick={handleDownloadTemplate}
                         className="btn-primary no-print"
-                        style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--navy-800)', border: '1px solid var(--navy-600)' }}
+                        style={{ height: '40px', padding: '0 16px', fontSize: '13px', flex: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--navy-800)', border: '1px solid var(--navy-600)' }}
                       >
-                        <Download size={18} /> Template
+                        <Download size={16} /> Template
                       </button>
                       <label 
                         className="btn-primary"
-                        style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'var(--navy-600)' }}
+                        style={{ height: '40px', padding: '0 16px', fontSize: '13px', flex: 'none', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'var(--navy-600)' }}
                       >
-                        <Upload size={18} /> Upload CSV
+                        <Upload size={16} /> Upload CSV
                         <input 
                           type="file" 
                           accept=".csv" 
@@ -1999,28 +1989,95 @@ export default function App() {
                       <button 
                         onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' }); }}
                         className="btn-primary"
-                        style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
+                        style={{ height: '40px', padding: '0 16px', fontSize: '13px', flex: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
                       >
-                        <Plus size={18} /> New Athlete
+                        <Plus size={16} /> New Athlete
                       </button>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {filteredAthletes.map(a => (
-                        <div key={a.id} onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); }} className="card-glass glow-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', cursor: 'pointer' }}>
-                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--navy-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 600, fontSize: '14px' }}>
-                            {nameSortOrder === 'last' 
-                              ? `${getLastName(a.name)[0] || ''}${getFirstName(a.name)[0] || ''}` 
-                              : a.name.split(' ').map(n=>n[0]).join('')}
+                    {/* Card Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
+                      {filteredAthletes.map(a => {
+                        // Find latest weigh-in for this athlete from reportData
+                        const athleteLogs = reportData.filter(r => r.athlete_name === a.name).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+                        const latestLog = athleteLogs[0];
+                        const prevLog = athleteLogs[1];
+                        const latestWeight = latestLog ? latestLog.weight_lbs : null;
+                        const weightDelta = (latestLog && prevLog) ? (latestLog.weight_lbs - prevLog.weight_lbs) : null;
+                        const lastLoggedDate = latestLog ? new Date(latestLog.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+
+                        // Deterministic avatar color based on name
+                        const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
+                        const colorIdx = a.name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length;
+                        const avatarBg = avatarColors[colorIdx];
+
+                        return (
+                          <div 
+                            key={a.id} 
+                            onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); }} 
+                            className="card-glass glow-card" 
+                            style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '18px 20px', cursor: 'pointer', minHeight: '88px' }}
+                          >
+                            {/* Avatar */}
+                            <div style={{ 
+                              width: '48px', height: '48px', borderRadius: '50%', 
+                              background: avatarBg, 
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                              color: '#fff', fontWeight: 700, fontSize: '16px', fontFamily: 'var(--font-display)',
+                              flexShrink: 0, letterSpacing: '0.02em'
+                            }}>
+                              {a.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            </div>
+
+                            {/* Info */}
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {a.name}
+                              </span>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                {a.sport && (
+                                  <span style={{ 
+                                    fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', 
+                                    background: 'var(--navy-700)', color: 'var(--color-text)', textTransform: 'capitalize',
+                                    letterSpacing: '0.02em'
+                                  }}>{a.sport}</span>
+                                )}
+                                {a.team && (
+                                  <span style={{ 
+                                    fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', 
+                                    background: 'var(--navy-700)', color: 'var(--color-text)', textTransform: 'capitalize',
+                                    letterSpacing: '0.02em'
+                                  }}>{a.team}</span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {a.position || ''}{a.position && lastLoggedDate ? ' · ' : ''}{lastLoggedDate ? `Last logged ${lastLoggedDate}` : (a.position ? '' : 'No logs yet')}
+                              </span>
+                            </div>
+
+                            {/* Weight + Delta */}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
+                              {latestWeight != null ? (
+                                <>
+                                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+                                    {latestWeight} <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)' }}>lb</span>
+                                  </span>
+                                  {weightDelta != null && (
+                                    <span style={{ 
+                                      fontSize: '12px', fontWeight: 600, 
+                                      color: weightDelta > 0 ? 'var(--status-success)' : weightDelta < 0 ? 'var(--status-error)' : 'var(--color-text-muted)' 
+                                    }}>
+                                      {weightDelta > 0 ? '+' : ''}{weightDelta.toFixed(1)} lb
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>--</span>
+                              )}
+                            </div>
                           </div>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>
-                              {nameSortOrder === 'last' ? `${getLastName(a.name)}, ${getFirstName(a.name)}` : a.name}
-                            </span>
-                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport} &middot; {a.team}{a.grade ? ` · ${a.grade}` : ''} &middot; {a.position}</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </>
                 )}
