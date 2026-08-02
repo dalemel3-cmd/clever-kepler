@@ -1161,6 +1161,7 @@ export default function App() {
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.08em' }}>HPD &middot; KIOSK MODE</span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 8px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
                 <span style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '4px 10px', borderRadius: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` }}>
                   {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
                   {isOnline ? 'ONLINE &middot; FAIL-SAFE' : 'OFFLINE SYNC'}
@@ -1185,6 +1186,9 @@ export default function App() {
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span className="no-print" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 10px', borderRadius: '14px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                  {APP_VERSION}
+                </span>
                 <span className="no-print" style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '5px 12px', borderRadius: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` }}>
                   {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
                   {isOnline ? 'ONLINE' : 'OFFLINE MODE'}
@@ -4070,6 +4074,17 @@ export default function App() {
                       <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Admin configuration & cache</div>
                     </div>
                   </div>
+                </div>
+
+                <div style={{ marginTop: '4px', padding: '14px 16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 800, fontSize: '12px' }}>CM</div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--white)' }}>Coach Mason</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Shiloh Athletics &middot; HPD</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
                 </div>
 
               </div>
