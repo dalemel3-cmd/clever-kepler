@@ -47,6 +47,30 @@ const Confetti = () => {
   );
 };
 
+const KioskNumpad = ({ value, onChange, onEnter }) => {
+  const handleKey = (key) => {
+    if (key === 'DEL') return onChange(value.slice(0, -1));
+    if (key === '.' && value.includes('.')) return;
+    onChange(value + key);
+  };
+  
+  const keys = ['1','2','3','4','5','6','7','8','9','.','0','DEL'];
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+      {keys.map(k => (
+        <button 
+          key={k} 
+          onClick={() => handleKey(k)} 
+          className="btn-primary no-print" 
+          style={{ height: '70px', fontSize: '28px', fontFamily: 'var(--font-display)', background: 'var(--navy-800)', border: '1px solid var(--navy-600)', color: 'var(--white)' }}
+        >
+          {k === 'DEL' ? <X size={28} /> : k}
+        </button>
+      ))}
+    </div>
+  );
+};
+
 export default function App() {
   // App State
   const [screen, setScreenState] = useState(() => {
@@ -71,6 +95,7 @@ export default function App() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [todaySessions, setTodaySessions] = useState(0);
+  const [focusedField, setFocusedField] = useState('weight');
 
   // Reports State
   const [reportData, setReportData] = useState([]);
@@ -111,7 +136,14 @@ export default function App() {
   const fetchReportData = async () => {
     setReportLoading(true);
     try {
-      const { data, error } = await supabase.from('weigh_ins').select('*').order('created_at', { ascending: false });
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data, error } = await supabase
+        .from('weigh_ins')
+        .select('*')
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: false });
       if (!error && data) {
         setReportData(data);
       }
@@ -246,8 +278,14 @@ export default function App() {
   const handleSave = async () => {
     if (!selectedAthlete || !weightInput) return;
     
-    const todayStr = new Date().toISOString().slice(0,10);
-    const existingRecord = reportData.find(r => r.athlete_id === selectedAthlete.id && r.created_at.startsWith(todayStr));
+    const now = new Date();
+    const existingRecord = reportData.find(r => {
+      if (r.athlete_id !== selectedAthlete.id) return false;
+      const recordDate = new Date(r.created_at);
+      return recordDate.getFullYear() === now.getFullYear() && 
+             recordDate.getMonth() === now.getMonth() && 
+             recordDate.getDate() === now.getDate();
+    });
     
     if (existingRecord) {
       if (!window.confirm("A record already exists for today. Do you want to override it?")) return;
@@ -534,6 +572,15 @@ export default function App() {
     return result;
   };
 
+  const getActionRequired = () => {
+    const today = new Date();
+    return reportData.filter(r => {
+      const rd = new Date(r.created_at);
+      const isToday = rd.getFullYear() === today.getFullYear() && rd.getMonth() === today.getMonth() && rd.getDate() === today.getDate();
+      return isToday && r.sleep_hrs < 6.5;
+    });
+  };
+
   const renderSidebarItem = (key, icon, label) => {
     const active = screen === key;
     return (
@@ -685,6 +732,30 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Action Required Widget */}
+                {getActionRequired().length > 0 && (
+                  <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <AlertTriangle size={18} color="var(--status-error)" />
+                      <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--white)' }}>ACTION REQUIRED TODAY</span>
+                      <span style={{ fontSize: '10px', background: 'var(--status-error)', color: 'var(--white)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>{getActionRequired().length} ATHLETES</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+                      {getActionRequired().map(alert => (
+                        <div key={alert.id} style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-error)', fontWeight: 700, fontSize: '12px' }}>
+                            {alert.athlete_name.split(' ').map(n=>n[0]).join('')}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--white)' }}>{alert.athlete_name}</span>
+                            <span style={{ fontSize: '10px', color: 'var(--status-error)', fontWeight: 600 }}>{alert.sleep_hrs}h Sleep</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Chart */}
                 <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -793,48 +864,51 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||150) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
-                      <input 
-                        type="number" inputMode="decimal"
-                        value={weightInput} onChange={e => setWeightInput(e.target.value)}
-                        placeholder="0.0"
-                        style={{ flex: 1, height: '64px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', padding: '0 16px', color: 'var(--color-accent)', fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 600, textAlign: 'center', outline: 'none' }}
-                      />
-                      <button onClick={() => setWeightInput(prev => String((parseFloat(prev||150) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
-                      <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>QUICK SELECT</span>
-                    </div>
-                    <input 
-                      type="number" inputMode="decimal"
-                      value={sleepInput} onChange={e => setSleepInput(e.target.value)}
-                      placeholder="8.0"
-                      style={{ height: '56px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', padding: '0 16px', color: 'var(--color-text)', fontSize: 'var(--text-lg)', fontWeight: 600, outline: 'none' }}
-                    />
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-                      {['6.0', '7.0', '7.5', '8.0', '8.5', '9.0'].map(val => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setSleepInput(val)}
-                          style={{
-                            flex: 1, minWidth: '48px', height: '36px',
-                            background: sleepInput === val ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
-                            color: sleepInput === val ? 'var(--navy-950)' : 'var(--color-text)',
-                            border: '1px solid var(--color-border)', borderRadius: '6px',
-                            fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
-                          }}
+                <div className="card-glass" style={{ padding: '24px', display: 'flex', gap: '32px' }}>
+                  
+                  {/* Left Column: Inputs */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||150) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
+                        <div 
+                          onClick={() => setFocusedField('weight')}
+                          style={{ flex: 1, height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
                         >
-                          {val}h
-                        </button>
+                          {weightInput || '0.0'}
+                        </div>
+                        <button onClick={() => setWeightInput(prev => String((parseFloat(prev||150) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
+                        <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>QUICK SELECT</span>
+                      </div>
+                      <div 
+                        onClick={() => setFocusedField('sleep')}
+                        style={{ height: '56px', background: focusedField === 'sleep' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'sleep' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', padding: '0 16px', color: focusedField === 'sleep' ? 'var(--color-accent)' : 'var(--white)', fontSize: 'var(--text-lg)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        {sleepInput || '8.0'}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                        {['6.0', '7.0', '7.5', '8.0', '8.5', '9.0'].map(val => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => { setSleepInput(val); setFocusedField('sleep'); }}
+                            style={{
+                              flex: 1, minWidth: '48px', height: '36px',
+                              background: sleepInput === val ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                              color: sleepInput === val ? 'var(--navy-950)' : 'var(--color-text)',
+                              border: '1px solid var(--color-border)', borderRadius: '6px',
+                              fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                          >
+                            {val}h
+                          </button>
                       ))}
                     </div>
                   </div>
@@ -1268,22 +1342,40 @@ export default function App() {
                             </div>
                           </div>
                           
-                          <div style={{ height: '180px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', gap: '6px', paddingTop: '20px' }}>
-                            {profileData.length > 0 ? profileData.slice(-7).map((d, i) => {
-                              const minWeight = Math.min(...profileData.slice(-7).map(x=>x.weight_lbs));
-                              const maxWeight = Math.max(...profileData.slice(-7).map(x=>x.weight_lbs));
-                              const range = maxWeight - minWeight || 1;
-                              const heightPct = 25 + ((d.weight_lbs - minWeight) / range) * 75;
-                              const dateStr = d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }) : `Entry ${i+1}`;
-                              
+                          <div style={{ height: '180px', position: 'relative', borderBottom: '1px dashed rgba(255,255,255,0.1)', borderLeft: '1px dashed rgba(255,255,255,0.1)', paddingLeft: '8px', paddingTop: '16px', paddingBottom: '16px' }}>
+                            {profileData.length > 1 ? (() => {
+                              const trendData = profileData.slice(-14);
+                              const minW = Math.min(...trendData.map(d=>d.weight_lbs));
+                              const maxW = Math.max(...trendData.map(d=>d.weight_lbs));
+                              const range = (maxW - minW) || 1;
+                              const points = trendData.map((d, i) => {
+                                const x = (i / (trendData.length - 1)) * 100;
+                                const y = 100 - (((d.weight_lbs - minW) / range) * 80 + 10);
+                                return `${x},${y}`;
+                              }).join(' ');
+
                               return (
-                                <div key={i} className="chart-bar-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', marginBottom: '4px' }}>{d.weight_lbs}</span>
-                                  <div className="chart-bar" style={{ height: `${heightPct}%`, background: 'var(--color-accent)', width: '100%', maxWidth: '24px', opacity: i === profileData.slice(-7).length - 1 ? 1 : 0.6, borderRadius: '4px 4px 0 0' }} />
-                                  <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--color-text-muted)', marginTop: '6px' }}>{dateStr}</span>
+                                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                                    <polyline points={points} fill="none" stroke="var(--color-accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 4px 6px rgba(59, 130, 246, 0.4))' }} />
+                                    {trendData.map((d, i) => {
+                                      const x = (i / (trendData.length - 1)) * 100;
+                                      const y = 100 - (((d.weight_lbs - minW) / range) * 80 + 10);
+                                      return <circle key={i} cx={x} cy={y} r="3" fill="var(--white)" stroke="var(--color-accent)" strokeWidth="1.5" />;
+                                    })}
+                                  </svg>
+                                  <div style={{ position: 'absolute', bottom: '-24px', left: 0, right: 0, display: 'flex', justifyContent: 'space-between' }}>
+                                    {trendData.map((d, i) => {
+                                      const isEdgeOrMiddle = i === 0 || i === trendData.length - 1 || i === Math.floor(trendData.length / 2);
+                                      if (!isEdgeOrMiddle) return <span key={i} style={{ width: 0 }} />;
+                                      return <span key={i} style={{ fontSize: '10px', color: 'var(--color-text-muted)', transform: 'translateX(-50%)', left: `${(i / (trendData.length - 1)) * 100}%`, position: 'absolute' }}>
+                                        {new Date(d.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                                      </span>;
+                                    })}
+                                  </div>
                                 </div>
-                              )
-                            }) : <div style={{ width: '100%', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px' }}>No data logged yet</div>}
+                              );
+                            })() : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '12px' }}>Need at least 2 entries for trend line</div>}
                           </div>
                         </div>
 
