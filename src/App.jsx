@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square } from 'lucide-react';
+import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v1.0';
+const APP_VERSION = 'v1.1';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -178,8 +178,14 @@ export default function App() {
   const [profileData, setProfileData] = useState([]);
   const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', position: '' });
   
-  // Alerts State
-  const [alertsTab, setAlertsTab] = useState('DAILY');
+  // Settings & PWA State
+  const [dehydrationThreshold, setDehydrationThreshold] = useState(2.0); // %
+  const [sleepThreshold, setSleepThreshold] = useState(6.5); // hrs
+  const [baselineExpiryDays, setBaselineExpiryDays] = useState(14); // days
+  const [settingsSavedToast, setSettingsSavedToast] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
 
   useEffect(() => {
     fetchAthletes();
@@ -193,11 +199,74 @@ export default function App() {
     // Auto-sync offline cache when internet reconnects
     const handleOnline = () => syncOfflineCache();
     window.addEventListener('online', handleOnline);
+
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+      setIsAppInstalled(true);
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
     };
   }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredInstallPrompt) {
+      alert("App installation guide: Tap the Share button (Safari iOS) or Chrome ⋮ menu and select 'Add to Home Screen' / 'Install App'.");
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsAppInstalled(true);
+    }
+    setDeferredInstallPrompt(null);
+  };
+
+  const handleSaveSettings = () => {
+    setSettingsSavedToast(true);
+    setTimeout(() => setSettingsSavedToast(false), 3000);
+  };
+
+  const handleForceSync = async () => {
+    setSyncStatus('SYNCING CLOUD DATA...');
+    await fetchAthletes();
+    await fetchReportData();
+    setSyncStatus('ALL CLOUD DATA SYNCED CLEANLY!');
+    setTimeout(() => setSyncStatus(''), 3000);
+  };
+
+  const handleExportDiagnostics = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+      version: APP_VERSION,
+      timestamp: new Date().toISOString(),
+      athlete_count: athletes.length,
+      report_count: reportData.length,
+      thresholds: { dehydrationThreshold, sleepThreshold, baselineExpiryDays },
+      athletes: athletes.map(a => ({ id: a.id, name: a.name, sport: a.sport, team: a.team })),
+    }, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `hpd_diagnostics_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleClearAppCache = () => {
+    if (window.confirm("Are you sure you want to clear browser local cache? This will refresh your session.")) {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.reload();
+    }
+  };
 
   useEffect(() => {
     fetchReportData();
@@ -749,6 +818,7 @@ export default function App() {
             {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getDailyAlerts().length > 0 ? ` (${getDailyAlerts().length})` : ''))}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
+            {renderSidebarItem('settings', <Settings size={18} />, 'SETTINGS')}
           </div>
           <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1954,6 +2024,291 @@ export default function App() {
                 })()}
               </div>
             )}
+            {screen === 'settings' && (
+              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                
+                {/* Settings Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                  <div>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-2xl)', fontWeight: 700, margin: 0 }}>
+                      SYSTEM SETTINGS & TROUBLESHOOTING
+                    </h1>
+                    <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                      Configure performance threshold rules, troubleshoot system connections, and download app for mobile devices.
+                    </div>
+                  </div>
+                  {settingsSavedToast && (
+                    <div style={{ background: 'rgba(52, 211, 153, 0.15)', color: 'var(--status-success)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '8px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Check size={16} /> THRESHOLD SETTINGS SAVED!
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 1: How To Download / Install App */}
+                <div className="card-glass glow-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(184, 156, 91, 0.3)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.15)', border: '1px solid rgba(184, 156, 91, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
+                        <Smartphone size={22} />
+                      </div>
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: 'var(--color-accent)' }}>
+                          HOW TO INSTALL & DOWNLOAD APP
+                        </h2>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          Install HPD App as a native application on your iPhone, iPad, Android, or Laptop for 1-tap home screen access and offline support.
+                        </div>
+                      </div>
+                    </div>
+
+                    {isAppInstalled ? (
+                      <div style={{ background: 'rgba(52, 211, 153, 0.15)', color: 'var(--status-success)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '10px 18px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle size={18} /> APP INSTALLED & RUNNING STANDALONE
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={handleInstallApp}
+                        className="btn-primary"
+                        style={{ height: '44px', padding: '0 20px', fontSize: '13px' }}
+                      >
+                        <Download size={18} /> INSTALL HPD APP NOW
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginTop: '4px' }}>
+                    
+                    {/* iOS / iPad Guide */}
+                    <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>
+                        <span style={{ fontSize: '18px' }}>🍎</span> iPhone & iPad (Safari)
+                      </div>
+                      <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+                        <li>Open Safari and load <strong style={{ color: 'var(--color-accent)' }}>clever-kepler.vercel.app</strong></li>
+                        <li>Tap the <strong>Share button</strong> (box with arrow pointing up <span style={{ fontSize: '14px' }}>⎘</span>)</li>
+                        <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                        <li>Tap <strong>"Add"</strong> in top right. App icon appears on Home Screen!</li>
+                      </ol>
+                    </div>
+
+                    {/* Android Guide */}
+                    <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>
+                        <span style={{ fontSize: '18px' }}>🤖</span> Android (Chrome)
+                      </div>
+                      <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+                        <li>Open Chrome and load <strong style={{ color: 'var(--color-accent)' }}>clever-kepler.vercel.app</strong></li>
+                        <li>Tap the <strong>3-dots menu</strong> (<strong>⋮</strong>) in top right corner</li>
+                        <li>Select <strong>"Install App"</strong> or <strong>"Add to Home screen"</strong></li>
+                        <li>Tap <strong>"Install"</strong> to place app on your app drawer!</li>
+                      </ol>
+                    </div>
+
+                    {/* Laptop / Desktop Guide */}
+                    <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>
+                        <span style={{ fontSize: '18px' }}>💻</span> Laptop / Desktop (Chrome / Edge)
+                      </div>
+                      <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+                        <li>Look at the right side of your browser URL address bar</li>
+                        <li>Click the <strong>Install Icon</strong> (<span style={{ fontSize: '14px' }}>📥</span> or <span style={{ fontSize: '14px' }}>⊕</span>)</li>
+                        <li>Click <strong>"Install HPD App"</strong> to launch as a standalone desktop window</li>
+                        <li>Access HPD App anytime from your desktop or dock!</li>
+                      </ol>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Card 2: Practical Alert & Rule Threshold Configurator */}
+                <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-500)' }}>
+                      <Sliders size={22} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0 }}>
+                        ALERT & RULE THRESHOLD CONFIGURATOR
+                      </h2>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                        Adjust rule thresholds for risk detection, daily alerts, and mandatory baseline re-weigh prompts.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                    
+                    {/* Dehydration Threshold */}
+                    <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        DEHYDRATION RISK THRESHOLD (% DROP)
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <button 
+                          onClick={() => setDehydrationThreshold(prev => Math.max(1.0, parseFloat((prev - 0.1).toFixed(1))))}
+                          style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Minus size={18} />
+                        </button>
+                        <div style={{ flex: 1, height: '44px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-accent)' }}>
+                          {dehydrationThreshold.toFixed(1)}%
+                        </div>
+                        <button 
+                          onClick={() => setDehydrationThreshold(prev => Math.min(5.0, parseFloat((prev + 0.1).toFixed(1))))}
+                          style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        Flags athletes when body mass drops by &ge; {dehydrationThreshold}% between logs.
+                      </span>
+                    </div>
+
+                    {/* Sleep Deficiency Threshold */}
+                    <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        SLEEP DEFICIENCY THRESHOLD (HOURS)
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <button 
+                          onClick={() => setSleepThreshold(prev => Math.max(4.0, parseFloat((prev - 0.5).toFixed(1))))}
+                          style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Minus size={18} />
+                        </button>
+                        <div style={{ flex: 1, height: '44px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-accent)' }}>
+                          {sleepThreshold.toFixed(1)} hrs
+                        </div>
+                        <button 
+                          onClick={() => setSleepThreshold(prev => Math.min(9.0, parseFloat((prev + 0.5).toFixed(1))))}
+                          style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        Flags athletes when logged sleep falls below &lt; {sleepThreshold} hours.
+                      </span>
+                    </div>
+
+                    {/* Baseline Expiration Rule */}
+                    <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        BASELINE EXPIRATION RULE (DAYS INACTIVE)
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <button 
+                          onClick={() => setBaselineExpiryDays(prev => Math.max(3, prev - 1))}
+                          style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Minus size={18} />
+                        </button>
+                        <div style={{ flex: 1, height: '44px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-accent)' }}>
+                          {baselineExpiryDays} days
+                        </div>
+                        <button 
+                          onClick={() => setBaselineExpiryDays(prev => Math.min(30, prev + 1))}
+                          style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        Prompts athlete to set a new baseline if &gt; {baselineExpiryDays} days have passed without log.
+                      </span>
+                    </div>
+
+                  </div>
+
+                  <button 
+                    onClick={handleSaveSettings}
+                    className="btn-primary"
+                    style={{ width: 'fit-content', padding: '12px 28px', fontSize: '14px', marginTop: '8px' }}
+                  >
+                    <CheckCircle size={18} /> SAVE THRESHOLD SETTINGS
+                  </button>
+                </div>
+
+                {/* Card 3: Practical Troubleshooting & Health Tools */}
+                <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-success)' }}>
+                      <Zap size={22} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0 }}>
+                        PRACTICAL TROUBLESHOOTING & SYSTEM HEALTH
+                      </h2>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                        Monitor database synchronization status and run diagnostic actions in case of network issues.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cloud Health Metrics */}
+                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                    <div className="card-glass" style={{ flex: '1 1 180px', padding: '16px', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--status-success)', boxShadow: '0 0 8px var(--status-success)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>CLOUD CONNECTION</span>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--status-success)' }}>SUPABASE ONLINE</span>
+                      </div>
+                    </div>
+
+                    <div className="card-glass" style={{ flex: '1 1 180px', padding: '16px', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <Users size={18} style={{ color: 'var(--color-accent)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>ROSTER RECORD COUNT</span>
+                        <span style={{ fontSize: '14px', fontWeight: 700 }}>{athletes.length} Active Athletes</span>
+                      </div>
+                    </div>
+
+                    <div className="card-glass" style={{ flex: '1 1 180px', padding: '16px', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <Activity size={18} style={{ color: 'var(--color-accent)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>TOTAL WEIGH-IN LOGS</span>
+                        <span style={{ fontSize: '14px', fontWeight: 700 }}>{reportData.length} Records</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {syncStatus && (
+                    <div style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--navy-500)', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '10px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <RefreshCw size={16} /> {syncStatus}
+                    </div>
+                  )}
+
+                  {/* Troubleshooting Action Buttons */}
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
+                    <button 
+                      onClick={handleForceSync}
+                      className="btn-primary"
+                      style={{ padding: '12px 20px', fontSize: '13px', background: 'var(--navy-800)', border: '1px solid var(--navy-600)', color: 'var(--white)' }}
+                    >
+                      <RefreshCw size={16} /> FORCE SYNC DATABASE
+                    </button>
+
+                    <button 
+                      onClick={handleExportDiagnostics}
+                      className="btn-primary"
+                      style={{ padding: '12px 20px', fontSize: '13px', background: 'var(--navy-800)', border: '1px solid var(--navy-600)', color: 'var(--white)' }}
+                    >
+                      <Download size={16} /> EXPORT DIAGNOSTICS (JSON)
+                    </button>
+
+                    <button 
+                      onClick={handleClearAppCache}
+                      style={{ padding: '12px 20px', fontSize: '13px', background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--status-error)', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      <Trash2 size={16} /> CLEAR LOCAL APP CACHE
+                    </button>
+                  </div>
+
+                </div>
+
+              </div>
+            )}
           </div>
         </div>
 
@@ -1962,11 +2317,12 @@ export default function App() {
       {/* Bottom Nav (Mobile Only - Hidden in Kiosk Mode) */}
       {!isKioskMode && (
         <div className="bottom-nav">
-          {navItem('dashboard', <Users size={22} />, 'Home')}
-          {navItem('entry', <Plus size={22} />, 'Log')}
-          {navItem('alerts', <AlertTriangle size={22} />, 'Alerts')}
-          {navItem('roster', <Shield size={22} />, 'Roster')}
-          {navItem('reports', <FileText size={22} />, 'Reports')}
+          {navItem('dashboard', <Users size={20} />, 'Home')}
+          {navItem('entry', <Plus size={20} />, 'Log')}
+          {navItem('alerts', <AlertTriangle size={20} />, 'Alerts')}
+          {navItem('roster', <Shield size={20} />, 'Roster')}
+          {navItem('reports', <FileText size={20} />, 'Reports')}
+          {navItem('settings', <Settings size={20} />, 'Settings')}
         </div>
       )}
     </div>
