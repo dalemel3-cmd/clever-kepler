@@ -202,15 +202,18 @@ body {
 /* Mobile & Tablet Enhancements */
 @media (max-width: 768px) {
   .scroll-area {
-    padding: 12px 8px 32px 8px;
+    padding: 12px 10px 110px 10px;
   }
   .mobile-col {
     flex-direction: column !important;
     align-items: stretch !important;
   }
-  /* Typography Scaling */
-  .text-3xl { font-size: 32px !important; }
-  .text-2xl { font-size: 24px !important; }
+  /* Typography & iOS Auto-Zoom Protection */
+  .text-3xl { font-size: 26px !important; }
+  .text-2xl { font-size: 22px !important; }
+  input, select, textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Mobile Landscape & Short Viewport Height Scrolling */
