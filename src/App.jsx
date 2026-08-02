@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v2.7';
+const APP_VERSION = 'v3.0';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
