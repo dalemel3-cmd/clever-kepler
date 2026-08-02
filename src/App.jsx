@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v1.7';
+const APP_VERSION = 'v1.8';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -103,6 +103,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState('ALL');
+  const [selectedPositionFilter, setSelectedPositionFilter] = useState('ALL');
   const [nameSortOrder, setNameSortOrder] = useState('first'); // 'first' | 'last'
   const [athletes, setAthletes] = useState([]);
 
@@ -125,12 +127,15 @@ export default function App() {
         a.name.toLowerCase().includes(q) ||
         (a.sport && a.sport.toLowerCase().includes(q)) ||
         (a.team && a.team.toLowerCase().includes(q)) ||
+        (a.grade && a.grade.toLowerCase().includes(q)) ||
         (a.position && a.position.toLowerCase().includes(q));
 
       const matchesSport = selectedSportFilter === 'ALL' || a.sport === selectedSportFilter;
       const matchesTeam = selectedTeamFilter === 'ALL' || a.team === selectedTeamFilter;
+      const matchesGrade = selectedGradeFilter === 'ALL' || a.grade === selectedGradeFilter;
+      const matchesPosition = selectedPositionFilter === 'ALL' || a.position === selectedPositionFilter;
 
-      return matchesSearch && matchesSport && matchesTeam;
+      return matchesSearch && matchesSport && matchesTeam && matchesGrade && matchesPosition;
     })
     .sort((a, b) => {
       if (nameSortOrder === 'last') {
@@ -193,7 +198,7 @@ export default function App() {
   const [editingAthleteId, setEditingAthleteId] = useState(null);
   const [selectedProfileId, setSelectedProfileId] = useState(null);
   const [profileData, setProfileData] = useState([]);
-  const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', position: '' });
+  const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', grade: '', position: '' });
   
   // Alerts State
   const [alertsTab, setAlertsTab] = useState('DAILY');
@@ -436,21 +441,24 @@ export default function App() {
       const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/^"|"$/g, ''));
       const nameIdx = headers.indexOf('athlete');
       const sportIdx = headers.indexOf('sport');
+      const teamIdx = headers.indexOf('team');
       const gradeIdx = headers.indexOf('grade');
+      const posIdx = headers.indexOf('position');
       
-      if (nameIdx === -1 || sportIdx === -1 || gradeIdx === -1) {
-        return alert("CSV must have headers exactly matching: Athlete, Sport, Grade");
+      if (nameIdx === -1) {
+        return alert("CSV must have an 'Athlete' column header. Optional columns: Sport, Team, Grade, Position");
       }
 
       const athletesToInsert = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-        if (cols.length > Math.max(nameIdx, sportIdx, gradeIdx) && cols[nameIdx]) {
+        if (cols[nameIdx]) {
           athletesToInsert.push({
             name: cols[nameIdx],
-            sport: cols[sportIdx],
-            team: cols[gradeIdx],
-            position: '',
+            sport: sportIdx !== -1 ? (cols[sportIdx] || '') : '',
+            team: teamIdx !== -1 ? (cols[teamIdx] || '') : '',
+            grade: gradeIdx !== -1 ? (cols[gradeIdx] || '') : '',
+            position: posIdx !== -1 ? (cols[posIdx] || '') : '',
             created_at: new Date().toISOString()
           });
         }
@@ -473,7 +481,7 @@ export default function App() {
   };
 
   const handleDownloadTemplate = () => {
-    const csvContent = "Athlete,Sport,Grade\nJohn Doe,Football,Varsity\nJane Smith,Basketball,JV";
+    const csvContent = "Athlete,Sport,Team,Grade,Position\nJohn Doe,Football,Varsity,11th,WR\nJane Smith,Basketball,JV,10th,PG";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -495,6 +503,8 @@ export default function App() {
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId);
   const sportsList = Array.from(new Set(athletes.map(a => a.sport).filter(Boolean)));
   const teamsList = Array.from(new Set(athletes.map(a => a.team).filter(Boolean)));
+  const gradesList = Array.from(new Set(athletes.map(a => a.grade).filter(Boolean)));
+  const positionsList = Array.from(new Set(athletes.map(a => a.position).filter(Boolean)));
 
   const handleSelectAthleteForEntry = (athleteId) => {
     setEntryAthleteId(athleteId);
@@ -656,7 +666,7 @@ export default function App() {
         setAthletes(prev => [...prev, data[0]]);
       }
       setIsAddingAthlete(false);
-      setNewAthlete({ name: '', sport: '', team: '', position: '' });
+      setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -668,7 +678,7 @@ export default function App() {
 
   const handleEditClick = (athlete) => {
     setEditingAthleteId(athlete.id);
-    setNewAthlete({ name: athlete.name, sport: athlete.sport, team: athlete.team, position: athlete.position });
+    setNewAthlete({ name: athlete.name, sport: athlete.sport, team: athlete.team, grade: athlete.grade || '', position: athlete.position });
     setIsAddingAthlete(true);
   };
 
@@ -705,7 +715,7 @@ export default function App() {
       }
       setIsAddingAthlete(false);
       setEditingAthleteId(null);
-      setNewAthlete({ name: '', sport: '', team: '', position: '' });
+      setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -732,7 +742,7 @@ export default function App() {
       setAthletes(prev => prev.filter(a => a.id !== editingAthleteId));
       setIsAddingAthlete(false);
       setEditingAthleteId(null);
-      setNewAthlete({ name: '', sport: '', team: '', position: '' });
+      setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -1096,7 +1106,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Drop-down Menus for Sport, Team/Grade, and First/Last Name Sort */}
+                {/* Drop-down Menus for Filters */}
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <select
                     value={selectedSportFilter}
@@ -1116,9 +1126,33 @@ export default function App() {
                     className="input-glass"
                     style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
                   >
-                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL TEAMS / GRADES</option>
+                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL TEAMS</option>
                     {teamsList.map(team => (
                       <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  
+                  <select
+                    value={selectedGradeFilter}
+                    onChange={e => setSelectedGradeFilter(e.target.value)}
+                    className="input-glass"
+                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                  >
+                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL GRADES</option>
+                    {gradesList.map(grade => (
+                      <option key={grade} value={grade} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{grade.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  
+                  <select
+                    value={selectedPositionFilter}
+                    onChange={e => setSelectedPositionFilter(e.target.value)}
+                    className="input-glass"
+                    style={{ flex: 1, minWidth: '130px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                  >
+                    <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL POSITIONS</option>
+                    {positionsList.map(pos => (
+                      <option key={pos} value={pos} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{pos.toUpperCase()}</option>
                     ))}
                   </select>
 
@@ -1164,7 +1198,7 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 600, color: 'var(--color-accent)', textTransform: 'uppercase' }}>{selectedAthlete.name}</span>
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{selectedAthlete.sport} &middot; {selectedAthlete.position}</span>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{selectedAthlete.sport}{selectedAthlete.grade ? ` · ${selectedAthlete.grade}` : ''} &middot; {selectedAthlete.position}</span>
                   </div>
                 </div>
 
@@ -1907,9 +1941,31 @@ export default function App() {
                         className="input-glass"
                         style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
                       >
-                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL GRADES / TEAMS</option>
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL TEAMS</option>
                         {teamsList.map(team => (
                           <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedGradeFilter}
+                        onChange={e => setSelectedGradeFilter(e.target.value)}
+                        className="input-glass"
+                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                      >
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL GRADES</option>
+                        {gradesList.map(grade => (
+                          <option key={grade} value={grade} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{grade.toUpperCase()}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedPositionFilter}
+                        onChange={e => setSelectedPositionFilter(e.target.value)}
+                        className="input-glass"
+                        style={{ flex: '1 1 120px', height: '48px', padding: '0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', borderRadius: 'var(--radius-md)' }}
+                      >
+                        <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>ALL POSITIONS</option>
+                        {positionsList.map(pos => (
+                          <option key={pos} value={pos} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{pos.toUpperCase()}</option>
                         ))}
                       </select>
                       <select
@@ -1941,7 +1997,7 @@ export default function App() {
                         />
                       </label>
                       <button 
-                        onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', position: '' }); }}
+                        onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' }); }}
                         className="btn-primary"
                         style={{ height: '48px', padding: '0 20px', fontSize: '14px', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
                       >
@@ -1961,7 +2017,7 @@ export default function App() {
                             <span style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>
                               {nameSortOrder === 'last' ? `${getLastName(a.name)}, ${getFirstName(a.name)}` : a.name}
                             </span>
-                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport} &middot; {a.team} &middot; {a.position}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport} &middot; {a.team}{a.grade ? ` · ${a.grade}` : ''} &middot; {a.position}</span>
                           </div>
                         </div>
                       ))}
@@ -1987,6 +2043,10 @@ export default function App() {
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Team</span>
                         <input type="text" className="input-glass" placeholder="e.g. Varsity" value={newAthlete.team} onChange={e => setNewAthlete({...newAthlete, team: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
+                      </div>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Grade</span>
+                        <input type="text" className="input-glass" placeholder="e.g. 10th" value={newAthlete.grade} onChange={e => setNewAthlete({...newAthlete, grade: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
                       </div>
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Position</span>
@@ -2040,7 +2100,7 @@ export default function App() {
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em' }}>ATHLETE PROFILE</span>
                             <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, textTransform: 'uppercase', lineHeight: 1 }}>{athlete.name}</span>
-                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{athlete.sport} &middot; {athlete.team} &middot; {athlete.position}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{athlete.sport} &middot; {athlete.team}{athlete.grade ? ` · ${athlete.grade}` : ''} &middot; {athlete.position}</span>
                           </div>
                           
                           {/* Desktop Stats */}
