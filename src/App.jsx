@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2, Search, Grid } from 'lucide-react';
+import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, HelpCircle, Check, Copy, Share2, Search, Grid } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './styles.css';
@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v2.5';
+const APP_VERSION = 'v2.6';
 
 const KioskNumpad = ({ value, onChange, onEnter }) => {
   const handleKey = (key) => {
@@ -683,15 +683,33 @@ export default function App() {
     if (!newAthlete.name) return;
     setSaving(true);
     try {
+      let createdAthlete = null;
       const { data, error } = await supabase
         .from('athletes')
         .insert([newAthlete])
         .select();
         
-      if (error) throw error;
+      if (error) {
+        console.warn("Could not insert athlete online, saving locally:", error);
+        createdAthlete = { ...newAthlete, id: 'local_' + Date.now(), created_at: new Date().toISOString() };
+      } else if (data && data.length > 0) {
+        createdAthlete = data[0];
+      }
       
-      if (data && data.length > 0) {
-        setAthletes(prev => [...prev, data[0]]);
+      if (createdAthlete) {
+        setAthletes(prev => {
+          const next = [...prev, createdAthlete];
+          try {
+            localStorage.setItem('shiloh_roster', JSON.stringify(next));
+          } catch (e) {}
+          return next;
+        });
+        if (screen === 'entry') {
+          setEntryAthleteId(createdAthlete.id);
+          setWeightInput('');
+          setSleepInput('8.0');
+          setFocusedField('weight');
+        }
       }
       setIsAddingAthlete(false);
       setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' });
@@ -1099,15 +1117,43 @@ export default function App() {
 
             {screen === 'entry' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Header with Daily Progress Counter */}
+                {/* Header with Daily Progress Counter & Add Athlete Action */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>QUICK ENTRY</h2>
                     <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Tap your card to log today's weigh-in</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.35)', padding: '6px 14px', borderRadius: '20px' }}>
-                    <CheckCircle size={16} style={{ color: 'var(--status-success)' }} />
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-success)', letterSpacing: '0.04em' }}>{athletesRecordedToday.size} LOGGED TODAY</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => {
+                        setIsAddingAthlete(true);
+                        setEditingAthleteId(null);
+                        setNewAthlete({ name: '', sport: selectedSportFilter !== 'ALL' ? selectedSportFilter : '', team: selectedTeamFilter !== 'ALL' ? selectedTeamFilter : '', grade: selectedGradeFilter !== 'ALL' ? selectedGradeFilter : '', position: selectedPositionFilter !== 'ALL' ? selectedPositionFilter : '' });
+                      }}
+                      className="btn-primary glow-card"
+                      style={{
+                        height: '40px',
+                        padding: '0 18px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'var(--color-accent)',
+                        color: 'var(--navy-950)',
+                        border: '1px solid var(--color-accent)',
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 16px rgba(194, 164, 80, 0.3)',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <Plus size={17} strokeWidth={2.5} /> Add Athlete
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.35)', padding: '6px 14px', borderRadius: '20px' }}>
+                      <CheckCircle size={16} style={{ color: 'var(--status-success)' }} />
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-success)', letterSpacing: '0.04em' }}>{athletesRecordedToday.size} LOGGED TODAY</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1291,8 +1337,22 @@ export default function App() {
                       );
                     })}
                     {filteredAthletes.length === 0 && (
-                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 16px', color: 'var(--color-text-muted)', fontSize: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        No athletes found matching the selected filters or search query.
+                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '44px 20px', color: 'var(--color-text-muted)', fontSize: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                        <div>
+                          <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--white)', display: 'block', marginBottom: '6px' }}>Athlete Not Found in Roster?</span>
+                          No athletes matched your search or filters. If you are new to the program, you can quickly create your profile right now!
+                        </div>
+                        <button 
+                          onClick={() => {
+                            setIsAddingAthlete(true);
+                            setEditingAthleteId(null);
+                            setNewAthlete({ name: search || '', sport: selectedSportFilter !== 'ALL' ? selectedSportFilter : '', team: selectedTeamFilter !== 'ALL' ? selectedTeamFilter : '', grade: selectedGradeFilter !== 'ALL' ? selectedGradeFilter : '', position: selectedPositionFilter !== 'ALL' ? selectedPositionFilter : '' });
+                          }}
+                          className="btn-primary glow-card"
+                          style={{ height: '48px', padding: '0 24px', fontSize: '15px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(194, 164, 80, 0.3)' }}
+                        >
+                          <Plus size={18} strokeWidth={2.5} /> Add {search ? `"${search}"` : 'New Athlete'} & Log Weight
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1471,6 +1531,150 @@ export default function App() {
                           </button>
                         );
                       })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pop-up Add Athlete Modal for Kiosk Mode */}
+                {isAddingAthlete && screen === 'entry' && (
+                  <div 
+                    style={{
+                      position: 'fixed',
+                      inset: 0,
+                      zIndex: 10001,
+                      background: 'rgba(3, 8, 20, 0.85)',
+                      backdropFilter: 'blur(14px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '16px',
+                      overflowY: 'auto'
+                    }}
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) setIsAddingAthlete(false);
+                    }}
+                  >
+                    <div 
+                      className="card-glass glow-card animate-slide-up" 
+                      style={{ 
+                        width: '100%',
+                        maxWidth: '560px',
+                        padding: '28px', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '20px',
+                        borderRadius: '24px',
+                        border: '1px solid rgba(194, 164, 80, 0.45)',
+                        boxShadow: '0 24px 70px rgba(0, 0, 0, 0.9)',
+                        maxHeight: '92vh',
+                        overflowY: 'auto',
+                        margin: 'auto'
+                      }}
+                    >
+                      {/* Modal Header */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(194, 164, 80, 0.15)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
+                            <User size={24} />
+                          </div>
+                          <div>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: 0, letterSpacing: '0.03em' }}>NEW ATHLETE PROFILE</h3>
+                            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Enter details to add to roster and log weigh-in</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setIsAddingAthlete(false)}
+                          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                          title="Close modal"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+
+                      {/* Form Fields */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Full Name *</span>
+                          <input 
+                            type="text" 
+                            className="input-glass" 
+                            placeholder="e.g. Jordan Miller" 
+                            value={newAthlete.name} 
+                            onChange={e => setNewAthlete({...newAthlete, name: e.target.value})} 
+                            style={{ height: '48px', padding: '0 16px', fontSize: '16px', borderRadius: '10px', fontWeight: 600 }} 
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Sport *</span>
+                          <select
+                            value={newAthlete.sport || ''}
+                            onChange={e => setNewAthlete({...newAthlete, sport: e.target.value})}
+                            className="input-glass"
+                            style={{ height: '48px', padding: '0 16px', fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '10px' }}
+                          >
+                            <option value="" style={{ background: 'var(--navy-900)', color: 'var(--color-text-muted)' }}>Select a sport...</option>
+                            {sportsList.map(sport => (
+                              <option key={sport} value={sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{sport.toUpperCase()}</option>
+                            ))}
+                          </select>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            {sportsList.map(sport => (
+                              <button
+                                key={sport}
+                                type="button"
+                                onClick={() => setNewAthlete({ ...newAthlete, sport })}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: '16px',
+                                  border: newAthlete.sport === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.12)',
+                                  background: newAthlete.sport === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.03)',
+                                  color: newAthlete.sport === sport ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                {sport}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                          <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Team / Group</span>
+                            <input type="text" className="input-glass" placeholder="e.g. Varsity" value={newAthlete.team || ''} onChange={e => setNewAthlete({...newAthlete, team: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: '16px', borderRadius: '10px' }} />
+                          </div>
+                          <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Grade</span>
+                            <input type="text" className="input-glass" placeholder="e.g. Freshman" value={newAthlete.grade || ''} onChange={e => setNewAthlete({...newAthlete, grade: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: '16px', borderRadius: '10px' }} />
+                          </div>
+                          <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Position</span>
+                            <input type="text" className="input-glass" placeholder="e.g. WR / PG" value={newAthlete.position || ''} onChange={e => setNewAthlete({...newAthlete, position: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: '16px', borderRadius: '10px' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                        <button 
+                          onClick={() => setIsAddingAthlete(false)}
+                          className="btn-primary"
+                          style={{ flex: 1, height: '56px', fontSize: '16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--white)' }}
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={handleCreateAthlete}
+                          disabled={!newAthlete.name || saving}
+                          className="btn-primary glow-card"
+                          style={{ flex: 2, height: '56px', fontSize: '18px', background: 'var(--color-accent)', color: 'var(--navy-950)', fontWeight: 800, letterSpacing: '0.03em', boxShadow: '0 6px 20px rgba(194, 164, 80, 0.35)' }}
+                        >
+                          {saving ? 'Creating...' : 'Create & Log Weigh-In'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
