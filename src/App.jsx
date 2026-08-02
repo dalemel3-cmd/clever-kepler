@@ -745,8 +745,6 @@ export default function App() {
                   </div>
                   
                   </div>
-                </div>
-
 
                 {/* Chart */}
                 <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
