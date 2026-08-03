@@ -3,7 +3,7 @@ Write-Host "====================================" -ForegroundColor Cyan
 Write-Host "  HPD App - Pulling Latest Changes  " -ForegroundColor Cyan
 Write-Host "====================================" -ForegroundColor Cyan
 
-git pull --rebase origin main
+git pull origin main
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`nSuccessfully pulled latest changes!" -ForegroundColor Green
     Write-Host "Running npm install..." -ForegroundColor Yellow
