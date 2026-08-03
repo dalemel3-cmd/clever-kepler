@@ -505,6 +505,7 @@ export default function App() {
 
   const handleForceSync = async () => {
     setSyncStatus('SYNCING CLOUD DATA...');
+    await syncOfflineCache();
     await fetchAthletes();
     await fetchReportData();
     setSyncStatus('ALL CLOUD DATA SYNCED CLEANLY!');
@@ -518,7 +519,8 @@ export default function App() {
       athlete_count: athletes.length,
       report_count: reportData.length,
       thresholds: { dehydrationThreshold, sleepThreshold, baselineExpiryDays },
-      athletes: athletes.map(a => ({ id: a.id, name: a.name, sport: a.sport, team: a.team })),
+      roster: athletes,
+      reports: reportData
     }, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
@@ -533,6 +535,53 @@ export default function App() {
       localStorage.clear();
       sessionStorage.clear();
       window.location.reload();
+    }
+  };
+
+  const syncOfflineCache = async () => {
+    const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+    if (offlineQueue.length === 0) return;
+
+    try {
+      const { data: dbAthletes } = await supabase.from('athletes').select('*');
+      const athleteMap = new Map((dbAthletes || []).map(a => [a.name.toLowerCase().trim(), a.id]));
+
+      const remaining = [];
+      for (const item of offlineQueue) {
+        const rawRec = item.record || item;
+        const rec = { ...rawRec };
+        
+        if (rec.id && typeof rec.id === 'string' && rec.id.startsWith('opt_')) {
+          delete rec.id;
+        }
+
+        if (rec.athlete_name) {
+          const matchId = athleteMap.get(rec.athlete_name.toLowerCase().trim());
+          if (matchId) rec.athlete_id = matchId;
+        }
+
+        if (item.action === 'update' && item.id && !String(item.id).startsWith('opt_')) {
+          const { error } = await supabase.from('weigh_ins').update(rec).eq('id', item.id);
+          if (error) remaining.push(item);
+        } else {
+          delete rec.id;
+          const { error } = await supabase.from('weigh_ins').insert([rec]);
+          if (error) {
+            console.warn("Offline insert warning:", error);
+            remaining.push(item);
+          }
+        }
+      }
+      
+      if (remaining.length === 0) {
+        localStorage.removeItem('shiloh_offline_weigh_ins');
+        console.log("Successfully synced offline queue to Supabase!");
+      } else {
+        localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(remaining));
+      }
+      fetchReportData();
+    } catch (err) {
+      console.warn("Could not sync offline queue yet:", err);
     }
   };
 
@@ -571,33 +620,7 @@ export default function App() {
     }
   };
 
-  const syncOfflineCache = async () => {
-    const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
-    if (offlineQueue.length === 0) return;
 
-    try {
-      let syncFailed = false;
-      for (const item of offlineQueue) {
-        if (item.action === 'update') {
-          const { error } = await supabase.from('weigh_ins').update(item.record).eq('id', item.id);
-          if (error) syncFailed = true;
-        } else {
-          const { error } = await supabase.from('weigh_ins').insert([item.record || item]);
-          if (error) syncFailed = true;
-        }
-      }
-      
-      if (!syncFailed) {
-        localStorage.removeItem('shiloh_offline_weigh_ins');
-        console.log("Successfully synced offline queue to Supabase!");
-        fetchReportData();
-      } else {
-        console.warn("Some items failed to sync.");
-      }
-    } catch {
-      console.warn("Could not sync offline queue yet.");
-    }
-  };
 
   const fetchAthletes = async () => {
     try {
