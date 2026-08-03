@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pull": "git pull origin main && npm install",
+    "push": "git add . && git commit -m \"Sync updates\" && git push origin main"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
