@@ -206,6 +206,7 @@ export default function App() {
       offline.forEach(item => {
         const rec = item.record || item;
         if (rec && rec.athlete_id && rec.created_at) {
+          const d = new Date(rec.created_at);
           if (d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
             recordedSet.add(rec.athlete_id);
           }
@@ -827,18 +828,52 @@ export default function App() {
 
   const handleDeleteWeighIn = async (id) => {
     if (!window.confirm("Are you sure you want to delete this weigh-in record?")) return;
+    
+    // Optimistically update React state immediately
+    setReportData(prev => {
+      const updated = prev.filter(r => r.id !== id && r.record_id !== id);
+      try { localStorage.setItem('shiloh_reports', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    setProfileData(prev => prev.filter(p => p.id !== id));
+
+    // Clear from offline queue if queued locally
+    try {
+      const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+      const filteredOffline = offline.filter(item => {
+        const rec = item.record || item;
+        return item.id !== id && rec.id !== id && item.temp_id !== id;
+      });
+      localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(filteredOffline));
+    } catch (e) {}
+
+    // If ID is an optimistic temp ID, we are done
+    if (id && typeof id === 'string' && id.startsWith('opt_')) {
+      return;
+    }
+
     try {
       const { error } = await supabase.from('weigh_ins').delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        console.warn("Supabase delete warning:", error);
+      }
       fetchReportData();
     } catch (err) {
       console.error("Could not delete weigh in:", err);
-      alert("Failed to delete record.");
     }
   };
 
   const handleDeleteAllWeighIns = async () => {
     if (!window.confirm("WARNING: Are you sure you want to wipe ALL weigh-in data? This cannot be undone.")) return;
+    
+    setReportData([]);
+    setProfileData([]);
+    setTodaySessions(0);
+    try {
+      localStorage.removeItem('shiloh_offline_weigh_ins');
+      localStorage.removeItem('shiloh_reports');
+    } catch (e) {}
+
     try {
       const { error } = await supabase.from('weigh_ins').delete().not('id', 'is', null);
       if (error) throw error;
@@ -964,23 +999,46 @@ export default function App() {
   const handleDeleteAthlete = async () => {
     if (!window.confirm("Are you sure you want to delete this athlete and all their records?")) return;
     setSaving(true);
+    const targetId = editingAthleteId;
     try {
+      // Optimistic state updates
+      setAthletes(prev => {
+        const next = prev.filter(a => a.id !== targetId);
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch (e) {}
+        return next;
+      });
+
+      setReportData(prev => {
+        const updated = prev.filter(r => r.athlete_id !== targetId);
+        try { localStorage.setItem('shiloh_reports', JSON.stringify(updated)); } catch (e) {}
+        return updated;
+      });
+
+      try {
+        const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+        const filteredOffline = offline.filter(item => {
+          const rec = item.record || item;
+          return item.athlete_id !== targetId && rec.athlete_id !== targetId;
+        });
+        localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(filteredOffline));
+      } catch (e) {}
+
       // Delete associated weigh-ins first to prevent foreign key constraint errors
-      await supabase.from('weigh_ins').delete().eq('athlete_id', editingAthleteId);
+      await supabase.from('weigh_ins').delete().eq('athlete_id', targetId);
 
       const { error } = await supabase
         .from('athletes')
         .delete()
-        .eq('id', editingAthleteId);
+        .eq('id', targetId);
         
       if (error) throw error;
       
-      setAthletes(prev => prev.filter(a => a.id !== editingAthleteId));
       setIsAddingAthlete(false);
       setEditingAthleteId(null);
       setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+      fetchReportData();
     } catch (err) {
       console.error("Error deleting athlete:", err);
       alert("Could not delete athlete: " + err.message);
