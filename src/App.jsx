@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal } from 'lucide-react';
 import { supabase } from './supabaseClient';
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import './styles.css';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -162,6 +162,8 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [todaySessions, setTodaySessions] = useState(0);
   const [focusedField, setFocusedField] = useState('weight');
+  const [isBaselineTestingMode, setIsBaselineTestingMode] = useState(false);
+  const [lastSavedAthleteName, setLastSavedAthleteName] = useState('');
   const [kioskTrackMode, setKioskTrackMode] = useState(() => {
     try { return localStorage.getItem('shiloh_kiosk_track_mode') || 'both'; } catch (e) { return 'both'; }
   });
@@ -331,7 +333,8 @@ export default function App() {
       yesterdayAvgSleep,
       sleepDelta,
       hydrationFlags,
-      leaderboard
+      leaderboard,
+      sportLeaderboard: leaderboard
     };
   }, [reportData, athletes, todaySessions]);
 
@@ -678,7 +681,7 @@ export default function App() {
     setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight');
   };
 
-  const handleSave = async () => {
+  const handleSave = async (isBaselineOverride = false) => {
     if (!selectedAthlete) return;
     if (kioskTrackMode !== 'sleep_only' && (!weightInput || weightInput === '0.0' || weightInput === '')) return;
     if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
@@ -707,6 +710,28 @@ export default function App() {
       created_at: new Date().toISOString()
     };
 
+    const shouldSetBaseline = isBaselineTestingMode || isBaselineOverride === true || (typeof isBaselineOverride === 'object' && isBaselineOverride?.isBaseline === true);
+    if (shouldSetBaseline && weightVal) {
+      record.is_baseline = true;
+      const updatedBaselineDate = new Date().toISOString();
+      setAthletes(prev => {
+        const updated = prev.map(a => a.id === selectedAthlete.id ? { ...a, baseline_date: updatedBaselineDate, baseline_weight: weightVal } : a);
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(updated)); } catch (e) {}
+        return updated;
+      });
+      try {
+        supabase.from('athletes').update({ baseline_date: updatedBaselineDate, baseline_weight: weightVal }).eq('id', selectedAthlete.id).then();
+      } catch (e) {}
+    }
+
+    // Optimistic UI updates right away regardless of network connectivity
+    if (existingRecord) {
+      setReportData(prev => prev.map(r => r.id === existingRecord.id ? { ...existingRecord, ...record } : r));
+    } else {
+      setReportData(prev => [{ id: 'opt_' + Date.now(), ...record }, ...prev]);
+      setTodaySessions(prev => prev + 1);
+    }
+
     try {
       if (existingRecord) {
         let { error } = await supabase.from('weigh_ins').update(record).eq('id', existingRecord.id);
@@ -726,11 +751,10 @@ export default function App() {
         if (error) throw error;
       }
       
-      // Update local data immediately
       fetchReportData();
       syncOfflineCache();
     } catch (err) {
-      console.warn("Supabase offline, saving locally:", err);
+      console.warn("Supabase offline or unreachable, queuing payload locally for background sync:", err);
       try {
         const existing = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
         existing.push({
@@ -744,10 +768,13 @@ export default function App() {
       }
     }
       
-    // Instant Return
+    // Instant Optimistic Visual Celebration
     setSaving(false);
-    setSaved(false); // No confetti
-    setTodaySessions(prev => prev + 1);
+    setLastSavedAthleteName(selectedAthlete.name);
+    setSaved(true);
+    setTimeout(() => {
+      setSaved(false);
+    }, 2500);
     setWeightInput('');
     setSleepInput('');
     setEntryAthleteId(null);
@@ -1116,6 +1143,15 @@ export default function App() {
   return (
     <div className="app-layout">
       {saved && <Confetti />}
+      {saved && (
+        <div style={{ position: 'fixed', top: '82px', left: '50%', transform: 'translateX(-50%)', zIndex: 10000, background: 'rgba(22, 163, 74, 0.96)', border: '2px solid #86efac', color: '#fff', padding: '12px 28px', borderRadius: '40px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 36px rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(10px)', animation: 'slideDown 0.3s ease' }}>
+          <CheckCircle size={24} style={{ flexShrink: 0, color: '#fff' }} />
+          <div>
+            <span style={{ fontSize: '15px', fontWeight: 800, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>LOG RECORDED SUCCESSFULLY!</span>
+            {lastSavedAthleteName && <span style={{ fontSize: '12px', opacity: 0.95, fontWeight: 700 }}>{lastSavedAthleteName} &middot; {isOnline ? 'Synced & Live' : 'Cached Offline in Sync Queue'}</span>}
+          </div>
+        </div>
+      )}
       
       {/* Sidebar (Desktop Only - Hidden in Kiosk Mode) */}
       {!isKioskMode && (
@@ -1184,6 +1220,13 @@ export default function App() {
                 >
                   <Lock size={14} /> <span className="kiosk-btn-text">ACTIVATE KIOSK MODE</span>
                 </button>
+                <button 
+                  onClick={() => { setIsKioskMode(false); setScreen('entry'); }}
+                  className="no-print"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px', background: screen === 'entry' ? 'rgba(184, 156, 91, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: screen === 'entry' ? 'var(--color-accent)' : 'var(--white)', border: screen === 'entry' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  <Plus size={14} style={{ color: 'var(--color-accent)' }} /> <span className="kiosk-btn-text">LOG ENTRY</span>
+                </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <span className="no-print" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 10px', borderRadius: '14px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
@@ -1209,57 +1252,41 @@ export default function App() {
         {/* Scroll Area */}
         <div className="scroll-area">
           <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
             {screen === 'dashboard' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>WORKSPACE &middot; DASHBOARD</div>
-                  <h1 className="text-3xl" style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                    {(() => {
-                      const hour = new Date().getHours();
-                      if (hour < 12) return 'GOOD MORNING';
-                      if (hour < 17) return 'GOOD AFTERNOON';
-                      return 'GOOD EVENING';
-                    })()}
-                  </h1>
-                  <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} &middot; {athletes.length} athletes &middot; Ready for sessions</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>WORKSPACE &middot; DASHBOARD</div>
+                    <h1 className="text-3xl" style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                      {(() => {
+                        const hour = new Date().getHours();
+                        if (hour < 12) return 'GOOD MORNING';
+                        if (hour < 17) return 'GOOD AFTERNOON';
+                        return 'GOOD EVENING';
+                      })()}
+                    </h1>
+                    <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} &middot; {athletes.length} athletes &middot; Ready for sessions</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '20px', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Athletes</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--white)' }}>{athletes.length}</span>
+                    </div>
+                    <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--color-accent)' }}>{todaySessions}</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Action Cards */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-                  <div onClick={() => setScreen('entry')} className="card-glass glow-card" style={{ flex: '1 1 250px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: 'var(--color-accent)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'var(--navy-950)', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Plus size={20} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', color: 'var(--navy-950)' }}>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700 }}>LOG ENTRY</span>
-                        <span style={{ fontSize: '12px', fontWeight: 600 }}>Weigh-ins & Sleep</span>
-                      </div>
-                    </div>
-                    <ChevronLeft size={20} style={{ color: 'var(--navy-950)', transform: 'rotate(180deg)' }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', justifyContent: 'flex-start' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Athletes</span>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 600 }}>{athletes.length}</span>
-                    </div>
-                    <div style={{ width: '1px', height: '40px', background: 'var(--color-border)' }} />
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 600, color: 'var(--color-accent)' }}>{todaySessions}</span>
-                    </div>
-                  </div>
-                  
-                  </div>
-
-                {/* Executive Insights & 24H Deltas Section */}
+                {/* Top Fold: Executive Insights & 24H Deltas Section */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <Zap size={20} style={{ color: 'var(--color-accent)' }} />
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--white)' }}>
-                        EXECUTIVE INSIGHTS &middot; 24H DELTAS
+                        EXECUTIVE KPI READINESS &middot; 24H DELTAS
                       </span>
                     </div>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.04)', padding: '4px 12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -1307,30 +1334,21 @@ export default function App() {
                           transition: 'width 0.8s ease'
                         }} />
                       </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        <span>Yesterday's pace: <strong style={{ color: 'var(--white)' }}>{executiveInsights.yesterdayCompliancePct}%</strong></span>
-                        {executiveInsights.todayCompliancePct > executiveInsights.yesterdayCompliancePct && (
-                          <span style={{ color: 'var(--color-accent)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Flame size={14} /> BEATING YESTERDAY
-                          </span>
-                        )}
-                      </div>
                     </div>
 
-                    {/* Card 2: Recovery & Sleep Quality Index */}
-                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', overflow: 'hidden' }}>
+                    {/* Card 2: Recovery Status & Sleep Delta */}
+                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>RECOVERY INDEX (AVG SLEEP)</div>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>RECOVERY STATUS</div>
                           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '6px' }}>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 800, color: executiveInsights.todayAvgSleep !== null && parseFloat(executiveInsights.todayAvgSleep) < 6.5 ? 'var(--status-error)' : 'var(--white)', lineHeight: 1 }}>
-                              {executiveInsights.todayAvgSleep !== null ? `${executiveInsights.todayAvgSleep} hrs` : '-- hrs'}
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 800, color: 'var(--white)', lineHeight: 1 }}>
+                              {executiveInsights.todayAvgSleep ? `${executiveInsights.todayAvgSleep} hrs` : '--'}
                             </span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-muted)' }}>avg rest today</span>
                           </div>
                         </div>
-
-                        {executiveInsights.sleepDelta !== null ? (
+                        {executiveInsights.sleepDelta !== null && (
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center', 
@@ -1344,9 +1362,10 @@ export default function App() {
                             fontWeight: 800
                           }}>
                             {parseFloat(executiveInsights.sleepDelta) >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                            <span>{parseFloat(executiveInsights.sleepDelta) >= 0 ? `+${executiveInsights.sleepDelta}` : executiveInsights.sleepDelta} hrs vs Yday</span>
+                            <span>{parseFloat(executiveInsights.sleepDelta) >= 0 ? `+${executiveInsights.sleepDelta}` : `${executiveInsights.sleepDelta}`} hrs</span>
                           </div>
-                        ) : (
+                        )}
+                        {executiveInsights.sleepDelta === null && (
                           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
                             No prior day data
                           </div>
@@ -1382,7 +1401,7 @@ export default function App() {
                     </div>
 
                     {/* Card 3: Hydration & Mass Stability Watch */}
-                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: executiveInsights.hydrationFlags.length > 0 ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px', gridColumn: executiveInsights.hydrationFlags.length > 0 ? '1 / -1' : 'auto' }}>
+                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: executiveInsights.hydrationFlags.length > 0 ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px', gridColumn: '1 / -1' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: executiveInsights.hydrationFlags.length > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)', color: executiveInsights.hydrationFlags.length > 0 ? 'var(--status-error)' : 'var(--status-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
@@ -1431,91 +1450,99 @@ export default function App() {
                         </div>
                       )}
                     </div>
-
-                    {/* Card 4: Sport Group Leaderboard */}
-                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(194, 164, 80, 0.15)', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Trophy size={18} />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>TODAY'S CHECK-IN RACE</div>
-                            <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)', marginTop: '2px' }}>Sport Group Leaderboard</div>
-                          </div>
-                        </div>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>BY % COMPLETE</span>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {executiveInsights.leaderboard.length === 0 ? (
-                          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', padding: '12px 0', textAlign: 'center' }}>No sports active yet</span>
-                        ) : (
-                          executiveInsights.leaderboard.slice(0, 4).map((item, idx) => {
-                            const medals = ['🥇', '🥈', '🥉', '4️⃣'];
-                            const isTop = idx === 0 && item.loggedToday > 0;
-                            return (
-                              <div key={item.sport} style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'space-between', 
-                                padding: '10px 14px', 
-                                borderRadius: '12px', 
-                                background: isTop ? 'rgba(194, 164, 80, 0.12)' : 'rgba(255,255,255,0.02)',
-                                border: isTop ? '1px solid rgba(194, 164, 80, 0.35)' : '1px solid rgba(255,255,255,0.05)'
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                  <span style={{ fontSize: '18px' }}>{medals[idx] || `${idx+1}.`}</span>
-                                  <span style={{ fontSize: '14px', fontWeight: isTop ? 800 : 700, color: isTop ? 'var(--color-accent)' : 'var(--white)' }}>
-                                    {item.sport}
-                                  </span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.loggedToday}/{item.total} checked in</span>
-                                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: isTop ? 'var(--color-accent)' : 'var(--white)', minWidth: '48px', textAlign: 'right' }}>
-                                    {item.percentage}%
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
                   </div>
                 </div>
 
-                {/* Chart */}
-                <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>DAILY ACTIVITY &middot; LAST 7 DAYS</span>
-                    <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.05)', padding: '4px 12px', borderRadius: '4px' }}>ALL ATHLETES</span>
-                  </div>
-                  
-                  <div style={{ height: '200px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border)', gap: '4px' }}>
-                    {getLast7DaysActivity().map((item, i) => {
-                      const activityData = getLast7DaysActivity();
-                      const maxCount = Math.max(...activityData.map(d => d.count), 1);
-                      const heightPx = Math.max((item.count / maxCount) * 140, 2);
-                      const height = `${heightPx}px`;
-                      const isActive = i === 6;
-                      const val = item.count > 0 ? item.count.toString() : '';
-                      return (
-                        <div key={i} className="chart-bar-container">
-                          <span style={{ fontSize: '14px', fontFamily: 'var(--font-display)', fontWeight: 600, color: isActive ? 'var(--color-accent)' : 'var(--color-text)', minHeight: '20px' }}>{val}</span>
-                          <div className={`chart-bar ${item.count === 0 ? 'empty' : ''}`} style={{ height, background: isActive ? 'var(--color-accent)' : 'var(--navy-600)' }} />
-                          <span style={{ fontSize: '10px', fontWeight: 700, color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)', marginTop: '8px' }}>{item.day}</span>
+                {/* Secondary Section Below the Fold: Sport Group Leaderboard & Daily Activity Chart */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
+                  {/* Sport Group Leaderboard */}
+                  <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(194, 164, 80, 0.15)', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Trophy size={18} />
                         </div>
-                      );
-                    })}
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>TODAY'S CHECK-IN RACE</div>
+                          <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)', marginTop: '2px' }}>Sport Group Leaderboard</div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>BY % COMPLETE</span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {executiveInsights.sportLeaderboard.length === 0 ? (
+                        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
+                          No athletes assigned to sports yet. Add sports in Roster tab.
+                        </div>
+                      ) : (
+                        executiveInsights.sportLeaderboard.map((item, index) => {
+                          const isTop = index === 0 && item.loggedToday > 0;
+                          return (
+                            <div key={item.sport} style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              padding: '12px 16px', 
+                              borderRadius: '12px',
+                              background: isTop ? 'rgba(194, 164, 80, 0.12)' : 'rgba(255,255,255,0.02)',
+                              border: isTop ? '1px solid rgba(194, 164, 80, 0.35)' : '1px solid rgba(255,255,255,0.05)'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <span style={{ fontSize: '14px', fontWeight: 800, color: isTop ? 'var(--color-accent)' : 'var(--color-text-muted)', width: '20px' }}>
+                                  #{index + 1}
+                                </span>
+                                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>
+                                  {item.sport}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.loggedToday}/{item.total} checked in</span>
+                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: isTop ? 'var(--color-accent)' : 'var(--white)', minWidth: '48px', textAlign: 'right' }}>
+                                  {item.percentage}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Daily Activity Chart */}
+                  <div className="card-glass" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>ACTIVITY HISTOGRAM</span>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)', marginTop: '2px' }}>Last 7 Days Check-ins</div>
+                      </div>
+                      <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.05)', padding: '4px 12px', borderRadius: '4px', fontWeight: 700 }}>ALL ATHLETES</span>
+                    </div>
+                    
+                    <div style={{ height: '220px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border)', gap: '6px', paddingTop: '10px' }}>
+                      {getLast7DaysActivity().map((item, i) => {
+                        const activityData = getLast7DaysActivity();
+                        const maxCount = Math.max(...activityData.map(d => d.count), 1);
+                        const heightPx = Math.max((item.count / maxCount) * 160, 4);
+                        const height = `${heightPx}px`;
+                        const isActive = i === 6;
+                        const val = item.count > 0 ? item.count.toString() : '';
+                        return (
+                          <div key={i} className="chart-bar-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                            <span style={{ fontSize: '13px', fontFamily: 'var(--font-display)', fontWeight: 700, color: isActive ? 'var(--color-accent)' : 'var(--color-text)', minHeight: '20px', marginBottom: '4px' }}>{val}</span>
+                            <div className={`chart-bar ${item.count === 0 ? 'empty' : ''}`} style={{ width: '100%', maxWidth: '36px', height, background: isActive ? 'linear-gradient(180deg, #e8c675 0%, #947228 100%)' : 'rgba(255,255,255,0.15)', borderRadius: '6px 6px 0 0', transition: 'height 0.3s ease' }} />
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)', marginTop: '10px' }}>{item.day}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
             )}
-
+            
             {screen === 'entry' && (
-              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Header with Daily Progress Counter & Add Athlete Action */}
+              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>QUICK ENTRY</h2>
@@ -1936,14 +1963,18 @@ export default function App() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <button onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} /></button>
-                                <div 
-                                  onClick={() => setFocusedField('weight')}
-                                  style={{ flex: 1, height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '42px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-                                >
-                                  {weightInput || '0.0'}
-                                </div>
-                                <button onClick={() => setWeightInput(prev => String((parseFloat(prev||0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Plus size={20} /></button>
+                                <button type="button" onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><Minus size={20} /></button>
+                                <input 
+                                  type="text"
+                                  inputMode="decimal"
+                                  placeholder="0.0"
+                                  value={weightInput || ''}
+                                  onFocus={() => setFocusedField('weight')}
+                                  onChange={(e) => setWeightInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+                                  style={{ flex: 1, width: '100%', height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '38px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
+                                />
+                                <button type="button" onClick={() => setWeightInput(prev => String((parseFloat(prev||0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><Plus size={20} /></button>
                               </div>
                             </div>
                           )}
@@ -1951,14 +1982,18 @@ export default function App() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
-                              <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>QUICK SELECT</span>
+                              <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>KEYBOARD / NUMPAD / QUICK SELECT</span>
                             </div>
-                            <div 
-                              onClick={() => setFocusedField('sleep')}
-                              style={{ height: '56px', background: focusedField === 'sleep' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'sleep' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', padding: '0 16px', color: focusedField === 'sleep' ? 'var(--color-accent)' : 'var(--white)', fontSize: 'var(--text-lg)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-                            >
-                              {sleepInput || '8.0'}
-                            </div>
+                            <input 
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="8.0"
+                              value={sleepInput || ''}
+                              onFocus={() => setFocusedField('sleep')}
+                              onChange={(e) => setSleepInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+                              style={{ width: '100%', height: '56px', background: focusedField === 'sleep' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'sleep' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', padding: '0 16px', color: focusedField === 'sleep' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s' }}
+                            />
                             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
                               {['6.0', '7.0', '7.5', '8.0', '8.5', '9.0'].map(val => (
                                 <button
@@ -3463,15 +3498,18 @@ export default function App() {
                         {weightLogs.length > 1 ? (() => {
                           const trendData = weightLogs.slice(-20).map(d => ({
                             date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown',
-                            Weight: Number(d.weight_lbs) || 0
+                            Weight: Number(d.weight_lbs) || 0,
+                            isBaseline: d.is_baseline === true || d.is_baseline === 'true' || d.is_baseline === 1
                           }));
                           const validW = trendData.map(d=>d.Weight).filter(w => w > 0);
                           const minW = validW.length > 0 ? Math.min(...validW) : 100;
                           const maxW = validW.length > 0 ? Math.max(...validW) : 200;
+                          const latestBaseline = [...weightLogs].reverse().find(d => d.is_baseline) || weightLogs[0];
+                          const baselineWeight = latestBaseline ? Number(latestBaseline.weight_lbs) : null;
                           
                           return (
                             <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                              <AreaChart data={trendData} margin={{ top: 15, right: 10, left: 10, bottom: 0 }}>
                                 <defs>
                                   <linearGradient id="colorWeightProfile" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.5}/>
@@ -3481,6 +3519,12 @@ export default function App() {
                                 <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
                                 <YAxis domain={[Math.floor(minW - 4), Math.ceil(maxW + 4)]} hide />
                                 <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                                {baselineWeight && (
+                                  <ReferenceLine y={baselineWeight} stroke="#10b981" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `Baseline: ${baselineWeight} lbs`, position: 'insideTopLeft', fill: '#10b981', fontSize: 11, fontWeight: 'bold' }} />
+                                )}
+                                {trendData.filter(d => d.isBaseline).map((d, idx) => (
+                                  <ReferenceLine key={idx} x={d.date} stroke="#3b82f6" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: 'BASELINE SET', position: 'top', fill: '#3b82f6', fontSize: 9, fontWeight: 'bold' }} />
+                                ))}
                                 <Area type="monotone" dataKey="Weight" stroke="var(--color-accent)" strokeWidth={3} fillOpacity={1} fill="url(#colorWeightProfile)" activeDot={{ r: 7, fill: 'var(--color-accent)', stroke: '#fff', strokeWidth: 2 }} />
                               </AreaChart>
                             </ResponsiveContainer>
@@ -3537,10 +3581,11 @@ export default function App() {
                           
                           return (
                             <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={sleepData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                              <BarChart data={sleepData} margin={{ top: 15, right: 10, left: 10, bottom: 0 }}>
                                 <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
                                 <YAxis domain={[0, 12]} hide />
                                 <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                                <ReferenceLine y={8.0} stroke="rgba(184, 156, 91, 0.7)" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: '8.0h Target', position: 'insideTopLeft', fill: 'var(--color-accent)', fontSize: 11, fontWeight: 'bold' }} />
                                 <Bar dataKey="Sleep" fill="#60a5fa" radius={[6, 6, 0, 0]} fillOpacity={0.9} />
                               </BarChart>
                             </ResponsiveContainer>

@@ -272,16 +272,23 @@ body {
 }
 
 
+.print-only-header {
+  display: none;
+}
+
 /* Print Styles */
 @media print {
-  body, .app-layout, .main-content, .scroll-area { background: white !important; color: black !important; }
+  body, .app-layout, .main-content, .scroll-area { background: #ffffff !important; color: #0d1b2e !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-family: 'Inter', sans-serif !important; }
   .sidebar, .bottom-nav, .no-print, [style*='height: 70px'] { display: none !important; }
-  .card-glass { background: transparent !important; border: 1px solid #ccc !important; box-shadow: none !important; color: black !important; }
+  .print-only-header { display: flex !important; flex-direction: column !important; gap: 8px !important; padding-bottom: 20px !important; border-bottom: 3px solid #b89c5b !important; margin-bottom: 24px !important; }
+  .card-glass { background: #f8fafc !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; color: #0d1b2e !important; border-radius: 8px !important; padding: 16px !important; margin-bottom: 20px !important; page-break-inside: avoid !important; }
   .report-container { width: 100% !important; margin: 0 !important; padding: 0 !important; }
-  table, th, td { border: 1px solid #ccc !important; color: black !important; }
-  th { background: #f0f0f0 !important; }
-  .status-error { color: #dc2626 !important; }
-  * { color: black !important; }
+  table { width: 100% !important; border-collapse: collapse !important; margin-top: 12px !important; border: 2px solid #0d1b2e !important; }
+  th { background: #0d1b2e !important; color: #b89c5b !important; border: 1px solid #1e293b !important; padding: 10px !important; font-size: 11px !important; font-weight: 800 !important; text-transform: uppercase !important; text-align: left !important; }
+  td { border: 1px solid #e2e8f0 !important; color: #0f172a !important; padding: 9px !important; font-size: 11px !important; font-weight: 600 !important; }
+  tr:nth-child(even) td { background-color: #f8fafc !important; }
+  .status-error { color: #dc2626 !important; font-weight: 800 !important; }
+  .status-success { color: #16a34a !important; font-weight: 800 !important; }
 }
 
 @media (max-width: 768px) {
