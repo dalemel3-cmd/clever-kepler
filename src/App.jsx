@@ -556,19 +556,7 @@ export default function App() {
         }
 
         if (rec.athlete_name) {
-          let matchId = athleteMap.get(rec.athlete_name.toLowerCase().trim());
-          if (!matchId) {
-            try {
-              const { data: created } = await supabase
-                .from('athletes')
-                .insert([{ name: rec.athlete_name.trim(), sport: rec.sport || 'General', team: 'Varsity' }])
-                .select();
-              if (created && created.length > 0) {
-                matchId = created[0].id;
-                athleteMap.set(rec.athlete_name.toLowerCase().trim(), matchId);
-              }
-            } catch (e) {}
-          }
+          const matchId = athleteMap.get(rec.athlete_name.toLowerCase().trim());
           if (matchId) rec.athlete_id = matchId;
         }
 
@@ -810,34 +798,6 @@ export default function App() {
     } else {
       setReportData(prev => [{ id: 'opt_' + Date.now(), ...record }, ...prev]);
       setTodaySessions(prev => prev + 1);
-    }
-
-    // Ensure athlete_id matches valid Supabase DB athlete UUID
-    try {
-      if (selectedAthlete && selectedAthlete.name) {
-        const { data: matched } = await supabase
-          .from('athletes')
-          .select('id')
-          .ilike('name', selectedAthlete.name.trim())
-          .limit(1);
-        if (matched && matched.length > 0) {
-          record.athlete_id = matched[0].id;
-        } else if (!record.athlete_id || String(record.athlete_id).length < 15) {
-          const { data: newAth } = await supabase
-            .from('athletes')
-            .insert([{
-              name: selectedAthlete.name.trim(),
-              sport: selectedAthlete.sport || 'General',
-              team: selectedAthlete.team || 'Varsity'
-            }])
-            .select();
-          if (newAth && newAth.length > 0) {
-            record.athlete_id = newAth[0].id;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("Athlete UUID resolution warning:", e);
     }
 
     try {
