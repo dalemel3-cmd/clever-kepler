@@ -163,6 +163,7 @@ export default function App() {
   const [todaySessions, setTodaySessions] = useState(0);
   const [focusedField, setFocusedField] = useState('weight');
   const [isBaselineTestingMode, setIsBaselineTestingMode] = useState(false);
+  const [lastSavedWasBaseline, setLastSavedWasBaseline] = useState(false);
   const [lastSavedAthleteName, setLastSavedAthleteName] = useState('');
   const [kioskTrackMode, setKioskTrackMode] = useState(() => {
     try { return localStorage.getItem('shiloh_kiosk_track_mode') || 'both'; } catch (e) { return 'both'; }
@@ -770,6 +771,7 @@ export default function App() {
       
     // Instant Optimistic Visual Celebration
     setSaving(false);
+    setLastSavedWasBaseline(!!shouldSetBaseline);
     setLastSavedAthleteName(selectedAthlete.name);
     setSaved(true);
     setTimeout(() => {
@@ -1147,8 +1149,10 @@ export default function App() {
         <div style={{ position: 'fixed', top: '82px', left: '50%', transform: 'translateX(-50%)', zIndex: 10000, background: 'rgba(22, 163, 74, 0.96)', border: '2px solid #86efac', color: '#fff', padding: '12px 28px', borderRadius: '40px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 36px rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(10px)', animation: 'slideDown 0.3s ease' }}>
           <CheckCircle size={24} style={{ flexShrink: 0, color: '#fff' }} />
           <div>
-            <span style={{ fontSize: '15px', fontWeight: 800, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>LOG RECORDED SUCCESSFULLY!</span>
-            {lastSavedAthleteName && <span style={{ fontSize: '12px', opacity: 0.95, fontWeight: 700 }}>{lastSavedAthleteName} &middot; {isOnline ? 'Synced & Live' : 'Cached Offline in Sync Queue'}</span>}
+            <span style={{ fontSize: '15px', fontWeight: 800, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              {lastSavedWasBaseline ? '🎯 BASELINE SET SUCCESSFULLY!' : 'LOG RECORDED SUCCESSFULLY!'}
+            </span>
+            {lastSavedAthleteName && <span style={{ fontSize: '12px', opacity: 0.95, fontWeight: 700 }}>{lastSavedAthleteName} &middot; {lastSavedWasBaseline ? 'New Baseline Mass Established & ' : ''}{isOnline ? 'Synced & Live' : 'Cached Offline in Sync Queue'}</span>}
           </div>
         </div>
       )}
@@ -1601,6 +1605,33 @@ export default function App() {
                       </button>
                     </div>
 
+                    {/* Baseline Testing Mode Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsBaselineTestingMode(!isBaselineTestingMode);
+                      }}
+                      className="glow-card"
+                      style={{
+                        height: '40px',
+                        padding: '0 16px',
+                        borderRadius: '20px',
+                        background: isBaselineTestingMode ? '#10b981' : 'rgba(16, 185, 129, 0.12)',
+                        color: isBaselineTestingMode ? '#000' : '#10b981',
+                        border: '1px solid #10b981',
+                        fontWeight: 800,
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        transition: 'all 0.25s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: isBaselineTestingMode ? '0 0 18px rgba(16, 185, 129, 0.55)' : 'none'
+                      }}
+                    >
+                      <span>{isBaselineTestingMode ? '🎯 BASELINE MODE ACTIVE' : '🎯 Enable Baseline Mode'}</span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setIsAddingAthlete(true);
@@ -1633,6 +1664,30 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* Active Baseline Mode Notification Banner */}
+                {isBaselineTestingMode && (
+                  <div className="card-glass glow-card" style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.45)', padding: '16px 22px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', boxShadow: '0 8px 24px rgba(16, 185, 129, 0.2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <span style={{ fontSize: '26px' }}>🎯</span>
+                      <div>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#10b981', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          BASELINE TESTING STATION ENABLED
+                        </span>
+                        <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                          Every weigh-in logged while this mode is active automatically updates the athlete's target baseline mass and resets their 14-day inactivity interval.
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsBaselineTestingMode(false)}
+                      style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '8px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s' }}
+                    >
+                      Exit Baseline Mode
+                    </button>
+                  </div>
+                )}
 
                 {/* Search & Dropdown Filters Container */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -2035,36 +2090,46 @@ export default function App() {
 
                         if (requiresBaseline) {
                           return (
-                            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '4px', width: '100%' }}>
                               <button 
-                                onClick={handleSave}
+                                type="button"
+                                onClick={() => handleSave(true)}
                                 disabled={disableSubmit}
-                                className="btn-primary"
-                                style={{ flex: '1 1 200px', height: '56px', fontSize: '16px', background: 'var(--color-accent)', color: 'var(--navy-950)' }}
+                                className="btn-primary glow-card"
+                                style={{ flex: '1 1 220px', height: '56px', fontSize: '16px', background: '#10b981', color: '#000', border: 'none', fontWeight: 800 }}
                               >
-                                {saving ? 'Saving...' : 'This is my baseline'}
+                                {saving ? 'Saving...' : '🎯 This is my baseline'}
                               </button>
                               <button 
-                                onClick={handleSave}
+                                type="button"
+                                onClick={() => handleSave(false)}
                                 disabled={disableSubmit}
                                 className="btn-primary"
                                 style={{ flex: '1 1 200px', height: '56px', fontSize: '16px', background: 'transparent', border: '2px solid var(--color-border)', color: 'var(--white)' }}
                               >
-                                {saving ? 'Saving...' : 'Save as new entry'}
+                                {saving ? 'Saving...' : 'Save as regular entry'}
                               </button>
                             </div>
                           );
                         }
 
                         return (
-                          <button 
-                            onClick={handleSave}
-                            disabled={disableSubmit}
-                            className="btn-primary"
-                            style={{ height: '58px', fontSize: '18px', marginTop: '4px' }}
-                          >
-                            {saving ? 'Saving...' : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : 'Save Record & Complete')}
-                          </button>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', marginTop: '4px' }}>
+                            {isBaselineTestingMode && kioskTrackMode !== 'sleep_only' && (
+                              <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.45)', padding: '10px 16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '13px', fontWeight: 700 }}>
+                                <span style={{ fontSize: '16px' }}>🎯</span> This entry will establish a NEW OFFICIAL BASELINE target for {selectedAthlete.name}.
+                              </div>
+                            )}
+                            <button 
+                              type="button"
+                              onClick={() => handleSave(isBaselineTestingMode)}
+                              disabled={disableSubmit}
+                              className="btn-primary glow-card"
+                              style={{ height: '58px', fontSize: '18px', width: '100%', background: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#10b981' : 'var(--color-accent)', color: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#000' : 'var(--navy-950)', fontWeight: 800 }}
+                            >
+                              {saving ? 'Saving...' : (isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? `🎯 Save as Athlete Baseline (${weightInput} lbs)` : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : 'Save Record & Complete'))}
+                            </button>
+                          </div>
                         );
                       })()}
                     </div>
