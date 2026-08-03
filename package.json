@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "pull": "git pull origin main && npm install",
+    "pull": "git pull --rebase origin main && npm install",
     "push": "git add . && git commit -m \"Sync updates\" && git push origin main"
   },
   "dependencies": {

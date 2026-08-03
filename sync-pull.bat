@@ -2,7 +2,7 @@
 echo ====================================
 echo   HPD App - Pulling Latest Changes
 echo ====================================
-git pull origin main
+git pull --rebase origin main
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo Successfully pulled latest changes!
