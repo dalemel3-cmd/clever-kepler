@@ -377,7 +377,6 @@ export default function App() {
 
   useEffect(() => {
     fetchAthletes();
-    fetchReportData();
 
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
@@ -389,48 +388,11 @@ export default function App() {
     const handleOnline = () => {
       setIsOnline(true);
       syncOfflineCache();
-      fetchReportData();
-      fetchAthletes();
     };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    // Sync when user switches back to tab/app on iPad or Desktop
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) {
-        syncOfflineCache();
-        fetchReportData();
-        fetchAthletes();
-      }
-    };
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleVisibilityChange);
-
-    // Supabase Real-Time subscriptions across all devices
-    const weighInsChannel = supabase
-      .channel('realtime_weigh_ins_app')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'weigh_ins' }, () => {
-        fetchReportData();
-      })
-      .subscribe();
-
-    const athletesChannel = supabase
-      .channel('realtime_athletes_app')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, () => {
-        fetchAthletes();
-      })
-      .subscribe();
-
-    // 15-second periodic cloud polling safety fallback
-    const pollTimer = setInterval(() => {
-      if (navigator.onLine) {
-        fetchReportData();
-        fetchAthletes();
-        syncOfflineCache();
-      }
-    }, 15000);
 
     const handleBeforeInstall = (e) => {
       e.preventDefault();
@@ -446,12 +408,7 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('hashchange', handleHashChange);
-      window.removeEventListener('focus', handleVisibilityChange);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-      clearInterval(pollTimer);
-      supabase.removeChannel(weighInsChannel);
-      supabase.removeChannel(athletesChannel);
     };
   }, []);
 
