@@ -205,6 +205,11 @@ export default function App() {
   const [reportData, setReportData] = useState([]);
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [recoverySyncing, setRecoverySyncing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullProgress, setPullProgress] = useState(0);
+  const [showRefreshCelebration, setShowRefreshCelebration] = useState(false);
+  const touchStartY = React.useRef(null);
+  const scrollAreaRef = React.useRef(null);
   
   useEffect(() => {
     if (!reportData || !reportData.length) {
@@ -1010,6 +1015,55 @@ export default function App() {
         console.warn("No local roster cache. Falling back to mock data.");
         setMockAthletes();
       }
+    }
+  };
+
+  const handleManualCloudRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      if (typeof fetchAthletes === 'function') await fetchAthletes();
+      if (typeof fetchReportData === 'function') await fetchReportData(true);
+      if (typeof syncOfflineCache === 'function') syncOfflineCache();
+      try { broadcastDeviceSync({ type: 'MANUAL_REFRESH' }); } catch(e) {}
+    } catch (e) {
+      console.warn("Manual refresh warning:", e);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+        setPullProgress(0);
+        setShowRefreshCelebration(true);
+        setTimeout(() => setShowRefreshCelebration(false), 2500);
+      }, 650);
+    }
+  };
+
+  const handleTouchStart = (e) => {
+    if (scrollAreaRef.current && scrollAreaRef.current.scrollTop <= 5) {
+      touchStartY.current = e.touches[0].clientY;
+    } else {
+      touchStartY.current = null;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartY.current === null || isRefreshing) return;
+    const currentY = e.touches[0].clientY;
+    const deltaY = currentY - touchStartY.current;
+    if (deltaY > 15 && scrollAreaRef.current && scrollAreaRef.current.scrollTop <= 5) {
+      const progress = Math.min(100, Math.floor(((deltaY - 15) / 70) * 100));
+      setPullProgress(progress);
+    } else if (deltaY <= 0) {
+      setPullProgress(0);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullProgress >= 75 && !isRefreshing) {
+      handleManualCloudRefresh();
+    } else {
+      setPullProgress(0);
+      touchStartY.current = null;
     }
   };
 
@@ -1919,9 +1973,13 @@ export default function App() {
                     ⏳ {unsyncedQueueCount} UNSYNCED {unsyncedQueueCount === 1 ? 'LOG' : 'LOGS'} &middot; TAP TO SYNC
                   </span>
                 ) : (
-                  <span style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '4px 12px', borderRadius: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` }}>
-                    {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-                    {isOnline ? '☁️ CLOUD SYNCED & PROTECTED' : 'OFFLINE SYNC QUEUE ACTIVE'}
+                  <span
+                    onClick={handleManualCloudRefresh}
+                    title="Click or drag screen down to instantly synchronize cloud records"
+                    style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '4px 12px', borderRadius: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`, cursor: 'pointer', boxShadow: isOnline ? '0 0 10px rgba(34, 197, 94, 0.15)' : 'none' }}
+                  >
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isOnline ? '#4ade80' : '#ef4444', boxShadow: isOnline ? '0 0 8px #4ade80' : 'none', animation: isRefreshing ? 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none' }} />
+                    {isRefreshing ? 'REFRESHING...' : (isOnline ? '☁️ CLOUD SYNCED & LIVE' : 'OFFLINE SYNC QUEUE')}
                   </span>
                 )}
               </div>
@@ -1962,9 +2020,14 @@ export default function App() {
                     ⏳ {unsyncedQueueCount} UNSYNCED {unsyncedQueueCount === 1 ? 'LOG' : 'LOGS'} &middot; TAP TO SYNC
                   </span>
                 ) : (
-                  <span className="no-print" style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? '#4ade80' : '#ef4444', padding: '5px 14px', borderRadius: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.4)'}`, boxShadow: isOnline ? '0 0 12px rgba(34, 197, 94, 0.15)' : 'none' }}>
-                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#4ade80' : '#ef4444', boxShadow: isOnline ? '0 0 8px #4ade80' : 'none' }} />
-                    {isOnline ? `CLOUD LIVE` : 'OFFLINE QUEUE'}
+                  <span 
+                    onClick={handleManualCloudRefresh}
+                    title="Click or pull down screen to instantly synchronize cloud records"
+                    className="no-print" 
+                    style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? '#4ade80' : '#ef4444', padding: '5px 14px', borderRadius: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.4)'}`, cursor: 'pointer', boxShadow: isOnline ? '0 0 12px rgba(34, 197, 94, 0.15)' : 'none' }}
+                  >
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#4ade80' : '#ef4444', boxShadow: isOnline ? '0 0 8px #4ade80' : 'none', animation: isRefreshing ? 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none' }} />
+                    {isRefreshing ? 'REFRESHING...' : (isOnline ? `CLOUD LIVE` : 'OFFLINE QUEUE')}
                     <span style={{ color: 'rgba(255,255,255,0.3)', margin: '0 2px' }}>|</span>
                     <span style={{ color: 'var(--color-accent)' }}>{APP_VERSION}</span>
                   </span>
@@ -1980,7 +2043,38 @@ export default function App() {
         </div>
 
         {/* Scroll Area */}
-        <div className="scroll-area">
+        <div 
+          ref={scrollAreaRef}
+          className="scroll-area"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{ position: 'relative' }}
+        >
+          {(pullProgress > 10 || isRefreshing || showRefreshCelebration) && (
+            <div style={{ position: 'sticky', top: 0, left: '50%', transform: 'translateX(0)', zIndex: 10000, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: '8px', paddingTop: '4px' }}>
+              <div className="card-glass" style={{ background: 'rgba(13, 27, 46, 0.96)', border: showRefreshCelebration ? '1px solid #4ade80' : '1px solid var(--color-accent)', color: '#fff', padding: '8px 22px', borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', transition: 'all 0.2s ease', transform: `translateY(${pullProgress > 0 ? Math.min(18, pullProgress / 5) : 8}px)` }}>
+                {isRefreshing ? (
+                  <>
+                    <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-accent)' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-accent)' }}>⚡ SYNCHRONIZING WITH LIVE CLOUD DATABASE...</span>
+                  </>
+                ) : showRefreshCelebration ? (
+                  <>
+                    <CheckCircle size={16} style={{ color: '#4ade80' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', color: '#4ade80' }}>✨ CLOUD ROSTERS &amp; BASELINES UP-TO-DATE!</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={16} style={{ transform: `rotate(${pullProgress * 3.6}deg)`, color: pullProgress >= 75 ? '#4ade80' : 'var(--color-text-muted)', transition: 'transform 0.1s' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: pullProgress >= 75 ? '#4ade80' : 'var(--color-text-muted)' }}>
+                      {pullProgress >= 75 ? '⬆️ Release to refresh live cloud data!' : `⬇️ Pull down to refresh (${pullProgress}%)`}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
           <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {screen === 'dashboard' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
