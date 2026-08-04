@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.0';
+const APP_VERSION = 'v3.1';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -338,7 +338,9 @@ export default function App() {
       sleepDelta,
       hydrationFlags,
       leaderboard,
-      sportLeaderboard: leaderboard
+      sportLeaderboard: leaderboard,
+      todayCount: todayLogs.length,
+      todayRecordedCount: todayRecordedIds.size
     };
   }, [reportData, athletes, todaySessions]);
 
@@ -1661,7 +1663,7 @@ export default function App() {
                     <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--color-accent)' }}>{todaySessions}</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--color-accent)' }}>{Math.max(todaySessions, executiveInsights.todayCount || executiveInsights.todayRecordedCount || 0)}</span>
                     </div>
                   </div>
                 </div>
