@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.5.5';
+const APP_VERSION = 'v3.6.0';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -403,11 +403,20 @@ export default function App() {
     };
     checkQueue();
 
-    // Supabase Realtime WebSockets: Instantly broadcast and pull updates across all devices (iPad <-> PC)
+    // Supabase UltraSync: Realtime WebSockets + Instant Client-to-Client Broadcast Channel (iPad <-> PC)
     let channel;
     try {
       channel = supabase
-        .channel('shiloh_realtime_network')
+        .channel('shiloh_ultrasync_bus', { config: { broadcast: { ack: false, self: false } } })
+        .on('broadcast', { event: 'DEVICE_SYNC_EVENT' }, (payload) => {
+          console.log("🔥 [ULTRASYNC] Instant real-time signal received from wireless device:", payload);
+          if (payload.payload && payload.payload.isPing) {
+            alert(`📶 [LIVE DEVICE SIGNAL RECEIVED!]\n\nA real-time wireless test ping was just received from another terminal on your athletic network! Your devices are fully talking to each other.`);
+          }
+          // Immediately fetch latest cloud records to populate screen within milliseconds!
+          fetchReportData(true);
+          fetchAthletes();
+        })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'weigh_ins' }, () => {
           fetchReportData(true);
         })
@@ -416,17 +425,17 @@ export default function App() {
         })
         .subscribe();
     } catch (e) {
-      console.warn("Realtime subscription warning:", e);
+      console.warn("Realtime UltraSync warning:", e);
     }
 
-    // 12-Second background heartbeat to sync offline cache & silently pull remote changes from iPad/PC
+    // 5-Second UltraSync Heartbeat: Continually pull new records from iPad or PC even if WiFi blocks WebSockets
     const autoSyncInterval = setInterval(() => {
       checkQueue();
       if (navigator.onLine) {
         syncOfflineCache();
         fetchReportData(true);
       }
-    }, 12000);
+    }, 5000);
 
     const handleOnline = () => {
       setIsOnline(true);
@@ -547,6 +556,18 @@ export default function App() {
       localStorage.clear();
       sessionStorage.clear();
       window.location.reload();
+    }
+  };
+
+  const broadcastDeviceSync = (customPayload = {}) => {
+    try {
+      supabase.channel('shiloh_ultrasync_bus').send({
+        type: 'broadcast',
+        event: 'DEVICE_SYNC_EVENT',
+        payload: { timestamp: Date.now(), ...customPayload }
+      });
+    } catch(e) {
+      console.warn("Could not send broadcast:", e);
     }
   };
 
@@ -1115,6 +1136,7 @@ export default function App() {
       
       fetchReportData(true);
       syncOfflineCache();
+      broadcastDeviceSync({ type: 'NEW_WEIGH_IN_LOGGED', athlete_name: record.athlete_name });
     } catch (err) {
       console.warn("Supabase offline or unreachable, queuing payload locally for background sync:", err);
       try {
@@ -1285,6 +1307,7 @@ export default function App() {
 
     alert(`🎉 SUCCESS: Official baseline weight marker for ALL of ${sportName.toUpperCase()} has been synchronized to ${displayDateStr}! (${totalAthletesAffected} athletes updated)`);
     fetchReportData();
+    broadcastDeviceSync({ type: 'BULK_BASELINE_SYNCED', sport: sportName });
   };
 
   const handleDeleteWeighIn = async (id) => {
@@ -1855,6 +1878,17 @@ export default function App() {
                 <span className="no-print" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 10px', borderRadius: '14px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
                   {APP_VERSION}
                 </span>
+                <button
+                  onClick={() => {
+                    broadcastDeviceSync({ isPing: true });
+                    alert("📡 Test Signal Sent!\n\nAn instant wireless verification ping was blasted across the cloud to all connected iPads and PCs. Any open device will display a confirmation pop-up right now!");
+                  }}
+                  className="no-print"
+                  style={{ background: 'rgba(184, 156, 91, 0.15)', color: 'var(--color-accent)', border: '1px solid rgba(184, 156, 91, 0.4)', borderRadius: '14px', padding: '4px 12px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 8px rgba(184, 156, 91, 0.2)' }}
+                  title="Verify real-time communication between your devices"
+                >
+                  📶 TEST DEVICE SYNC
+                </button>
                 {unsyncedQueueCount > 0 ? (
                   <span
                     onClick={() => syncOfflineCache(true)}
