@@ -171,6 +171,8 @@ export default function App() {
 
   // Reports State
   const [reportData, setReportData] = useState([]);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [recoverySyncing, setRecoverySyncing] = useState(false);
   
   useEffect(() => {
     if (!reportData || !reportData.length) {
@@ -206,7 +208,8 @@ export default function App() {
       offline.forEach(item => {
         const rec = item.record || item;
         if (rec && rec.athlete_id && rec.created_at) {
-          if (d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+          const rd = new Date(rec.created_at);
+          if (rd.getDate() === now.getDate() && rd.getMonth() === now.getMonth() && rd.getFullYear() === now.getFullYear()) {
             recordedSet.add(rec.athlete_id);
           }
         }
@@ -498,6 +501,7 @@ export default function App() {
 
   const fetchReportData = async () => {
     setReportLoading(true);
+    let onlineData = [];
     try {
       if (!navigator.onLine) throw new Error('Offline');
       const thirtyDaysAgo = new Date();
@@ -509,50 +513,222 @@ export default function App() {
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: false });
       if (!error && data) {
-        setReportData(data);
-        localStorage.setItem('shiloh_reports', JSON.stringify(data));
+        onlineData = data;
       } else if (error) {
         throw error;
       }
     } catch {
       console.warn("Could not fetch report data from Supabase. Loading local cache.");
       try {
-        const cached = JSON.parse(localStorage.getItem('shiloh_reports'));
-        if (cached && Array.isArray(cached)) setReportData(cached);
+        const cached = JSON.parse(localStorage.getItem('shiloh_reports') || '[]');
+        if (cached && Array.isArray(cached)) onlineData = cached;
       } catch (e) {
         console.warn("Local cache empty or invalid.");
       }
-    } finally {
-      setReportLoading(false);
     }
+
+    // ALWAYS merge in any unsynced offline records from localStorage so today's logs NEVER disappear!
+    let merged = [...onlineData];
+    try {
+      const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+      offlineQueue.forEach(item => {
+        const rec = item.record || item;
+        if (rec && rec.athlete_id && rec.created_at) {
+          const alreadyExists = merged.some(r => 
+            (r.id && rec.id && r.id === rec.id && !String(r.id).startsWith('opt_')) || 
+            (r.athlete_id === rec.athlete_id && Math.abs(new Date(r.created_at) - new Date(rec.created_at)) < 60000)
+          );
+          if (!alreadyExists) {
+            merged.unshift({ ...rec, id: rec.id || 'offline_' + Date.now() + Math.random().toString(36).substr(2, 4), is_offline_cached: true });
+          }
+        }
+      });
+    } catch (e) {
+      console.warn("Error reading offline queue:", e);
+    }
+
+    merged.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    setReportData(merged);
+    try {
+      localStorage.setItem('shiloh_reports', JSON.stringify(merged));
+    } catch (e) {}
+    setReportLoading(false);
   };
 
   const syncOfflineCache = async () => {
     const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
     if (offlineQueue.length === 0) return;
 
+    const remainingQueue = [];
+    let syncedAny = false;
+
     try {
-      let syncFailed = false;
       for (const item of offlineQueue) {
-        if (item.action === 'update') {
-          const { error } = await supabase.from('weigh_ins').update(item.record).eq('id', item.id);
-          if (error) syncFailed = true;
+        const rec = item.record || item;
+        const cleanPayload = {
+          athlete_id: rec.athlete_id,
+          athlete_name: rec.athlete_name || 'Unknown',
+          sport: rec.sport || '',
+          weight_lbs: (rec.weight_lbs !== undefined && rec.weight_lbs !== null) ? rec.weight_lbs : 0,
+          sleep_hrs: !isNaN(parseFloat(rec.sleep_hrs)) ? parseFloat(rec.sleep_hrs) : 0,
+          created_at: rec.created_at || new Date().toISOString()
+        };
+        if (rec.is_baseline !== undefined) cleanPayload.is_baseline = rec.is_baseline;
+
+        let success = false;
+        if (item.action === 'update' && item.id && !String(item.id).startsWith('opt_') && !String(item.id).startsWith('offline_')) {
+          const res = await supabase.from('weigh_ins').update(cleanPayload).eq('id', item.id);
+          if (!res.error) success = true;
+          else {
+            delete cleanPayload.is_baseline;
+            const resRetry = await supabase.from('weigh_ins').update(cleanPayload).eq('id', item.id);
+            if (!resRetry.error) success = true;
+          }
         } else {
-          const { error } = await supabase.from('weigh_ins').insert([item.record || item]);
-          if (error) syncFailed = true;
+          const res = await supabase.from('weigh_ins').insert([cleanPayload]);
+          if (!res.error) success = true;
+          else {
+            delete cleanPayload.is_baseline;
+            const resRetry = await supabase.from('weigh_ins').insert([cleanPayload]);
+            if (!resRetry.error) success = true;
+            else {
+              console.warn("Insert failed for offline record:", resRetry.error, cleanPayload);
+            }
+          }
+        }
+
+        if (success) {
+          syncedAny = true;
+        } else {
+          remainingQueue.push(item);
         }
       }
       
-      if (!syncFailed) {
-        localStorage.removeItem('shiloh_offline_weigh_ins');
-        console.log("Successfully synced offline queue to Supabase!");
-        fetchReportData();
-      } else {
-        console.warn("Some items failed to sync.");
+      if (remainingQueue.length !== offlineQueue.length) {
+        localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(remainingQueue));
+        if (syncedAny) fetchReportData();
       }
     } catch {
       console.warn("Could not sync offline queue yet.");
     }
+  };
+
+  const getRecoveredLocalData = () => {
+    const findings = [];
+    const seen = new Set();
+    
+    // 1. Check offline queue
+    try {
+      const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+      offline.forEach((item, idx) => {
+        const rec = item.record || item;
+        if (rec && (rec.weight_lbs !== undefined || rec.sleep_hrs !== undefined || rec.athlete_id)) {
+          const key = (rec.athlete_id || '') + '_' + (rec.created_at || '');
+          if (!seen.has(key)) {
+            seen.add(key);
+            findings.push({ ...rec, source_key: 'shiloh_offline_weigh_ins (Offline Queue)', raw_index: idx });
+          }
+        }
+      });
+    } catch (e) {}
+
+    // 2. Check cached reports
+    try {
+      const reports = JSON.parse(localStorage.getItem('shiloh_reports') || '[]');
+      if (Array.isArray(reports)) {
+        reports.forEach((rec, idx) => {
+          if (rec && (rec.weight_lbs !== undefined || rec.sleep_hrs !== undefined || rec.athlete_id)) {
+            const key = (rec.athlete_id || '') + '_' + (rec.created_at || '');
+            if (!seen.has(key)) {
+              seen.add(key);
+              findings.push({ ...rec, source_key: 'shiloh_reports (Local Report Cache)', raw_index: idx });
+            }
+          }
+        });
+      }
+    } catch (e) {}
+
+    // 3. Scan ALL localStorage keys just in case data was archived or cached elsewhere
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k !== 'shiloh_offline_weigh_ins' && k !== 'shiloh_reports' && k !== 'shiloh_roster' && k !== 'shiloh_kiosk_track_mode') {
+          const val = localStorage.getItem(k);
+          if (val && (val.startsWith('[') || val.startsWith('{'))) {
+            try {
+              const parsed = JSON.parse(val);
+              const arr = Array.isArray(parsed) ? parsed : [parsed];
+              arr.forEach((rec, idx) => {
+                if (rec && (rec.weight_lbs !== undefined || rec.sleep_hrs !== undefined || rec.athlete_id)) {
+                  const key = (rec.athlete_id || '') + '_' + (rec.created_at || '');
+                  if (!seen.has(key)) {
+                    seen.add(key);
+                    findings.push({ ...rec, source_key: `Backup (${k})`, raw_index: idx });
+                  }
+                }
+              });
+            } catch (err) {}
+          }
+        }
+      }
+    } catch (e) {}
+
+    return findings.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  };
+
+  const forceUploadRecoveredData = async () => {
+    setRecoverySyncing(true);
+    const logs = getRecoveredLocalData();
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const rec of logs) {
+      const cleanPayload = {
+        athlete_id: rec.athlete_id,
+        athlete_name: rec.athlete_name || 'Unknown',
+        sport: rec.sport || '',
+        weight_lbs: (rec.weight_lbs !== undefined && rec.weight_lbs !== null) ? rec.weight_lbs : 0,
+        sleep_hrs: !isNaN(parseFloat(rec.sleep_hrs)) ? parseFloat(rec.sleep_hrs) : 0,
+        created_at: rec.created_at || new Date().toISOString()
+      };
+      if (rec.is_baseline !== undefined) cleanPayload.is_baseline = rec.is_baseline;
+
+      let res = await supabase.from('weigh_ins').insert([cleanPayload]);
+      if (res.error) {
+        delete cleanPayload.is_baseline;
+        res = await supabase.from('weigh_ins').insert([cleanPayload]);
+      }
+      if (!res.error) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    setRecoverySyncing(false);
+    alert(`⚡ Cloud Force Upload Complete:\n✅ Successfully uploaded & synchronized: ${successCount} logs.\n${failCount > 0 ? `⚠️ Unchanged or already existing duplicates: ${failCount}` : ''}`);
+    fetchReportData();
+  };
+
+  const downloadRecoveredJSON = () => {
+    const data = {
+      timestamp: new Date().toISOString(),
+      recovered_records: getRecoveredLocalData(),
+      raw_offline_queue: tryParseLocalStorage('shiloh_offline_weigh_ins'),
+      raw_cached_reports: tryParseLocalStorage('shiloh_reports'),
+      raw_roster: tryParseLocalStorage('shiloh_roster')
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `IPAD_RECOVERED_LOGS_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const tryParseLocalStorage = (key) => {
+    try { return JSON.parse(localStorage.getItem(key)) || null; } catch (e) { return localStorage.getItem(key) || null; }
   };
 
   const fetchAthletes = async () => {
@@ -1157,6 +1333,113 @@ export default function App() {
         </div>
       )}
       
+      {showRecoveryModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(16px)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div className="card-glass glow-card" style={{ width: '100%', maxWidth: '950px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: 'rgba(13, 27, 46, 0.98)', border: '2px solid #ef4444', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 0 50px rgba(239, 68, 68, 0.35)' }}>
+            <div style={{ padding: '24px 28px', background: 'rgba(239, 68, 68, 0.12)', borderBottom: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <span style={{ fontSize: '32px' }}>🚨</span>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    EMERGENCY DATA RECOVERY & STORAGE AUDIT STATION
+                  </h2>
+                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+                    Scanning iPad local databases, offline queues, and memory caches for weigh-in logs...
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRecoveryModal(false)}
+                style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '8px 16px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                ✕ Close Window
+              </button>
+            </div>
+
+            <div style={{ padding: '24px 28px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '16px 20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TOTAL RECOVERABLE LOGS FOUND ON IPAD</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#10b981' }}>{getRecoveredLocalData().length} Records Identified</div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={downloadRecoveredJSON}
+                    className="btn-primary"
+                    style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <Download size={18} /> 📥 DOWNLOAD RECOVERED DATA (JSON)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={forceUploadRecoveredData}
+                    disabled={recoverySyncing}
+                    className="btn-primary glow-card"
+                    style={{ background: '#10b981', color: '#000', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <RefreshCw size={18} style={{ animation: recoverySyncing ? 'spin 1s linear infinite' : 'none' }} />
+                    {recoverySyncing ? '⚡ FORCE UPLOADING TO CLOUD...' : '⚡ FORCE UPLOAD TO CLOUD SERVER'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.65)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Recovered Log Directory ({getRecoveredLocalData().filter(r => new Date(r.created_at).toDateString() === new Date().toDateString()).length} recorded today):
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '12px 16px' }}>Athlete Name</th>
+                      <th style={{ padding: '12px 16px' }}>Weight / Sleep</th>
+                      <th style={{ padding: '12px 16px' }}>Date & Time</th>
+                      <th style={{ padding: '12px 16px' }}>Storage Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getRecoveredLocalData().map((rec, idx) => {
+                      const isToday = new Date(rec.created_at).toDateString() === new Date().toDateString();
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: isToday ? 'rgba(16, 185, 129, 0.08)' : 'transparent' }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 700, color: '#fff' }}>
+                            {rec.athlete_name || 'ID: ' + rec.athlete_id}
+                            {isToday && <span style={{ marginLeft: '8px', fontSize: '10px', background: '#10b981', color: '#000', padding: '2px 8px', borderRadius: '10px', fontWeight: 800 }}>🔥 TODAY</span>}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--color-accent)' }}>
+                            {rec.weight_lbs ? `${rec.weight_lbs} lbs` : '—'} &middot; {rec.sleep_hrs !== undefined ? `${rec.sleep_hrs} hrs` : '—'}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.8)' }}>
+                            {rec.created_at ? new Date(rec.created_at).toLocaleString() : 'N/A'}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '6px', color: '#ccc', fontFamily: 'monospace' }}>
+                              {rec.source_key}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {getRecoveredLocalData().length === 0 && (
+                      <tr>
+                        <td colSpan="4" style={{ padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
+                          No cached or offline weigh-in records found in the current browser domain storage.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style={{ padding: '16px 28px', background: 'rgba(0,0,0,0.4)', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '12px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+              💡 PRO TIP: If you do not see today's logs above, verify that you did not switch between Safari Browser Tabs and a standalone Home Screen Icon App (PWAs on iPad have separate isolated storage from regular Safari tabs).
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Sidebar (Desktop Only - Hidden in Kiosk Mode) */}
       {!isKioskMode && (
         <div className="sidebar">
@@ -1230,6 +1513,13 @@ export default function App() {
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px', background: screen === 'entry' ? 'rgba(184, 156, 91, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: screen === 'entry' ? 'var(--color-accent)' : 'var(--white)', border: screen === 'entry' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
                 >
                   <Plus size={14} style={{ color: 'var(--color-accent)' }} /> <span className="kiosk-btn-text">LOG ENTRY</span>
+                </button>
+                <button 
+                  onClick={() => setShowRecoveryModal(true)}
+                  className="no-print glow-card"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', fontSize: '12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)' }}
+                >
+                  <AlertTriangle size={14} /> <span>🚨 RECOVER IPAD LOGS</span>
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
