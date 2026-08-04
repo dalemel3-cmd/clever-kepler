@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.5.2';
+const APP_VERSION = 'v3.5.3';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -401,17 +401,35 @@ export default function App() {
     };
     checkQueue();
 
-    // 15-Second bulletproof background heartbeat to sync offline cache automatically
+    // Supabase Realtime WebSockets: Instantly broadcast and pull updates across all devices (iPad <-> PC)
+    let channel;
+    try {
+      channel = supabase
+        .channel('shiloh_realtime_network')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'weigh_ins' }, () => {
+          fetchReportData(true);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, () => {
+          fetchAthletes();
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn("Realtime subscription warning:", e);
+    }
+
+    // 12-Second background heartbeat to sync offline cache & silently pull remote changes from iPad/PC
     const autoSyncInterval = setInterval(() => {
       checkQueue();
       if (navigator.onLine) {
         syncOfflineCache();
+        fetchReportData(true);
       }
-    }, 15000);
+    }, 12000);
 
     const handleOnline = () => {
       setIsOnline(true);
       syncOfflineCache();
+      fetchReportData(true);
     };
     const handleOffline = () => setIsOnline(false);
 
@@ -430,6 +448,9 @@ export default function App() {
 
     return () => {
       clearInterval(autoSyncInterval);
+      if (channel && typeof supabase.removeChannel === 'function') {
+        try { supabase.removeChannel(channel); } catch(e){}
+      }
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('hashchange', handleHashChange);
@@ -531,8 +552,8 @@ export default function App() {
     fetchReportData();
   }, []);
 
-  const fetchReportData = async () => {
-    setReportLoading(true);
+  const fetchReportData = async (isBackground = false) => {
+    if (!isBackground) setReportLoading(true);
     let onlineData = [];
     try {
       if (!navigator.onLine) throw new Error('Offline');
@@ -1077,25 +1098,24 @@ export default function App() {
     }
 
     try {
+      const cloudPayload = {
+        athlete_id: record.athlete_id,
+        athlete_name: record.athlete_name || 'Unknown',
+        sport: record.sport || '',
+        weight_lbs: (record.weight_lbs !== undefined && record.weight_lbs !== null) ? record.weight_lbs : 0,
+        sleep_hrs: !isNaN(parseFloat(record.sleep_hrs)) ? parseFloat(record.sleep_hrs) : 0,
+        created_at: record.created_at || new Date().toISOString()
+      };
+
       if (existingRecord && !String(existingRecord.id).startsWith('opt_') && !String(existingRecord.id).startsWith('offline_')) {
-        let { error } = await supabase.from('weigh_ins').update(record).eq('id', existingRecord.id);
-        if (error && error.message && error.message.toLowerCase().includes('null')) {
-          record.weight_lbs = 0;
-          const res = await supabase.from('weigh_ins').update(record).eq('id', existingRecord.id);
-          error = res.error;
-        }
+        let { error } = await supabase.from('weigh_ins').update(cloudPayload).eq('id', existingRecord.id);
         if (error) throw error;
       } else {
-        let { error } = await supabase.from('weigh_ins').insert([record]);
-        if (error && error.message && error.message.toLowerCase().includes('null')) {
-          record.weight_lbs = 0;
-          const res = await supabase.from('weigh_ins').insert([record]);
-          error = res.error;
-        }
+        let { error } = await supabase.from('weigh_ins').insert([cloudPayload]);
         if (error) throw error;
       }
       
-      fetchReportData();
+      fetchReportData(true);
       syncOfflineCache();
     } catch (err) {
       console.warn("Supabase offline or unreachable, queuing payload locally for background sync:", err);
