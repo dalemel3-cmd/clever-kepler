@@ -1951,41 +1951,26 @@ export default function App() {
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <span className="no-print" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 10px', borderRadius: '14px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                  {APP_VERSION}
-                </span>
-                <button
-                  onClick={() => {
-                    broadcastDeviceSync({ isPing: true });
-                    alert("📡 Test Signal Sent!\n\nAn instant wireless verification ping was blasted across the cloud to all connected iPads and PCs. Any open device will display a confirmation pop-up right now!");
-                  }}
-                  className="no-print"
-                  style={{ background: 'rgba(184, 156, 91, 0.15)', color: 'var(--color-accent)', border: '1px solid rgba(184, 156, 91, 0.4)', borderRadius: '14px', padding: '4px 12px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 8px rgba(184, 156, 91, 0.2)' }}
-                  title="Verify real-time communication between your devices"
-                >
-                  📶 TEST DEVICE SYNC
-                </button>
                 {unsyncedQueueCount > 0 ? (
                   <span
                     onClick={() => syncOfflineCache(true)}
                     className="no-print"
-                    style={{ fontSize: '11px', background: 'rgba(234, 179, 8, 0.25)', color: '#fbbf24', padding: '5px 12px', borderRadius: '14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fbbf24', cursor: 'pointer', boxShadow: '0 0 10px rgba(234, 179, 8, 0.4)' }}
+                    style={{ fontSize: '11px', background: 'rgba(234, 179, 8, 0.25)', color: '#fbbf24', padding: '5px 14px', borderRadius: '20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fbbf24', cursor: 'pointer', boxShadow: '0 0 12px rgba(234, 179, 8, 0.4)' }}
                     title="Tap to force sync queued logs immediately"
                   >
                     <RefreshCw size={12} style={{ animation: 'spin 2s linear infinite' }} />
                     ⏳ {unsyncedQueueCount} UNSYNCED {unsyncedQueueCount === 1 ? 'LOG' : 'LOGS'} &middot; TAP TO SYNC
                   </span>
                 ) : (
-                  <span className="no-print" style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '5px 12px', borderRadius: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` }}>
-                    {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-                    {isOnline ? '☁️ CLOUD SYNCED & PROTECTED' : 'OFFLINE SYNC QUEUE ACTIVE'}
+                  <span className="no-print" style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? '#4ade80' : '#ef4444', padding: '5px 14px', borderRadius: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.4)'}`, boxShadow: isOnline ? '0 0 12px rgba(34, 197, 94, 0.15)' : 'none' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#4ade80' : '#ef4444', boxShadow: isOnline ? '0 0 8px #4ade80' : 'none' }} />
+                    {isOnline ? `CLOUD LIVE` : 'OFFLINE QUEUE'}
+                    <span style={{ color: 'rgba(255,255,255,0.3)', margin: '0 2px' }}>|</span>
+                    <span style={{ color: 'var(--color-accent)' }}>{APP_VERSION}</span>
                   </span>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} className="hide-mobile">
-                  <button onClick={exportToCSV} className="no-print" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Download size={14} /> EXPORT CSV
-                  </button>
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                   </span>
                 </div>
@@ -3900,25 +3885,6 @@ export default function App() {
                       >
                         <Plus size={18} strokeWidth={2.5} /> Add Athlete
                       </button>
-                      <button 
-                        onClick={handleDownloadTemplate}
-                        className="btn-primary no-print"
-                        style={{ height: '40px', padding: '0 16px', fontSize: '13px', flex: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--navy-800)', border: '1px solid var(--navy-600)' }}
-                      >
-                        <Download size={16} /> Template
-                      </button>
-                      <label 
-                        className="btn-primary"
-                        style={{ height: '40px', padding: '0 16px', fontSize: '13px', flex: 'none', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'var(--navy-600)' }}
-                      >
-                        <Upload size={16} /> Upload CSV
-                        <input 
-                          type="file" 
-                          accept=".csv" 
-                          style={{ display: 'none' }} 
-                          onChange={handleCSVUpload}
-                        />
-                      </label>
                     </div>
 
                     {/* Card Grid */}
@@ -4921,7 +4887,93 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Card 3: Practical Troubleshooting & Health Tools */}
+                {/* Card 3: Cloud Data Management & Synchronization Hub */}
+                <div className="card-glass glow-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(59, 130, 246, 0.35)', background: 'rgba(59, 130, 246, 0.04)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa', boxShadow: '0 0 15px rgba(59, 130, 246, 0.25)' }}>
+                      <Database size={24} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: '#fff' }}>
+                        CLOUD DATA MANAGEMENT &amp; SYNCHRONIZATION HUB
+                      </h2>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                        Import rosters via CSV, download bulk templates, export full weigh-in reports, or verify real-time inter-device communication.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '4px' }}>
+                    
+                    {/* Roster Import & Template */}
+                    <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Upload size={16} /> Roster CSV Import &amp; Template
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                          Bulk upload new athletes or download the standard formatted roster template file.
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: 'auto' }}>
+                        <button 
+                          onClick={handleDownloadTemplate}
+                          className="btn-primary no-print"
+                          style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 700, background: 'rgba(255,255,255,0.05)', color: 'var(--white)', border: '1px solid var(--color-border)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                        >
+                          <Download size={15} /> Template
+                        </button>
+                        <label 
+                          className="btn-primary no-print glow-card"
+                          style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 800, background: 'rgba(59, 130, 246, 0.25)', color: '#60a5fa', border: '1px solid #60a5fa', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                        >
+                          <Upload size={15} /> Upload CSV
+                          <input 
+                            type="file" 
+                            accept=".csv" 
+                            style={{ display: 'none' }} 
+                            onChange={handleCSVUpload}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Report Export & Live Signal Test */}
+                    <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Wifi size={16} /> Data Export &amp; Network Test
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                          Export all recorded session logs to spreadsheet format or send a live test ping across devices.
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: 'auto' }}>
+                        <button 
+                          onClick={exportToCSV}
+                          className="btn-primary no-print"
+                          style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 700, background: 'rgba(255,255,255,0.05)', color: 'var(--white)', border: '1px solid var(--color-border)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                        >
+                          <Download size={15} /> Export CSV
+                        </button>
+                        <button
+                          onClick={() => {
+                            broadcastDeviceSync({ isPing: true });
+                            alert("📡 Test Signal Sent!\n\nAn instant wireless verification ping was blasted across the cloud to all connected iPads and PCs. Any open device will display a confirmation pop-up right now!");
+                          }}
+                          className="no-print glow-card"
+                          style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 800, background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                          title="Verify real-time communication between your devices"
+                        >
+                          📶 Ping Devices
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Card 4: Practical Troubleshooting & Health Tools */}
                 <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-success)' }}>
