@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.5.4';
+const APP_VERSION = 'v3.5.5';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -127,11 +127,11 @@ export default function App() {
       const q = search.trim().toLowerCase();
       const hasQuery = q !== '';
       const matchesSearch = !hasQuery || 
-        (a.name && a.name.toLowerCase().includes(q)) ||
-        (a.sport && a.sport.toLowerCase().includes(q)) ||
-        (a.team && a.team.toLowerCase().includes(q)) ||
-        (a.grade && a.grade.toLowerCase().includes(q)) ||
-        (a.position && a.position.toLowerCase().includes(q));
+        (a.name && String(a.name).toLowerCase().includes(q)) ||
+        (a.sport && String(a.sport).toLowerCase().includes(q)) ||
+        (a.team && String(a.team).toLowerCase().includes(q)) ||
+        (a.grade && String(a.grade).toLowerCase().includes(q)) ||
+        (a.position && String(a.position).toLowerCase().includes(q));
 
       const matchesSport = selectedSportFilter === 'ALL' || a.sport === selectedSportFilter;
       const matchesTeam = selectedTeamFilter === 'ALL' || a.team === selectedTeamFilter;
@@ -143,15 +143,15 @@ export default function App() {
     })
     .sort((a, b) => {
       if (nameSortOrder === 'last') {
-        const lastA = getLastName(a.name).toLowerCase();
-        const lastB = getLastName(b.name).toLowerCase();
+        const lastA = getLastName(String(a.name || '')).toLowerCase();
+        const lastB = getLastName(String(b.name || '')).toLowerCase();
         if (lastA !== lastB) return lastA.localeCompare(lastB);
-        return getFirstName(a.name).toLowerCase().localeCompare(getFirstName(b.name).toLowerCase());
+        return getFirstName(String(a.name || '')).toLowerCase().localeCompare(getFirstName(String(b.name || '')).toLowerCase());
       } else {
-        const firstA = getFirstName(a.name).toLowerCase();
-        const firstB = getFirstName(b.name).toLowerCase();
+        const firstA = getFirstName(String(a.name || '')).toLowerCase();
+        const firstB = getFirstName(String(b.name || '')).toLowerCase();
         if (firstA !== firstB) return firstA.localeCompare(firstB);
-        return getLastName(a.name).toLowerCase().localeCompare(getLastName(b.name).toLowerCase());
+        return getLastName(String(a.name || '')).toLowerCase().localeCompare(getLastName(String(b.name || '')).toLowerCase());
       }
     });
   const [isKioskMode, setIsKioskMode] = useState(false);
@@ -689,11 +689,16 @@ export default function App() {
         }
       }
       
-      localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(remainingQueue));
-      if (syncedAny || remainingQueue.length !== offlineQueue.length) {
+      // Merge any newly queued offline items that arrived while the cloud network request was processing
+      const currentQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+      const newlyAdded = currentQueue.filter(i => !offlineQueue.some(old => old.id === i.id));
+      const finalQueue = [...remainingQueue, ...newlyAdded];
+      
+      localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(finalQueue));
+      if (syncedAny || finalQueue.length !== offlineQueue.length) {
         fetchReportData();
       }
-      setUnsyncedQueueCount(remainingQueue.length);
+      setUnsyncedQueueCount(finalQueue.length);
 
       if (isClick) {
         alert(`⚡ Cloud Synchronization Complete!\n\n✅ Successfully uploaded & reconciled ${offlineQueue.length - remainingQueue.length} offline sessions with the server.`);
@@ -2981,7 +2986,7 @@ export default function App() {
                             >
                               {availableDates.length > 0 ? (
                                 availableDates.map(d => {
-                                  const avgW = Math.round(d.logs.reduce((s, x) => s + Number(x.weight_lbs), 0) / d.logs.length);
+                                  const avgW = Math.round(d.logs.reduce((s, x) => s + Number(x.weight_lbs), 0) / Math.max(1, d.logs.length));
                                   return (
                                     <option key={d.date} value={d.date}>
                                       {d.display} ({d.logs.length} weighed in &middot; {avgW} lb avg)
@@ -4153,10 +4158,10 @@ export default function App() {
               } else {
                 try {
                   const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                  if (customMap[selectedProfile.id] && customMap[selectedProfile.id].weight_lbs) {
-                    baselineWeight = Number(customMap[selectedProfile.id].weight_lbs);
-                  } else if (selectedProfile.baseline_weight) {
-                    baselineWeight = Number(selectedProfile.baseline_weight);
+                  if (customMap[athlete.id] && customMap[athlete.id].weight_lbs) {
+                    baselineWeight = Number(customMap[athlete.id].weight_lbs);
+                  } else if (athlete.baseline_weight) {
+                    baselineWeight = Number(athlete.baseline_weight);
                   }
                 } catch(e) {}
               }
@@ -4344,10 +4349,10 @@ export default function App() {
                           if (!baselineWeight) {
                             try {
                               const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                              if (customMap[selectedProfile.id] && customMap[selectedProfile.id].weight_lbs) {
-                                baselineWeight = Number(customMap[selectedProfile.id].weight_lbs);
-                              } else if (selectedProfile?.baseline_weight) {
-                                baselineWeight = Number(selectedProfile.baseline_weight);
+                              if (customMap[athlete.id] && customMap[athlete.id].weight_lbs) {
+                                baselineWeight = Number(customMap[athlete.id].weight_lbs);
+                              } else if (athlete?.baseline_weight) {
+                                baselineWeight = Number(athlete.baseline_weight);
                               }
                             } catch(e) {}
                           }
