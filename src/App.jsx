@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.5.3';
+const APP_VERSION = 'v3.5.4';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -124,9 +124,10 @@ export default function App() {
 
   const filteredAthletes = athletes
     .filter(a => {
-      const q = search.toLowerCase();
-      const matchesSearch = search === '' || 
-        a.name.toLowerCase().includes(q) ||
+      const q = search.trim().toLowerCase();
+      const hasQuery = q !== '';
+      const matchesSearch = !hasQuery || 
+        (a.name && a.name.toLowerCase().includes(q)) ||
         (a.sport && a.sport.toLowerCase().includes(q)) ||
         (a.team && a.team.toLowerCase().includes(q)) ||
         (a.grade && a.grade.toLowerCase().includes(q)) ||
@@ -137,7 +138,8 @@ export default function App() {
       const matchesGrade = selectedGradeFilter === 'ALL' || a.grade === selectedGradeFilter;
       const matchesPosition = selectedPositionFilter === 'ALL' || a.position === selectedPositionFilter;
 
-      return matchesSearch && matchesSport && matchesTeam && matchesGrade && matchesPosition;
+      // When searching by name in Kiosk mode or elsewhere, don't let active dropdown filters hide the matching athlete
+      return matchesSearch && (hasQuery || (matchesSport && matchesTeam && matchesGrade && matchesPosition));
     })
     .sort((a, b) => {
       if (nameSortOrder === 'last') {
@@ -682,17 +684,8 @@ export default function App() {
         if (success) {
           syncedAny = true;
         } else {
-          // If explicitly forced by user click and still fails due to constraint/duplicate, archive in permanent vault and clean queue
-          if (isClick) {
-            try {
-              const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
-              vault.unshift({ saved_at: new Date().toISOString(), record: rec, note: 'archived_from_sync_queue' });
-              localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
-            } catch(e) {}
-            syncedAny = true; // Mark as processed so it clears from the yellow badge
-          } else {
-            remainingQueue.push(item);
-          }
+          // Keep unsynced logs safely inside the queue so they never disappear or get deleted upon tapping sync!
+          remainingQueue.push(item);
         }
       }
       
@@ -3026,15 +3019,32 @@ export default function App() {
                   {sportsList.map(sport => {
                     const sportAthletes = athletes.filter(a => (a.sport || '').toLowerCase() === sport.toLowerCase());
                     
-                    // Calculate average weight for this sport group from latest logged records
+                    // Calculate baseline/average weight for this sport group (prioritizing synchronized team baseline markers)
                     let totalW = 0;
                     let countW = 0;
+                    let baselinesMap = {};
+                    try { baselinesMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}'); } catch(e){}
+
                     sportAthletes.forEach(a => {
+                      const baselineEntry = reportData.find(r => r.athlete_id === a.id && r.is_baseline === true && r.weight_lbs && Number(r.weight_lbs) > 0);
+                      const savedBaseline = baselinesMap[a.id];
                       const latestRecord = reportData
                         .filter(r => r.athlete_id === a.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
                         .sort((x, y) => new Date(y.created_at) - new Date(x.created_at))[0];
-                      if (latestRecord && latestRecord.weight_lbs && !isNaN(parseFloat(latestRecord.weight_lbs))) {
-                        totalW += parseFloat(latestRecord.weight_lbs);
+                      
+                      let evalWeight = 0;
+                      if (baselineEntry && baselineEntry.weight_lbs && Number(baselineEntry.weight_lbs) > 0) {
+                        evalWeight = parseFloat(baselineEntry.weight_lbs);
+                      } else if (savedBaseline && savedBaseline.weight_lbs && Number(savedBaseline.weight_lbs) > 0) {
+                        evalWeight = parseFloat(savedBaseline.weight_lbs);
+                      } else if (a.baseline_weight && Number(a.baseline_weight) > 0) {
+                        evalWeight = parseFloat(a.baseline_weight);
+                      } else if (latestRecord && latestRecord.weight_lbs && !isNaN(parseFloat(latestRecord.weight_lbs))) {
+                        evalWeight = parseFloat(latestRecord.weight_lbs);
+                      }
+
+                      if (evalWeight > 0) {
+                        totalW += evalWeight;
                         countW += 1;
                       }
                     });
