@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.3';
+const APP_VERSION = 'v3.4';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -1120,6 +1120,39 @@ export default function App() {
     } catch (err) {
       console.error("Export error:", err);
       alert("Failed to export CSV.");
+    }
+  };
+
+  const handleMakeDateBaselineMarker = async (logId, athleteId, weightVal, dateStr, athleteName) => {
+    if (!window.confirm(`Make ${weightVal} lbs on ${dateStr} the official baseline weight marker for ${athleteName || 'this athlete'}?`)) return;
+
+    try {
+      if (athleteId) {
+        await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId);
+      }
+      const { error } = await supabase.from('weigh_ins').update({ is_baseline: true }).eq('id', logId);
+      if (error) throw error;
+
+      setReportData(prev => prev.map(item => {
+        if (item.athlete_id === athleteId) {
+          return { ...item, is_baseline: item.id === logId };
+        }
+        return item;
+      }));
+
+      alert(`🎯 Baseline Weight Marker successfully updated to ${weightVal} lbs from ${dateStr}!`);
+      fetchReportData();
+      if (typeof selectedProfileId !== 'undefined' && selectedProfileId) {
+        fetchProfileData(selectedProfileId);
+      }
+    } catch (err) {
+      console.warn("Could not update baseline online, setting in local memory cache:", err);
+      setReportData(prev => prev.map(item => {
+        if (item.id === logId) return { ...item, is_baseline: true };
+        if (item.athlete_id === athleteId) return { ...item, is_baseline: false };
+        return item;
+      }));
+      alert(`🎯 Baseline Weight Marker updated locally to ${weightVal} lbs!`);
     }
   };
 
@@ -3378,11 +3411,29 @@ export default function App() {
                                     <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
                                       {new Date(log.created_at).toLocaleDateString()}
                                     </td>
-                                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                                      <button onClick={() => handleDeleteWeighIn(log.id)} className="no-print" style={{ background: 'transparent', border: 'none', color: 'var(--status-error)', cursor: 'pointer', padding: '4px' }}>
-                                        <Trash2 size={16} />
-                                      </button>
-                                    </td>
+                                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                          {log.weight_lbs && Number(log.weight_lbs) > 0 ? (
+                                            log.is_baseline ? (
+                                              <span style={{ fontSize: '10px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '4px 10px', borderRadius: '12px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                                                ⭐ BASELINE
+                                              </span>
+                                            ) : (
+                                              <button
+                                                onClick={() => handleMakeDateBaselineMarker(log.id, log.athlete_id, log.weight_lbs, new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), log.athlete_name)}
+                                                className="no-print"
+                                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}
+                                                title="Make this specific date the official baseline marker"
+                                              >
+                                                📍 MAKE BASELINE
+                                              </button>
+                                            )
+                                          ) : null}
+                                          <button onClick={() => handleDeleteWeighIn(log.id)} className="no-print" style={{ background: 'transparent', border: 'none', color: 'var(--status-error)', cursor: 'pointer', padding: '4px' }}>
+                                            <Trash2 size={16} />
+                                          </button>
+                                        </div>
+                                      </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -4210,18 +4261,35 @@ export default function App() {
                                   </td>
 
                                   <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                                    <button
-                                      onClick={async () => {
-                                        if (window.confirm('Delete this recorded weigh-in session?')) {
-                                          await handleDeleteWeighIn(log.id);
-                                          setTimeout(() => fetchProfileData(athlete.id), 300);
-                                        }
-                                      }}
-                                      style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, transition: 'all 0.2s' }}
-                                      title="Delete Log Entry"
-                                    >
-                                      <Trash2 size={15} />
-                                    </button>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                                      {currentW ? (
+                                        log.is_baseline ? (
+                                          <span style={{ fontSize: '11px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '6px 14px', borderRadius: '14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 0 10px rgba(184, 156, 91, 0.3)', whiteSpace: 'nowrap' }}>
+                                            ⭐ ACTIVE BASELINE MARKER
+                                          </span>
+                                        ) : (
+                                          <button
+                                            onClick={() => handleMakeDateBaselineMarker(log.id, athlete.id, currentW, new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), athlete.name)}
+                                            style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                                            title="Make this specific date and weight the official baseline marker for dehydration alerts"
+                                          >
+                                            📍 MAKE BASELINE MARKER
+                                          </button>
+                                        )
+                                      ) : null}
+                                      <button
+                                        onClick={async () => {
+                                          if (window.confirm('Delete this recorded weigh-in session?')) {
+                                            await handleDeleteWeighIn(log.id);
+                                            setTimeout(() => fetchProfileData(athlete.id), 300);
+                                          }
+                                        }}
+                                        style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, transition: 'all 0.2s' }}
+                                        title="Delete Log Entry"
+                                      >
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
