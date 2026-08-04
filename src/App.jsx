@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.2';
+const APP_VERSION = 'v3.3';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -1658,13 +1658,6 @@ export default function App() {
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px', background: screen === 'entry' ? 'rgba(184, 156, 91, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: screen === 'entry' ? 'var(--color-accent)' : 'var(--white)', border: screen === 'entry' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
                 >
                   <Plus size={14} style={{ color: 'var(--color-accent)' }} /> <span className="kiosk-btn-text">LOG ENTRY</span>
-                </button>
-                <button 
-                  onClick={() => setShowRecoveryModal(true)}
-                  className="no-print glow-card"
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', fontSize: '12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)' }}
-                >
-                  <AlertTriangle size={14} /> <span>🚨 RECOVER IPAD LOGS</span>
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -4528,6 +4521,42 @@ export default function App() {
                     </button>
                   </div>
 
+                </div>
+
+                {/* Card 4: Hardware Vault & Emergency Data Recovery Station */}
+                <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(184, 156, 91, 0.35)', background: 'rgba(184, 156, 91, 0.04)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', boxShadow: '0 0 12px rgba(184, 156, 91, 0.3)' }}>
+                      <Shield size={24} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: 'var(--color-accent)' }}>
+                        HARDWARE VAULT &amp; EMERGENCY RECOVERY SUITE
+                      </h2>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                        Access encrypted local iPad storage, force cloud synchronization of offline logs, or restore data from diagnostic backup files.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0, 0, 0, 0.25)', padding: '16px 20px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--white)', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Lock size={14} style={{ color: 'var(--color-accent)' }} /> 1,000-LOG PERMANENT DEVICE HARDWARE VAULT ACTIVE
+                      </span>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                        All kiosk sessions on this device are automatically duplicated to an immutable hardware ledger regardless of internet connection state.
+                      </span>
+                    </div>
+
+                    <button 
+                      onClick={() => setShowRecoveryModal(true)}
+                      className="btn-primary glow-card"
+                      style={{ padding: '12px 24px', fontSize: '13px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 0 15px rgba(184, 156, 91, 0.3)', display: 'flex', alignItems: 'center', gap: '8px', height: '44px', whiteSpace: 'nowrap' }}
+                    >
+                      <Database size={16} /> OPEN RECOVERY STATION &amp; AUDIT VAULT
+                    </button>
+                  </div>
                 </div>
 
               </div>
