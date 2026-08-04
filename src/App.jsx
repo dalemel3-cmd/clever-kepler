@@ -471,13 +471,22 @@ export default function App() {
   };
 
   const handleExportDiagnostics = () => {
+    let rawOffline = null, rawReports = null, rawRoster = null;
+    try { rawOffline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins')); } catch(e){}
+    try { rawReports = JSON.parse(localStorage.getItem('shiloh_reports')); } catch(e){}
+    try { rawRoster = JSON.parse(localStorage.getItem('shiloh_roster')); } catch(e){}
+
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
       version: APP_VERSION,
       timestamp: new Date().toISOString(),
       athlete_count: athletes.length,
       report_count: reportData.length,
       thresholds: { dehydrationThreshold, sleepThreshold, baselineExpiryDays },
-      athletes: athletes.map(a => ({ id: a.id, name: a.name, sport: a.sport, team: a.team })),
+      athletes: athletes,
+      weigh_ins: reportData,
+      raw_offline_queue: rawOffline,
+      raw_cached_reports: rawReports,
+      raw_roster: rawRoster
     }, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
@@ -729,6 +738,77 @@ export default function App() {
 
   const tryParseLocalStorage = (key) => {
     try { return JSON.parse(localStorage.getItem(key)) || null; } catch (e) { return localStorage.getItem(key) || null; }
+  };
+
+  const handleImportDiagnosticsFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const content = event.target.result;
+        let foundRecords = [];
+        if (file.name.endsWith('.json')) {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed)) {
+            foundRecords = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            if (Array.isArray(parsed.recovered_records)) foundRecords.push(...parsed.recovered_records);
+            if (Array.isArray(parsed.logs)) foundRecords.push(...parsed.logs);
+            if (Array.isArray(parsed.weigh_ins)) foundRecords.push(...parsed.weigh_ins);
+            if (Array.isArray(parsed.report_data)) foundRecords.push(...parsed.report_data);
+            if (parsed.raw_offline_queue && Array.isArray(parsed.raw_offline_queue)) {
+              parsed.raw_offline_queue.forEach(item => foundRecords.push(item.record || item));
+            }
+            if (parsed.raw_cached_reports && Array.isArray(parsed.raw_cached_reports)) {
+              foundRecords.push(...parsed.raw_cached_reports);
+            }
+          }
+        } else if (file.name.endsWith('.csv') || file.name.endsWith('.txt')) {
+          const lines = content.split(/\r?\n/);
+          lines.forEach(line => {
+            if (!line.trim() || line.toLowerCase().includes('athlete name')) return;
+            const parts = line.split(',').map(s => s.replace(/^"|"$/g, '').trim());
+            if (parts.length >= 4) {
+              foundRecords.push({
+                athlete_name: parts[0],
+                sport: parts[1],
+                weight_lbs: parseFloat(parts[2]) || 0,
+                sleep_hrs: parseFloat(parts[3]) || 0,
+                created_at: parts[4] ? new Date(parts[4]).toISOString() : new Date().toISOString()
+              });
+            }
+          });
+        }
+
+        const validRecords = foundRecords.filter(r => r && (r.weight_lbs !== undefined || r.sleep_hrs !== undefined || r.athlete_id || r.athlete_name));
+        if (validRecords.length === 0) {
+          alert("Could not identify formatted weigh-in records in this file. Please make sure it is a valid diagnostics JSON or export CSV.");
+          return;
+        }
+
+        validRecords.forEach(rec => {
+          if (!rec.athlete_id && rec.athlete_name) {
+            const matched = athletes.find(a => a.name && a.name.toLowerCase() === rec.athlete_name.toLowerCase());
+            if (matched) rec.athlete_id = matched.id;
+          }
+        });
+
+        const currentOffline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+        validRecords.forEach(rec => {
+          currentOffline.push({ action: 'insert', id: rec.id || 'imp_' + Date.now() + Math.random().toString(36).substr(2, 4), record: rec });
+        });
+        localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(currentOffline));
+        
+        fetchReportData();
+        alert(`🎉 Success! Easily extracted & imported ${validRecords.length} records from your file (${file.name})! They are now merged into your active dashboard and recovery directory. Click '⚡ FORCE UPLOAD TO CLOUD SERVER' to save them immediately to Supabase!`);
+      } catch (err) {
+        console.error("Error importing file:", err);
+        alert("Failed to read diagnostic file. Please check the format and try again.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   const fetchAthletes = async () => {
@@ -1364,6 +1444,18 @@ export default function App() {
                   <div style={{ fontSize: '28px', fontWeight: 800, color: '#10b981' }}>{getRecoveredLocalData().length} Records Identified</div>
                 </div>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <label
+                    className="btn-primary glow-card"
+                    style={{ background: 'rgba(59, 130, 246, 0.25)', color: '#60a5fa', border: '1px solid #60a5fa', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <Upload size={18} /> 📂 IMPORT DIAGNOSTICS OR BACKUP FILE (.JSON / .CSV)
+                    <input
+                      type="file"
+                      accept=".json,.csv,.txt"
+                      onChange={handleImportDiagnosticsFile}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
                   <button
                     type="button"
                     onClick={downloadRecoveredJSON}
