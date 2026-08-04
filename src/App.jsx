@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.1';
+const APP_VERSION = 'v3.2';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -378,6 +378,9 @@ export default function App() {
   const [copiedLinkToast, setCopiedLinkToast] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [unsyncedQueueCount, setUnsyncedQueueCount] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch(e) { return 0; }
+  });
 
   useEffect(() => {
     fetchAthletes();
@@ -388,7 +391,22 @@ export default function App() {
     };
     window.addEventListener('hashchange', handleHashChange);
 
-    // Auto-sync offline cache when internet reconnects
+    const checkQueue = () => {
+      try {
+        const q = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+        setUnsyncedQueueCount(q.length);
+      } catch(e) {}
+    };
+    checkQueue();
+
+    // 15-Second bulletproof background heartbeat to sync offline cache automatically
+    const autoSyncInterval = setInterval(() => {
+      checkQueue();
+      if (navigator.onLine) {
+        syncOfflineCache();
+      }
+    }, 15000);
+
     const handleOnline = () => {
       setIsOnline(true);
       syncOfflineCache();
@@ -409,6 +427,7 @@ export default function App() {
     }
 
     return () => {
+      clearInterval(autoSyncInterval);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('hashchange', handleHashChange);
@@ -619,6 +638,7 @@ export default function App() {
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(remainingQueue));
         if (syncedAny) fetchReportData();
       }
+      setUnsyncedQueueCount(remainingQueue.length);
     } catch {
       console.warn("Could not sync offline queue yet.");
     }
@@ -628,7 +648,7 @@ export default function App() {
     const findings = [];
     const seen = new Set();
     
-    // 1. Check offline queue
+    // 1. Check offline queue and permanent hardware vault
     try {
       const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
       offline.forEach((item, idx) => {
@@ -638,6 +658,18 @@ export default function App() {
           if (!seen.has(key)) {
             seen.add(key);
             findings.push({ ...rec, source_key: 'shiloh_offline_weigh_ins (Offline Queue)', raw_index: idx });
+          }
+        }
+      });
+      
+      const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
+      vault.forEach((item, idx) => {
+        const rec = item.record || item;
+        if (rec && (rec.weight_lbs !== undefined || rec.sleep_hrs !== undefined || rec.athlete_id)) {
+          const key = (rec.athlete_id || '') + '_' + (rec.created_at || '');
+          if (!seen.has(key)) {
+            seen.add(key);
+            findings.push({ ...rec, source_key: 'shiloh_permanent_vault (Hardware Vault)', raw_index: idx });
           }
         }
       });
@@ -983,6 +1015,13 @@ export default function App() {
       } catch (e) {}
     }
 
+    // Write to Permanent Local Hardware Vault as bulletproof fallback protection
+    try {
+      const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
+      vault.unshift({ saved_at: new Date().toISOString(), record });
+      localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
+    } catch(e) {}
+
     // Optimistic UI updates right away regardless of network connectivity
     if (existingRecord) {
       setReportData(prev => prev.map(r => r.id === existingRecord.id ? { ...existingRecord, ...record } : r));
@@ -1022,6 +1061,7 @@ export default function App() {
           record
         });
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(existing));
+        setUnsyncedQueueCount(existing.length);
       } catch (e) {
         console.warn("LocalStorage warning:", e);
       }
@@ -1579,10 +1619,21 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.08em' }}>HPD &middot; KIOSK MODE</span>
                 <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 8px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
-                <span style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '4px 10px', borderRadius: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` }}>
-                  {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-                  {isOnline ? 'ONLINE &middot; FAIL-SAFE' : 'OFFLINE SYNC'}
-                </span>
+                {unsyncedQueueCount > 0 ? (
+                  <span
+                    onClick={syncOfflineCache}
+                    style={{ fontSize: '11px', background: 'rgba(234, 179, 8, 0.25)', color: '#fbbf24', padding: '4px 12px', borderRadius: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fbbf24', cursor: 'pointer', boxShadow: '0 0 10px rgba(234, 179, 8, 0.4)' }}
+                    title="Tap to force sync queued logs immediately"
+                  >
+                    <RefreshCw size={12} style={{ animation: 'spin 2s linear infinite' }} />
+                    ⏳ {unsyncedQueueCount} UNSYNCED {unsyncedQueueCount === 1 ? 'LOG' : 'LOGS'} &middot; TAP TO SYNC
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '4px 12px', borderRadius: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` }}>
+                    {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
+                    {isOnline ? '☁️ CLOUD SYNCED & PROTECTED' : 'OFFLINE SYNC QUEUE ACTIVE'}
+                  </span>
+                )}
               </div>
               <button 
                 onClick={() => setIsKioskMode(false)}
@@ -1620,10 +1671,22 @@ export default function App() {
                 <span className="no-print" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 10px', borderRadius: '14px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
                   {APP_VERSION}
                 </span>
-                <span className="no-print" style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '5px 12px', borderRadius: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` }}>
-                  {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-                  {isOnline ? 'ONLINE' : 'OFFLINE MODE'}
-                </span>
+                {unsyncedQueueCount > 0 ? (
+                  <span
+                    onClick={syncOfflineCache}
+                    className="no-print"
+                    style={{ fontSize: '11px', background: 'rgba(234, 179, 8, 0.25)', color: '#fbbf24', padding: '5px 12px', borderRadius: '14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fbbf24', cursor: 'pointer', boxShadow: '0 0 10px rgba(234, 179, 8, 0.4)' }}
+                    title="Tap to force sync queued logs immediately"
+                  >
+                    <RefreshCw size={12} style={{ animation: 'spin 2s linear infinite' }} />
+                    ⏳ {unsyncedQueueCount} UNSYNCED {unsyncedQueueCount === 1 ? 'LOG' : 'LOGS'} &middot; TAP TO SYNC
+                  </span>
+                ) : (
+                  <span className="no-print" style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '5px 12px', borderRadius: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` }}>
+                    {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
+                    {isOnline ? '☁️ CLOUD SYNCED & PROTECTED' : 'OFFLINE SYNC QUEUE ACTIVE'}
+                  </span>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} className="hide-mobile">
                   <button onClick={exportToCSV} className="no-print" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Download size={14} /> EXPORT CSV
