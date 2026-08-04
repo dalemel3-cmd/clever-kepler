@@ -62,8 +62,38 @@ const Confetti = () => {
   );
 };
 
-// App Version Tracking
-const APP_VERSION = 'v3.6.1';
+// App Version Tracking & Cloud Helpers
+const APP_VERSION = 'v4.0.0';
+
+const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+const parseAthleteMeta = (posStr) => {
+  if (!posStr || typeof posStr !== 'string') return { pos: posStr || '' };
+  if (posStr.startsWith('{"') && posStr.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(posStr);
+      return {
+        pos: parsed.pos !== undefined ? parsed.pos : '',
+        bw: parsed.bw !== undefined ? Number(parsed.bw) : undefined,
+        bd: parsed.bd,
+        lid: parsed.lid
+      };
+    } catch(e) {
+      return { pos: posStr };
+    }
+  }
+  return { pos: posStr };
+};
+
+const encodeAthleteMeta = (existingPos, baselineWeight, baselineDate, baselineLogId) => {
+  const current = parseAthleteMeta(existingPos);
+  return JSON.stringify({
+    pos: current.pos || '',
+    bw: baselineWeight !== undefined && baselineWeight !== null ? Number(baselineWeight) : current.bw,
+    bd: baselineDate || current.bd,
+    lid: baselineLogId !== undefined ? baselineLogId : current.lid
+  });
+};
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -435,6 +465,7 @@ export default function App() {
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, () => {
           fetchAthletes();
+          fetchReportData(true);
         })
         .subscribe();
     } catch (e) {
@@ -938,8 +969,30 @@ export default function App() {
       if (!navigator.onLine) throw new Error('Offline');
       const { data, error } = await supabase.from('athletes').select('*').order('name', { ascending: true });
       if (!error && data) {
-        setAthletes(data);
-        localStorage.setItem('shiloh_roster', JSON.stringify(data));
+        const cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+        const decodedAthletes = data.map(a => {
+          const meta = parseAthleteMeta(a.position);
+          let bw = a.baseline_weight;
+          let bd = a.baseline_date;
+          let lid = a.baseline_log_id;
+          if (meta.bw !== undefined) {
+            bw = meta.bw;
+            bd = meta.bd || bd;
+            lid = meta.lid || lid;
+            cloudMap[a.id] = { log_id: lid || 'cloud_' + a.id, weight_lbs: bw, date_str: bd || new Date().toISOString() };
+          }
+          return {
+            ...a,
+            position: meta.pos || '',
+            raw_position: a.position || '',
+            baseline_weight: bw,
+            baseline_date: bd,
+            baseline_log_id: lid
+          };
+        });
+        try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); } catch(e) {}
+        setAthletes(decodedAthletes);
+        localStorage.setItem('shiloh_roster', JSON.stringify(decodedAthletes));
       } else {
         throw error;
       }
@@ -1099,7 +1152,14 @@ export default function App() {
         return updated;
       });
       try {
-        supabase.from('athletes').update({ baseline_date: updatedBaselineDate, baseline_weight: weightVal }).eq('id', selectedAthlete.id).then();
+        const targetPos = selectedAthlete.raw_position || selectedAthlete.position || '';
+        const updatedMeta = encodeAthleteMeta(targetPos, weightVal, updatedBaselineDate, null);
+        if (isValidUuid(selectedAthlete.id)) {
+          supabase.from('athletes').update({ position: updatedMeta }).eq('id', selectedAthlete.id).then();
+        }
+        const map = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+        map[selectedAthlete.id] = { log_id: null, weight_lbs: Number(weightVal), date_str: updatedBaselineDate };
+        localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
       } catch (e) {}
     }
 
@@ -1119,8 +1179,21 @@ export default function App() {
     }
 
     try {
+      let targetAthId = record.athlete_id;
+      if (!isValidUuid(targetAthId)) {
+        const match = athletes.find(a => a.name && a.name.trim().toLowerCase() === (record.athlete_name || '').trim().toLowerCase() && isValidUuid(a.id));
+        if (match) {
+          targetAthId = match.id;
+        } else {
+          const { data: newAth } = await supabase.from('athletes').insert([{ name: record.athlete_name || 'Unknown', sport: record.sport || 'Football' }]).select();
+          if (newAth && newAth[0] && newAth[0].id) {
+            targetAthId = newAth[0].id;
+          }
+        }
+      }
+
       const cloudPayload = {
-        athlete_id: record.athlete_id,
+        athlete_id: targetAthId,
         athlete_name: record.athlete_name || 'Unknown',
         sport: record.sport || '',
         weight_lbs: (record.weight_lbs !== undefined && record.weight_lbs !== null) ? record.weight_lbs : 0,
@@ -1224,22 +1297,24 @@ export default function App() {
       localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
     } catch (e) {}
 
-    // 2. Update athlete record in state, localStorage, and cloud athletes table
-    const nextAthletes = athletes.map(a => a.id === athleteId ? { ...a, baseline_weight: Number(weightVal), baseline_date: dateStr, baseline_log_id: logId } : a);
+    // 2. Update athlete record in state, localStorage, and cloud athletes table via structured metadata
+    const targetAthlete = athletes.find(a => a.id === athleteId);
+    const updatedMeta = targetAthlete ? encodeAthleteMeta(targetAthlete.raw_position || targetAthlete.position || '', weightVal, dateStr, logId) : '';
+
+    const nextAthletes = athletes.map(a => a.id === athleteId ? { ...a, baseline_weight: Number(weightVal), baseline_date: dateStr, baseline_log_id: logId, raw_position: updatedMeta } : a);
     setAthletes(nextAthletes);
     try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch (e) {}
     try {
-      supabase.from('athletes').update({ baseline_weight: Number(weightVal), baseline_date: dateStr }).eq('id', athleteId).then();
+      if (isValidUuid(athleteId) && targetAthlete) {
+        await supabase.from('athletes').update({ position: updatedMeta }).eq('id', athleteId);
+      }
     } catch (e) {}
 
-    // 3. Attempt weigh_ins cloud updates silently without failing if column is missing
+    // 3. Broadcast real-time cloud baseline updates to all network terminals
     try {
-      if (athleteId) {
-        await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId);
-      }
-      await supabase.from('weigh_ins').update({ is_baseline: true }).eq('id', logId);
+      broadcastDeviceSync({ type: 'BASELINE_UPDATED', athleteId, weightVal, dateStr });
     } catch (err) {
-      console.warn("Notice: cloud weigh_ins table update skipped (relying on permanent athlete map instead):", err);
+      console.warn("Broadcast warning:", err);
     }
 
     setReportData(prev => prev.map(item => {
@@ -1274,32 +1349,28 @@ export default function App() {
       localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
     } catch (e) {}
 
-    // 2. Update athlete records across state, localStorage, and cloud
-    const nextAthletes = athletes.map(a => {
+    // 2. Update athlete records across state, localStorage, and cloud metadata
+    const nextAthletes = await Promise.all(athletes.map(async a => {
       const matchingLog = selectedLogs.find(l => l.athlete_id === a.id);
       if (matchingLog) {
+        const newMeta = encodeAthleteMeta(a.raw_position || a.position || '', matchingLog.weight_lbs, matchingLog.created_at, matchingLog.id);
         try {
-          supabase.from('athletes').update({ baseline_weight: Number(matchingLog.weight_lbs), baseline_date: matchingLog.created_at }).eq('id', a.id).then();
+          if (isValidUuid(a.id)) {
+            await supabase.from('athletes').update({ position: newMeta }).eq('id', a.id);
+          }
         } catch(e) {}
-        return { ...a, baseline_weight: Number(matchingLog.weight_lbs), baseline_date: matchingLog.created_at, baseline_log_id: matchingLog.id };
+        return { ...a, baseline_weight: Number(matchingLog.weight_lbs), baseline_date: matchingLog.created_at, baseline_log_id: matchingLog.id, raw_position: newMeta };
       }
       return a;
-    });
+    }));
     setAthletes(nextAthletes);
     try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch (e) {}
 
-    // 3. Attempt cloud weigh_ins updates silently without throwing error if column is missing
+    // 3. Broadcast real-time team baseline synchronization across network terminals
     try {
-      const athleteIdArray = Array.from(sportAthleteIds);
-      const logIdsArray = Array.from(targetLogIds);
-      if (athleteIdArray.length > 0) {
-        await supabase.from('weigh_ins').update({ is_baseline: false }).in('athlete_id', athleteIdArray);
-      }
-      if (logIdsArray.length > 0) {
-        await supabase.from('weigh_ins').update({ is_baseline: true }).in('id', logIdsArray);
-      }
+      broadcastDeviceSync({ type: 'TEAM_BASELINE_SYNC', sportName, dateKey });
     } catch (err) {
-      console.warn("Notice: cloud weigh_ins update errored, utilizing permanent athlete baseline map instead:", err);
+      console.warn("Broadcast warning:", err);
     }
 
     // 4. Instantly update reportData and refresh UI
