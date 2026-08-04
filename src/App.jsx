@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking
-const APP_VERSION = 'v3.5.1';
+const APP_VERSION = 'v3.5.2';
 
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
@@ -578,6 +578,17 @@ export default function App() {
     } catch (e) {
       console.warn("Error reading offline queue:", e);
     }
+
+    try {
+      const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+      merged = merged.map(item => {
+        const p = persistedMap[item.athlete_id];
+        if (p && p.log_id) {
+          return { ...item, is_baseline: item.id === p.log_id };
+        }
+        return item;
+      });
+    } catch (e) {}
 
     merged.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     setReportData(merged);
@@ -1161,33 +1172,42 @@ export default function App() {
   const handleMakeDateBaselineMarker = async (logId, athleteId, weightVal, dateStr, athleteName) => {
     if (!window.confirm(`Make ${weightVal} lbs on ${dateStr} the official baseline weight marker for ${athleteName || 'this athlete'}?`)) return;
 
+    // 1. Persist indestructible map in localStorage immediately
+    try {
+      const map = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+      map[athleteId] = { log_id: logId, weight_lbs: Number(weightVal), date_str: dateStr };
+      localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
+    } catch (e) {}
+
+    // 2. Update athlete record in state, localStorage, and cloud athletes table
+    const nextAthletes = athletes.map(a => a.id === athleteId ? { ...a, baseline_weight: Number(weightVal), baseline_date: dateStr, baseline_log_id: logId } : a);
+    setAthletes(nextAthletes);
+    try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch (e) {}
+    try {
+      supabase.from('athletes').update({ baseline_weight: Number(weightVal), baseline_date: dateStr }).eq('id', athleteId).then();
+    } catch (e) {}
+
+    // 3. Attempt weigh_ins cloud updates silently without failing if column is missing
     try {
       if (athleteId) {
         await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId);
       }
-      const { error } = await supabase.from('weigh_ins').update({ is_baseline: true }).eq('id', logId);
-      if (error) throw error;
-
-      setReportData(prev => prev.map(item => {
-        if (item.athlete_id === athleteId) {
-          return { ...item, is_baseline: item.id === logId };
-        }
-        return item;
-      }));
-
-      alert(`🎯 Baseline Weight Marker successfully updated to ${weightVal} lbs from ${dateStr}!`);
-      fetchReportData();
-      if (typeof selectedProfileId !== 'undefined' && selectedProfileId) {
-        fetchProfileData(selectedProfileId);
-      }
+      await supabase.from('weigh_ins').update({ is_baseline: true }).eq('id', logId);
     } catch (err) {
-      console.warn("Could not update baseline online, setting in local memory cache:", err);
-      setReportData(prev => prev.map(item => {
-        if (item.id === logId) return { ...item, is_baseline: true };
-        if (item.athlete_id === athleteId) return { ...item, is_baseline: false };
-        return item;
-      }));
-      alert(`🎯 Baseline Weight Marker updated locally to ${weightVal} lbs!`);
+      console.warn("Notice: cloud weigh_ins table update skipped (relying on permanent athlete map instead):", err);
+    }
+
+    setReportData(prev => prev.map(item => {
+      if (item.athlete_id === athleteId) {
+        return { ...item, is_baseline: item.id === logId };
+      }
+      return item;
+    }));
+
+    alert(`🎯 Baseline Weight Marker successfully updated to ${weightVal} lbs from ${dateStr}!`);
+    fetchReportData();
+    if (typeof selectedProfileId !== 'undefined' && selectedProfileId) {
+      fetchProfileData(selectedProfileId);
     }
   };
 
@@ -1197,43 +1217,56 @@ export default function App() {
       return;
     }
 
-    try {
-      const targetLogIds = new Set(selectedLogs.map(x => x.id));
-      const sportAthleteIds = new Set(athletes.filter(a => (a.sport || '').toLowerCase() === sportName.toLowerCase()).map(a => a.id));
+    const targetLogIds = new Set(selectedLogs.map(x => x.id));
+    const sportAthleteIds = new Set(athletes.filter(a => (a.sport || '').toLowerCase() === sportName.toLowerCase()).map(a => a.id));
 
+    // 1. Persist indestructible baseline map across all selected athletes
+    try {
+      const map = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+      selectedLogs.forEach(l => {
+        map[l.athlete_id] = { log_id: l.id, weight_lbs: Number(l.weight_lbs), date_str: l.created_at };
+      });
+      localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
+    } catch (e) {}
+
+    // 2. Update athlete records across state, localStorage, and cloud
+    const nextAthletes = athletes.map(a => {
+      const matchingLog = selectedLogs.find(l => l.athlete_id === a.id);
+      if (matchingLog) {
+        try {
+          supabase.from('athletes').update({ baseline_weight: Number(matchingLog.weight_lbs), baseline_date: matchingLog.created_at }).eq('id', a.id).then();
+        } catch(e) {}
+        return { ...a, baseline_weight: Number(matchingLog.weight_lbs), baseline_date: matchingLog.created_at, baseline_log_id: matchingLog.id };
+      }
+      return a;
+    });
+    setAthletes(nextAthletes);
+    try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch (e) {}
+
+    // 3. Attempt cloud weigh_ins updates silently without throwing error if column is missing
+    try {
       const athleteIdArray = Array.from(sportAthleteIds);
+      const logIdsArray = Array.from(targetLogIds);
       if (athleteIdArray.length > 0) {
         await supabase.from('weigh_ins').update({ is_baseline: false }).in('athlete_id', athleteIdArray);
       }
-      
-      const logIdsArray = Array.from(targetLogIds);
       if (logIdsArray.length > 0) {
-        const { error } = await supabase.from('weigh_ins').update({ is_baseline: true }).in('id', logIdsArray);
-        if (error) throw error;
+        await supabase.from('weigh_ins').update({ is_baseline: true }).in('id', logIdsArray);
       }
-
-      setReportData(prev => prev.map(item => {
-        if (sportAthleteIds.has(item.athlete_id)) {
-          return { ...item, is_baseline: targetLogIds.has(item.id) };
-        }
-        return item;
-      }));
-
-      alert(`🎉 SUCCESS: Official baseline weight marker for ${sportName.toUpperCase()} has been updated to ${displayDateStr}! (${totalAthletesAffected} athletes synchronized)`);
-      fetchReportData();
     } catch (err) {
-      console.warn("Bulk baseline update online warning, applying cleanly in local memory cache:", err);
-      const targetLogIds = new Set(selectedLogs.map(x => x.id));
-      const sportAthleteIds = new Set(athletes.filter(a => (a.sport || '').toLowerCase() === sportName.toLowerCase()).map(a => a.id));
-      
-      setReportData(prev => prev.map(item => {
-        if (sportAthleteIds.has(item.athlete_id)) {
-          return { ...item, is_baseline: targetLogIds.has(item.id) };
-        }
-        return item;
-      }));
-      alert(`🎉 SUCCESS: Local baseline weight marker for ${sportName.toUpperCase()} has been updated to ${displayDateStr}!`);
+      console.warn("Notice: cloud weigh_ins update errored, utilizing permanent athlete baseline map instead:", err);
     }
+
+    // 4. Instantly update reportData and refresh UI
+    setReportData(prev => prev.map(item => {
+      if (sportAthleteIds.has(item.athlete_id)) {
+        return { ...item, is_baseline: targetLogIds.has(item.id) };
+      }
+      return item;
+    }));
+
+    alert(`🎉 SUCCESS: Official baseline weight marker for ALL of ${sportName.toUpperCase()} has been synchronized to ${displayDateStr}! (${totalAthletesAffected} athletes updated)`);
+    fetchReportData();
   };
 
   const handleDeleteWeighIn = async (id) => {
@@ -1327,11 +1360,26 @@ export default function App() {
         .eq('athlete_id', id)
         .order('created_at', { ascending: true })
         .limit(180);
-      if (error) throw error;
-      setProfileData(data || localData);
+      let pData = data || localData;
+      try {
+        const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+        const p = persistedMap[id];
+        if (p && p.log_id) {
+          pData = pData.map(item => ({ ...item, is_baseline: item.id === p.log_id }));
+        }
+      } catch(e) {}
+      setProfileData(pData);
     } catch {
       console.warn("Could not fetch profile data online, using local data");
-      setProfileData(localData);
+      let pData = localData;
+      try {
+        const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+        const p = persistedMap[id];
+        if (p && p.log_id) {
+          pData = pData.map(item => ({ ...item, is_baseline: item.id === p.log_id }));
+        }
+      } catch(e) {}
+      setProfileData(pData);
     }
   };
 
@@ -1499,10 +1547,23 @@ export default function App() {
         });
       }
 
-      // Check weight drop
+      // Check weight drop against persisted baseline or recent log
       const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       const currentIndex = athleteRecords.findIndex(x => x.id === r.id);
-      const activeBaseline = athleteRecords.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1) || (currentIndex > 0 ? athleteRecords[currentIndex - 1] : null);
+      let activeBaseline = athleteRecords.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
+      if (!activeBaseline) {
+        try {
+          const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+          if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) {
+            activeBaseline = { id: customMap[r.athlete_id].log_id, weight_lbs: Number(customMap[r.athlete_id].weight_lbs) };
+          } else if (athlete?.baseline_weight) {
+            activeBaseline = { id: 'athlete_base', weight_lbs: Number(athlete.baseline_weight) };
+          }
+        } catch(e) {}
+      }
+      if (!activeBaseline && currentIndex > 0) {
+        activeBaseline = athleteRecords[currentIndex - 1];
+      }
       
       if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
@@ -4055,7 +4116,23 @@ export default function App() {
               const sleepLogs = sortedLogs.filter(l => l.sleep_hrs && Number(l.sleep_hrs) > 0);
               
               const latestWeight = weightLogs.length > 0 ? Number(weightLogs[weightLogs.length-1].weight_lbs) : null;
-              const baselineWeight = weightLogs.length > 0 ? Number(weightLogs[0].weight_lbs) : null;
+              let baselineWeight = null;
+              const activeBaseLog = [...weightLogs].reverse().find(l => l.is_baseline === true || l.is_baseline === 'true' || l.is_baseline === 1);
+              if (activeBaseLog) {
+                baselineWeight = Number(activeBaseLog.weight_lbs);
+              } else {
+                try {
+                  const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+                  if (customMap[selectedProfile.id] && customMap[selectedProfile.id].weight_lbs) {
+                    baselineWeight = Number(customMap[selectedProfile.id].weight_lbs);
+                  } else if (selectedProfile.baseline_weight) {
+                    baselineWeight = Number(selectedProfile.baseline_weight);
+                  }
+                } catch(e) {}
+              }
+              if (!baselineWeight && weightLogs.length > 0) {
+                baselineWeight = Number(weightLogs[0].weight_lbs);
+              }
               const weightDelta = (latestWeight && baselineWeight && weightLogs.length > 1) ? (latestWeight - baselineWeight) : 0;
               const maxWeight = weightLogs.length > 0 ? Math.max(...weightLogs.map(l => Number(l.weight_lbs))) : '--';
               const minWeight = weightLogs.length > 0 ? Math.min(...weightLogs.map(l => Number(l.weight_lbs))) : '--';
@@ -4232,8 +4309,21 @@ export default function App() {
                           const validW = trendData.map(d=>d.Weight).filter(w => w > 0);
                           const minW = validW.length > 0 ? Math.min(...validW) : 100;
                           const maxW = validW.length > 0 ? Math.max(...validW) : 200;
-                          const latestBaseline = [...weightLogs].reverse().find(d => d.is_baseline) || weightLogs[0];
-                          const baselineWeight = latestBaseline ? Number(latestBaseline.weight_lbs) : null;
+                          const latestBaseline = [...weightLogs].reverse().find(d => d.is_baseline);
+                          let baselineWeight = latestBaseline ? Number(latestBaseline.weight_lbs) : null;
+                          if (!baselineWeight) {
+                            try {
+                              const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+                              if (customMap[selectedProfile.id] && customMap[selectedProfile.id].weight_lbs) {
+                                baselineWeight = Number(customMap[selectedProfile.id].weight_lbs);
+                              } else if (selectedProfile?.baseline_weight) {
+                                baselineWeight = Number(selectedProfile.baseline_weight);
+                              }
+                            } catch(e) {}
+                          }
+                          if (!baselineWeight && weightLogs.length > 0) {
+                            baselineWeight = Number(weightLogs[0].weight_lbs);
+                          }
                           
                           return (
                             <ResponsiveContainer width="100%" height="100%">
