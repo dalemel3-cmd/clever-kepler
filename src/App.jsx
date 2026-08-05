@@ -725,11 +725,18 @@ export default function App() {
   };
 
   const handleClearAppCache = () => {
-    if (window.confirm("Are you sure you want to clear browser local cache? This will refresh your session.")) {
-      localStorage.clear();
-      sessionStorage.clear();
-      window.location.reload();
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Clear Local Browser Cache',
+      message: 'Are you sure you want to clear browser local cache? This will reset local unsynced queues and refresh your current session.',
+      isDanger: true,
+      actionText: 'Clear & Refresh',
+      onConfirm: () => {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.reload();
+      }
+    });
   };
 
   const broadcastDeviceSync = (customPayload = {}) => {
@@ -831,8 +838,13 @@ export default function App() {
     try {
       for (const item of offlineQueue) {
         const rec = item.record || item;
+        let targetAthId = rec.athlete_id;
+        if (!isValidUuid(targetAthId)) {
+          const match = athletes.find(a => a.name && a.name.trim().toLowerCase() === (rec.athlete_name || '').trim().toLowerCase() && isValidUuid(a.id));
+          if (match) targetAthId = match.id;
+        }
         const cleanPayload = {
-          athlete_id: rec.athlete_id,
+          athlete_id: targetAthId,
           athlete_name: rec.athlete_name || 'Unknown',
           sport: rec.sport || '',
           weight_lbs: (rec.weight_lbs !== undefined && rec.weight_lbs !== null) ? rec.weight_lbs : 0,
@@ -846,7 +858,7 @@ export default function App() {
           if (!res.error) success = true;
         }
         
-        if (!success) {
+        if (!success && isValidUuid(cleanPayload.athlete_id)) {
           const res = await supabase.from('weigh_ins').insert([cleanPayload]);
           if (!res.error) success = true;
           else {
@@ -876,7 +888,15 @@ export default function App() {
       
       // Merge any newly queued offline items that arrived while the cloud network request was processing
       const currentQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
-      const newlyAdded = currentQueue.filter(i => !offlineQueue.some(old => old.id === i.id));
+      const newlyAdded = currentQueue.filter(i => {
+        const idx = offlineQueue.findIndex(old => {
+          if (old.id && i.id && old.id === i.id) return true;
+          const oldRec = old.record || old;
+          const iRec = i.record || i;
+          return oldRec.created_at && iRec.created_at && oldRec.created_at === iRec.created_at && oldRec.athlete_id === iRec.athlete_id;
+        });
+        return idx === -1;
+      });
       const finalQueue = [...newlyAdded];
       
       localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(finalQueue));
@@ -1269,7 +1289,7 @@ export default function App() {
   };
 
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId);
-  const defaultSports = ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'Softball', 'Tennis', 'Track & Field', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'];
+  const defaultSports = ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'SOCC', 'Softball', 'Tennis', 'Track & Field', 'VBB', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'];
   const sportsList = Array.from(new Set([...defaultSports, ...athletes.map(a => a.sport).filter(Boolean)])).sort();
   const teamsList = Array.from(new Set(athletes.map(a => a.team).filter(Boolean)));
   const gradesList = Array.from(new Set(athletes.map(a => a.grade).filter(Boolean)));
@@ -1291,7 +1311,7 @@ export default function App() {
     setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight');
   };
 
-  const handleSave = async (isBaselineOverride = false) => {
+  const handleSave = async (isBaselineOverride = false, skipOverrideConfirm = false) => {
     if (!selectedAthlete) return;
     if (kioskTrackMode !== 'sleep_only' && (!weightInput || weightInput === '0.0' || weightInput === '')) return;
     if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
@@ -1305,8 +1325,16 @@ export default function App() {
              recordDate.getDate() === now.getDate();
     });
     
-    if (existingRecord) {
-      if (!window.confirm("A record already exists for today. Do you want to override it?")) return;
+    if (existingRecord && !skipOverrideConfirm) {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Overwrite Today Log?',
+        message: `A record already exists for ${selectedAthlete.name} today. Do you want to update and override their recorded entry?`,
+        isDanger: false,
+        actionText: 'Override Log',
+        onConfirm: () => handleSave(isBaselineOverride, true)
+      });
+      return;
     }
     
     setSaving(true);
@@ -1465,8 +1493,18 @@ export default function App() {
     }
   };
 
-  const handleMakeDateBaselineMarker = async (logId, athleteId, weightVal, dateStr, athleteName) => {
-    if (!window.confirm(`Make ${weightVal} lbs on ${dateStr} the official baseline weight marker for ${athleteName || 'this athlete'}?`)) return;
+  const handleMakeDateBaselineMarker = async (logId, athleteId, weightVal, dateStr, athleteName, skipConfirm = false) => {
+    if (!skipConfirm) {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Set Official Baseline Marker',
+        message: `Make ${weightVal} lbs on ${dateStr} the official baseline weight marker for ${athleteName || 'this athlete'}?`,
+        isDanger: false,
+        actionText: 'Set Baseline',
+        onConfirm: () => handleMakeDateBaselineMarker(logId, athleteId, weightVal, dateStr, athleteName, true)
+      });
+      return;
+    }
 
     // 1. Persist indestructible map in localStorage immediately
     try {
@@ -1509,9 +1547,17 @@ export default function App() {
     }
   };
 
-  const handleBulkTeamBaseline = async (sportName, dateKey, displayDateStr, selectedLogs) => {
+  const handleBulkTeamBaseline = async (sportName, dateKey, displayDateStr, selectedLogs, skipConfirm = false) => {
     const totalAthletesAffected = selectedLogs.length;
-    if (!window.confirm(`Synchronize baseline marker for ALL ${totalAthletesAffected} athletes in ${sportName.toUpperCase()} to their weigh-ins from ${displayDateStr}?\n\nThis will automatically update their charts, target lines, and dehydration alarms immediately.`)) {
+    if (!skipConfirm) {
+      setConfirmModal({
+        isOpen: true,
+        title: `Synchronize Team Baseline (${sportName.toUpperCase()})`,
+        message: `Synchronize baseline marker for ALL ${totalAthletesAffected} athletes in ${sportName.toUpperCase()} to their weigh-ins from ${displayDateStr}?\n\nThis will automatically update their charts, target lines, and dehydration alarms immediately.`,
+        isDanger: false,
+        actionText: 'Sync All Baselines',
+        onConfirm: () => handleBulkTeamBaseline(sportName, dateKey, displayDateStr, selectedLogs, true)
+      });
       return;
     }
 
@@ -1564,8 +1610,18 @@ export default function App() {
     broadcastDeviceSync({ type: 'BULK_BASELINE_SYNCED', sport: sportName });
   };
 
-  const handleDeleteWeighIn = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this weigh-in record?")) return;
+  const handleDeleteWeighIn = async (id, skipConfirm = false) => {
+    if (!skipConfirm) {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Delete Weigh-In Record',
+        message: 'Are you sure you want to permanently delete this weigh-in record?',
+        isDanger: true,
+        actionText: 'Delete Record',
+        onConfirm: () => handleDeleteWeighIn(id, true)
+      });
+      return;
+    }
     try {
       const { error } = await supabase.from('weigh_ins').delete().eq('id', id);
       if (error) throw error;
@@ -1577,7 +1633,17 @@ export default function App() {
   };
 
   const handleDeleteAllWeighIns = async (skipConfirm = false) => {
-    if (!skipConfirm && !window.confirm("WARNING: Are you sure you want to wipe ALL weigh-in data? This cannot be undone.")) return;
+    if (!skipConfirm) {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Wipe All Weigh-In Data',
+        message: 'WARNING: Are you sure you want to wipe ALL weigh-in data across the database? This cannot be undone.',
+        isDanger: true,
+        actionText: 'Wipe Database',
+        onConfirm: () => handleDeleteAllWeighIns(true)
+      });
+      return;
+    }
     try {
       const { error } = await supabase.from('weigh_ins').delete().not('id', 'is', null);
       if (error) throw error;
@@ -1722,7 +1788,17 @@ export default function App() {
   };
 
   const handleDeleteAthlete = async (skipConfirm = false) => {
-    if (!skipConfirm && !window.confirm("Are you sure you want to delete this athlete and all their records?")) return;
+    if (!skipConfirm) {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Delete Athlete Profile',
+        message: 'Are you sure you want to delete this athlete profile and all associated weigh-in records?',
+        isDanger: true,
+        actionText: 'Delete Athlete',
+        onConfirm: () => handleDeleteAthlete(true)
+      });
+      return;
+    }
     setSaving(true);
     try {
       // Delete associated weigh-ins first to prevent foreign key constraint errors
@@ -5182,11 +5258,18 @@ export default function App() {
                                         )
                                       ) : null}
                                       <button
-                                        onClick={async () => {
-                                          if (window.confirm('Delete this recorded weigh-in session?')) {
-                                            await handleDeleteWeighIn(log.id);
-                                            setTimeout(() => fetchProfileData(athlete.id), 300);
-                                          }
+                                        onClick={() => {
+                                          setConfirmModal({
+                                            isOpen: true,
+                                            title: 'Delete Recorded Session',
+                                            message: 'Delete this recorded weigh-in session?',
+                                            isDanger: true,
+                                            actionText: 'Delete',
+                                            onConfirm: async () => {
+                                              await handleDeleteWeighIn(log.id, true);
+                                              setTimeout(() => fetchProfileData(athlete.id), 300);
+                                            }
+                                          });
                                         }}
                                         style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, transition: 'all 0.2s' }}
                                         title="Delete Log Entry"
