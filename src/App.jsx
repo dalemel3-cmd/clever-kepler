@@ -4099,10 +4099,8 @@ export default function App() {
                         </span>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
                           {[
-                            { key: 'teamSummary', label: 'Team Readiness Cards', desc: 'Overview totals & averages' },
                             { key: 'dehydration', label: 'Dehydration Roster', desc: 'Athletes dropping ≥2% weight' },
                             { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: 'Athletes logging <6.5h sleep' },
-                            { key: 'expiredBaselines', label: 'Expired Baseline Roster', desc: 'Athletes inactive >14 days' },
                             { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
                             { key: 'rawLogs', label: 'Log History Table', desc: 'Chronological weigh-in table' },
                           ].map(item => {
@@ -4135,59 +4133,6 @@ export default function App() {
                     <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading report data...</div>
                   ) : (
                     <>
-                      {/* Section 1: Executive Summary Cards (Re-ordered to prioritize high-risk indicators) */}
-                      {showTeamSummary && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
-                          
-                          <div className="card-glass glow-card" style={{ padding: '22px', display: 'flex', flexDirection: 'column', border: '1px solid var(--status-error)', background: 'rgba(239, 68, 68, 0.08)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--status-error)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>1. DEHYDRATION ALERTS (≥2%)</span>
-                              <AlertTriangle size={18} style={{ color: 'var(--status-error)' }} />
-                            </div>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: 'var(--status-error)', marginTop: '10px', lineHeight: 1 }}>{dehydrationList.length}</span>
-                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Athletes exhibiting critical acute weight drop</span>
-                          </div>
-
-                          <div className="card-glass glow-card" style={{ padding: '22px', display: 'flex', flexDirection: 'column', border: '1px solid #f59e0b', background: 'rgba(245, 158, 11, 0.08)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.06em', textTransform: 'uppercase' }}>2. SLEEP DEFICITS (&lt;6.5h)</span>
-                              <Activity size={18} style={{ color: '#f59e0b' }} />
-                            </div>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: '#f59e0b', marginTop: '10px', lineHeight: 1 }}>{sleepDeficitList.length}</span>
-                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Athletes logging suboptimal recovery sleep</span>
-                          </div>
-
-                          <div 
-                            onClick={() => setShowExpiredBaselinesModal(true)}
-                            className="card-glass glow-card" 
-                            style={{ padding: '22px', display: 'flex', flexDirection: 'column', border: '1px solid var(--color-accent)', background: 'rgba(184, 156, 91, 0.08)', cursor: 'pointer', transition: 'transform 0.2s' }}
-                            title="Click to open the drill-down interactive list"
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>3. EXPIRED BASELINES (&gt;14d)</span>
-                              <span style={{ fontSize: '10px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', padding: '2px 8px', borderRadius: '6px' }}>TAP TO INSPECT ➔</span>
-                            </div>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: 'var(--color-accent)', marginTop: '10px', lineHeight: 1 }}>{expiredBaselinesList.length}</span>
-                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Athletes requiring baseline weight renewal</span>
-                          </div>
-
-                          <div className="card-glass glow-card" style={{ padding: '22px', display: 'flex', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>TEAM AVG SLEEP</span>
-                              <span style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 800 }}>Target: 8.0+ hrs</span>
-                            </div>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: '#fff', marginTop: '10px', lineHeight: 1 }}>
-                              {(() => {
-                                const validSleep = filteredLogs.filter(r => r.sleep_hrs != null && r.sleep_hrs > 0);
-                                return validSleep.length > 0 ? (validSleep.reduce((acc, curr) => acc + Number(curr.sleep_hrs), 0) / validSleep.length).toFixed(1) : '0.0';
-                              })()} hrs
-                            </span>
-                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Across {filteredLogs.length} total recorded sessions</span>
-                          </div>
-
-                        </div>
-                      )}
-
                       {/* Section 2: Priority Dehydration Roster */}
                       {showDehydration && (
                         <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid var(--status-error)' }}>
