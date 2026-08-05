@@ -2428,89 +2428,102 @@ export default function App() {
                     })()}
                   </div>
 
-                  {/* 4. Side-by-Side: WEIGH-INS REMAINING & BIGGEST MOVERS THIS WEEK */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px', marginTop: '4px' }}>
-                    {/* Left: WEIGH-INS REMAINING */}
-                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>WEIGH-INS REMAINING</span>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        {(() => {
-                          const allSports = Array.from(new Set(athletes.map(a => a.sport || 'General')));
-                          if (allSports.length === 0) return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>;
-                          
-                          return allSports.map((sport, idx) => {
-                            const countLeft = athletes.filter(a => (a.sport || 'General') === sport && !athletesRecordedToday.has(a.id)).length;
-                            const isLast = idx === allSports.length - 1;
-                            return (
-                              <div key={sport} onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '14px 4px',
-                                borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                                cursor: 'pointer',
-                                transition: 'background 0.15s'
-                              }}>
-                                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>{sport}</span>
-                                <span style={{ fontSize: '14px', fontWeight: 800, color: countLeft === 0 ? 'var(--status-success)' : 'var(--color-text-muted)' }}>
-                                  {countLeft === 0 ? 'Done ✓' : `${countLeft} left`}
-                                </span>
-                              </div>
-                            );
-                          });
-                        })()}
+                  {/* 4. Full-Width Gamified Compliance Hub: WEIGH-INS REMAINING */}
+                  <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <CheckCircle size={14} /> SESSION ACCOUNTABILITY TRACKER
+                        </span>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: '4px 0 0 0', letterSpacing: '0.03em' }}>
+                          WEIGH-INS REMAINING BY SPORT
+                        </h3>
                       </div>
+                      {(() => {
+                        const totalAthletes = athletes.length;
+                        const totalDone = athletes.filter(a => athletesRecordedToday.has(a.id)).length;
+                        const allDone = totalAthletes > 0 && totalDone === totalAthletes;
+                        return (
+                          <div style={{
+                            padding: '8px 18px',
+                            borderRadius: '20px',
+                            background: allDone ? 'rgba(34, 197, 94, 0.15)' : 'rgba(184, 156, 91, 0.15)',
+                            border: allDone ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(184, 156, 91, 0.4)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: allDone ? 'var(--status-success)' : 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {allDone ? '🎉 ALL TEAMS COMPLIANT' : `${totalDone} of ${totalAthletes} ROSTER CHECKED IN`}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
-                    {/* Right: BIGGEST MOVERS THIS WEEK */}
-                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>BIGGEST MOVERS TODAY</span>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        {(() => {
-                          const movers = [];
-                          reportData.forEach(r => {
-                            if (!athletesRecordedToday.has(r.athlete_id) || !r.weight_lbs || isNaN(parseFloat(r.weight_lbs))) return;
-                            if (movers.some(m => m.id === r.athlete_id)) return;
-                            const ath = athletes.find(a => a.id === r.athlete_id);
-                            const baseInfo = getAthleteBaseline(ath, reportData);
-                            const base = baseInfo ? baseInfo.weight_lbs : null;
-                            if (base > 0) {
-                              const diff = parseFloat(r.weight_lbs) - base;
-                              movers.push({
-                                id: ath.id,
-                                name: ath.name,
-                                diff,
-                                absDiff: Math.abs(diff)
-                              });
-                            }
-                          });
-                          movers.sort((a, b) => b.absDiff - a.absDiff);
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                      {(() => {
+                        const allSports = Array.from(new Set(athletes.map(a => a.sport || 'General')));
+                        if (allSports.length === 0) return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>;
+                        
+                        return allSports.map((sport) => {
+                          const sportAthletes = athletes.filter(a => (a.sport || 'General') === sport);
+                          const doneCount = sportAthletes.filter(a => athletesRecordedToday.has(a.id)).length;
+                          const countLeft = sportAthletes.length - doneCount;
+                          const pct = sportAthletes.length > 0 ? Math.round((doneCount / sportAthletes.length) * 100) : 0;
+                          const isDone = countLeft === 0 && sportAthletes.length > 0;
 
-                          if (movers.length === 0) {
-                            return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No weigh-in deltas recorded today yet.</span>;
-                          }
-
-                          return movers.slice(0, 5).map((m, idx) => {
-                            const isLast = idx === Math.min(movers.length, 5) - 1;
-                            const color = m.diff > 0 ? '#f97316' : m.diff < -2.0 ? '#ef4444' : 'var(--white)';
-                            return (
-                              <div key={idx} onClick={() => { setSelectedProfileId(m.id); fetchProfileData(m.id); setScreen('profiles'); }} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '14px 4px',
-                                borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                                cursor: 'pointer'
-                              }}>
-                                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>{m.name}</span>
-                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 800, color }}>
-                                  {m.diff >= 0 ? `+${m.diff.toFixed(1)}` : m.diff.toFixed(1)} lb
+                          return (
+                            <div key={sport} onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }} className="glow-card" style={{
+                              padding: '20px',
+                              borderRadius: '18px',
+                              background: isDone ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255,255,255,0.025)',
+                              border: isDone ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(255,255,255,0.08)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '14px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                  <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)', display: 'block', letterSpacing: '0.02em' }}>{sport}</span>
+                                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>{sportAthletes.length} Athletes Listed</span>
+                                </div>
+                                <span style={{
+                                  fontSize: '12px',
+                                  fontWeight: 800,
+                                  padding: '4px 10px',
+                                  borderRadius: '12px',
+                                  background: isDone ? 'rgba(34, 197, 94, 0.15)' : 'rgba(249, 115, 22, 0.15)',
+                                  color: isDone ? 'var(--status-success)' : '#f97316',
+                                  letterSpacing: '0.04em'
+                                }}>
+                                  {isDone ? 'DONE ✓' : `${countLeft} LEFT`}
                                 </span>
                               </div>
-                            );
-                          });
-                        })()}
-                      </div>
+
+                              {/* Progress Bar */}
+                              <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                                <div style={{
+                                  height: '100%',
+                                  width: `${pct}%`,
+                                  borderRadius: '4px',
+                                  background: isDone ? 'var(--status-success)' : 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
+                                  transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                                }} />
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 700 }}>
+                                <span style={{ color: 'var(--color-text-muted)' }}>Daily Compliance</span>
+                                <span style={{ color: 'var(--white)' }}>{pct}% ({doneCount}/{sportAthletes.length})</span>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 </div>
