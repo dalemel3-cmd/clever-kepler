@@ -1794,20 +1794,27 @@ export default function App() {
 
       const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       const currentIndex = athleteRecords.findIndex(x => x.id === r.id);
-      let activeBaseline = athleteRecords.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
-      let baselineDateStr = activeBaseline ? new Date(activeBaseline.created_at).toLocaleDateString() : '';
+      let activeBaseline = null;
+      let baselineDateStr = '';
+      try {
+        const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+        if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs && Number(customMap[r.athlete_id].weight_lbs) > 0) {
+          activeBaseline = { id: customMap[r.athlete_id].log_id || 'map_base', weight_lbs: Number(customMap[r.athlete_id].weight_lbs) };
+          const dVal = customMap[r.athlete_id].date_str || customMap[r.athlete_id].date;
+          baselineDateStr = dVal ? (!isNaN(new Date(dVal).getTime()) ? new Date(dVal).toLocaleDateString() : dVal) : 'Established';
+        }
+      } catch(e) {}
       if (!activeBaseline) {
-        try {
-          const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-          if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) {
-            activeBaseline = { id: customMap[r.athlete_id].log_id, weight_lbs: Number(customMap[r.athlete_id].weight_lbs) };
-            baselineDateStr = customMap[r.athlete_id].date || 'Established';
-          } else if (athlete?.baseline_weight) {
-            const meta = parseAthleteMeta(athlete.position);
-            activeBaseline = { id: 'athlete_base', weight_lbs: Number(athlete.baseline_weight) };
-            baselineDateStr = meta.bd || 'Initial Base';
-          }
-        } catch(e) {}
+        activeBaseline = athleteRecords.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
+        if (activeBaseline && activeBaseline.created_at) baselineDateStr = new Date(activeBaseline.created_at).toLocaleDateString();
+      }
+      if (!activeBaseline && athlete) {
+        const meta = parseAthleteMeta(athlete.position);
+        const bw = athlete.baseline_weight || meta.bw;
+        if (bw && Number(bw) > 0) {
+          activeBaseline = { id: 'athlete_base', weight_lbs: Number(bw) };
+          baselineDateStr = meta.bd || athlete.baseline_date || 'Initial Base';
+        }
       }
       if (!activeBaseline && currentIndex > 0) {
         activeBaseline = athleteRecords[currentIndex - 1];
@@ -2417,7 +2424,7 @@ export default function App() {
                         } catch(e) {}
                         if (!base) {
                           const meta = parseAthleteMeta(ath.position);
-                          if (meta.baseline_weight) base = parseFloat(meta.baseline_weight);
+                          if (meta.bw || meta.baseline_weight) base = parseFloat(meta.bw || meta.baseline_weight);
                         }
                         if (base > 0) {
                           const curr = parseFloat(r.weight_lbs);
@@ -3119,7 +3126,7 @@ export default function App() {
                         } catch(e) {}
                         if (!baseline) {
                           const meta = parseAthleteMeta(selectedAthlete.position);
-                          if (meta.baseline_weight) baseline = parseFloat(meta.baseline_weight);
+                          if (meta.bw || meta.baseline_weight) baseline = parseFloat(meta.bw || meta.baseline_weight);
                         }
                         if (!baseline) return null;
                         const currentWt = parseFloat(weightInput);
@@ -3726,20 +3733,27 @@ export default function App() {
                 if (aRecs.length === 0) return;
                 const latestLog = aRecs[aRecs.length - 1];
                 
-                let activeBaseline = aRecs.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
-                let baselineDateStr = activeBaseline ? new Date(activeBaseline.created_at).toLocaleDateString() : '';
+                let activeBaseline = null;
+                let baselineDateStr = '';
+                try {
+                  const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+                  if (customMap[a.id] && customMap[a.id].weight_lbs && Number(customMap[a.id].weight_lbs) > 0) {
+                    activeBaseline = { id: customMap[a.id].log_id || 'map_base', weight_lbs: Number(customMap[a.id].weight_lbs) };
+                    const dVal = customMap[a.id].date_str || customMap[a.id].date;
+                    baselineDateStr = dVal ? (!isNaN(new Date(dVal).getTime()) ? new Date(dVal).toLocaleDateString() : dVal) : 'Established';
+                  }
+                } catch(e) {}
                 if (!activeBaseline) {
-                  try {
-                    const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                    if (customMap[a.id] && customMap[a.id].weight_lbs) {
-                      activeBaseline = { id: customMap[a.id].log_id, weight_lbs: Number(customMap[a.id].weight_lbs) };
-                      baselineDateStr = customMap[a.id].date || 'Established';
-                    } else if (a?.baseline_weight) {
-                      const meta = parseAthleteMeta(a.position);
-                      activeBaseline = { id: 'athlete_base', weight_lbs: Number(a.baseline_weight) };
-                      baselineDateStr = meta.bd || 'Initial Base';
-                    }
-                  } catch(e) {}
+                  activeBaseline = aRecs.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
+                  if (activeBaseline && activeBaseline.created_at) baselineDateStr = new Date(activeBaseline.created_at).toLocaleDateString();
+                }
+                if (!activeBaseline && a) {
+                  const meta = parseAthleteMeta(a.position);
+                  const bw = a.baseline_weight || meta.bw;
+                  if (bw && Number(bw) > 0) {
+                    activeBaseline = { id: 'athlete_base', weight_lbs: Number(bw) };
+                    baselineDateStr = meta.bd || a.baseline_date || 'Initial Base';
+                  }
                 }
                 if (!activeBaseline && aRecs.length > 1) {
                   activeBaseline = aRecs[aRecs.length - 2];
@@ -4696,18 +4710,20 @@ export default function App() {
               
               const latestWeight = weightLogs.length > 0 ? Number(weightLogs[weightLogs.length-1].weight_lbs) : null;
               let baselineWeight = null;
-              const activeBaseLog = [...weightLogs].reverse().find(l => l.is_baseline === true || l.is_baseline === 'true' || l.is_baseline === 1);
-              if (activeBaseLog) {
-                baselineWeight = Number(activeBaseLog.weight_lbs);
-              } else {
-                try {
-                  const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                  if (customMap[athlete.id] && customMap[athlete.id].weight_lbs) {
-                    baselineWeight = Number(customMap[athlete.id].weight_lbs);
-                  } else if (athlete.baseline_weight) {
-                    baselineWeight = Number(athlete.baseline_weight);
-                  }
-                } catch(e) {}
+              try {
+                const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+                if (customMap[athlete.id] && customMap[athlete.id].weight_lbs && Number(customMap[athlete.id].weight_lbs) > 0) {
+                  baselineWeight = Number(customMap[athlete.id].weight_lbs);
+                }
+              } catch(e) {}
+              if (!baselineWeight) {
+                const activeBaseLog = [...weightLogs].reverse().find(l => l.is_baseline === true || l.is_baseline === 'true' || l.is_baseline === 1);
+                if (activeBaseLog) baselineWeight = Number(activeBaseLog.weight_lbs);
+              }
+              if (!baselineWeight && athlete) {
+                const meta = parseAthleteMeta(athlete.position);
+                const bw = athlete.baseline_weight || meta.bw;
+                if (bw && Number(bw) > 0) baselineWeight = Number(bw);
               }
               if (!baselineWeight && weightLogs.length > 0) {
                 baselineWeight = Number(weightLogs[0].weight_lbs);
