@@ -4365,7 +4365,7 @@ export default function App() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {sleepDeficitList.slice(0, 25).map(item => (
+                                  {sleepDeficitList.map(item => (
                                     <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                       <td style={{ padding: '12px 16px', fontWeight: 700 }}>{item.athlete_name}</td>
                                       <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.sport}</td>
@@ -4495,7 +4495,7 @@ export default function App() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {filteredLogs.slice(0, 50).map(log => (
+                                  {filteredLogs.map(log => (
                                     <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                       <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
                                       <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
