@@ -3717,28 +3717,52 @@ export default function App() {
                 filteredLogs = filteredLogs.filter(r => new Date(r.created_at) >= cut);
               }
 
-              // 2. Dehydration Roster (>=2% drop)
+              const filteredAthletes = reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter);
+
+              // 2. Dehydration Roster (LIVE status: Latest weigh-in vs Official Baseline, >=2% drop)
               const dehydrationList = [];
-              filteredLogs.forEach(r => {
-                const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-                const idx = athleteRecords.findIndex(x => x.id === r.id);
-                if (idx > 0) {
-                  const prev = athleteRecords[idx - 1];
-                  if (prev && prev.weight_lbs && r.weight_lbs) {
-                    const drop = prev.weight_lbs - r.weight_lbs;
-                    const dropPercent = drop / prev.weight_lbs;
-                    if (dropPercent >= 0.02) {
-                      dehydrationList.push({
-                        id: r.id,
-                        athlete_name: r.athlete_name,
-                        sport: r.sport,
-                        prev_weight: prev.weight_lbs,
-                        curr_weight: r.weight_lbs,
-                        drop_lbs: drop,
-                        drop_percent: (dropPercent * 100).toFixed(1),
-                        date: new Date(r.created_at).toLocaleDateString()
-                      });
+              filteredAthletes.forEach(a => {
+                const aRecs = reportData.filter(x => x.athlete_id === a.id && x.weight_lbs && Number(x.weight_lbs) > 0).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+                if (aRecs.length === 0) return;
+                const latestLog = aRecs[aRecs.length - 1];
+                
+                let activeBaseline = aRecs.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
+                let baselineDateStr = activeBaseline ? new Date(activeBaseline.created_at).toLocaleDateString() : '';
+                if (!activeBaseline) {
+                  try {
+                    const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+                    if (customMap[a.id] && customMap[a.id].weight_lbs) {
+                      activeBaseline = { id: customMap[a.id].log_id, weight_lbs: Number(customMap[a.id].weight_lbs) };
+                      baselineDateStr = customMap[a.id].date || 'Established';
+                    } else if (a?.baseline_weight) {
+                      const meta = parseAthleteMeta(a.position);
+                      activeBaseline = { id: 'athlete_base', weight_lbs: Number(a.baseline_weight) };
+                      baselineDateStr = meta.bd || 'Initial Base';
                     }
+                  } catch(e) {}
+                }
+                if (!activeBaseline && aRecs.length > 1) {
+                  activeBaseline = aRecs[aRecs.length - 2];
+                  baselineDateStr = new Date(activeBaseline.created_at).toLocaleDateString();
+                }
+
+                if (activeBaseline && activeBaseline.weight_lbs && latestLog.weight_lbs) {
+                  const baseW = Number(activeBaseline.weight_lbs);
+                  const currW = Number(latestLog.weight_lbs);
+                  const drop = baseW - currW;
+                  const dropPercent = drop / baseW;
+                  if (dropPercent >= 0.02) {
+                    dehydrationList.push({
+                      id: latestLog.id,
+                      athlete_name: a.name,
+                      sport: a.sport || 'N/A',
+                      prev_weight: baseW,
+                      baseline_date: baselineDateStr,
+                      curr_weight: currW,
+                      drop_lbs: drop,
+                      drop_percent: (dropPercent * 100).toFixed(1),
+                      date: new Date(latestLog.created_at).toLocaleDateString()
+                    });
                   }
                 }
               });
@@ -3747,7 +3771,6 @@ export default function App() {
               const sleepDeficitList = filteredLogs.filter(r => r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5);
 
               // 4. Expired Baselines (>14d Inactivity)
-              const filteredAthletes = reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter);
               const expiredBaselinesList = [];
               filteredAthletes.forEach(a => {
                 const aRecs = reportData.filter(r => r.athlete_id === a.id).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
@@ -4015,7 +4038,7 @@ export default function App() {
                                   <tr style={{ background: 'rgba(239, 68, 68, 0.1)', borderBottom: '1px solid rgba(239, 68, 68, 0.3)' }}>
                                     <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>ATHLETE</th>
                                     <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>SPORT</th>
-                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>PREVIOUS WEIGHT</th>
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>BASELINE WEIGHT (DATE)</th>
                                     <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>CURRENT WEIGHT</th>
                                     <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>TOTAL DROP</th>
                                     <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--status-error)' }}>LOG DATE</th>
@@ -4029,7 +4052,10 @@ export default function App() {
                                     <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                       <td style={{ padding: '12px 16px', fontWeight: 700 }}>{item.athlete_name}</td>
                                       <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.sport}</td>
-                                      <td style={{ padding: '12px 16px', fontSize: '13px' }}>{item.prev_weight} lbs</td>
+                                      <td style={{ padding: '12px 16px', fontSize: '13px' }}>
+                                        <span style={{ fontWeight: 700, color: 'var(--color-accent)' }}>{item.prev_weight} lbs</span>
+                                        {item.baseline_date && <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginLeft: '6px' }}>({item.baseline_date})</span>}
+                                      </td>
                                       <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: 'var(--status-error)' }}>{item.curr_weight} lbs</td>
                                       <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: 'var(--status-error)' }}>
                                         -{item.drop_lbs.toFixed(1)} lbs (-{item.drop_percent}%)
