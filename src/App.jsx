@@ -101,7 +101,13 @@ const isPostPracticeLog = (rec) => {
   try {
     const ppMap = JSON.parse(localStorage.getItem('shiloh_post_practice_logs') || '{}');
     if (rec.id && ppMap[rec.id]) return true;
-    if (rec.athlete_id && rec.created_at && ppMap[`${rec.athlete_id}_${rec.created_at}`]) return true;
+    if (rec.athlete_id && rec.created_at) {
+      if (ppMap[`${rec.athlete_id}_${rec.created_at}`]) return true;
+      const t = new Date(rec.created_at).getTime();
+      if (!isNaN(t) && ppMap[`${rec.athlete_id}_${t}`]) return true;
+      const prefix = String(rec.created_at).slice(0, 16);
+      if (ppMap[`${rec.athlete_id}_${prefix}`]) return true;
+    }
   } catch(e) {}
   return false;
 };
@@ -111,7 +117,13 @@ const markLogAsPostPractice = (rec) => {
   try {
     const ppMap = JSON.parse(localStorage.getItem('shiloh_post_practice_logs') || '{}');
     if (rec.id) ppMap[rec.id] = true;
-    if (rec.athlete_id && rec.created_at) ppMap[`${rec.athlete_id}_${rec.created_at}`] = true;
+    if (rec.athlete_id && rec.created_at) {
+      ppMap[`${rec.athlete_id}_${rec.created_at}`] = true;
+      const t = new Date(rec.created_at).getTime();
+      if (!isNaN(t)) ppMap[`${rec.athlete_id}_${t}`] = true;
+      const prefix = String(rec.created_at).slice(0, 16);
+      ppMap[`${rec.athlete_id}_${prefix}`] = true;
+    }
     localStorage.setItem('shiloh_post_practice_logs', JSON.stringify(ppMap));
   } catch(e) {}
 };
@@ -1449,6 +1461,57 @@ export default function App() {
     setSleepInput('');
     setEntryAthleteId(null);
     setSearch('');
+  };
+
+  const handleSaveManualLog = async (newRec) => {
+    // 1. Optimistic UI updates right away
+    setReportData(prev => [newRec, ...prev]);
+    setTodaySessions(prev => prev + 1);
+
+    // 2. Persist to local hardware vault as backup
+    try {
+      const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
+      vault.unshift({ saved_at: new Date().toISOString(), record: newRec });
+      localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
+    } catch (e) {}
+
+    // 3. Sync with live Supabase database
+    try {
+      let targetAthId = newRec.athlete_id;
+      if (!isValidUuid(targetAthId)) {
+        const match = athletes.find(a => a.name && a.name.trim().toLowerCase() === (newRec.athlete_name || '').trim().toLowerCase() && isValidUuid(a.id));
+        if (match) targetAthId = match.id;
+      }
+
+      const cloudPayload = {
+        athlete_id: targetAthId,
+        athlete_name: newRec.athlete_name || 'Unknown',
+        sport: newRec.sport || '',
+        weight_lbs: newRec.weight_lbs,
+        sleep_hrs: newRec.sleep_hrs || 0,
+        created_at: newRec.created_at
+      };
+
+      const { data, error } = await supabase.from('weigh_ins').insert([cloudPayload]).select();
+      if (error) throw error;
+
+      if (data && data[0] && newRec.session_type === 'post_practice') {
+        markLogAsPostPractice(data[0]);
+      }
+
+      fetchReportData(true);
+      if (typeof selectedProfileId !== 'undefined' && selectedProfileId && selectedProfileId === newRec.athlete_id) {
+        fetchProfileData(selectedProfileId);
+      }
+    } catch (err) {
+      console.warn("Cloud save failed or offline, adding to offline sync queue:", err);
+      try {
+        const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+        offline.push({ action: 'insert', record: newRec, queue_id: 'q_' + Date.now() });
+        localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(offline));
+        setUnsyncedQueueCount(offline.length);
+      } catch (e) {}
+    }
   };
 
   const exportToCSV = async () => {
@@ -6284,7 +6347,7 @@ export default function App() {
                     markLogAsPostPractice(newRec);
                   }
 
-                  saveLog(newRec);
+                  handleSaveManualLog(newRec);
                   setManualEntryForm(p => ({
                     ...p,
                     weight: '',
