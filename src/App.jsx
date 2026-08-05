@@ -95,11 +95,32 @@ const encodeAthleteMeta = (existingPos, baselineWeight, baselineDate, baselineLo
   });
 };
 
+const isPostPracticeLog = (rec) => {
+  if (!rec) return false;
+  if (rec.session_type === 'post_practice' || rec.is_post_practice) return true;
+  try {
+    const ppMap = JSON.parse(localStorage.getItem('shiloh_post_practice_logs') || '{}');
+    if (rec.id && ppMap[rec.id]) return true;
+    if (rec.athlete_id && rec.created_at && ppMap[`${rec.athlete_id}_${rec.created_at}`]) return true;
+  } catch(e) {}
+  return false;
+};
+
+const markLogAsPostPractice = (rec) => {
+  if (!rec) return;
+  try {
+    const ppMap = JSON.parse(localStorage.getItem('shiloh_post_practice_logs') || '{}');
+    if (rec.id) ppMap[rec.id] = true;
+    if (rec.athlete_id && rec.created_at) ppMap[`${rec.athlete_id}_${rec.created_at}`] = true;
+    localStorage.setItem('shiloh_post_practice_logs', JSON.stringify(ppMap));
+  } catch(e) {}
+};
+
 const getAthleteBaseline = (athlete, allLogs = []) => {
   if (!athlete) return null;
   const athId = athlete.id || athlete.athlete_id;
   const athleteRecords = allLogs
-    .filter(r => (r.athlete_id === athId || r.id === athId) && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
+    .filter(r => (r.athlete_id === athId || r.id === athId) && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0 && !isPostPracticeLog(r))
     .sort((a, b) => new Date(a.created_at || a.date || 0) - new Date(b.created_at || b.date || 0));
 
   let baseWeight = null;
@@ -218,6 +239,16 @@ export default function App() {
   const [mergeSourceId, setMergeSourceId] = useState('');
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [mergeSuccessMsg, setMergeSuccessMsg] = useState('');
+  const [showManualEntryModal, setShowManualEntryModal] = useState(false);
+  const [manualEntryForm, setManualEntryForm] = useState({
+    athleteId: '',
+    weight: '',
+    date: new Date().toISOString().slice(0, 10),
+    time: new Date().toTimeString().slice(0, 5),
+    sessionType: 'post_practice',
+    notes: '',
+    successMsg: ''
+  });
   const [athletes, setAthletes] = useState([]);
 
   const getLastName = (fullName) => {
@@ -487,9 +518,15 @@ export default function App() {
   const [alertsTab, setAlertsTab] = useState('DAILY');
 
   // Settings & PWA State
-  const [dehydrationThreshold, setDehydrationThreshold] = useState(2.0); // %
-  const [sleepThreshold, setSleepThreshold] = useState(6.5); // hrs
-  const [baselineExpiryDays, setBaselineExpiryDays] = useState(14); // days
+  const [dehydrationThreshold, setDehydrationThreshold] = useState(() => {
+    try { return Number(JSON.parse(localStorage.getItem('shiloh_threshold_settings'))?.dehydrationThreshold) || 2.0; } catch(e) { return 2.0; }
+  }); // %
+  const [sleepThreshold, setSleepThreshold] = useState(() => {
+    try { return Number(JSON.parse(localStorage.getItem('shiloh_threshold_settings'))?.sleepThreshold) || 6.5; } catch(e) { return 6.5; }
+  }); // hrs
+  const [baselineExpiryDays, setBaselineExpiryDays] = useState(() => {
+    try { return Number(JSON.parse(localStorage.getItem('shiloh_threshold_settings'))?.baselineExpiryDays) || 14; } catch(e) { return 14; }
+  }); // days
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
@@ -642,8 +679,15 @@ export default function App() {
   };
 
   const handleSaveSettings = () => {
+    try {
+      localStorage.setItem('shiloh_threshold_settings', JSON.stringify({
+        dehydrationThreshold: Number(dehydrationThreshold),
+        sleepThreshold: Number(sleepThreshold),
+        baselineExpiryDays: Number(baselineExpiryDays)
+      }));
+    } catch(e) { console.error('Failed to save settings to localStorage:', e); }
     setSettingsSavedToast(true);
-    setTimeout(() => setSettingsSavedToast(false), 3000);
+    setTimeout(() => setSettingsSavedToast(false), 4000);
   };
 
   const handleForceSync = async () => {
@@ -1786,7 +1830,7 @@ export default function App() {
       reportData.forEach(r => {
         const recordDate = new Date(r.created_at);
         if (recordDate >= startOfDay && recordDate < endOfDay) {
-          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5) sleepCount++;
+          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) sleepCount++;
           if (r.weight_lbs && Number(r.weight_lbs) > 0) {
             const athlete = athletes.find(a => a.id === r.athlete_id);
             let activeBaseline = null;
@@ -1795,7 +1839,7 @@ export default function App() {
               if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
               else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
             } catch(e) {}
-            if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= 0.02) weightCount++;
+            if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= (dehydrationThreshold / 100)) weightCount++;
           }
         }
       });
@@ -1821,7 +1865,7 @@ export default function App() {
       reportData.forEach(r => {
         const recordDate = new Date(r.created_at);
         if (recordDate >= startOfDay && recordDate < endOfDay) {
-          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5) { count++; hasSleep = true; }
+          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) { count++; hasSleep = true; }
           if (r.weight_lbs && Number(r.weight_lbs) > 0) {
             const athlete = athletes.find(a => a.id === r.athlete_id);
             let activeBaseline = null;
@@ -1830,7 +1874,7 @@ export default function App() {
               if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
               else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
             } catch(e) {}
-            if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= 0.02) { count++; hasWeight = true; }
+            if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= (dehydrationThreshold / 100)) { count++; hasWeight = true; }
           }
         }
       });
@@ -1851,7 +1895,7 @@ export default function App() {
       const athlete = athletes.find(a => a.id === r.athlete_id);
       const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
       
-      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5) {
+      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
         alerts.push({
           id: r.id + '_sleep',
           athlete_id: r.athlete_id,
@@ -1874,7 +1918,7 @@ export default function App() {
       if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
-        if (dropPercent >= 0.02) {
+        if (dropPercent >= (dehydrationThreshold / 100)) {
           const recommendation = drop >= 4.0 ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
           alerts.push({
             id: r.id + '_weight',
@@ -2286,24 +2330,60 @@ export default function App() {
                             </p>
                           </div>
                         </div>
-                        {!isComplete && (
-                          <button 
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                          {!isComplete && (
+                            <button 
+                              onClick={() => {
+                                setUnweighedOnlyFilter(true);
+                                setScreen('entry');
+                              }}
+                              style={{
+                                padding: '14px 24px',
+                                borderRadius: '14px',
+                                background: 'linear-gradient(135deg, #d4af37 0%, #a68220 100%)',
+                                border: 'none',
+                                color: '#0a0d14',
+                                fontFamily: 'var(--font-display)',
+                                fontSize: '15px',
+                                fontWeight: 800,
+                                letterSpacing: '0.04em',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 20px rgba(212, 175, 55, 0.35)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                flexShrink: 0,
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <span>Start Weigh-Ins</span>
+                              <span>➔</span>
+                            </button>
+                          )}
+                          <button
                             onClick={() => {
-                              setUnweighedOnlyFilter(true);
-                              setScreen('entry');
+                              setManualEntryForm(prev => ({
+                                ...prev,
+                                athleteId: athletes.length > 0 ? athletes[0].id : '',
+                                date: new Date().toISOString().slice(0, 10),
+                                time: new Date().toTimeString().slice(0, 5),
+                                weight: '',
+                                successMsg: ''
+                              }));
+                              setShowManualEntryModal(true);
                             }}
                             style={{
-                              padding: '14px 28px',
+                              padding: '14px 22px',
                               borderRadius: '14px',
-                              background: 'linear-gradient(135deg, #d4af37 0%, #a68220 100%)',
-                              border: 'none',
-                              color: '#0a0d14',
+                              background: 'rgba(30, 58, 138, 0.4)',
+                              border: '1px solid rgba(96, 165, 250, 0.5)',
+                              color: '#60a5fa',
                               fontFamily: 'var(--font-display)',
-                              fontSize: '16px',
+                              fontSize: '15px',
                               fontWeight: 800,
                               letterSpacing: '0.04em',
                               cursor: 'pointer',
-                              boxShadow: '0 4px 20px rgba(212, 175, 55, 0.35)',
+                              boxShadow: '0 4px 20px rgba(37, 99, 235, 0.2)',
                               display: 'flex',
                               alignItems: 'center',
                               gap: '8px',
@@ -2311,10 +2391,9 @@ export default function App() {
                               transition: 'all 0.2s ease'
                             }}
                           >
-                            <span>Start Weigh-Ins</span>
-                            <span>➔</span>
+                            <span>⚡ Post-Practice / Manual Log</span>
                           </button>
-                        )}
+                        </div>
                       </div>
                     );
                   })()}
@@ -2327,51 +2406,47 @@ export default function App() {
                     </div>
                     {(() => {
                       const attentionItems = [];
-                      // Add acute hydration flags
-                      executiveInsights.hydrationFlags.forEach(f => {
-                        attentionItems.push({
-                          id: f.athlete.id,
-                          name: f.athlete.name,
-                          sport: f.athlete.sport || 'Athlete',
-                          reason: `acute weight loss (${f.prevWt ? `was ${f.prevWt} lbs` : 'vs baseline'})`,
-                          badge: `${f.deltaLbs > 0 ? '+' : ''}${f.deltaLbs} LB`,
-                          isLoss: f.deltaLbs < 0
-                        });
-                      });
-                      // Check for notable weight swings among today's logs not already added
-                      reportData.forEach(r => {
-                        if (!athletesRecordedToday.has(r.athlete_id) || !r.weight_lbs || isNaN(parseFloat(r.weight_lbs))) return;
-                        if (attentionItems.some(i => i.id === r.athlete_id)) return;
-                        const ath = athletes.find(a => a.id === r.athlete_id);
+                      athletes.forEach(ath => {
                         const baseInfo = getAthleteBaseline(ath, reportData);
-                        const base = baseInfo ? baseInfo.weight_lbs : null;
-                        if (base > 0) {
-                          const diff = parseFloat(r.weight_lbs) - base;
-                          if (Math.abs(diff) >= 3.0) {
-                            attentionItems.push({
-                              id: ath.id,
-                              name: ath.name,
-                              sport: ath.sport || 'Athlete',
-                              reason: 'weight swing vs baseline',
-                              badge: `${diff > 0 ? '+' : ''}${diff.toFixed(1)} LB`,
-                              isLoss: diff < 0
-                            });
-                          }
+                        const base = baseInfo ? parseFloat(baseInfo.weight_lbs) : 0;
+                        if (!base || base <= 0) return;
+
+                        const latestRec = reportData
+                          .filter(r => r.athlete_id === ath.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
+                          .sort((x, y) => new Date(y.created_at || 0) - new Date(x.created_at || 0))[0];
+
+                        if (!latestRec) return;
+
+                        const currentWt = parseFloat(latestRec.weight_lbs);
+                        const dropLbs = base - currentWt;
+                        if (dropLbs > 5.0) {
+                          attentionItems.push({
+                            id: ath.id,
+                            name: ath.name,
+                            sport: ath.sport || 'Athlete',
+                            reason: `dropped ${dropLbs.toFixed(1)} lbs from baseline (${currentWt} lbs vs ${base} lbs base)`,
+                            badge: `-${dropLbs.toFixed(1)} LB`,
+                            dropLbs: dropLbs,
+                            isLoss: true
+                          });
                         }
                       });
+
+                      // Sort from highest weight drop to lowest
+                      attentionItems.sort((a, b) => (b.dropLbs || 0) - (a.dropLbs || 0));
 
                       if (attentionItems.length === 0) {
                         return (
                           <div className="card-glass" style={{ padding: '18px 24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(34, 197, 94, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <CheckCircle size={20} style={{ color: 'var(--status-success)' }} />
-                            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All recorded athletes are currently stable and within healthy baseline thresholds. No severe swings detected.</span>
+                            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All athletes are currently within safe baseline limits (no athletes down &gt;5 lbs from baseline).</span>
                           </div>
                         );
                       }
 
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {attentionItems.slice(0, 5).map((item, index) => {
+                          {attentionItems.map((item, index) => {
                             const initials = item.name ? item.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
                             return (
                               <div key={index} className="card-glass" onClick={() => { setSelectedProfileId(item.id); fetchProfileData(item.id); setScreen('profiles'); }} style={{
@@ -3531,7 +3606,7 @@ export default function App() {
                   <div style={{ flex: '1 1 280px' }}>
                     <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.1em', marginBottom: '4px' }}>TRAINING SAFETY &middot; RISK ALERTS</div>
                     <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 5vw, var(--text-3xl))', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.1 }}>ATHLETE RECOVERY ALERTS</h1>
-                    <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>Automated flags for rapid mass loss (&gt;2%) and low sleep (&lt;6.5h)</div>
+                    <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>Automated flags for rapid mass loss (&gt;{dehydrationThreshold}%) and low sleep (&lt;{sleepThreshold}h)</div>
                   </div>
                   
                   <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '4px' }}>
@@ -3705,7 +3780,7 @@ export default function App() {
                   const currW = Number(latestLog.weight_lbs);
                   const drop = baseW - currW;
                   const dropPercent = drop / baseW;
-                  if (dropPercent >= 0.02) {
+                  if (dropPercent >= (dehydrationThreshold / 100)) {
                     dehydrationList.push({
                       id: latestLog.id,
                       athlete_name: a.name,
@@ -3721,10 +3796,10 @@ export default function App() {
                 }
               });
 
-              // 3. Sleep Deficit Roster (<6.5h)
-              const sleepDeficitList = filteredLogs.filter(r => r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5);
+              // 3. Sleep Deficit Roster (<sleepThreshold h)
+              const sleepDeficitList = filteredLogs.filter(r => r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold);
 
-              // 4. Expired Baselines (>14d Inactivity)
+              // 4. Expired Baselines (>baselineExpiryDays Inactivity)
               const expiredBaselinesList = [];
               filteredAthletes.forEach(a => {
                 const aRecs = reportData.filter(r => r.athlete_id === a.id).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
@@ -3733,7 +3808,7 @@ export default function App() {
                 } else {
                   const lastLog = aRecs[aRecs.length - 1];
                   const gapDays = Math.floor((now - new Date(lastLog.created_at)) / (1000 * 60 * 60 * 24));
-                  if (gapDays >= 14) {
+                  if (gapDays >= baselineExpiryDays) {
                     expiredBaselinesList.push({ athlete_name: a.name, sport: a.sport, team: a.team, status: `${gapDays} Days Inactive`, last_date: new Date(lastLog.created_at).toLocaleDateString() });
                   }
                 }
@@ -3865,8 +3940,8 @@ export default function App() {
                         </span>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
                           {[
-                            { key: 'dehydration', label: 'Dehydration Roster', desc: 'Athletes dropping ≥2% weight' },
-                            { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: 'Athletes logging <6.5h sleep' },
+                            { key: 'dehydration', label: 'Dehydration Roster', desc: `Athletes dropping ≥${dehydrationThreshold}% weight` },
+                            { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: `Athletes logging <${sleepThreshold}h sleep` },
                             { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
                             { key: 'rawLogs', label: 'Log History Table', desc: 'Chronological weigh-in table' },
                           ].map(item => {
@@ -3976,7 +4051,7 @@ export default function App() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <Activity size={20} style={{ color: '#f59e0b' }} />
                               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                                CRITICAL SLEEP DEFICIENCY (&lt;6.5 HOURS LOGGED)
+                                CRITICAL SLEEP DEFICIENCY (&lt;{sleepThreshold} HOURS LOGGED)
                               </h3>
                             </div>
                             <span style={{ fontSize: '12px', fontWeight: 700, color: '#f59e0b' }}>{sleepDeficitList.length} LOGS AFFECTED</span>
@@ -4134,7 +4209,7 @@ export default function App() {
                                       <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>
                                         {log.weight_lbs && Number(log.weight_lbs) > 0 ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>😴 Sleep Only</span>}
                                       </td>
-                                      <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < 6.5) ? 'var(--status-error)' : 'var(--color-text)' }}>
+                                      <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < sleepThreshold) ? 'var(--status-error)' : 'var(--color-text)' }}>
                                         {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
                                       </td>
                                       <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
@@ -4259,7 +4334,7 @@ export default function App() {
                       {filteredAthletes.map(a => {
                         // Find latest weigh-in and recovery logs for this athlete from reportData
                         const athleteLogs = reportData.filter(r => r.athlete_name === a.name).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
-                        const weightLogs = athleteLogs.filter(r => r.weight_lbs && Number(r.weight_lbs) > 0);
+                        const weightLogs = athleteLogs.filter(r => r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r));
                         const latestLog = athleteLogs[0];
                         const latestWeightLog = weightLogs[0];
                         const prevWeightLog = weightLogs[1];
@@ -4590,7 +4665,8 @@ export default function App() {
               }
 
               const sortedLogs = [...profileData].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-              const weightLogs = sortedLogs.filter(l => l.weight_lbs && Number(l.weight_lbs) > 0);
+              const weightLogs = sortedLogs.filter(l => l.weight_lbs && Number(l.weight_lbs) > 0 && !isPostPracticeLog(l));
+              const postPracticeLogs = sortedLogs.filter(l => l.weight_lbs && Number(l.weight_lbs) > 0 && isPostPracticeLog(l)).reverse();
               const sleepLogs = sortedLogs.filter(l => l.sleep_hrs && Number(l.sleep_hrs) > 0);
               
               const latestWeight = weightLogs.length > 0 ? Number(weightLogs[weightLogs.length-1].weight_lbs) : null;
@@ -4879,6 +4955,109 @@ export default function App() {
                       </div>
                     </div>
 
+                  </div>
+
+                  {/* Post-Practice Sweat & Acute Weight Drop Tracker */}
+                  <div className="card-glass glow-card" style={{ padding: '32px', borderRadius: '24px', border: '1px solid rgba(59, 130, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.7) 100%)', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '52px', height: '52px', borderRadius: '16px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa' }}>
+                          <Zap size={28} />
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            • ACUTE EXERTIONAL MONITORING
+                          </span>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, margin: '4px 0 0', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                            POST-PRACTICE SWEAT LOSS &amp; HYDRATION TRACKER
+                          </h3>
+                          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px', fontWeight: 600 }}>
+                            Monitors rapid weight drops after high-heat drills and training without distorting official morning recovery trend charts.
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setManualEntryForm(prev => ({
+                            ...prev,
+                            athleteId: athlete.id,
+                            date: new Date().toISOString().slice(0, 10),
+                            time: new Date().toTimeString().slice(0, 5),
+                            weight: '',
+                            successMsg: ''
+                          }));
+                          setShowManualEntryModal(true);
+                        }}
+                        style={{
+                          padding: '14px 22px',
+                          borderRadius: '14px',
+                          background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                          border: 'none',
+                          color: '#fff',
+                          fontFamily: 'var(--font-display)',
+                          fontSize: '15px',
+                          fontWeight: 800,
+                          letterSpacing: '0.04em',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 20px rgba(59, 130, 246, 0.35)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <span>➕ Log Post-Practice Weight</span>
+                      </button>
+                    </div>
+
+                    {postPracticeLogs.length === 0 ? (
+                      <div style={{ padding: '24px', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.15)', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+                        No post-practice weight entries recorded yet. Use the button above to log acute weigh-ins after practice sessions!
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {postPracticeLogs.map((plog, idx) => {
+                          const pDate = new Date(plog.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          const pTime = new Date(plog.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                          const pWeight = parseFloat(plog.weight_lbs);
+                          const bWeight = baselineWeight ? parseFloat(baselineWeight) : null;
+                          const drop = bWeight ? (bWeight - pWeight) : 0;
+                          const pctLoss = bWeight && bWeight > 0 ? ((drop / bWeight) * 100) : 0;
+                          const fluidOz = drop > 0 ? Math.round(drop * 24) : 0;
+                          const isSevere = drop >= 5.0 || pctLoss >= 2.5;
+
+                          return (
+                            <div key={plog.id || idx} style={{ padding: '18px 24px', borderRadius: '16px', background: 'rgba(0, 0, 0, 0.35)', border: isSevere ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                <div style={{ minWidth: '85px' }}>
+                                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff', display: 'block' }}>{pDate}</span>
+                                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{pTime}</span>
+                                </div>
+                                <div style={{ height: '36px', width: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                                <div>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Post-Practice Weight</span>
+                                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: '#fff' }}>{pWeight} lbs</span>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                                {bWeight && (
+                                  <div>
+                                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Acute Sweat Drop</span>
+                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: drop > 0 ? '#ef4444' : '#34d399' }}>
+                                      {drop > 0 ? `-${drop.toFixed(1)} lbs` : `+${Math.abs(drop).toFixed(1)} lbs`} ({drop > 0 ? `-${pctLoss.toFixed(1)}%` : `+${Math.abs(pctLoss).toFixed(1)}%`})
+                                    </span>
+                                  </div>
+                                )}
+                                <div style={{ padding: '8px 16px', borderRadius: '12px', background: drop >= 5 ? 'rgba(239, 68, 68, 0.2)' : drop > 2 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: drop >= 5 ? '1px solid rgba(239, 68, 68, 0.4)' : drop > 2 ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: drop >= 5 ? '#ef4444' : drop > 2 ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
+                                  💧 Rx: Drink {fluidOz > 0 ? fluidOz : 32} oz fluids before tomorrow
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* All Attributes Over Time - Full Chronological Ledger */}
@@ -5812,7 +5991,7 @@ export default function App() {
                   <Shield size={22} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--color-accent)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>EXPIRED BASELINES (&gt;14 DAYS)</h3>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--color-accent)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>EXPIRED BASELINES (&gt;{baselineExpiryDays} DAYS)</h3>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{expiredBaselinesList.length} Athletes require baseline weight verification</div>
                 </div>
               </div>
@@ -5824,7 +6003,7 @@ export default function App() {
             <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
               {expiredBaselinesList.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
-                  ✔ All active roster athletes have recorded an updated weight within the past 14 days!
+                  ✔ All active roster athletes have recorded an updated weight within the past {baselineExpiryDays} days!
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -5853,6 +6032,199 @@ export default function App() {
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.2)' }}>
               <button onClick={() => setShowExpiredBaselinesModal(false)} className="btn-primary" style={{ padding: '10px 24px', fontSize: '14px', borderRadius: '10px' }}>
                 Close Window
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Coach Manual / Post-Practice Entry Modal */}
+      {showManualEntryModal && (
+        <div className="modal-overlay animate-fade-in" style={{ zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.85)', backdropFilter: 'blur(10px)' }}>
+          <div className="card-glass glow-card" style={{ maxWidth: '540px', width: '100%', borderRadius: '24px', border: '1px solid rgba(96, 165, 250, 0.4)', boxShadow: '0 20px 60px rgba(0,0,0,0.8)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {/* Header */}
+            <div style={{ padding: '24px 28px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.6) 100%)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(96, 165, 250, 0.2)', border: '1px solid rgba(96, 165, 250, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa' }}>
+                  <Zap size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>COACH MANUAL LOG STUDIO</h3>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>Log acute post-practice weights without altering morning baseline trends</div>
+                </div>
+              </div>
+              <button onClick={() => setShowManualEntryModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--white)', cursor: 'pointer', padding: '4px' }}>
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {manualEntryForm.successMsg && (
+                <div className="animate-fade-in" style={{ padding: '14px 20px', borderRadius: '14px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', color: '#4ade80', fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span>🎉</span>
+                  <span>{manualEntryForm.successMsg}</span>
+                </div>
+              )}
+
+              {/* Session Type Switch */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'post_practice', successMsg: '' }))}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: '14px',
+                    border: manualEntryForm.sessionType === 'post_practice' ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
+                    background: manualEntryForm.sessionType === 'post_practice' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
+                    color: manualEntryForm.sessionType === 'post_practice' ? '#fff' : 'var(--color-text-muted)',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <span>⚡ Post-Practice Sweat Check</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'morning', successMsg: '' }))}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: '14px',
+                    border: manualEntryForm.sessionType === 'morning' ? '2px solid #d4af37' : '1px solid rgba(255,255,255,0.1)',
+                    background: manualEntryForm.sessionType === 'morning' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.02)',
+                    color: manualEntryForm.sessionType === 'morning' ? '#fff' : 'var(--color-text-muted)',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <span>☀️ Morning / Baseline Correction</span>
+                </button>
+              </div>
+
+              {/* Athlete Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Select Athlete</label>
+                <select
+                  className="input-glass"
+                  value={manualEntryForm.athleteId}
+                  onChange={e => setManualEntryForm(p => ({ ...p, athleteId: e.target.value, successMsg: '' }))}
+                  style={{ width: '100%', height: '46px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '15px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}
+                >
+                  <option value="" disabled>-- Select Roster Athlete --</option>
+                  {athletes.slice().sort((a,b) => a.name.localeCompare(b.name)).map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.sport || 'Athlete'})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date & Time Selectors */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Date</label>
+                  <input
+                    type="date"
+                    className="input-glass"
+                    value={manualEntryForm.date}
+                    onChange={e => setManualEntryForm(p => ({ ...p, date: e.target.value, successMsg: '' }))}
+                    style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '14px', border: '1px solid rgba(255,255,255,0.2)' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Time</label>
+                  <input
+                    type="time"
+                    className="input-glass"
+                    value={manualEntryForm.time}
+                    onChange={e => setManualEntryForm(p => ({ ...p, time: e.target.value, successMsg: '' }))}
+                    style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '14px', border: '1px solid rgba(255,255,255,0.2)' }}
+                  />
+                </div>
+              </div>
+
+              {/* Body Weight with quick tailored incrementers */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Body Weight (lbs)</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="210.5"
+                    className="input-glass"
+                    value={manualEntryForm.weight}
+                    onChange={e => setManualEntryForm(p => ({ ...p, weight: e.target.value, successMsg: '' }))}
+                    style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(96, 165, 250, 0.4)' }}
+                  />
+                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-1</button>
+                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-.1</button>
+                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+.1</button>
+                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+1</button>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!manualEntryForm.athleteId || !manualEntryForm.weight || isNaN(parseFloat(manualEntryForm.weight))) {
+                    alert('Please select an athlete and enter a valid body weight.');
+                    return;
+                  }
+                  const ath = athletes.find(a => a.id === manualEntryForm.athleteId);
+                  const dateTimeStr = new Date(`${manualEntryForm.date}T${manualEntryForm.time || '12:00'}:00`).toISOString();
+                  const recId = 'manual_' + Date.now();
+                  const newRec = {
+                    id: recId,
+                    athlete_id: manualEntryForm.athleteId,
+                    athlete_name: ath ? ath.name : 'Unknown',
+                    sport: ath ? ath.sport : '',
+                    weight_lbs: parseFloat(manualEntryForm.weight),
+                    sleep_hrs: 0,
+                    created_at: dateTimeStr,
+                    session_type: manualEntryForm.sessionType
+                  };
+
+                  if (manualEntryForm.sessionType === 'post_practice') {
+                    markLogAsPostPractice(newRec);
+                  }
+
+                  saveLog(newRec);
+                  setManualEntryForm(p => ({
+                    ...p,
+                    weight: '',
+                    successMsg: `Successfully recorded ${manualEntryForm.sessionType === 'post_practice' ? 'Post-Practice' : 'Morning'} weight (${newRec.weight_lbs} lbs) for ${newRec.athlete_name}!`
+                  }));
+                }}
+                style={{
+                  height: '52px',
+                  borderRadius: '16px',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '16px',
+                  fontWeight: 800,
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  boxShadow: '0 8px 25px rgba(37, 99, 235, 0.4)',
+                  transition: 'all 0.2s',
+                  marginTop: '10px'
+                }}
+              >
+                SAVE MANUAL RECORD ➔
               </button>
             </div>
           </div>
