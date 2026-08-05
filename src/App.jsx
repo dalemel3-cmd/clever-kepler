@@ -95,6 +95,73 @@ const encodeAthleteMeta = (existingPos, baselineWeight, baselineDate, baselineLo
   });
 };
 
+const getAthleteBaseline = (athlete, allLogs = []) => {
+  if (!athlete) return null;
+  const athId = athlete.id || athlete.athlete_id;
+  const athleteRecords = allLogs
+    .filter(r => (r.athlete_id === athId || r.id === athId) && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
+    .sort((a, b) => new Date(a.created_at || a.date || 0) - new Date(b.created_at || b.date || 0));
+
+  let baseWeight = null;
+  let baseDate = '8/3/2026';
+  let baseLogId = null;
+
+  // 1. Check custom override in localStorage map
+  try {
+    const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+    if (customMap[athId] && customMap[athId].weight_lbs && Number(customMap[athId].weight_lbs) > 0) {
+      baseWeight = parseFloat(customMap[athId].weight_lbs);
+      baseLogId = customMap[athId].log_id || 'map_base';
+      const dVal = customMap[athId].date_str || customMap[athId].date;
+      baseDate = dVal ? (!isNaN(new Date(dVal).getTime()) ? new Date(dVal).toLocaleDateString() : dVal) : '8/3/2026';
+      return { weight_lbs: baseWeight, date_str: baseDate, id: baseLogId };
+    }
+  } catch(e) {}
+
+  // 2. Check for explicit is_baseline === true log (most recent first)
+  const explicitBaseLog = [...athleteRecords].reverse().find(r => r.is_baseline === true || r.is_baseline === 'true' || r.is_baseline === 1);
+  if (explicitBaseLog && explicitBaseLog.weight_lbs) {
+    baseWeight = parseFloat(explicitBaseLog.weight_lbs);
+    baseDate = explicitBaseLog.created_at ? new Date(explicitBaseLog.created_at).toLocaleDateString() : (explicitBaseLog.date || '8/3/2026');
+    return { weight_lbs: baseWeight, date_str: baseDate, id: explicitBaseLog.id };
+  }
+
+  // 3. Check specifically for weigh-in on 8/3/2026 (or date string containing 2026-08-03 or matching 8/3/2026)
+  const aug3Log = [...athleteRecords].reverse().find(r => {
+    const dStr = r.created_at || r.date || '';
+    return dStr.includes('2026-08-03') || (!isNaN(new Date(dStr).getTime()) && new Date(dStr).toLocaleDateString() === '8/3/2026');
+  });
+  if (aug3Log && aug3Log.weight_lbs) {
+    baseWeight = parseFloat(aug3Log.weight_lbs);
+    baseDate = '8/3/2026';
+    return { weight_lbs: baseWeight, date_str: baseDate, id: aug3Log.id };
+  }
+
+  // 4. Check athlete table baseline_weight or position metadata
+  const meta = parseAthleteMeta(athlete.position || '');
+  const bw = athlete.baseline_weight || meta.bw || meta.baseline_weight;
+  if (bw && Number(bw) > 0) {
+    baseWeight = parseFloat(bw);
+    baseDate = meta.bd || athlete.baseline_date || '8/3/2026';
+    return { weight_lbs: baseWeight, date_str: baseDate, id: 'meta_base' };
+  }
+
+  // 5. Fallback: if they have logs, take their second to last log or first ever log as baseline
+  if (athleteRecords.length > 1) {
+    const fallbackLog = athleteRecords[athleteRecords.length - 2];
+    baseWeight = parseFloat(fallbackLog.weight_lbs);
+    baseDate = fallbackLog.created_at ? new Date(fallbackLog.created_at).toLocaleDateString() : (fallbackLog.date || 'Established');
+    return { weight_lbs: baseWeight, date_str: baseDate, id: fallbackLog.id };
+  } else if (athleteRecords.length === 1) {
+    const fallbackLog = athleteRecords[0];
+    baseWeight = parseFloat(fallbackLog.weight_lbs);
+    baseDate = fallbackLog.created_at ? new Date(fallbackLog.created_at).toLocaleDateString() : (fallbackLog.date || 'Established');
+    return { weight_lbs: baseWeight, date_str: baseDate, id: fallbackLog.id };
+  }
+
+  return null;
+};
+
 const KioskNumpad = ({ value, onChange }) => {
   const handleKey = (key) => {
     if (key === 'DEL') return onChange(value.slice(0, -1));
@@ -1567,6 +1634,12 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    if (selectedProfileId && screen === 'profiles') {
+      fetchProfileData(selectedProfileId);
+    }
+  }, [selectedProfileId, screen]);
+
   const handleUpdateAthlete = async () => {
     if (!newAthlete.name || !newAthlete.name.trim()) return;
     const sanitizedAthlete = { ...newAthlete, name: newAthlete.name.trim() };
@@ -1794,32 +1867,9 @@ export default function App() {
 
       const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       const currentIndex = athleteRecords.findIndex(x => x.id === r.id);
-      let activeBaseline = null;
-      let baselineDateStr = '';
-      try {
-        const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-        if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs && Number(customMap[r.athlete_id].weight_lbs) > 0) {
-          activeBaseline = { id: customMap[r.athlete_id].log_id || 'map_base', weight_lbs: Number(customMap[r.athlete_id].weight_lbs) };
-          const dVal = customMap[r.athlete_id].date_str || customMap[r.athlete_id].date;
-          baselineDateStr = dVal ? (!isNaN(new Date(dVal).getTime()) ? new Date(dVal).toLocaleDateString() : dVal) : 'Established';
-        }
-      } catch(e) {}
-      if (!activeBaseline) {
-        activeBaseline = athleteRecords.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
-        if (activeBaseline && activeBaseline.created_at) baselineDateStr = new Date(activeBaseline.created_at).toLocaleDateString();
-      }
-      if (!activeBaseline && athlete) {
-        const meta = parseAthleteMeta(athlete.position);
-        const bw = athlete.baseline_weight || meta.bw;
-        if (bw && Number(bw) > 0) {
-          activeBaseline = { id: 'athlete_base', weight_lbs: Number(bw) };
-          baselineDateStr = meta.bd || athlete.baseline_date || 'Initial Base';
-        }
-      }
-      if (!activeBaseline && currentIndex > 0) {
-        activeBaseline = athleteRecords[currentIndex - 1];
-        baselineDateStr = new Date(activeBaseline.created_at).toLocaleDateString();
-      }
+      const baseInfo = getAthleteBaseline(athlete || { id: r.athlete_id, athlete_id: r.athlete_id }, reportData);
+      const activeBaseline = baseInfo ? { id: baseInfo.id, weight_lbs: baseInfo.weight_lbs } : null;
+      const baselineDateStr = baseInfo ? baseInfo.date_str : 'Established';
       
       if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
@@ -2269,7 +2319,209 @@ export default function App() {
                     );
                   })()}
 
-                  {/* 2. Symmetrical Executive KPI Cards (Roster Compliance & Recovery Status) */}
+                  {/* 2. NEEDS ATTENTION Row Section */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>NEEDS ATTENTION</span>
+                      <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+                    </div>
+                    {(() => {
+                      const attentionItems = [];
+                      // Add acute hydration flags
+                      executiveInsights.hydrationFlags.forEach(f => {
+                        attentionItems.push({
+                          id: f.athlete.id,
+                          name: f.athlete.name,
+                          sport: f.athlete.sport || 'Athlete',
+                          reason: `acute weight loss (${f.prevWt ? `was ${f.prevWt} lbs` : 'vs baseline'})`,
+                          badge: `${f.deltaLbs > 0 ? '+' : ''}${f.deltaLbs} LB`,
+                          isLoss: f.deltaLbs < 0
+                        });
+                      });
+                      // Check for notable weight swings among today's logs not already added
+                      reportData.forEach(r => {
+                        if (!athletesRecordedToday.has(r.athlete_id) || !r.weight_lbs || isNaN(parseFloat(r.weight_lbs))) return;
+                        if (attentionItems.some(i => i.id === r.athlete_id)) return;
+                        const ath = athletes.find(a => a.id === r.athlete_id);
+                        const baseInfo = getAthleteBaseline(ath, reportData);
+                        const base = baseInfo ? baseInfo.weight_lbs : null;
+                        if (base > 0) {
+                          const diff = parseFloat(r.weight_lbs) - base;
+                          if (Math.abs(diff) >= 3.0) {
+                            attentionItems.push({
+                              id: ath.id,
+                              name: ath.name,
+                              sport: ath.sport || 'Athlete',
+                              reason: 'weight swing vs baseline',
+                              badge: `${diff > 0 ? '+' : ''}${diff.toFixed(1)} LB`,
+                              isLoss: diff < 0
+                            });
+                          }
+                        }
+                      });
+
+                      if (attentionItems.length === 0) {
+                        return (
+                          <div className="card-glass" style={{ padding: '18px 24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(34, 197, 94, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <CheckCircle size={20} style={{ color: 'var(--status-success)' }} />
+                            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All recorded athletes are currently stable and within healthy baseline thresholds. No severe swings detected.</span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {attentionItems.slice(0, 5).map((item, index) => {
+                            const initials = item.name ? item.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
+                            return (
+                              <div key={index} className="card-glass" onClick={() => { setSelectedProfileId(item.id); fetchProfileData(item.id); setScreen('profiles'); }} style={{
+                                padding: '16px 24px',
+                                borderRadius: '16px',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                background: 'rgba(255,255,255,0.02)'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                  <div style={{
+                                    width: '42px',
+                                    height: '42px',
+                                    borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontFamily: 'var(--font-display)',
+                                    fontSize: '15px',
+                                    fontWeight: 800,
+                                    color: '#fff'
+                                  }}>
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)', display: 'block' }}>{item.name}</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{item.sport} &middot; {item.reason}</span>
+                                  </div>
+                                </div>
+                                <div style={{
+                                  padding: '6px 14px',
+                                  borderRadius: '16px',
+                                  background: item.isLoss ? 'rgba(239, 68, 68, 0.15)' : 'rgba(249, 115, 22, 0.15)',
+                                  border: item.isLoss ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(249, 115, 22, 0.35)',
+                                  color: item.isLoss ? '#ef4444' : '#f97316',
+                                  fontFamily: 'var(--font-display)',
+                                  fontSize: '14px',
+                                  fontWeight: 800,
+                                  letterSpacing: '0.04em'
+                                }}>
+                                  {item.badge}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* 4. Side-by-Side: WEIGH-INS REMAINING & BIGGEST MOVERS THIS WEEK */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px', marginTop: '4px' }}>
+                    {/* Left: WEIGH-INS REMAINING */}
+                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>WEIGH-INS REMAINING</span>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {(() => {
+                          const allSports = Array.from(new Set(athletes.map(a => a.sport || 'General')));
+                          if (allSports.length === 0) return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>;
+                          
+                          return allSports.map((sport, idx) => {
+                            const countLeft = athletes.filter(a => (a.sport || 'General') === sport && !athletesRecordedToday.has(a.id)).length;
+                            const isLast = idx === allSports.length - 1;
+                            return (
+                              <div key={sport} onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '14px 4px',
+                                borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                                cursor: 'pointer',
+                                transition: 'background 0.15s'
+                              }}>
+                                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>{sport}</span>
+                                <span style={{ fontSize: '14px', fontWeight: 800, color: countLeft === 0 ? 'var(--status-success)' : 'var(--color-text-muted)' }}>
+                                  {countLeft === 0 ? 'Done ✓' : `${countLeft} left`}
+                                </span>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Right: BIGGEST MOVERS THIS WEEK */}
+                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>BIGGEST MOVERS TODAY</span>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {(() => {
+                          const movers = [];
+                          reportData.forEach(r => {
+                            if (!athletesRecordedToday.has(r.athlete_id) || !r.weight_lbs || isNaN(parseFloat(r.weight_lbs))) return;
+                            if (movers.some(m => m.id === r.athlete_id)) return;
+                            const ath = athletes.find(a => a.id === r.athlete_id);
+                            const baseInfo = getAthleteBaseline(ath, reportData);
+                            const base = baseInfo ? baseInfo.weight_lbs : null;
+                            if (base > 0) {
+                              const diff = parseFloat(r.weight_lbs) - base;
+                              movers.push({
+                                id: ath.id,
+                                name: ath.name,
+                                diff,
+                                absDiff: Math.abs(diff)
+                              });
+                            }
+                          });
+                          movers.sort((a, b) => b.absDiff - a.absDiff);
+
+                          if (movers.length === 0) {
+                            return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No weigh-in deltas recorded today yet.</span>;
+                          }
+
+                          return movers.slice(0, 5).map((m, idx) => {
+                            const isLast = idx === Math.min(movers.length, 5) - 1;
+                            const color = m.diff > 0 ? '#f97316' : m.diff < -2.0 ? '#ef4444' : 'var(--white)';
+                            return (
+                              <div key={idx} onClick={() => { setSelectedProfileId(m.id); fetchProfileData(m.id); setScreen('profiles'); }} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '14px 4px',
+                                borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                                cursor: 'pointer'
+                              }}>
+                                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>{m.name}</span>
+                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 800, color }}>
+                                  {m.diff >= 0 ? `+${m.diff.toFixed(1)}` : m.diff.toFixed(1)} lb
+                                </span>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Secondary Section Below the Fold: Macro Readiness, Sport Leaderboard & Daily Activity Chart */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>MACRO READINESS &middot; COMPLIANCE & RECOVERY TRENDS</span>
+                    <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
                     {/* Card 1: Roster Compliance */}
                     <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: executiveInsights.complianceDelta >= 0 ? '1px solid rgba(194, 164, 80, 0.45)' : '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -2411,222 +2663,8 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-
-                  {/* 3. NEEDS ATTENTION Row Section */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>NEEDS ATTENTION</span>
-                      <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
-                    </div>
-                    {(() => {
-                      const attentionItems = [];
-                      // Add acute hydration flags
-                      executiveInsights.hydrationFlags.forEach(f => {
-                        attentionItems.push({
-                          id: f.athlete.id,
-                          name: f.athlete.name,
-                          sport: f.athlete.sport || 'Athlete',
-                          reason: `acute weight loss (${f.prevWt ? `was ${f.prevWt} lbs` : 'vs baseline'})`,
-                          badge: `${f.deltaLbs > 0 ? '+' : ''}${f.deltaLbs} LB`,
-                          isLoss: f.deltaLbs < 0
-                        });
-                      });
-                      // Check for notable weight swings among today's logs not already added
-                      reportData.forEach(r => {
-                        if (!athletesRecordedToday.has(r.athlete_id) || !r.weight_lbs || isNaN(parseFloat(r.weight_lbs))) return;
-                        if (attentionItems.some(i => i.id === r.athlete_id)) return;
-                        const ath = athletes.find(a => a.id === r.athlete_id);
-                        if (!ath) return;
-                        let base = null;
-                        try {
-                          const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                          if (customMap[ath.id] && customMap[ath.id].weight_lbs) base = parseFloat(customMap[ath.id].weight_lbs);
-                          else if (ath.baseline_weight) base = parseFloat(ath.baseline_weight);
-                        } catch(e) {}
-                        if (!base) {
-                          const meta = parseAthleteMeta(ath.position);
-                          if (meta.bw || meta.baseline_weight) base = parseFloat(meta.bw || meta.baseline_weight);
-                        }
-                        if (base > 0) {
-                          const diff = parseFloat(r.weight_lbs) - base;
-                          if (Math.abs(diff) >= 3.0) {
-                            attentionItems.push({
-                              id: ath.id,
-                              name: ath.name,
-                              sport: ath.sport || 'Athlete',
-                              reason: 'weight swing vs baseline',
-                              badge: `${diff > 0 ? '+' : ''}${diff.toFixed(1)} LB`,
-                              isLoss: diff < 0
-                            });
-                          }
-                        }
-                      });
-
-                      if (attentionItems.length === 0) {
-                        return (
-                          <div className="card-glass" style={{ padding: '18px 24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(34, 197, 94, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <CheckCircle size={20} style={{ color: 'var(--status-success)' }} />
-                            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All recorded athletes are currently stable and within healthy baseline thresholds. No severe swings detected.</span>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {attentionItems.slice(0, 5).map((item, index) => {
-                            const initials = item.name ? item.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
-                            return (
-                              <div key={index} className="card-glass" onClick={() => { setSelectedProfileId(item.id); setScreen('profiles'); }} style={{
-                                padding: '16px 24px',
-                                borderRadius: '16px',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                background: 'rgba(255,255,255,0.02)'
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                  <div style={{
-                                    width: '42px',
-                                    height: '42px',
-                                    borderRadius: '50%',
-                                    background: 'linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)',
-                                    border: '1px solid rgba(255,255,255,0.2)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontFamily: 'var(--font-display)',
-                                    fontSize: '15px',
-                                    fontWeight: 800,
-                                    color: '#fff'
-                                  }}>
-                                    {initials}
-                                  </div>
-                                  <div>
-                                    <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)', display: 'block' }}>{item.name}</span>
-                                    <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{item.sport} &middot; {item.reason}</span>
-                                  </div>
-                                </div>
-                                <div style={{
-                                  padding: '6px 14px',
-                                  borderRadius: '16px',
-                                  background: item.isLoss ? 'rgba(239, 68, 68, 0.15)' : 'rgba(249, 115, 22, 0.15)',
-                                  border: item.isLoss ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(249, 115, 22, 0.35)',
-                                  color: item.isLoss ? '#ef4444' : '#f97316',
-                                  fontFamily: 'var(--font-display)',
-                                  fontSize: '14px',
-                                  fontWeight: 800,
-                                  letterSpacing: '0.04em'
-                                }}>
-                                  {item.badge}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* 4. Side-by-Side: WEIGH-INS REMAINING & BIGGEST MOVERS THIS WEEK */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px', marginTop: '4px' }}>
-                    {/* Left: WEIGH-INS REMAINING */}
-                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>WEIGH-INS REMAINING</span>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        {(() => {
-                          const allSports = Array.from(new Set(athletes.map(a => a.sport || 'General')));
-                          if (allSports.length === 0) return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>;
-                          
-                          return allSports.map((sport, idx) => {
-                            const countLeft = athletes.filter(a => (a.sport || 'General') === sport && !athletesRecordedToday.has(a.id)).length;
-                            const isLast = idx === allSports.length - 1;
-                            return (
-                              <div key={sport} onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '14px 4px',
-                                borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                                cursor: 'pointer',
-                                transition: 'background 0.15s'
-                              }}>
-                                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>{sport}</span>
-                                <span style={{ fontSize: '14px', fontWeight: 800, color: countLeft === 0 ? 'var(--status-success)' : 'var(--color-text-muted)' }}>
-                                  {countLeft === 0 ? 'Done ✓' : `${countLeft} left`}
-                                </span>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Right: BIGGEST MOVERS THIS WEEK */}
-                    <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>BIGGEST MOVERS TODAY</span>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        {(() => {
-                          const movers = [];
-                          reportData.forEach(r => {
-                            if (!athletesRecordedToday.has(r.athlete_id) || !r.weight_lbs || isNaN(parseFloat(r.weight_lbs))) return;
-                            if (movers.some(m => m.id === r.athlete_id)) return;
-                            const ath = athletes.find(a => a.id === r.athlete_id);
-                            if (!ath) return;
-                            let base = null;
-                            try {
-                              const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                              if (customMap[ath.id] && customMap[ath.id].weight_lbs) base = parseFloat(customMap[ath.id].weight_lbs);
-                              else if (ath.baseline_weight) base = parseFloat(ath.baseline_weight);
-                            } catch(e) {}
-                            if (!base) {
-                              const meta = parseAthleteMeta(ath.position);
-                              if (meta.bw || meta.baseline_weight) base = parseFloat(meta.bw || meta.baseline_weight);
-                            }
-                            if (base > 0) {
-                              const diff = parseFloat(r.weight_lbs) - base;
-                              movers.push({
-                                id: ath.id,
-                                name: ath.name,
-                                diff,
-                                absDiff: Math.abs(diff)
-                              });
-                            }
-                          });
-                          movers.sort((a, b) => b.absDiff - a.absDiff);
-
-                          if (movers.length === 0) {
-                            return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No weigh-in deltas recorded today yet.</span>;
-                          }
-
-                          return movers.slice(0, 5).map((m, idx) => {
-                            const isLast = idx === Math.min(movers.length, 5) - 1;
-                            const color = m.diff > 0 ? '#f97316' : m.diff < -2.0 ? '#ef4444' : 'var(--white)';
-                            return (
-                              <div key={idx} onClick={() => { setSelectedProfileId(m.id); setScreen('profiles'); }} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '14px 4px',
-                                borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                                cursor: 'pointer'
-                              }}>
-                                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>{m.name}</span>
-                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 800, color }}>
-                                  {m.diff >= 0 ? `+${m.diff.toFixed(1)}` : m.diff.toFixed(1)} lb
-                                </span>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Secondary Section Below the Fold: Sport Group Leaderboard & Daily Activity Chart */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
                   {/* Sport Group Leaderboard */}
                   <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -3642,23 +3680,14 @@ export default function App() {
                     try { baselinesMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}'); } catch(e){}
 
                     sportAthletes.forEach(a => {
-                      const baselineEntry = reportData.find(r => r.athlete_id === a.id && r.is_baseline === true && r.weight_lbs && Number(r.weight_lbs) > 0);
-                      const savedBaseline = baselinesMap[a.id];
-                      const latestRecord = reportData
-                        .filter(r => r.athlete_id === a.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
-                        .sort((x, y) => new Date(y.created_at) - new Date(x.created_at))[0];
-                      
-                      let evalWeight = 0;
-                      if (baselineEntry && baselineEntry.weight_lbs && Number(baselineEntry.weight_lbs) > 0) {
-                        evalWeight = parseFloat(baselineEntry.weight_lbs);
-                      } else if (savedBaseline && savedBaseline.weight_lbs && Number(savedBaseline.weight_lbs) > 0) {
-                        evalWeight = parseFloat(savedBaseline.weight_lbs);
-                      } else if (a.baseline_weight && Number(a.baseline_weight) > 0) {
-                        evalWeight = parseFloat(a.baseline_weight);
-                      } else if (latestRecord && latestRecord.weight_lbs && !isNaN(parseFloat(latestRecord.weight_lbs))) {
-                        evalWeight = parseFloat(latestRecord.weight_lbs);
+                      const baseInfo = getAthleteBaseline(a, reportData);
+                      let evalWeight = baseInfo ? baseInfo.weight_lbs : 0;
+                      if (!evalWeight) {
+                        const latestRecord = reportData
+                          .filter(r => r.athlete_id === a.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
+                          .sort((x, y) => new Date(y.created_at) - new Date(x.created_at))[0];
+                        if (latestRecord) evalWeight = parseFloat(latestRecord.weight_lbs);
                       }
-
                       if (evalWeight > 0) {
                         totalW += evalWeight;
                         countW += 1;
@@ -3888,32 +3917,9 @@ export default function App() {
                 if (aRecs.length === 0) return;
                 const latestLog = aRecs[aRecs.length - 1];
                 
-                let activeBaseline = null;
-                let baselineDateStr = '';
-                try {
-                  const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                  if (customMap[a.id] && customMap[a.id].weight_lbs && Number(customMap[a.id].weight_lbs) > 0) {
-                    activeBaseline = { id: customMap[a.id].log_id || 'map_base', weight_lbs: Number(customMap[a.id].weight_lbs) };
-                    const dVal = customMap[a.id].date_str || customMap[a.id].date;
-                    baselineDateStr = dVal ? (!isNaN(new Date(dVal).getTime()) ? new Date(dVal).toLocaleDateString() : dVal) : 'Established';
-                  }
-                } catch(e) {}
-                if (!activeBaseline) {
-                  activeBaseline = aRecs.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
-                  if (activeBaseline && activeBaseline.created_at) baselineDateStr = new Date(activeBaseline.created_at).toLocaleDateString();
-                }
-                if (!activeBaseline && a) {
-                  const meta = parseAthleteMeta(a.position);
-                  const bw = a.baseline_weight || meta.bw;
-                  if (bw && Number(bw) > 0) {
-                    activeBaseline = { id: 'athlete_base', weight_lbs: Number(bw) };
-                    baselineDateStr = meta.bd || a.baseline_date || 'Initial Base';
-                  }
-                }
-                if (!activeBaseline && aRecs.length > 1) {
-                  activeBaseline = aRecs[aRecs.length - 2];
-                  baselineDateStr = new Date(activeBaseline.created_at).toLocaleDateString();
-                }
+                const baseInfo = getAthleteBaseline(a, reportData);
+                const activeBaseline = baseInfo ? { id: baseInfo.id, weight_lbs: baseInfo.weight_lbs } : null;
+                const baselineDateStr = baseInfo ? baseInfo.date_str : 'Established';
 
                 if (activeBaseline && activeBaseline.weight_lbs && latestLog.weight_lbs) {
                   const baseW = Number(activeBaseline.weight_lbs);
@@ -4864,25 +4870,8 @@ export default function App() {
               const sleepLogs = sortedLogs.filter(l => l.sleep_hrs && Number(l.sleep_hrs) > 0);
               
               const latestWeight = weightLogs.length > 0 ? Number(weightLogs[weightLogs.length-1].weight_lbs) : null;
-              let baselineWeight = null;
-              try {
-                const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                if (customMap[athlete.id] && customMap[athlete.id].weight_lbs && Number(customMap[athlete.id].weight_lbs) > 0) {
-                  baselineWeight = Number(customMap[athlete.id].weight_lbs);
-                }
-              } catch(e) {}
-              if (!baselineWeight) {
-                const activeBaseLog = [...weightLogs].reverse().find(l => l.is_baseline === true || l.is_baseline === 'true' || l.is_baseline === 1);
-                if (activeBaseLog) baselineWeight = Number(activeBaseLog.weight_lbs);
-              }
-              if (!baselineWeight && athlete) {
-                const meta = parseAthleteMeta(athlete.position);
-                const bw = athlete.baseline_weight || meta.bw;
-                if (bw && Number(bw) > 0) baselineWeight = Number(bw);
-              }
-              if (!baselineWeight && weightLogs.length > 0) {
-                baselineWeight = Number(weightLogs[0].weight_lbs);
-              }
+              const baseInfo = getAthleteBaseline(athlete, sortedLogs.length ? sortedLogs : reportData);
+              const baselineWeight = baseInfo ? baseInfo.weight_lbs : (weightLogs.length > 0 ? Number(weightLogs[0].weight_lbs) : null);
               const weightDelta = (latestWeight && baselineWeight && weightLogs.length > 1) ? (latestWeight - baselineWeight) : 0;
               const maxWeight = weightLogs.length > 0 ? Math.max(...weightLogs.map(l => Number(l.weight_lbs))) : '--';
               const minWeight = weightLogs.length > 0 ? Math.min(...weightLogs.map(l => Number(l.weight_lbs))) : '--';
