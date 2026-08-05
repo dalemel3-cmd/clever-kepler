@@ -6,6 +6,9 @@ import './styles.css';
 import { CustomTooltip } from './components/CustomTooltip';
 import { Confetti } from './components/Confetti';
 import { KioskNumpad } from './components/KioskNumpad';
+import AlertsScreen from './features/alerts/AlertsScreen';
+import GroupsScreen from './features/groups/GroupsScreen';
+import RosterScreen from './features/roster/RosterScreen';
 import {
   APP_VERSION,
   isValidUuid,
@@ -3554,341 +3557,33 @@ export default function App() {
             )}
 
             {screen === 'groups' && (
-              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-                  <div>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>SPORT GROUPS</h2>
-                    <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{sportsList.length} sport{sportsList.length !== 1 ? 's' : ''} tracked</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <button
-                      onClick={() => setShowBulkBaselineStudio(!showBulkBaselineStudio)}
-                      style={{ padding: '8px 16px', borderRadius: '12px', background: showBulkBaselineStudio ? 'var(--color-accent)' : 'rgba(184, 156, 91, 0.15)', color: showBulkBaselineStudio ? 'var(--navy-950)' : 'var(--color-accent)', border: '1px solid var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}
-                    >
-                      <TrendingUp size={16} />
-                      {showBulkBaselineStudio ? 'CLOSE BASELINE STUDIO ▲' : 'BULK TEAM BASELINE STUDIO ▼'}
-                    </button>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bulk Team Baseline Synchronization Studio */}
-                {showBulkBaselineStudio && (
-                <div className="card-glass glow-card animate-slide-up" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid rgba(184, 156, 91, 0.4)', background: 'rgba(184, 156, 91, 0.05)', borderRadius: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                    <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', boxShadow: '0 0 12px rgba(184, 156, 91, 0.3)' }}>
-                      <TrendingUp size={24} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, margin: 0, color: 'var(--color-accent)', textTransform: 'uppercase' }}>
-                        BULK TEAM BASELINE SYNCHRONIZATION STUDIO
-                      </h3>
-                      <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                        Select an entire sport team and designate a specific historical weigh-in date as their official baseline marker across all charts and dehydration alarms.
-                      </div>
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const activeSport = bulkBaselineSport || (sportsList.length > 0 ? sportsList[0] : 'Football');
-                    const sportAthleteIds = new Set(athletes.filter(a => (a.sport || '').toLowerCase() === activeSport.toLowerCase()).map(a => a.id));
-                    const sportLogs = reportData.filter(l => sportAthleteIds.has(l.athlete_id) && l.weight_lbs && Number(l.weight_lbs) > 0);
-                    
-                    const dateGroups = {};
-                    sportLogs.forEach(l => {
-                      const dStr = l.created_at.slice(0, 10);
-                      if (!dateGroups[dStr]) dateGroups[dStr] = { date: dStr, logs: [], display: new Date(l.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) };
-                      dateGroups[dStr].logs.push(l);
-                    });
-                    const availableDates = Object.values(dateGroups).sort((a,b) => b.date.localeCompare(a.date));
-                    const selectedDateObj = availableDates.find(d => d.date === bulkBaselineDate) || availableDates[0];
-
-                    return (
-                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '18px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', flex: '1 1 400px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 200px' }}>
-                            <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              1. SELECT SPORT GROUP
-                            </label>
-                            <select
-                              value={activeSport}
-                              onChange={(e) => { setBulkBaselineSport(e.target.value); setBulkBaselineDate(''); }}
-                              style={{ padding: '10px 14px', background: 'var(--navy-900)', border: '1px solid var(--color-border)', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
-                            >
-                              {sportsList.map(s => (
-                                <option key={s} value={s}>{s.toUpperCase()} ({athletes.filter(a => (a.sport || '').toLowerCase() === s.toLowerCase()).length} Athletes)</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 240px' }}>
-                            <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              2. SELECT HISTORICAL WEIGH-IN DATE
-                            </label>
-                            <select
-                              value={selectedDateObj ? selectedDateObj.date : ''}
-                              onChange={(e) => setBulkBaselineDate(e.target.value)}
-                              disabled={availableDates.length === 0}
-                              style={{ padding: '10px 14px', background: 'var(--navy-900)', border: '1px solid var(--color-border)', borderRadius: '8px', color: availableDates.length > 0 ? '#fff' : 'var(--color-text-muted)', fontSize: '14px', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
-                            >
-                              {availableDates.length > 0 ? (
-                                availableDates.map(d => {
-                                  const avgW = Math.round(d.logs.reduce((s, x) => s + Number(x.weight_lbs), 0) / Math.max(1, d.logs.length));
-                                  return (
-                                    <option key={d.date} value={d.date}>
-                                      {d.display} ({d.logs.length} weighed in &middot; {avgW} lb avg)
-                                    </option>
-                                  );
-                                })
-                              ) : (
-                                <option value="">No recorded weights for this sport yet</option>
-                              )}
-                            </select>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => {
-                            if (!selectedDateObj || selectedDateObj.logs.length === 0) {
-                              alert(`No weigh-in recordings found for ${activeSport} on the selected date.`);
-                              return;
-                            }
-                            handleBulkTeamBaseline(activeSport, selectedDateObj.date, selectedDateObj.display, selectedDateObj.logs);
-                          }}
-                          disabled={!selectedDateObj}
-                          className="btn-primary"
-                          style={{ padding: '14px 28px', fontSize: '14px', background: !selectedDateObj ? 'rgba(255,255,255,0.1)' : 'var(--color-accent)', color: !selectedDateObj ? 'rgba(255,255,255,0.4)' : 'var(--navy-950)', fontWeight: 800, cursor: selectedDateObj ? 'pointer' : 'not-allowed', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', height: 'fit-content', whiteSpace: 'nowrap', boxShadow: selectedDateObj ? '0 0 15px rgba(184, 156, 91, 0.4)' : 'none', marginTop: '18px' }}
-                        >
-                          <CheckCircle size={18} /> SET ALL OF {activeSport.toUpperCase()} TO {selectedDateObj ? selectedDateObj.date : 'DATE'}
-                        </button>
-                      </div>
-                    );
-                  })()}
-                </div>
-                )}
-
-                {/* Sport Groups Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                  {sportsList.map(sport => {
-                    const sportAthletes = athletes.filter(a => (a.sport || '').toLowerCase() === sport.toLowerCase());
-                    
-                    // Calculate baseline/average weight for this sport group (prioritizing synchronized team baseline markers)
-                    let totalW = 0;
-                    let countW = 0;
-                    let baselinesMap = {};
-                    try { baselinesMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}'); } catch(e){}
-
-                    sportAthletes.forEach(a => {
-                      const baseInfo = getAthleteBaseline(a, reportData);
-                      let evalWeight = baseInfo ? baseInfo.weight_lbs : 0;
-                      if (!evalWeight) {
-                        const latestRecord = reportData
-                          .filter(r => r.athlete_id === a.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
-                          .sort((x, y) => new Date(y.created_at) - new Date(x.created_at))[0];
-                        if (latestRecord) evalWeight = parseFloat(latestRecord.weight_lbs);
-                      }
-                      if (evalWeight > 0) {
-                        totalW += evalWeight;
-                        countW += 1;
-                      }
-                    });
-                    const avgW = countW > 0 ? Math.round(totalW / countW) : 0;
-
-                    return (
-                      <div
-                        key={sport}
-                        onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }}
-                        className="card-glass glow-card"
-                        style={{
-                          padding: '24px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '24px',
-                          cursor: 'pointer',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: 'var(--radius-lg)',
-                          transition: 'transform 0.2s, border-color 0.2s'
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                      >
-                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--white)' }}>
-                          {sport}
-                        </div>
-                        <div style={{ display: 'flex', gap: '48px', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: 'var(--white)' }}>
-                              {sportAthletes.length}
-                            </span>
-                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              ATHLETES
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: countW > 0 ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
-                              {avgW > 0 ? avgW : '--'}
-                            </span>
-                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              AVG LB
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {sportsList.length === 0 && (
-                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px', color: 'var(--color-text-muted)' }}>
-                      No sports currently tracked. Add athletes with sport tags to populate group statistics.
-                    </div>
-                  )}
-                </div>
-              </div>
+              <GroupsScreen
+                sportsList={sportsList}
+                showBulkBaselineStudio={showBulkBaselineStudio}
+                setShowBulkBaselineStudio={setShowBulkBaselineStudio}
+                bulkBaselineSport={bulkBaselineSport}
+                setBulkBaselineSport={setBulkBaselineSport}
+                bulkBaselineDate={bulkBaselineDate}
+                setBulkBaselineDate={setBulkBaselineDate}
+                athletes={athletes}
+                reportData={reportData}
+                handleBulkTeamBaseline={handleBulkTeamBaseline}
+                setSelectedSportFilter={setSelectedSportFilter}
+                setScreen={setScreen}
+              />
             )}
 
             {screen === 'alerts' && (
-              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                  <div style={{ flex: '1 1 280px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.1em', marginBottom: '4px' }}>TRAINING SAFETY &middot; RISK ALERTS</div>
-                    <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 5vw, var(--text-3xl))', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.1 }}>ATHLETE RECOVERY ALERTS</h1>
-                    <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>Automated flags for rapid mass loss (&gt;{dehydrationThreshold}%) and low sleep (&lt;{sleepThreshold}h)</div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '4px' }}>
-                    {['DAILY', 'WEEKLY', 'MONTHLY'].map(tab => (
-                      <button 
-                        key={tab}
-                        onClick={() => setAlertsTab(tab)}
-                        style={{ 
-                          background: alertsTab === tab ? 'var(--color-accent)' : 'transparent', 
-                          color: alertsTab === tab ? 'var(--navy-950)' : 'var(--color-text-muted)', 
-                          border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
-                        }}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {alertsTab === 'DAILY' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {renderNegativeSweatDropCards()}
-                    {getDailyAlerts().length === 0 ? (
-                      <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: 'var(--color-text-muted)' }}>
-                        <CheckCircle size={32} style={{ color: 'var(--status-success)' }} />
-                        <span style={{ fontSize: '14px', fontWeight: 600 }}>No risk alerts today. All athletes are fully recovered.</span>
-                      </div>
-                    ) : (
-                      getDailyAlerts().map(alert => (
-                        <div key={alert.id} className="card-glass animate-slide-up" style={{ padding: '20px', borderLeft: `4px solid ${alert.color}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: `${alert.color}22`, color: alert.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {alert.icon}
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>{alert.athlete_name}</span>
-                                <span style={{ fontSize: '10px', background: `${alert.color}33`, color: alert.color, padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>{alert.type}</span>
-                              </div>
-                              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{alert.message}</span>
-                            </div>
-                          </div>
-                          <span style={{ fontSize: '11px', color: alert.type === 'DEHYDRATION RISK' ? 'var(--color-accent)' : 'var(--color-text-muted)', fontWeight: 700 }}>{alert.action}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-
-                {alertsTab === 'WEEKLY' && (
-                  <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>Past 7 Days - Categorized Alert Volume</h3>
-                    <div style={{ height: '260px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px' }}>
-                      {(() => {
-                        const weekData = getWeeklyAlerts();
-                        const maxCount = Math.max(...weekData.map(d => d.count), 1);
-                        return weekData.map((item, i) => {
-                          const totalHeightPx = Math.max((item.count / maxCount) * 200, 6);
-                          const weightHeightPx = item.count > 0 ? (item.weightCount / item.count) * totalHeightPx : 0;
-                          const sleepHeightPx = item.count > 0 ? (item.sleepCount / item.count) * totalHeightPx : 0;
-                          return (
-                            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 }}>
-                              <div style={{ textAlign: 'center' }}>
-                                <span style={{ fontSize: '14px', fontWeight: 800, color: item.count > 0 ? 'var(--white)' : 'var(--color-text-muted)' }}>{item.count}</span>
-                                {item.count > 0 && <span style={{ fontSize: '10px', display: 'block', color: 'var(--color-text-muted)' }}>({item.weightCount}💧 {item.sleepCount}🌙)</span>}
-                              </div>
-                              <div style={{ width: '100%', maxWidth: '44px', height: `${totalHeightPx}px`, background: 'var(--navy-800)', borderRadius: '6px', overflow: 'hidden', display: 'flex', flexDirection: 'column-reverse', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                {weightHeightPx > 0 && <div style={{ height: `${weightHeightPx}px`, background: 'var(--status-error)', width: '100%' }} title={`Mass Loss Alerts: ${item.weightCount}`} />}
-                                {sleepHeightPx > 0 && <div style={{ height: `${sleepHeightPx}px`, background: '#f59e0b', width: '100%' }} title={`Sleep Alerts: ${item.sleepCount}`} />}
-                                {item.count === 0 && <div style={{ height: '100%', background: 'var(--navy-600)', width: '100%' }} />}
-                              </div>
-                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)' }}>{item.day}</span>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                    <div style={{ display: 'flex', gap: '20px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: 'var(--status-error)', borderRadius: '3px' }}/> 💧 Mass Loss / Dehydration</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: '#f59e0b', borderRadius: '3px' }}/> 🌙 CNS / Low Sleep Deficits</div>
-                    </div>
-                  </div>
-                )}
-
-                {alertsTab === 'MONTHLY' && (
-                  <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>30-Day Risk & Deficit Heat Map</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px' }}>
-                      {getMonthlyAlerts().map((item, i) => {
-                        let bgColor = 'var(--navy-800)';
-                        let border = '1px solid rgba(255,255,255,0.05)';
-                        if (item.count > 0 && item.count <= 2) { bgColor = 'rgba(245, 158, 11, 0.25)'; border = '1px solid rgba(245, 158, 11, 0.5)'; }
-                        if (item.count > 2) { bgColor = 'rgba(239, 68, 68, 0.3)'; border = '1px solid rgba(239, 68, 68, 0.6)'; }
-                        
-                        return (
-                          <div key={i} style={{ 
-                            aspectRatio: '1', 
-                            background: bgColor, 
-                            border,
-                            borderRadius: '12px', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center',
-                            flexDirection: 'column',
-                            padding: '4px',
-                            boxShadow: item.count > 2 ? '0 0 10px rgba(239, 68, 68, 0.2)' : 'none'
-                          }}>
-                            <span style={{ fontSize: '11px', color: 'var(--white)', opacity: 0.6, fontWeight: 700 }}>{item.date.getDate()}</span>
-                            {item.count > 0 ? (
-                              <>
-                                <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)' }}>{item.count}</span>
-                                <div style={{ display: 'flex', gap: '2px', fontSize: '10px' }}>
-                                  {item.hasWeight && <span>💧</span>}
-                                  {item.hasSleep && <span>🌙</span>}
-                                </div>
-                              </>
-                            ) : (
-                              <span style={{ fontSize: '12px', opacity: 0.2 }}>✔</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ display: 'flex', gap: '20px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'var(--navy-800)', borderRadius: '2px' }}/> 0 Alerts</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'rgba(245, 158, 11, 0.4)', borderRadius: '2px' }}/> 1-2 Alerts</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'rgba(239, 68, 68, 0.6)', borderRadius: '2px' }}/> 3+ Alerts</div>
-                      <span>|</span>
-                      <span>💧 Mass Drop Flag</span>
-                      <span>🌙 Low Sleep Flag</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AlertsScreen
+                dehydrationThreshold={dehydrationThreshold}
+                sleepThreshold={sleepThreshold}
+                alertsTab={alertsTab}
+                setAlertsTab={setAlertsTab}
+                renderNegativeSweatDropCards={renderNegativeSweatDropCards}
+                getDailyAlerts={getDailyAlerts}
+                getWeeklyAlerts={getWeeklyAlerts}
+                getMonthlyAlerts={getMonthlyAlerts}
+              />
             )}
 
             {screen === 'reports' && (() => {
@@ -4406,252 +4101,28 @@ export default function App() {
             })()}
 
             {screen === 'roster' && (
-              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {!isAddingAthlete && (
-                  <>
-                    {/* Roster Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px' }}>
-                      <div>
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>ATHLETE ROSTER</h2>
-                        <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
-                      </span>
-                    </div>
-
-                    {/* Search + Sport Pill Filters */}
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <div style={{ position: 'relative', flex: '0 1 240px', display: 'flex', alignItems: 'center' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '14px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
-                        <input 
-                          type="text" 
-                          className="input-glass"
-                          placeholder="Search athletes..." 
-                          value={search} 
-                          onChange={e => setSearch(e.target.value)}
-                          style={{ flex: 1, height: '44px', padding: '0 36px 0 40px', fontSize: '14px' }}
-                        />
-                        {search && (
-                          <button 
-                            onClick={() => setSearch('')}
-                            style={{ position: 'absolute', right: '12px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                          >
-                            <X size={16} />
-                          </button>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {['ALL', ...sportsList].map(sport => (
-                          <button
-                            key={sport}
-                            onClick={() => setSelectedSportFilter(sport)}
-                            style={{
-                              height: '36px',
-                              padding: '0 16px',
-                              borderRadius: '20px',
-                              border: selectedSportFilter === sport ? '2px solid var(--color-accent)' : '1px solid var(--navy-600)',
-                              background: selectedSportFilter === sport ? 'var(--color-accent)' : 'transparent',
-                              color: selectedSportFilter === sport ? 'var(--navy-900)' : 'var(--color-text)',
-                              fontFamily: 'var(--font-display)',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              textTransform: 'capitalize',
-                              letterSpacing: '0.02em',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {sport === 'ALL' ? 'All' : sport}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Action Buttons Row */}
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <button 
-                        onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' }); }}
-                        className="btn-primary no-print glow-card"
-                        style={{ height: '40px', padding: '0 20px', fontSize: '13px', fontWeight: 700, flex: 'none', display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-accent)', color: 'var(--navy-950)', border: '1px solid var(--color-accent)', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 16px rgba(194, 164, 80, 0.3)' }}
-                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(194, 164, 80, 0.5)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(194, 164, 80, 0.3)'; }}
-                      >
-                        <Plus size={18} strokeWidth={2.5} /> Add Athlete
-                      </button>
-                    </div>
-
-                    {/* Card Grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
-                      {filteredAthletes.map(a => {
-                        // Find latest weigh-in and recovery logs for this athlete from reportData
-                        const athleteLogs = reportData.filter(r => r.athlete_name === a.name).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
-                        const weightLogs = athleteLogs.filter(r => r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r));
-                        const latestLog = athleteLogs[0];
-                        const latestWeightLog = weightLogs[0];
-                        const prevWeightLog = weightLogs[1];
-                        const latestWeight = latestWeightLog ? latestWeightLog.weight_lbs : null;
-                        const weightDelta = (latestWeightLog && prevWeightLog) ? (latestWeightLog.weight_lbs - prevWeightLog.weight_lbs) : null;
-                        const lastLoggedDate = latestLog ? new Date(latestLog.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
-
-                        // Deterministic avatar color based on name
-                        const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
-                        const colorIdx = a.name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length;
-                        const avatarBg = avatarColors[colorIdx];
-
-                        return (
-                          <div 
-                            key={a.id} 
-                            onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); setScreen('profiles'); }} 
-                            className="card-glass glow-card" 
-                            style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '18px 20px', cursor: 'pointer', minHeight: '88px' }}
-                          >
-                            {/* Avatar */}
-                            <div style={{ 
-                              width: '48px', height: '48px', borderRadius: '50%', 
-                              background: avatarBg, 
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                              color: '#fff', fontWeight: 700, fontSize: '16px', fontFamily: 'var(--font-display)',
-                              flexShrink: 0, letterSpacing: '0.02em'
-                            }}>
-                              {a.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                            </div>
-
-                            {/* Info */}
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
-                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {a.name}
-                              </span>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {a.sport && (
-                                  <span style={{ 
-                                    fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', 
-                                    background: 'var(--navy-700)', color: 'var(--color-text)', textTransform: 'capitalize',
-                                    letterSpacing: '0.02em'
-                                  }}>{a.sport}</span>
-                                )}
-                                {a.team && (
-                                  <span style={{ 
-                                    fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', 
-                                    background: 'var(--navy-700)', color: 'var(--color-text)', textTransform: 'capitalize',
-                                    letterSpacing: '0.02em'
-                                  }}>{a.team}</span>
-                                )}
-                              </div>
-                              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {a.position || ''}{a.position && lastLoggedDate ? ' · ' : ''}{lastLoggedDate ? `Last logged ${lastLoggedDate}` : (a.position ? '' : 'No logs yet')}
-                              </span>
-                            </div>
-
-                            {/* Weight + Delta or Sleep Only */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
-                              {latestWeight != null ? (
-                                <>
-                                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-                                    {latestWeight} <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)' }}>lb</span>
-                                  </span>
-                                  {weightDelta != null && (
-                                    <span style={{ 
-                                      fontSize: '12px', fontWeight: 600, 
-                                      color: weightDelta > 0 ? 'var(--status-success)' : weightDelta < 0 ? 'var(--status-error)' : 'var(--color-text-muted)' 
-                                    }}>
-                                      {weightDelta > 0 ? '+' : ''}{weightDelta.toFixed(1)} lb
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.05)', padding: '5px 12px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
-                                  {athleteLogs.length > 0 && athleteLogs[0].sleep_hrs ? `😴 ${athleteLogs[0].sleep_hrs} hrs (Sleep Only)` : '--'}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* Add Athlete button relocated to header action row to prevent overlapping filter pills */}
-                  </>
-                )}
-                
-                {isAddingAthlete && (
-                  <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div onClick={() => { setIsAddingAthlete(false); if(editingAthleteId) { setSelectedProfileId(editingAthleteId); setScreen('profiles'); } }} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
-                      <ChevronLeft size={16} /> Back
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Full Name</span>
-                      <input type="text" className="input-glass" placeholder="e.g. John Doe" value={newAthlete.name} onChange={e => setNewAthlete({...newAthlete, name: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Sport</span>
-                      <input type="text" list="sports-datalist" className="input-glass" placeholder="e.g. Football or choose from tags below" value={newAthlete.sport} onChange={e => setNewAthlete({...newAthlete, sport: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: 'var(--text-sm)' }} />
-                      <datalist id="sports-datalist">
-                        {sportsList.map(s => <option key={s} value={s} />)}
-                      </datalist>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-                        {sportsList.map(sport => (
-                          <button
-                            key={sport}
-                            type="button"
-                            onClick={() => setNewAthlete({ ...newAthlete, sport })}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: '20px',
-                              border: newAthlete.sport === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
-                              background: newAthlete.sport === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.03)',
-                              color: newAthlete.sport === sport ? 'var(--navy-950)' : 'var(--color-text-muted)',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            {sport}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                      <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Team</span>
-                        <input type="text" className="input-glass" placeholder="e.g. Varsity" value={newAthlete.team} onChange={e => setNewAthlete({...newAthlete, team: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: '16px' }} />
-                      </div>
-                      <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Grade</span>
-                        <input type="text" className="input-glass" placeholder="e.g. 10th" value={newAthlete.grade} onChange={e => setNewAthlete({...newAthlete, grade: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: '16px' }} />
-                      </div>
-                      <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Position</span>
-                        <input type="text" className="input-glass" placeholder="e.g. WR" value={newAthlete.position} onChange={e => setNewAthlete({...newAthlete, position: e.target.value})} style={{ height: '48px', padding: '0 16px', fontSize: '16px' }} />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
-                      <button 
-                        onClick={editingAthleteId ? handleUpdateAthlete : handleCreateAthlete}
-                        disabled={!newAthlete.name || saving}
-                        className="btn-primary"
-                        style={{ height: '56px', fontSize: '18px' }}
-                      >
-                        {saving ? 'Saving...' : (editingAthleteId ? 'Save Changes' : 'Create Athlete')}
-                      </button>
-
-                      {editingAthleteId && (
-                        <button 
-                          onClick={handleDeleteAthlete}
-                          disabled={saving}
-                          style={{ height: '56px', background: 'transparent', color: 'var(--status-error)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                        >
-                          Delete Athlete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-              </div>
+              <RosterScreen
+                isAddingAthlete={isAddingAthlete}
+                filteredAthletes={filteredAthletes}
+                search={search}
+                setSearch={setSearch}
+                sportsList={sportsList}
+                selectedSportFilter={selectedSportFilter}
+                setSelectedSportFilter={setSelectedSportFilter}
+                setIsAddingAthlete={setIsAddingAthlete}
+                setEditingAthleteId={setEditingAthleteId}
+                newAthlete={newAthlete}
+                setNewAthlete={setNewAthlete}
+                reportData={reportData}
+                setSelectedProfileId={setSelectedProfileId}
+                fetchProfileData={fetchProfileData}
+                setScreen={setScreen}
+                editingAthleteId={editingAthleteId}
+                handleUpdateAthlete={handleUpdateAthlete}
+                handleCreateAthlete={handleCreateAthlete}
+                saving={saving}
+                handleDeleteAthlete={handleDeleteAthlete}
+              />
             )}
 
             {/* STANDALONE PROFILES TAB */}
