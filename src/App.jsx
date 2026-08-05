@@ -72,6 +72,7 @@ export default function App() {
   });
   const [athletes, setAthletes] = useState([]);
   const fetchReportRequestId = React.useRef(0);
+  const didBackfillLocalOverrides = React.useRef(false);
 
   const getLastName = (fullName) => {
     if (!fullName) return '';
@@ -586,6 +587,38 @@ export default function App() {
     fetchReportData();
   }, []);
 
+  // Pushes classifications this device only knows about locally (baseline markers and
+  // post-practice tags recorded before weigh_ins had real columns for them, or made while
+  // offline) up to the cloud rows, so other devices start seeing them too. Safe to run
+  // repeatedly: it only writes rows whose cloud value doesn't already match.
+  const syncLocalOverridesToCloud = async (cloudRows) => {
+    try {
+      const rowById = new Map(cloudRows.map(r => [r.id, r]));
+
+      // Post-practice tags, keyed by weigh_ins row id.
+      const ppMap = JSON.parse(localStorage.getItem('shiloh_post_practice_logs') || '{}');
+      for (const key of Object.keys(ppMap)) {
+        const row = rowById.get(key);
+        if (row && ppMap[key] && row.session_type !== 'post_practice') {
+          await supabase.from('weigh_ins').update({ session_type: 'post_practice' }).eq('id', key);
+        }
+      }
+
+      // Baseline markers, keyed by athlete id -> { log_id }.
+      const baselineMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+      for (const athleteId of Object.keys(baselineMap)) {
+        const logId = baselineMap[athleteId]?.log_id;
+        const row = logId && rowById.get(logId);
+        if (row && !row.is_baseline) {
+          await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId).neq('id', logId);
+          await supabase.from('weigh_ins').update({ is_baseline: true }).eq('id', logId);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not backfill local overrides to cloud:", e);
+    }
+  };
+
   const fetchReportData = async (isBackground = false) => {
     const requestId = ++fetchReportRequestId.current;
     if (!isBackground) setReportLoading(true);
@@ -602,6 +635,13 @@ export default function App() {
         .order('created_at', { ascending: false });
       if (!error && data) {
         onlineData = data;
+        // One-time per session: push any classifications this device recorded locally (before
+        // the weigh_ins table had session_type/is_baseline columns, or made while offline) up to
+        // the cloud, so they stop being visible on this device only.
+        if (!didBackfillLocalOverrides.current) {
+          didBackfillLocalOverrides.current = true;
+          syncLocalOverridesToCloud(onlineData);
+        }
       } else if (error) {
         throw error;
       }
@@ -639,8 +679,11 @@ export default function App() {
       const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
       merged = merged.map(item => {
         const p = persistedMap[item.athlete_id];
+        // OR with the cloud value rather than overwrite it - the weigh_ins row's own is_baseline
+        // column is now the shared source of truth; this local map is only a same-device fallback
+        // for records the cloud sync hasn't caught up on yet (e.g. still offline-queued).
         if (p && p.log_id) {
-          return { ...item, is_baseline: item.id === p.log_id };
+          return { ...item, is_baseline: !!item.is_baseline || item.id === p.log_id };
         }
         return item;
       });
@@ -686,9 +729,10 @@ export default function App() {
           sport: rec.sport || '',
           weight_lbs: (rec.weight_lbs !== undefined && rec.weight_lbs !== null) ? rec.weight_lbs : 0,
           sleep_hrs: !isNaN(parseFloat(rec.sleep_hrs)) ? parseFloat(rec.sleep_hrs) : 0,
-          created_at: rec.created_at || new Date().toISOString()
+          created_at: rec.created_at || new Date().toISOString(),
+          session_type: rec.session_type || null,
+          is_baseline: !!rec.is_baseline
         };
-        // We do NOT attach is_baseline because weigh_ins in Postgres does not contain an is_baseline column!
         let success = false;
         if (item.action === 'update' && item.id && !String(item.id).startsWith('opt_') && !String(item.id).startsWith('offline_')) {
           const res = await supabase.from('weigh_ins').update(cleanPayload).eq('id', item.id);
@@ -840,10 +884,12 @@ export default function App() {
         created_at: rec.created_at || new Date().toISOString()
       };
       if (rec.is_baseline !== undefined) cleanPayload.is_baseline = rec.is_baseline;
+      if (rec.session_type !== undefined) cleanPayload.session_type = rec.session_type;
 
       let res = await supabase.from('weigh_ins').insert([cleanPayload]);
       if (res.error) {
         delete cleanPayload.is_baseline;
+        delete cleanPayload.session_type;
         res = await supabase.from('weigh_ins').insert([cleanPayload]);
       }
       if (!res.error) {
@@ -1241,17 +1287,26 @@ export default function App() {
         sport: record.sport || '',
         weight_lbs: (record.weight_lbs !== undefined && record.weight_lbs !== null) ? record.weight_lbs : 0,
         sleep_hrs: !isNaN(parseFloat(record.sleep_hrs)) ? parseFloat(record.sleep_hrs) : 0,
-        created_at: record.created_at || new Date().toISOString()
+        created_at: record.created_at || new Date().toISOString(),
+        is_baseline: !!record.is_baseline
       };
 
-      if (existingRecord && !String(existingRecord.id).startsWith('opt_') && !String(existingRecord.id).startsWith('offline_')) {
-        let { error } = await supabase.from('weigh_ins').update(cloudPayload).eq('id', existingRecord.id);
+      let insertedId = existingRecord && !String(existingRecord.id).startsWith('opt_') && !String(existingRecord.id).startsWith('offline_') ? existingRecord.id : null;
+      if (insertedId) {
+        let { error } = await supabase.from('weigh_ins').update(cloudPayload).eq('id', insertedId);
         if (error) throw error;
       } else {
-        let { error } = await supabase.from('weigh_ins').insert([cloudPayload]);
+        let { data, error } = await supabase.from('weigh_ins').insert([cloudPayload]).select();
         if (error) throw error;
+        insertedId = data && data[0] && data[0].id;
       }
-      
+
+      // Only one weigh-in per athlete should carry the active baseline marker -
+      // clear it off any other rows now that this one (or none) is the current baseline.
+      if (cloudPayload.is_baseline && insertedId && isValidUuid(targetAthId)) {
+        await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', targetAthId).neq('id', insertedId);
+      }
+
       fetchReportData(true);
       syncOfflineCache();
       const liveRecord = { id: 'broadcast_' + Date.now(), ...record, created_at: record.created_at || new Date().toISOString() };
@@ -1314,13 +1369,16 @@ export default function App() {
         sport: newRec.sport || '',
         weight_lbs: newRec.weight_lbs,
         sleep_hrs: newRec.sleep_hrs || 0,
-        created_at: newRec.created_at
+        created_at: newRec.created_at,
+        session_type: newRec.session_type || null
       };
 
       const { data, error } = await supabase.from('weigh_ins').insert([cloudPayload]).select();
       if (error) throw error;
 
       if (data && data[0] && newRec.session_type === 'post_practice') {
+        // Also keep the local flag as a fast-path cache; the session_type column on the
+        // row itself is now the source of truth so other devices see the same classification.
         markLogAsPostPractice(data[0]);
       }
 
@@ -1401,6 +1459,17 @@ export default function App() {
       localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
     } catch (e) {}
 
+    // 1b. Persist the baseline flag on the weigh_ins rows themselves so every device
+    // (not just this one) sees which log is the active baseline marker.
+    try {
+      if (isValidUuid(athleteId)) {
+        await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId).neq('id', logId);
+        await supabase.from('weigh_ins').update({ is_baseline: true }).eq('id', logId);
+      }
+    } catch (e) {
+      console.warn("Could not sync baseline flag to cloud weigh_ins row:", e);
+    }
+
     // 2. Update athlete record in state, localStorage, and cloud athletes table via structured metadata
     const targetAthlete = athletes.find(a => a.id === athleteId);
     const updatedMeta = targetAthlete ? encodeAthleteMeta(targetAthlete.raw_position || targetAthlete.position || '', weightVal, dateStr, logId) : '';
@@ -1460,6 +1529,18 @@ export default function App() {
       });
       localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
     } catch (e) {}
+
+    // 1b. Persist the baseline flag on the weigh_ins rows themselves so every device sees it.
+    try {
+      if (sportAthleteIds.size > 0) {
+        await supabase.from('weigh_ins').update({ is_baseline: false }).in('athlete_id', Array.from(sportAthleteIds));
+      }
+      if (targetLogIds.size > 0) {
+        await supabase.from('weigh_ins').update({ is_baseline: true }).in('id', Array.from(targetLogIds));
+      }
+    } catch (e) {
+      console.warn("Could not sync bulk baseline flags to cloud weigh_ins rows:", e);
+    }
 
     // 2. Update athlete records across state, localStorage, and cloud metadata
     const nextAthletes = await Promise.all(athletes.map(async a => {
@@ -1614,7 +1695,7 @@ export default function App() {
         const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
         const p = persistedMap[id];
         if (p && p.log_id) {
-          pData = pData.map(item => ({ ...item, is_baseline: item.id === p.log_id }));
+          pData = pData.map(item => ({ ...item, is_baseline: !!item.is_baseline || item.id === p.log_id }));
         }
       } catch(e) {}
       setProfileData(pData);
@@ -1625,7 +1706,7 @@ export default function App() {
         const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
         const p = persistedMap[id];
         if (p && p.log_id) {
-          pData = pData.map(item => ({ ...item, is_baseline: item.id === p.log_id }));
+          pData = pData.map(item => ({ ...item, is_baseline: !!item.is_baseline || item.id === p.log_id }));
         }
       } catch(e) {}
       setProfileData(pData);
