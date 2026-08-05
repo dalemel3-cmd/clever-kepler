@@ -262,6 +262,7 @@ export default function App() {
     successMsg: ''
   });
   const [athletes, setAthletes] = useState([]);
+  const fetchReportRequestId = React.useRef(0);
 
   const getLastName = (fullName) => {
     if (!fullName) return '';
@@ -576,15 +577,23 @@ export default function App() {
         .on('broadcast', { event: 'DEVICE_SYNC_EVENT' }, (payload) => {
           console.log("🔥 [ULTRASYNC] Instant real-time signal received from wireless device:", payload);
           if (payload.payload && payload.payload.isPing) {
-            alert(`📶 [LIVE DEVICE SIGNAL RECEIVED!]\n\nA real-time wireless test ping was just received from another terminal on your athletic network! Your devices are fully talking to each other.`);
+            console.log("📶 [ULTRASYNC] Test ping received — devices are connected.");
           }
           if (payload.payload && payload.payload.type === 'NEW_WEIGH_IN_LOGGED' && payload.payload.record) {
             const incoming = payload.payload.record;
             console.log("⚡ [ULTRASYNC DATA RECEPTION] Merging live wireless log directly into display:", incoming);
             setReportData(prev => {
-              if (prev.some(r => (r.athlete_id === incoming.athlete_id && Math.abs(new Date(r.created_at || 0) - new Date(incoming.created_at || 0)) < 60000 && Number(r.weight_lbs) === Number(incoming.weight_lbs)))) {
-                return prev;
-              }
+              const isDuplicate = prev.some(r => {
+                if (r.id && incoming.id && !String(r.id).startsWith('opt_') && !String(r.id).startsWith('offline_')) {
+                  return r.id === incoming.id;
+                }
+                // Fallback heuristic only when no reliable id is available — tightened to 5s
+                // so two legitimate same-weight re-weighs within a minute aren't dropped as dupes.
+                return r.athlete_id === incoming.athlete_id &&
+                  Math.abs(new Date(r.created_at || 0) - new Date(incoming.created_at || 0)) < 5000 &&
+                  Number(r.weight_lbs) === Number(incoming.weight_lbs);
+              });
+              if (isDuplicate) return prev;
               const merged = [incoming, ...prev].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
               try { localStorage.setItem('shiloh_reports', JSON.stringify(merged)); } catch(e){}
               return merged;
@@ -769,6 +778,7 @@ export default function App() {
   }, []);
 
   const fetchReportData = async (isBackground = false) => {
+    const requestId = ++fetchReportRequestId.current;
     if (!isBackground) setReportLoading(true);
     let onlineData = [];
     try {
@@ -805,7 +815,7 @@ export default function App() {
         if (rec && rec.athlete_id && rec.created_at) {
           const alreadyExists = merged.some(r => 
             (r.id && rec.id && r.id === rec.id && !String(r.id).startsWith('opt_')) || 
-            (r.athlete_id === rec.athlete_id && Math.abs(new Date(r.created_at) - new Date(rec.created_at)) < 60000)
+            (r.athlete_id === rec.athlete_id && Math.abs(new Date(r.created_at) - new Date(rec.created_at)) < 5000)
           );
           if (!alreadyExists) {
             merged.unshift({ ...rec, id: rec.id || 'offline_' + Date.now() + Math.random().toString(36).substr(2, 4), is_offline_cached: true });
@@ -828,6 +838,11 @@ export default function App() {
     } catch (e) {}
 
     merged.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+    // If a newer fetchReportData call has started since this one began, this response
+    // is stale (e.g. slow network response landing after a faster subsequent poll) — drop it.
+    if (requestId !== fetchReportRequestId.current) return;
+
     setReportData(merged);
     try {
       localStorage.setItem('shiloh_reports', JSON.stringify(merged));
