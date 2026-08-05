@@ -512,6 +512,7 @@ export default function App() {
   const [reportTimeframe, setReportTimeframe] = useState('all'); // 'today' | '7d' | '30d' | 'all'
   const [enabledMetrics, setEnabledMetrics] = useState({
     teamSummary: true,
+    acuteSweatLoss: true,
     dehydration: true,
     sleepDeficit: true,
     expiredBaselines: true,
@@ -2077,9 +2078,10 @@ export default function App() {
     return alerts;
   };
 
-  const renderNegativeSweatDropCards = () => {
+  const renderNegativeSweatDropCards = (forceShow = false) => {
     const list = [];
     const now = new Date();
+    const shouldShowEmpty = forceShow || screen === 'reports';
     
     athletes.forEach(ath => {
       const athLogs = reportData.filter(r => (r.athlete_id === ath.id || (r.athlete_name && r.athlete_name.trim().toLowerCase() === ath.name.trim().toLowerCase())) && r.weight_lbs && Number(r.weight_lbs) > 0);
@@ -2088,7 +2090,7 @@ export default function App() {
       
       const latestPP = ppLogs[ppLogs.length - 1];
       const daysOld = (now - new Date(latestPP.created_at)) / (1000 * 60 * 60 * 24);
-      if (daysOld > 7) return;
+      if (daysOld > 7 && !shouldShowEmpty) return;
 
       const normalLogs = athLogs.filter(r => !isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       const ppDate = new Date(latestPP.created_at);
@@ -2138,10 +2140,10 @@ export default function App() {
 
     list.sort((a, b) => b.drop - a.drop);
 
-    if (list.length === 0) return null;
+    if (list.length === 0 && !shouldShowEmpty) return null;
 
     return (
-      <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #ef4444', marginBottom: '8px' }}>
+      <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #ef4444', marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <div style={{ fontSize: '11px', fontWeight: 800, color: '#ef4444', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
@@ -2159,72 +2161,115 @@ export default function App() {
           </span>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-          {list.map((item, idx) => (
-            <div 
-              key={item.log.id || idx} 
-              onClick={() => {
-                setSelectedProfileId(item.athlete.id);
-                fetchProfileData(item.athlete.id);
-                setScreen('profiles');
-              }}
-              style={{ 
-                padding: '18px 24px', 
-                borderRadius: '16px', 
-                background: 'rgba(0, 0, 0, 0.45)', 
-                border: item.isSevere ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(255,255,255,0.1)', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between', 
-                flexWrap: 'wrap', 
-                gap: '16px',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              className="hover-card"
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                <div style={{ minWidth: '160px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-                      {item.athlete.name}
-                    </span>
-                    {item.athlete.position && (
-                      <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.1)', color: 'var(--color-accent)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                        {item.athlete.position}
+        {list.length === 0 ? (
+          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
+            Clean! No athletes currently showing acute post-practice sweat loss in the negative.
+          </div>
+        ) : (
+          <>
+            {/* Screen View: Interactive Cards */}
+            <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+              {list.map((item, idx) => (
+                <div 
+                  key={item.log.id || idx} 
+                  onClick={() => {
+                    setSelectedProfileId(item.athlete.id);
+                    fetchProfileData(item.athlete.id);
+                    setScreen('profiles');
+                  }}
+                  style={{ 
+                    padding: '18px 24px', 
+                    borderRadius: '16px', 
+                    background: 'rgba(0, 0, 0, 0.45)', 
+                    border: item.isSevere ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(255,255,255,0.1)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    flexWrap: 'wrap', 
+                    gap: '16px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  className="hover-card"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: '160px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: '#fff' }}>
+                          {item.athlete.name}
+                        </span>
+                        {item.athlete.position && (
+                          <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.1)', color: 'var(--color-accent)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                            {item.athlete.position}
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block' }}>
+                        {item.pDate} · {item.pTime}
                       </span>
-                    )}
+                    </div>
+                    <div style={{ height: '36px', width: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                    <div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Pre-Practice / Morning</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: 'var(--color-text-muted)' }}>{item.bWeight} lbs</span>
+                    </div>
+                    <div style={{ fontSize: '20px', color: 'var(--color-text-muted)', fontWeight: 800 }}>➔</div>
+                    <div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Post-Practice Weight</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: '#fff' }}>{item.pWeight} lbs</span>
+                    </div>
                   </div>
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block' }}>
-                    {item.pDate} · {item.pTime}
-                  </span>
-                </div>
-                <div style={{ height: '36px', width: '1px', background: 'rgba(255,255,255,0.1)' }} />
-                <div>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Pre-Practice / Morning</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: 'var(--color-text-muted)' }}>{item.bWeight} lbs</span>
-                </div>
-                <div style={{ fontSize: '20px', color: 'var(--color-text-muted)', fontWeight: 800 }}>➔</div>
-                <div>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Post-Practice Weight</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: '#fff' }}>{item.pWeight} lbs</span>
-                </div>
-              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                <div>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Acute Sweat Drop</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: '#ef4444' }}>
-                    -{item.drop.toFixed(1)} lbs (-{item.pctLoss.toFixed(1)}%)
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                    <div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Acute Sweat Drop</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: '#ef4444' }}>
+                        -{item.drop.toFixed(1)} lbs (-{item.pctLoss.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div style={{ padding: '8px 16px', borderRadius: '12px', background: item.drop >= 5 ? 'rgba(239, 68, 68, 0.2)' : item.drop > 2 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: item.drop >= 5 ? '1px solid rgba(239, 68, 68, 0.4)' : item.drop > 2 ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: item.drop >= 5 ? '#ef4444' : item.drop > 2 ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
+                      💧 Rx: Drink {item.fluidOz} oz fluids before tomorrow
+                    </div>
+                  </div>
                 </div>
-                <div style={{ padding: '8px 16px', borderRadius: '12px', background: item.drop >= 5 ? 'rgba(239, 68, 68, 0.2)' : item.drop > 2 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: item.drop >= 5 ? '1px solid rgba(239, 68, 68, 0.4)' : item.drop > 2 ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: item.drop >= 5 ? '#ef4444' : item.drop > 2 ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
-                  💧 Rx: Drink {item.fluidOz} oz fluids before tomorrow
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+
+            {/* PDF Print Table: Dedicated sharp table for exported PDF documents */}
+            <div className="only-print" style={{ display: 'none', width: '100%', marginTop: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(239, 68, 68, 0.1)', borderBottom: '2px solid #ef4444' }}>
+                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>ATHLETE</th>
+                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>SPORT / POS</th>
+                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>PRE-PRACTICE</th>
+                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>POST-PRACTICE</th>
+                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>SWEAT DROP</th>
+                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>HYDRATION Rx (BEFORE TOMORROW)</th>
+                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>LOG DATE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((item, idx) => (
+                    <tr key={item.log.id || idx} style={{ borderBottom: '1px solid #cbd5e1' }}>
+                      <td style={{ padding: '10px 14px', fontWeight: 800 }}>{item.athlete.name}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12px' }}>{item.athlete.sport || 'N/A'}{item.athlete.position ? ` (${item.athlete.position})` : ''}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700 }}>{item.bWeight} lbs</td>
+                      <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: '#ef4444' }}>{item.pWeight} lbs</td>
+                      <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 800, color: '#ef4444' }}>
+                        -{item.drop.toFixed(1)} lbs (-{item.pctLoss.toFixed(1)}%)
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 800, color: '#ef4444' }}>
+                        💧 Drink {item.fluidOz} oz fluids
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12px' }}>{item.pDate} · {item.pTime}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -4128,6 +4173,7 @@ export default function App() {
 
               // Toggles
               const showTeamSummary = reportMode === 'quick' || enabledMetrics.teamSummary;
+              const showAcuteSweatLoss = reportMode === 'quick' || enabledMetrics.acuteSweatLoss;
               const showDehydration = reportMode === 'quick' || enabledMetrics.dehydration;
               const showSleepDeficit = reportMode === 'quick' || enabledMetrics.sleepDeficit;
               const showExpiredBaselines = reportMode === 'quick' || enabledMetrics.expiredBaselines;
@@ -4232,6 +4278,8 @@ export default function App() {
                         </span>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
                           {[
+                            { key: 'teamSummary', label: 'Team Readiness Summary', desc: 'Overview stats & readiness scores' },
+                            { key: 'acuteSweatLoss', label: 'Acute Sweat Loss', desc: 'Post-practice negative sweat drop' },
                             { key: 'dehydration', label: 'Dehydration Roster', desc: `Athletes dropping ≥${dehydrationThreshold}% weight` },
                             { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: `Athletes logging <${sleepThreshold}h sleep` },
                             { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
@@ -4266,7 +4314,7 @@ export default function App() {
                     <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading report data...</div>
                   ) : (
                     <>
-                      {renderNegativeSweatDropCards()}
+                      {showAcuteSweatLoss && renderNegativeSweatDropCards(true)}
                       {/* Section 2: Priority Dehydration Roster */}
                       {showDehydration && (
                         <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid var(--status-error)' }}>
