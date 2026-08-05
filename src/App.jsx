@@ -5156,10 +5156,30 @@ export default function App() {
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {postPracticeLogs.map((plog, idx) => {
-                          const pDate = new Date(plog.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                          const pTime = new Date(plog.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                          const plogDate = new Date(plog.created_at);
+                          const pDate = plogDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          const pTime = plogDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                           const pWeight = parseFloat(plog.weight_lbs);
-                          const bWeight = baselineWeight ? parseFloat(baselineWeight) : null;
+                          
+                          // Find pre-practice/morning weight from the same day, or fallback to latest prior normal weigh-in
+                          const sameDayLogs = weightLogs.filter(wl => {
+                            const wld = new Date(wl.created_at);
+                            return wld.getFullYear() === plogDate.getFullYear() && 
+                                   wld.getMonth() === plogDate.getMonth() && 
+                                   wld.getDate() === plogDate.getDate();
+                          });
+                          let bWeight = null;
+                          if (sameDayLogs.length > 0) {
+                            bWeight = parseFloat(sameDayLogs[sameDayLogs.length - 1].weight_lbs);
+                          } else {
+                            const priorLogs = weightLogs.filter(wl => new Date(wl.created_at) <= plogDate);
+                            if (priorLogs.length > 0) {
+                              bWeight = parseFloat(priorLogs[priorLogs.length - 1].weight_lbs);
+                            } else {
+                              bWeight = baselineWeight ? parseFloat(baselineWeight) : (latestWeight ? parseFloat(latestWeight) : null);
+                            }
+                          }
+                          
                           const drop = bWeight ? (bWeight - pWeight) : 0;
                           const pctLoss = bWeight && bWeight > 0 ? ((drop / bWeight) * 100) : 0;
                           const fluidOz = drop > 0 ? Math.round(drop * 24) : 0;
@@ -5173,6 +5193,15 @@ export default function App() {
                                   <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{pTime}</span>
                                 </div>
                                 <div style={{ height: '36px', width: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                                {bWeight && (
+                                  <>
+                                    <div>
+                                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Pre-Practice / Morning</span>
+                                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: 'var(--color-text-muted)' }}>{bWeight} lbs</span>
+                                    </div>
+                                    <div style={{ fontSize: '20px', color: 'var(--color-text-muted)', fontWeight: 800 }}>➔</div>
+                                  </>
+                                )}
                                 <div>
                                   <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Post-Practice Weight</span>
                                   <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: '#fff' }}>{pWeight} lbs</span>
