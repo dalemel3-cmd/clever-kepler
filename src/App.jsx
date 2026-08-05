@@ -1,19 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database } from 'lucide-react';
 import { supabase } from './supabaseClient';
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import './styles.css';
-import { CustomTooltip } from './components/CustomTooltip';
 import { Confetti } from './components/Confetti';
 import { KioskNumpad } from './components/KioskNumpad';
-import AlertsScreen from './features/alerts/AlertsScreen';
-import GroupsScreen from './features/groups/GroupsScreen';
-import RosterScreen from './features/roster/RosterScreen';
-import EntryScreen from './features/entry/EntryScreen';
-import DashboardScreen from './features/dashboard/DashboardScreen';
-import ReportsScreen from './features/reports/ReportsScreen';
-import ProfilesScreen from './features/profiles/ProfilesScreen';
-import SettingsScreen from './features/settings/SettingsScreen';
+const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
+const GroupsScreen = lazy(() => import('./features/groups/GroupsScreen'));
+const RosterScreen = lazy(() => import('./features/roster/RosterScreen'));
+const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
+const DashboardScreen = lazy(() => import('./features/dashboard/DashboardScreen'));
+const ReportsScreen = lazy(() => import('./features/reports/ReportsScreen'));
+const ProfilesScreen = lazy(() => import('./features/profiles/ProfilesScreen'));
+const SettingsScreen = lazy(() => import('./features/settings/SettingsScreen'));
+
+const ScreenLoadingFallback = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: 'var(--color-text-muted)', fontSize: '14px', fontWeight: 600 }}>
+    Loading...
+  </div>
+);
 import {
   APP_VERSION,
   isValidUuid,
@@ -2412,6 +2416,7 @@ export default function App() {
             </div>
           )}
           <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <Suspense fallback={<ScreenLoadingFallback />}>
             {screen === 'dashboard' && (
               <DashboardScreen
                 athletes={athletes}
@@ -2622,6 +2627,7 @@ export default function App() {
                 handleDeleteAllWeighIns={handleDeleteAllWeighIns}
               />
             )}
+            </Suspense>
 
           </div>
         </div>
