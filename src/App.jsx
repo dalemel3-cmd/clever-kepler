@@ -63,7 +63,7 @@ const Confetti = () => {
 };
 
 // App Version Tracking & Cloud Helpers
-const APP_VERSION = 'v4.0.0';
+const APP_VERSION = 'v4.1.0';
 
 const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
@@ -138,6 +138,19 @@ export default function App() {
   const [selectedGradeFilter, setSelectedGradeFilter] = useState('ALL');
   const [selectedPositionFilter, setSelectedPositionFilter] = useState('ALL');
   const [nameSortOrder, setNameSortOrder] = useState('first'); // 'first' | 'last'
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null); // { type: 'athlete', id, name } or { type: 'all_weigh_ins' }
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' });
+  const [showExpiredBaselinesModal, setShowExpiredBaselinesModal] = useState(false);
+  const [unweighedOnlyFilter, setUnweighedOnlyFilter] = useState(false);
+  const [showHistoricalLogAccordion, setShowHistoricalLogAccordion] = useState(false);
+  const [showReportsLogAccordion, setShowReportsLogAccordion] = useState(true);
+  const [showBulkBaselineStudio, setShowBulkBaselineStudio] = useState(false);
+  const [reportsSortDirection, setReportsSortDirection] = useState('desc');
+  const [dehySortBy, setDehySortBy] = useState('drop');
+  const [showMergePanel, setShowMergePanel] = useState(false);
+  const [mergeSourceId, setMergeSourceId] = useState('');
+  const [mergeTargetId, setMergeTargetId] = useState('');
+  const [mergeSuccessMsg, setMergeSuccessMsg] = useState('');
   const [athletes, setAthletes] = useState([]);
 
   const getLastName = (fullName) => {
@@ -1452,8 +1465,8 @@ export default function App() {
     }
   };
 
-  const handleDeleteAllWeighIns = async () => {
-    if (!window.confirm("WARNING: Are you sure you want to wipe ALL weigh-in data? This cannot be undone.")) return;
+  const handleDeleteAllWeighIns = async (skipConfirm = false) => {
+    if (!skipConfirm && !window.confirm("WARNING: Are you sure you want to wipe ALL weigh-in data? This cannot be undone.")) return;
     try {
       const { error } = await supabase.from('weigh_ins').delete().not('id', 'is', null);
       if (error) throw error;
@@ -1591,8 +1604,8 @@ export default function App() {
     }
   };
 
-  const handleDeleteAthlete = async () => {
-    if (!window.confirm("Are you sure you want to delete this athlete and all their records?")) return;
+  const handleDeleteAthlete = async (skipConfirm = false) => {
+    if (!skipConfirm && !window.confirm("Are you sure you want to delete this athlete and all their records?")) return;
     setSaving(true);
     try {
       // Delete associated weigh-ins first to prevent foreign key constraint errors
@@ -1614,6 +1627,41 @@ export default function App() {
     } catch (err) {
       console.error("Error deleting athlete:", err);
       alert("Could not delete athlete: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMergeAthletes = async () => {
+    if (!mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId) return;
+    setSaving(true);
+    try {
+      const targetAthlete = athletes.find(a => a.id === mergeTargetId);
+      if (!targetAthlete) return;
+      
+      await supabase.from('weigh_ins').update({
+        athlete_id: targetAthlete.id,
+        athlete_name: targetAthlete.name,
+        sport: targetAthlete.sport
+      }).eq('athlete_id', mergeSourceId);
+
+      setReportData(prev => prev.map(log => {
+        if (log.athlete_id === mergeSourceId) {
+          return { ...log, athlete_id: targetAthlete.id, athlete_name: targetAthlete.name, sport: targetAthlete.sport };
+        }
+        return log;
+      }));
+
+      await supabase.from('athletes').delete().eq('id', mergeSourceId);
+      setAthletes(prev => prev.filter(a => a.id !== mergeSourceId));
+
+      setMergeSourceId('');
+      setMergeTargetId('');
+      setMergeSuccessMsg(`Successfully merged all records into ${targetAthlete.name} and removed duplicate!`);
+      setSaved(true);
+      setTimeout(() => { setSaved(false); setMergeSuccessMsg(''); }, 5000);
+    } catch (e) {
+      console.error("Merge error:", e);
     } finally {
       setSaving(false);
     }
@@ -1660,11 +1708,25 @@ export default function App() {
       const endOfDay = new Date(d);
       endOfDay.setDate(endOfDay.getDate() + 1);
       
-      const count = reportData.filter(r => {
+      let sleepCount = 0;
+      let weightCount = 0;
+      reportData.forEach(r => {
         const recordDate = new Date(r.created_at);
-        return recordDate >= startOfDay && recordDate < endOfDay && r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5;
-      }).length;
-      result.push({ day: dayStr, count, date: startOfDay });
+        if (recordDate >= startOfDay && recordDate < endOfDay) {
+          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5) sleepCount++;
+          if (r.weight_lbs && Number(r.weight_lbs) > 0) {
+            const athlete = athletes.find(a => a.id === r.athlete_id);
+            let activeBaseline = null;
+            try {
+              const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+              if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
+              else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
+            } catch(e) {}
+            if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= 0.02) weightCount++;
+          }
+        }
+      });
+      result.push({ day: dayStr, count: sleepCount + weightCount, sleepCount, weightCount, date: startOfDay });
     }
     return result;
   };
@@ -1680,66 +1742,83 @@ export default function App() {
       const endOfDay = new Date(d);
       endOfDay.setDate(endOfDay.getDate() + 1);
       
-      const count = reportData.filter(r => {
+      let count = 0;
+      let hasWeight = false;
+      let hasSleep = false;
+      reportData.forEach(r => {
         const recordDate = new Date(r.created_at);
-        return recordDate >= startOfDay && recordDate < endOfDay && r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5;
-      }).length;
-      result.push({ count, date: startOfDay });
+        if (recordDate >= startOfDay && recordDate < endOfDay) {
+          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5) { count++; hasSleep = true; }
+          if (r.weight_lbs && Number(r.weight_lbs) > 0) {
+            const athlete = athletes.find(a => a.id === r.athlete_id);
+            let activeBaseline = null;
+            try {
+              const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+              if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
+              else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
+            } catch(e) {}
+            if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= 0.02) { count++; hasWeight = true; }
+          }
+        }
+      });
+      result.push({ count, hasWeight, hasSleep, date: startOfDay });
     }
     return result;
   };
 
   const getDailyAlerts = () => {
-    const today = new Date();
+    const now = Date.now();
     const alerts = [];
     
-    // Get today's records
     const todaysRecords = reportData.filter(r => {
-      const rd = new Date(r.created_at);
-      return rd.getFullYear() === today.getFullYear() && rd.getMonth() === today.getMonth() && rd.getDate() === today.getDate();
+      return (now - new Date(r.created_at).getTime()) <= 24 * 60 * 60 * 1000;
     });
 
     todaysRecords.forEach(r => {
       const athlete = athletes.find(a => a.id === r.athlete_id);
       const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
       
-      // Check sleep
       if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < 6.5) {
         alerts.push({
           id: r.id + '_sleep',
           athlete_id: r.athlete_id,
           athlete_name: r.athlete_name,
           sport: r.sport,
-          type: 'LOW SLEEP',
+          type: 'LOW SLEEP DEFICIT',
           color: '#f59e0b',
           icon: <Activity size={22} />,
-          message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged`,
-          action: 'MONITOR CNS LOAD'
+          message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged today`,
+          action: '🌙 MONITOR CNS LOAD'
         });
       }
 
-      // Check weight drop against persisted baseline or recent log
       const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       const currentIndex = athleteRecords.findIndex(x => x.id === r.id);
       let activeBaseline = athleteRecords.slice().reverse().find(x => x.is_baseline === true || x.is_baseline === 'true' || x.is_baseline === 1);
+      let baselineDateStr = activeBaseline ? new Date(activeBaseline.created_at).toLocaleDateString() : '';
       if (!activeBaseline) {
         try {
           const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
           if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) {
             activeBaseline = { id: customMap[r.athlete_id].log_id, weight_lbs: Number(customMap[r.athlete_id].weight_lbs) };
+            baselineDateStr = customMap[r.athlete_id].date || 'Established';
           } else if (athlete?.baseline_weight) {
+            const meta = parseAthleteMeta(athlete.position);
             activeBaseline = { id: 'athlete_base', weight_lbs: Number(athlete.baseline_weight) };
+            baselineDateStr = meta.bd || 'Initial Base';
           }
         } catch(e) {}
       }
       if (!activeBaseline && currentIndex > 0) {
         activeBaseline = athleteRecords[currentIndex - 1];
+        baselineDateStr = new Date(activeBaseline.created_at).toLocaleDateString();
       }
       
       if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
         if (dropPercent >= 0.02) {
+          const recommendation = drop >= 4.0 ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
           alerts.push({
             id: r.id + '_weight',
             athlete_id: r.athlete_id,
@@ -1748,8 +1827,8 @@ export default function App() {
             type: 'DEHYDRATION RISK',
             color: 'var(--status-error)',
             icon: <AlertTriangle size={22} />,
-            message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% body mass vs baseline)`,
-            action: 'INCREASE HYDRATION'
+            message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% vs Baseline: ${activeBaseline.weight_lbs} lbs on ${baselineDateStr})`,
+            action: recommendation
           });
         }
       }
@@ -2274,6 +2353,114 @@ export default function App() {
                         </div>
                       )}
                     </div>
+
+                    {/* Card 4: Needs Attention (Not Yet Recorded Today) */}
+                    {(() => {
+                      const unrecordedAthletes = athletes.filter(a => !athletesRecordedToday.has(a.id));
+                      const isComplete = unrecordedAthletes.length === 0;
+                      return (
+                        <div 
+                          onClick={() => {
+                            if (!isComplete) {
+                              setUnweighedOnlyFilter(true);
+                              setScreen('entry');
+                            }
+                          }}
+                          className="card-glass glow-card" 
+                          style={{ 
+                            padding: '24px', 
+                            borderRadius: '20px', 
+                            border: isComplete ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(249, 115, 22, 0.45)', 
+                            background: isComplete ? 'rgba(34, 197, 94, 0.05)' : 'rgba(249, 115, 22, 0.08)',
+                            cursor: isComplete ? 'default' : 'pointer',
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: '16px', 
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                            gridColumn: 'span 1'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: isComplete ? 'var(--status-success)' : '#f97316', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                              ⚡ NEEDS ATTENTION TODAY
+                            </span>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.3)', padding: '4px 10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              {isComplete ? 'ALL LOGGED' : 'TAP TO ENTER STATION ➔'}
+                            </span>
+                          </div>
+                          <div>
+                            <div style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: '#fff', lineHeight: 1 }}>
+                              {unrecordedAthletes.length} <span style={{ fontSize: '18px', color: 'var(--color-text-muted)', fontWeight: 600 }}>Athletes</span>
+                            </div>
+                            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '6px' }}>
+                              {isComplete ? '100% of the active roster has successfully recorded their weigh-ins and recovery metrics today.' : 'Have not yet completed their mandatory daily check-in. Click here to launch filtered Kiosk Station.'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Card 5: Biggest Mover (Max Delta vs Baseline/Yesterday) */}
+                    {(() => {
+                      let biggestMover = null;
+                      let maxDelta = 0;
+                      
+                      reportData.forEach(r => {
+                        if (!athletesRecordedToday.has(r.athlete_id) || !r.weight_lbs || isNaN(parseFloat(r.weight_lbs))) return;
+                        const ath = athletes.find(a => a.id === r.athlete_id);
+                        if (!ath) return;
+                        let base = null;
+                        try {
+                          const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+                          if (customMap[ath.id] && customMap[ath.id].weight_lbs) base = parseFloat(customMap[ath.id].weight_lbs);
+                          else if (ath.baseline_weight) base = parseFloat(ath.baseline_weight);
+                        } catch(e) {}
+                        if (!base) {
+                          const meta = parseAthleteMeta(ath.position);
+                          if (meta.baseline_weight) base = parseFloat(meta.baseline_weight);
+                        }
+                        if (base > 0) {
+                          const curr = parseFloat(r.weight_lbs);
+                          const diff = curr - base;
+                          if (Math.abs(diff) > maxDelta) {
+                            maxDelta = Math.abs(diff);
+                            biggestMover = { athlete: ath, diff, base, curr, sport: ath.sport };
+                          }
+                        }
+                      });
+
+                      return (
+                        <div className="card-glass glow-card" style={{ padding: '24px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.45)', background: 'rgba(184, 156, 91, 0.08)', display: 'flex', flexDirection: 'column', gap: '16px', gridColumn: 'span 1' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                              🔥 BIGGEST MOVER TODAY
+                            </span>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.3)', padding: '4px 10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              VS BASELINE
+                            </span>
+                          </div>
+                          {biggestMover ? (
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px' }}>
+                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, color: '#fff', textTransform: 'uppercase' }}>{biggestMover.athlete.name}</span>
+                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '26px', fontWeight: 800, color: biggestMover.diff >= 0 ? '#10b981' : '#ef4444' }}>
+                                  {biggestMover.diff >= 0 ? `+${biggestMover.diff.toFixed(1)}` : biggestMover.diff.toFixed(1)} lbs
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{biggestMover.sport || 'Athlete'} &middot; Today: <strong style={{ color: '#fff' }}>{biggestMover.curr} lbs</strong></span>
+                                <span style={{ opacity: 0.8 }}>Base: {biggestMover.base} lbs</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, color: 'var(--color-text-muted)' }}>NO DELTAS LOGGED TODAY</div>
+                              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '6px' }}>As athletes record their weigh-ins, the largest weight fluctuation from baseline will be featured here live.</div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -2629,8 +2816,30 @@ export default function App() {
                   </div>
 
                   {/* Responsive Athlete Card Grid */}
+                  {unweighedOnlyFilter && (
+                    <div style={{ background: 'rgba(194, 164, 80, 0.15)', border: '1px solid var(--color-accent)', padding: '14px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '20px' }}>⚡</span>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#fff', textTransform: 'uppercase' }}>
+                            PRIORITY FILTER ACTIVE: UNLOGGED ATHLETES ONLY
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                            Showing {filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)).length} athletes remaining for today's check-in session.
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setUnweighedOnlyFilter(false)}
+                        style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', padding: '8px 16px', borderRadius: '12px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}
+                      >
+                        ✕ SHOW ALL ATHLETES
+                      </button>
+                    </div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '12px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px', paddingBottom: '90px' }}>
-                    {filteredAthletes.map(a => {
+                    {(unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes).map(a => {
                       const isSelected = entryAthleteId === a.id;
                       const isDoneToday = athletesRecordedToday.has(a.id);
                       const initials = nameSortOrder === 'last' 
@@ -2900,6 +3109,46 @@ export default function App() {
                         </div>
                       </div>
 
+                      {/* Live Keypad Weight Delta Indicator */}
+                      {kioskTrackMode !== 'sleep_only' && weightInput && !isNaN(parseFloat(weightInput)) && parseFloat(weightInput) > 0 && (() => {
+                        let baseline = null;
+                        try {
+                          const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+                          if (customMap[selectedAthlete.id] && customMap[selectedAthlete.id].weight_lbs) baseline = parseFloat(customMap[selectedAthlete.id].weight_lbs);
+                          else if (selectedAthlete.baseline_weight) baseline = parseFloat(selectedAthlete.baseline_weight);
+                        } catch(e) {}
+                        if (!baseline) {
+                          const meta = parseAthleteMeta(selectedAthlete.position);
+                          if (meta.baseline_weight) baseline = parseFloat(meta.baseline_weight);
+                        }
+                        if (!baseline) return null;
+                        const currentWt = parseFloat(weightInput);
+                        const diff = currentWt - baseline;
+                        const diffPct = (diff / baseline) * 100;
+                        const isLoss = diff < 0;
+                        const color = isLoss ? (diff <= -3.0 ? '#ef4444' : '#f97316') : '#10b981';
+                        const bg = isLoss ? (diff <= -3.0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(249, 115, 22, 0.15)') : 'rgba(16, 185, 129, 0.15)';
+                        const border = isLoss ? (diff <= -3.0 ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(249, 115, 22, 0.4)') : '1px solid rgba(16, 185, 129, 0.4)';
+                        
+                        return (
+                          <div className="animate-slide-up" style={{ width: '100%', padding: '14px 18px', background: bg, border, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: 800, color }}>
+                              <span style={{ fontSize: '24px' }}>{isLoss ? (diff <= -3.0 ? '⚠️' : '🔻') : '🟢'}</span>
+                              <div>
+                                <div style={{ textTransform: 'uppercase' }}>{diff >= 0 ? 'MASS GAIN / UPWARDS TREND' : (diff <= -3.0 ? 'ALERT: SIGNIFICANT WEIGHT DROP DETECTED' : 'SLIGHT WEIGHT DROP vs BASELINE')}</div>
+                                <div style={{ color: '#fff', fontSize: '16px', marginTop: '2px' }}>
+                                  Athlete is {diff >= 0 ? `+${diff.toFixed(1)}` : `${diff.toFixed(1)}`} lbs from baseline ({diff >= 0 ? `+${diffPct.toFixed(1)}` : `${diffPct.toFixed(1)}`}%)
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', display: 'block', textTransform: 'uppercase' }}>Established Baseline</span>
+                              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--color-accent)' }}>{baseline} lbs</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {(() => {
                         const athleteRecords = reportData.filter(r => r.athlete_id === selectedAthlete.id && r.weight_lbs && Number(r.weight_lbs) > 0).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
                         const isFirstEntry = athleteRecords.length === 0;
@@ -3105,18 +3354,28 @@ export default function App() {
             {screen === 'groups' && (
               <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>SPORT GROUPS</h2>
                     <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{sportsList.length} sport{sportsList.length !== 1 ? 's' : ''} tracked</span>
                   </div>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <button
+                      onClick={() => setShowBulkBaselineStudio(!showBulkBaselineStudio)}
+                      style={{ padding: '8px 16px', borderRadius: '12px', background: showBulkBaselineStudio ? 'var(--color-accent)' : 'rgba(184, 156, 91, 0.15)', color: showBulkBaselineStudio ? 'var(--navy-950)' : 'var(--color-accent)', border: '1px solid var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}
+                    >
+                      <TrendingUp size={16} />
+                      {showBulkBaselineStudio ? 'CLOSE BASELINE STUDIO ▲' : 'BULK TEAM BASELINE STUDIO ▼'}
+                    </button>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Bulk Team Baseline Synchronization Studio */}
-                <div className="card-glass glow-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid rgba(184, 156, 91, 0.4)', background: 'rgba(184, 156, 91, 0.05)', borderRadius: '16px' }}>
+                {showBulkBaselineStudio && (
+                <div className="card-glass glow-card animate-slide-up" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid rgba(184, 156, 91, 0.4)', background: 'rgba(184, 156, 91, 0.05)', borderRadius: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                     <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', boxShadow: '0 0 12px rgba(184, 156, 91, 0.3)' }}>
                       <TrendingUp size={24} />
@@ -3207,6 +3466,7 @@ export default function App() {
                     );
                   })()}
                 </div>
+                )}
 
                 {/* Sport Groups Grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
@@ -3351,53 +3611,86 @@ export default function App() {
                 )}
 
                 {alertsTab === 'WEEKLY' && (
-                  <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Past 7 Days - Alert Volume</h3>
-                    <div style={{ height: '240px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '8px' }}>
-                      {getWeeklyAlerts().map((item, i) => {
-                        const maxCount = Math.max(...getWeeklyAlerts().map(d => d.count), 1);
-                        const heightPx = Math.max((item.count / maxCount) * 200, 4);
-                        return (
-                          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 }}>
-                            <span style={{ fontSize: '12px', fontWeight: 700, color: item.count > 0 ? 'var(--status-error)' : 'var(--color-text-muted)' }}>{item.count}</span>
-                            <div style={{ width: '100%', maxWidth: '40px', height: `${heightPx}px`, background: item.count > 0 ? 'var(--status-error)' : 'var(--navy-600)', borderRadius: '4px' }} />
-                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)' }}>{item.day}</span>
-                          </div>
-                        );
-                      })}
+                  <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>Past 7 Days - Categorized Alert Volume</h3>
+                    <div style={{ height: '260px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px' }}>
+                      {(() => {
+                        const weekData = getWeeklyAlerts();
+                        const maxCount = Math.max(...weekData.map(d => d.count), 1);
+                        return weekData.map((item, i) => {
+                          const totalHeightPx = Math.max((item.count / maxCount) * 200, 6);
+                          const weightHeightPx = item.count > 0 ? (item.weightCount / item.count) * totalHeightPx : 0;
+                          const sleepHeightPx = item.count > 0 ? (item.sleepCount / item.count) * totalHeightPx : 0;
+                          return (
+                            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 }}>
+                              <div style={{ textAlign: 'center' }}>
+                                <span style={{ fontSize: '14px', fontWeight: 800, color: item.count > 0 ? 'var(--white)' : 'var(--color-text-muted)' }}>{item.count}</span>
+                                {item.count > 0 && <span style={{ fontSize: '10px', display: 'block', color: 'var(--color-text-muted)' }}>({item.weightCount}💧 {item.sleepCount}🌙)</span>}
+                              </div>
+                              <div style={{ width: '100%', maxWidth: '44px', height: `${totalHeightPx}px`, background: 'var(--navy-800)', borderRadius: '6px', overflow: 'hidden', display: 'flex', flexDirection: 'column-reverse', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                {weightHeightPx > 0 && <div style={{ height: `${weightHeightPx}px`, background: 'var(--status-error)', width: '100%' }} title={`Mass Loss Alerts: ${item.weightCount}`} />}
+                                {sleepHeightPx > 0 && <div style={{ height: `${sleepHeightPx}px`, background: '#f59e0b', width: '100%' }} title={`Sleep Alerts: ${item.sleepCount}`} />}
+                                {item.count === 0 && <div style={{ height: '100%', background: 'var(--navy-600)', width: '100%' }} />}
+                              </div>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)' }}>{item.day}</span>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                    <div style={{ display: 'flex', gap: '20px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: 'var(--status-error)', borderRadius: '3px' }}/> 💧 Mass Loss / Dehydration</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: '#f59e0b', borderRadius: '3px' }}/> 🌙 CNS / Low Sleep Deficits</div>
                     </div>
                   </div>
                 )}
 
                 {alertsTab === 'MONTHLY' && (
-                  <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>30-Day Heat Map</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+                  <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>30-Day Risk & Deficit Heat Map</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px' }}>
                       {getMonthlyAlerts().map((item, i) => {
-                        let bgColor = 'var(--navy-600)'; // 0 alerts
-                        if (item.count > 0 && item.count <= 2) bgColor = 'rgba(245, 158, 11, 0.4)'; // Yellow
-                        if (item.count > 2) bgColor = 'rgba(239, 68, 68, 0.6)'; // Red
+                        let bgColor = 'var(--navy-800)';
+                        let border = '1px solid rgba(255,255,255,0.05)';
+                        if (item.count > 0 && item.count <= 2) { bgColor = 'rgba(245, 158, 11, 0.25)'; border = '1px solid rgba(245, 158, 11, 0.5)'; }
+                        if (item.count > 2) { bgColor = 'rgba(239, 68, 68, 0.3)'; border = '1px solid rgba(239, 68, 68, 0.6)'; }
                         
                         return (
                           <div key={i} style={{ 
                             aspectRatio: '1', 
                             background: bgColor, 
-                            borderRadius: '8px', 
+                            border,
+                            borderRadius: '12px', 
                             display: 'flex', 
                             alignItems: 'center', 
                             justifyContent: 'center',
-                            flexDirection: 'column'
+                            flexDirection: 'column',
+                            padding: '4px',
+                            boxShadow: item.count > 2 ? '0 0 10px rgba(239, 68, 68, 0.2)' : 'none'
                           }}>
-                            <span style={{ fontSize: '10px', color: 'var(--white)', opacity: 0.5 }}>{item.date.getDate()}</span>
-                            {item.count > 0 && <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--white)' }}>{item.count}</span>}
+                            <span style={{ fontSize: '11px', color: 'var(--white)', opacity: 0.6, fontWeight: 700 }}>{item.date.getDate()}</span>
+                            {item.count > 0 ? (
+                              <>
+                                <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)' }}>{item.count}</span>
+                                <div style={{ display: 'flex', gap: '2px', fontSize: '10px' }}>
+                                  {item.hasWeight && <span>💧</span>}
+                                  {item.hasSleep && <span>🌙</span>}
+                                </div>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: '12px', opacity: 0.2 }}>✔</span>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--color-text-muted)', justifyContent: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'var(--navy-600)', borderRadius: '2px' }}/> 0 Alerts</div>
+                    <div style={{ display: 'flex', gap: '20px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'var(--navy-800)', borderRadius: '2px' }}/> 0 Alerts</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'rgba(245, 158, 11, 0.4)', borderRadius: '2px' }}/> 1-2 Alerts</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'rgba(239, 68, 68, 0.6)', borderRadius: '2px' }}/> 3+ Alerts</div>
+                      <span>|</span>
+                      <span>💧 Mass Drop Flag</span>
+                      <span>🌙 Low Sleep Flag</span>
                     </div>
                   </div>
                 )}
@@ -3514,18 +3807,11 @@ export default function App() {
                         {reportMode === 'quick' ? 'High-priority performance indicators (Dehydration risk, sleep deficits, baseline audits).' : 'Customized metric view tailored for coaching analysis.'}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                      <button 
-                        onClick={handleDeleteAllWeighIns}
-                        className="no-print"
-                        style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-error)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-                      >
-                        <Trash2 size={16} /> Clear All Data
-                      </button>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginLeft: 'auto' }}>
                       <button 
                         onClick={() => window.print()}
                         className="btn-primary no-print"
-                        style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}
+                        style={{ padding: '10px 22px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800 }}
                       >
                         <Printer size={16} /> Export to PDF
                       </button>
@@ -3561,8 +3847,12 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Dropdown Filters */}
+                      {/* Dropdown Filters & Record Count */}
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ padding: '7px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', fontSize: '12px', fontWeight: 800, color: 'var(--white)' }}>
+                          TOTAL LOGS: {filteredLogs.length}
+                        </span>
+
                         {/* Sport Filter */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <Filter size={14} style={{ color: 'var(--color-accent)' }} />
@@ -3634,48 +3924,86 @@ export default function App() {
                     <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading report data...</div>
                   ) : (
                     <>
-                      {/* Section 1: Executive Summary Cards */}
+                      {/* Section 1: Executive Summary Cards (Re-ordered to prioritize high-risk indicators) */}
                       {showTeamSummary && (
-                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>TOTAL LOGS</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700 }}>{filteredLogs.length}</span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+                          
+                          <div className="card-glass glow-card" style={{ padding: '22px', display: 'flex', flexDirection: 'column', border: '1px solid var(--status-error)', background: 'rgba(239, 68, 68, 0.08)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--status-error)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>1. DEHYDRATION ALERTS (≥2%)</span>
+                              <AlertTriangle size={18} style={{ color: 'var(--status-error)' }} />
+                            </div>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: 'var(--status-error)', marginTop: '10px', lineHeight: 1 }}>{dehydrationList.length}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Athletes exhibiting critical acute weight drop</span>
                           </div>
-                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>TEAM AVG SLEEP</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700 }}>
+
+                          <div className="card-glass glow-card" style={{ padding: '22px', display: 'flex', flexDirection: 'column', border: '1px solid #f59e0b', background: 'rgba(245, 158, 11, 0.08)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.06em', textTransform: 'uppercase' }}>2. SLEEP DEFICITS (&lt;6.5h)</span>
+                              <Activity size={18} style={{ color: '#f59e0b' }} />
+                            </div>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: '#f59e0b', marginTop: '10px', lineHeight: 1 }}>{sleepDeficitList.length}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Athletes logging suboptimal recovery sleep</span>
+                          </div>
+
+                          <div 
+                            onClick={() => setShowExpiredBaselinesModal(true)}
+                            className="card-glass glow-card" 
+                            style={{ padding: '22px', display: 'flex', flexDirection: 'column', border: '1px solid var(--color-accent)', background: 'rgba(184, 156, 91, 0.08)', cursor: 'pointer', transition: 'transform 0.2s' }}
+                            title="Click to open the drill-down interactive list"
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>3. EXPIRED BASELINES (&gt;14d)</span>
+                              <span style={{ fontSize: '10px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', padding: '2px 8px', borderRadius: '6px' }}>TAP TO INSPECT ➔</span>
+                            </div>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: 'var(--color-accent)', marginTop: '10px', lineHeight: 1 }}>{expiredBaselinesList.length}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Athletes requiring baseline weight renewal</span>
+                          </div>
+
+                          <div className="card-glass glow-card" style={{ padding: '22px', display: 'flex', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>TEAM AVG SLEEP</span>
+                              <span style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 800 }}>Target: 8.0+ hrs</span>
+                            </div>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, color: '#fff', marginTop: '10px', lineHeight: 1 }}>
                               {(() => {
                                 const validSleep = filteredLogs.filter(r => r.sleep_hrs != null && r.sleep_hrs > 0);
                                 return validSleep.length > 0 ? (validSleep.reduce((acc, curr) => acc + Number(curr.sleep_hrs), 0) / validSleep.length).toFixed(1) : '0.0';
                               })()} hrs
                             </span>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Across {filteredLogs.length} total recorded sessions</span>
                           </div>
-                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column', border: '1px solid var(--status-error)' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.05em' }}>DEHYDRATION ALERTS (≥2% DROP)</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--status-error)' }}>{dehydrationList.length}</span>
-                          </div>
-                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column', border: '1px solid #f59e0b' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b', letterSpacing: '0.05em' }}>SLEEP DEFICITS (&lt;6.5h)</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: '#f59e0b' }}>{sleepDeficitList.length}</span>
-                          </div>
-                          <div className="card-glass glow-card" style={{ flex: '1 1 200px', padding: '20px', display: 'flex', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.2)' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>EXPIRED BASELINES (&gt;14d)</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--color-accent)' }}>{expiredBaselinesList.length}</span>
-                          </div>
+
                         </div>
                       )}
 
                       {/* Section 2: Priority Dehydration Roster */}
                       {showDehydration && (
                         <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid var(--status-error)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <AlertTriangle size={20} style={{ color: 'var(--status-error)' }} />
                               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                                 DEHYDRATION & MASS DROP RISK (≥2% MASS LOSS)
                               </h3>
                             </div>
-                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)' }}>{dehydrationList.length} ATHLETES AT RISK</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div className="no-print" style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <button
+                                  onClick={() => setDehySortBy('drop')}
+                                  style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: dehySortBy === 'drop' ? 'var(--status-error)' : 'transparent', color: dehySortBy === 'drop' ? '#fff' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
+                                >
+                                  SORT: DROP %
+                                </button>
+                                <button
+                                  onClick={() => setDehySortBy('name')}
+                                  style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: dehySortBy === 'name' ? 'var(--color-accent)' : 'transparent', color: dehySortBy === 'name' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
+                                >
+                                  SORT: NAME
+                                </button>
+                              </div>
+                              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--status-error)' }}>{dehydrationList.length} ATHLETES AT RISK</span>
+                            </div>
                           </div>
                           
                           {dehydrationList.length === 0 ? (
@@ -3694,7 +4022,10 @@ export default function App() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {dehydrationList.map(item => (
+                                  {[...dehydrationList].sort((a, b) => {
+                                    if (dehySortBy === 'name') return (a.athlete_name || '').localeCompare(b.athlete_name || '');
+                                    return (b.drop_percent || 0) - (a.drop_percent || 0);
+                                  }).map(item => (
                                     <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                       <td style={{ padding: '12px 16px', fontWeight: 700 }}>{item.athlete_name}</td>
                                       <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.sport}</td>
@@ -3837,65 +4168,82 @@ export default function App() {
                       {/* Section 6: Chronological Raw Log Table */}
                       {showRawLogs && (
                         <div className="card-glass" style={{ overflow: 'hidden' }}>
-                          <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div 
+                            onClick={() => setShowReportsLogAccordion(!showReportsLogAccordion)}
+                            className="no-print"
+                            style={{ padding: '16px 24px', borderBottom: showReportsLogAccordion ? '1px solid var(--color-border)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', transition: 'background 0.2s' }}
+                            title="Click to expand or compress the table view"
+                          >
+                            <span style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>📑 CHRONOLOGICAL WEIGH-IN LOG HISTORY ({filteredLogs.length} RECORDS)</span>
+                            </span>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.15)', padding: '4px 12px', borderRadius: '8px', border: '1px solid var(--color-accent)' }}>
+                              {showReportsLogAccordion ? '▼ HIDE TABLE' : '▲ SHOW TABLE'}
+                            </span>
+                          </div>
+                          
+                          <div className="only-print" style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'none' }}>
                             <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>
                               CHRONOLOGICAL WEIGH-IN LOG HISTORY ({filteredLogs.length} RECORDS)
                             </span>
                           </div>
-                          <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                              <thead>
-                                <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)' }}>
-                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>ATHLETE</th>
-                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>SPORT / TEAM</th>
-                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST WEIGHT</th>
-                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST SLEEP</th>
-                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LOG DATE</th>
-                                  <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', width: '60px' }}></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {filteredLogs.slice(0, 50).map(log => (
-                                  <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
-                                    <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
-                                    <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>
-                                      {log.weight_lbs && Number(log.weight_lbs) > 0 ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>😴 Sleep Only</span>}
-                                    </td>
-                                    <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < 6.5) ? 'var(--status-error)' : 'var(--color-text)' }}>
-                                      {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
-                                    </td>
-                                    <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                                      {new Date(log.created_at).toLocaleDateString()}
-                                    </td>
-                                      <td style={{ padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                          {log.weight_lbs && Number(log.weight_lbs) > 0 ? (
-                                            log.is_baseline ? (
-                                              <span style={{ fontSize: '10px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '4px 10px', borderRadius: '12px', fontWeight: 800, whiteSpace: 'nowrap' }}>
-                                                ⭐ BASELINE
-                                              </span>
-                                            ) : (
-                                              <button
-                                                onClick={() => handleMakeDateBaselineMarker(log.id, log.athlete_id, log.weight_lbs, new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), log.athlete_name)}
-                                                className="no-print"
-                                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}
-                                                title="Make this specific date the official baseline marker"
-                                              >
-                                                📍 MAKE BASELINE
-                                              </button>
-                                            )
-                                          ) : null}
-                                          <button onClick={() => handleDeleteWeighIn(log.id)} className="no-print" style={{ background: 'transparent', border: 'none', color: 'var(--status-error)', cursor: 'pointer', padding: '4px' }}>
-                                            <Trash2 size={16} />
-                                          </button>
-                                        </div>
-                                      </td>
+
+                          {showReportsLogAccordion && (
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <thead>
+                                  <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)' }}>
+                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>ATHLETE</th>
+                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>SPORT / TEAM</th>
+                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST WEIGHT</th>
+                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST SLEEP</th>
+                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LOG DATE</th>
+                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', width: '60px' }}></th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                </thead>
+                                <tbody>
+                                  {filteredLogs.slice(0, 50).map(log => (
+                                    <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
+                                      <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
+                                      <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>
+                                        {log.weight_lbs && Number(log.weight_lbs) > 0 ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>😴 Sleep Only</span>}
+                                      </td>
+                                      <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < 6.5) ? 'var(--status-error)' : 'var(--color-text)' }}>
+                                        {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
+                                      </td>
+                                      <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                                        {new Date(log.created_at).toLocaleDateString()}
+                                      </td>
+                                        <td style={{ padding: '16px', textAlign: 'center' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                            {log.weight_lbs && Number(log.weight_lbs) > 0 ? (
+                                              log.is_baseline ? (
+                                                <span style={{ fontSize: '10px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '4px 10px', borderRadius: '12px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                                                  ⭐ BASELINE
+                                                </span>
+                                              ) : (
+                                                <button
+                                                  onClick={() => handleMakeDateBaselineMarker(log.id, log.athlete_id, log.weight_lbs, new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), log.athlete_name)}
+                                                  className="no-print"
+                                                  style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}
+                                                  title="Make this specific date the official baseline marker"
+                                                >
+                                                  📍 MAKE BASELINE
+                                                </button>
+                                              )
+                                            ) : null}
+                                            <button onClick={() => handleDeleteWeighIn(log.id)} className="no-print" style={{ background: 'transparent', border: 'none', color: 'var(--status-error)', cursor: 'pointer', padding: '4px' }}>
+                                              <Trash2 size={16} />
+                                            </button>
+                                          </div>
+                                        </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
@@ -5180,6 +5528,131 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Card 5: Athlete Record Merge Studio */}
+                <div className="card-glass glow-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(139, 92, 246, 0.4)', background: 'rgba(139, 92, 246, 0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc', boxShadow: '0 0 15px rgba(139, 92, 246, 0.3)' }}>
+                        <Users size={22} />
+                      </div>
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: '#c084fc' }}>
+                          ATHLETE RECORD MERGE STUDIO
+                        </h2>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          Resolve duplicated athlete accounts by consolidating all weigh-ins, hydration alerts, and sleep logs into a single master profile.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowMergePanel(!showMergePanel)}
+                      className="btn-secondary"
+                      style={{ padding: '10px 20px', fontSize: '13px', border: '1px solid rgba(139, 92, 246, 0.5)', background: showMergePanel ? 'rgba(139, 92, 246, 0.2)' : 'transparent', color: '#fff', fontWeight: 700, borderRadius: '10px', cursor: 'pointer' }}
+                    >
+                      {showMergePanel ? '✕ Close Studio' : '⚡ Open Merge Studio'}
+                    </button>
+                  </div>
+
+                  {showMergePanel && (
+                    <div style={{ padding: '20px', background: 'rgba(0,0,0,0.3)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            1. Select Source (Duplicate To Delete):
+                          </label>
+                          <select
+                            value={mergeSourceId}
+                            onChange={e => setMergeSourceId(e.target.value)}
+                            style={{ padding: '12px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '10px', fontSize: '14px', fontWeight: 700 }}
+                          >
+                            <option value="">-- Choose Duplicate Profile --</option>
+                            {athletes.map(a => (
+                              <option key={`src-${a.id}`} value={a.id}>{a.name} ({a.sport || 'No Sport'})</option>
+                            ))}
+                          </select>
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>This profile's logs will be moved away and the profile will be deleted.</span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 800, color: 'var(--status-success)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            2. Select Target (Master Profile To Keep):
+                          </label>
+                          <select
+                            value={mergeTargetId}
+                            onChange={e => setMergeTargetId(e.target.value)}
+                            style={{ padding: '12px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(52, 211, 153, 0.4)', borderRadius: '10px', fontSize: '14px', fontWeight: 700 }}
+                          >
+                            <option value="">-- Choose Master Profile --</option>
+                            {athletes.filter(a => a.id !== mergeSourceId).map(a => (
+                              <option key={`tgt-${a.id}`} value={a.id}>{a.name} ({a.sport || 'No Sport'})</option>
+                            ))}
+                          </select>
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>This profile will receive all historical weigh-in sessions and remain active.</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+                        <button
+                          onClick={() => {
+                            if (!mergeSourceId || !mergeTargetId) {
+                              alert("Please select both a source duplicate profile and a master target profile.");
+                              return;
+                            }
+                            const sourceObj = athletes.find(a => a.id === mergeSourceId);
+                            const targetObj = athletes.find(a => a.id === mergeTargetId);
+                            setConfirmModal({
+                              isOpen: true,
+                              title: 'Confirm Athlete Record Merge',
+                              message: `Are you sure you want to merge all records from "${sourceObj?.name}" into "${targetObj?.name}"? The duplicate profile "${sourceObj?.name}" will be permanently deleted after transferring its logs.`,
+                              isDanger: true,
+                              actionText: 'Execute Merge',
+                              onConfirm: () => handleMergeAthletes(mergeSourceId, mergeTargetId)
+                            });
+                          }}
+                          disabled={!mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId}
+                          className="btn-primary"
+                          style={{ padding: '12px 28px', fontSize: '14px', background: 'linear-gradient(135deg, #a855f7, #6366f1)', border: 'none', fontWeight: 800, cursor: (!mergeSourceId || !mergeTargetId) ? 'not-allowed' : 'pointer', borderRadius: '10px' }}
+                        >
+                          🔗 MERGE RECORDS &amp; PURGE DUPLICATE
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 6: Danger Zone & Database Reset Vault */}
+                <div className="card-glass glow-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.04)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-error)' }}>
+                        <AlertTriangle size={24} />
+                      </div>
+                      <div>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: 'var(--status-error)' }}>
+                          DANGER ZONE &amp; DATABASE RESET VAULT
+                        </h2>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          Perform irreversible administrative cleanup operations across the active cloud database.
+                        </div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setConfirmModal({
+                        isOpen: true,
+                        title: 'Clear All Historical Data',
+                        message: 'WARNING: You are about to permanently purge ALL weigh-in logs, hydration records, and recovery sessions from the database across all devices. This action cannot be undone. Do you wish to proceed?',
+                        isDanger: true,
+                        actionText: 'Wipe Database',
+                        onConfirm: () => handleDeleteAllWeighIns(true)
+                      })}
+                      className="no-print"
+                      style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--status-error)', border: '1px solid var(--status-error)', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 0 15px rgba(239, 68, 68, 0.2)' }}
+                    >
+                      <Trash2 size={18} /> Clear All Historical Data
+                    </button>
+                  </div>
+                </div>
+
               </div>
             )}
           </div>
@@ -5383,6 +5856,95 @@ export default function App() {
             >
               DONE / CLOSE
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Universal Confirm Dialog Modal */}
+      {confirmModal.isOpen && (
+        <div className="modal-overlay animate-fade-in" style={{ zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.85)', backdropFilter: 'blur(8px)' }}>
+          <div className="card-glass glow-card" style={{ maxWidth: '440px', width: '100%', padding: '28px', borderRadius: '20px', border: confirmModal.isDanger ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid var(--color-accent)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: confirmModal.isDanger ? 'rgba(239, 68, 68, 0.15)' : 'rgba(184, 156, 91, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: confirmModal.isDanger ? 'var(--status-error)' : 'var(--color-accent)' }}>
+                <AlertTriangle size={24} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--white)', fontFamily: 'var(--font-display)' }}>{confirmModal.title || 'Confirm Action'}</h3>
+            </div>
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>{confirmModal.message}</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '4px' }}>
+              <button
+                onClick={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' })}
+                style={{ padding: '12px 24px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--white)', fontSize: '14px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' });
+                }}
+                style={{ padding: '12px 24px', borderRadius: '10px', background: confirmModal.isDanger ? 'var(--status-error)' : 'var(--color-accent)', color: confirmModal.isDanger ? '#fff' : 'var(--navy-950)', border: 'none', fontSize: '14px', fontWeight: 800, cursor: 'pointer', boxShadow: confirmModal.isDanger ? '0 0 15px rgba(239, 68, 68, 0.3)' : '0 0 15px rgba(184, 156, 91, 0.3)', transition: 'all 0.2s' }}
+              >
+                {confirmModal.actionText || 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expired Baselines Drill-down Modal */}
+      {showExpiredBaselinesModal && (
+        <div className="modal-overlay animate-fade-in" style={{ zIndex: 2500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.85)', backdropFilter: 'blur(8px)' }}>
+          <div className="card-glass glow-card" style={{ maxWidth: '640px', width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', borderRadius: '20px', border: '1px solid var(--color-accent)', boxShadow: '0 20px 50px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+            <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(184, 156, 91, 0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
+                  <Shield size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--color-accent)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>EXPIRED BASELINES (&gt;14 DAYS)</h3>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{expiredBaselinesList.length} Athletes require baseline weight verification</div>
+                </div>
+              </div>
+              <button onClick={() => setShowExpiredBaselinesModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--white)', cursor: 'pointer', padding: '4px' }}>
+                <X size={24} />
+              </button>
+            </div>
+
+            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+              {expiredBaselinesList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+                  ✔ All active roster athletes have recorded an updated weight within the past 14 days!
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {expiredBaselinesList.map(a => (
+                    <div key={a.id} style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--white)' }}>{a.athlete_name}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Sport: {a.sport || 'N/A'} | Last Weigh-In: {a.last_weigh_in_date || 'Never'}</div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowExpiredBaselinesModal(false);
+                          setSearch(a.athlete_name);
+                          setScreen('roster');
+                        }}
+                        style={{ padding: '8px 14px', background: 'rgba(184, 156, 91, 0.15)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        Inspect Profile ➔
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.2)' }}>
+              <button onClick={() => setShowExpiredBaselinesModal(false)} className="btn-primary" style={{ padding: '10px 24px', fontSize: '14px', borderRadius: '10px' }}>
+                Close Window
+              </button>
+            </div>
           </div>
         </div>
       )}
