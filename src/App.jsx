@@ -25,7 +25,9 @@ import {
   encodeAthleteMeta,
   isPostPracticeLog,
   markLogAsPostPractice,
-  getAthleteBaseline
+  getAthleteBaseline,
+  getCentralDateString,
+  getCentralTimeString
 } from './utils/athleteData';
 
 export default function App() {
@@ -64,8 +66,8 @@ export default function App() {
   const [manualEntryForm, setManualEntryForm] = useState({
     athleteId: '',
     weight: '',
-    date: new Date().toISOString().slice(0, 10),
-    time: new Date().toTimeString().slice(0, 5),
+    date: getCentralDateString(),
+    time: getCentralTimeString(),
     sessionType: 'post_practice',
     notes: '',
     successMsg: ''
@@ -150,13 +152,10 @@ export default function App() {
       setTodaySessions(0);
       return;
     }
-    const now = new Date();
+    const todayStr = getCentralDateString();
     const count = reportData.filter(r => {
       if (!r.created_at) return false;
-      const d = new Date(r.created_at);
-      return d.getDate() === now.getDate() &&
-             d.getMonth() === now.getMonth() &&
-             d.getFullYear() === now.getFullYear();
+      return getCentralDateString(new Date(r.created_at)) === todayStr;
     }).length;
     setTodaySessions(count);
   }, [reportData]);
@@ -164,12 +163,11 @@ export default function App() {
   const athletesRecordedToday = React.useMemo(() => {
     void todaySessions;
     const recordedSet = new Set();
-    const now = new Date();
+    const todayStr = getCentralDateString();
     if (reportData && Array.isArray(reportData)) {
       reportData.forEach(r => {
         if (!r.created_at || !r.athlete_id) return;
-        const d = new Date(r.created_at);
-        if (d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+        if (getCentralDateString(new Date(r.created_at)) === todayStr) {
           recordedSet.add(r.athlete_id);
         }
       });
@@ -179,8 +177,7 @@ export default function App() {
       offline.forEach(item => {
         const rec = item.record || item;
         if (rec && rec.athlete_id && rec.created_at) {
-          const rd = new Date(rec.created_at);
-          if (rd.getDate() === now.getDate() && rd.getMonth() === now.getMonth() && rd.getFullYear() === now.getFullYear()) {
+          if (getCentralDateString(new Date(rec.created_at)) === todayStr) {
             recordedSet.add(rec.athlete_id);
           }
         }
@@ -193,10 +190,8 @@ export default function App() {
   const executiveInsights = React.useMemo(() => {
     void todaySessions; // Trigger re-computation when sessions are logged
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
-    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
-    const endOfYesterday = new Date(startOfToday.getTime());
+    const todayCentralStr = getCentralDateString(now);
+    const yesterdayCentralStr = getCentralDateString(new Date(now.getTime() - 24 * 60 * 60 * 1000));
 
     // Merge online and offline records for calculation
     let allLogs = [...(reportData || [])];
@@ -212,14 +207,12 @@ export default function App() {
 
     const todayLogs = allLogs.filter(r => {
       if (!r.created_at) return false;
-      const d = new Date(r.created_at);
-      return d >= startOfToday && d < endOfToday;
+      return getCentralDateString(new Date(r.created_at)) === todayCentralStr;
     });
 
     const yesterdayLogs = allLogs.filter(r => {
       if (!r.created_at) return false;
-      const d = new Date(r.created_at);
-      return d >= startOfYesterday && d < endOfYesterday;
+      return getCentralDateString(new Date(r.created_at)) === yesterdayCentralStr;
     });
 
     // 1. Compliance & Momentum
@@ -255,7 +248,7 @@ export default function App() {
       const ath = athletes.find(a => a.id === todayRec.athlete_id) || { name: todayRec.athlete_name || 'Unknown Athlete', sport: 'General' };
       
       const previousLogs = allLogs
-        .filter(r => r.athlete_id === todayRec.athlete_id && new Date(r.created_at) < startOfToday && r.weight_lbs)
+        .filter(r => r.athlete_id === todayRec.athlete_id && getCentralDateString(new Date(r.created_at)) < todayCentralStr && r.weight_lbs)
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         
       if (previousLogs.length > 0) {
@@ -1199,13 +1192,10 @@ export default function App() {
     if (kioskTrackMode !== 'sleep_only' && (!weightInput || weightInput === '0.0' || weightInput === '')) return;
     if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
     
-    const now = new Date();
+    const todayCentralStr = getCentralDateString();
     const existingRecord = reportData.find(r => {
       if (r.athlete_id !== selectedAthlete.id) return false;
-      const recordDate = new Date(r.created_at);
-      return recordDate.getFullYear() === now.getFullYear() && 
-             recordDate.getMonth() === now.getMonth() && 
-             recordDate.getDate() === now.getDate();
+      return getCentralDateString(new Date(r.created_at)) === todayCentralStr;
     });
     
     if (existingRecord && !skipOverrideConfirm) {
@@ -1861,20 +1851,16 @@ export default function App() {
     const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const result = [];
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
+      const dayCentralStr = getCentralDateString(d);
       const dayStr = days[d.getDay()];
-      const startOfDay = new Date(d);
-      const endOfDay = new Date(d);
-      endOfDay.setDate(endOfDay.getDate() + 1);
-      
+
       let sleepCount = 0;
       let weightCount = 0;
       reportData.forEach(r => {
-        const recordDate = new Date(r.created_at);
-        if (recordDate >= startOfDay && recordDate < endOfDay) {
+        if (getCentralDateString(new Date(r.created_at)) === dayCentralStr) {
           if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) sleepCount++;
           if (r.weight_lbs && Number(r.weight_lbs) > 0) {
             const athlete = athletes.find(a => a.id === r.athlete_id);
@@ -1888,7 +1874,7 @@ export default function App() {
           }
         }
       });
-      result.push({ day: dayStr, count: sleepCount + weightCount, sleepCount, weightCount, date: startOfDay });
+      result.push({ day: dayStr, count: sleepCount + weightCount, sleepCount, weightCount, date: d });
     }
     return result;
   };
@@ -1896,20 +1882,16 @@ export default function App() {
   const getMonthlyAlerts = () => {
     const result = [];
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const startOfDay = new Date(d);
-      const endOfDay = new Date(d);
-      endOfDay.setDate(endOfDay.getDate() + 1);
-      
+      const dayCentralStr = getCentralDateString(d);
+
       let count = 0;
       let hasWeight = false;
       let hasSleep = false;
       reportData.forEach(r => {
-        const recordDate = new Date(r.created_at);
-        if (recordDate >= startOfDay && recordDate < endOfDay) {
+        if (getCentralDateString(new Date(r.created_at)) === dayCentralStr) {
           if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) { count++; hasSleep = true; }
           if (r.weight_lbs && Number(r.weight_lbs) > 0) {
             const athlete = athletes.find(a => a.id === r.athlete_id);
@@ -1923,7 +1905,7 @@ export default function App() {
           }
         }
       });
-      result.push({ count, hasWeight, hasSleep, date: startOfDay });
+      result.push({ count, hasWeight, hasSleep, date: d, dayOfMonth: parseInt(dayCentralStr.slice(8, 10), 10) });
     }
     return result;
   };
@@ -1999,13 +1981,9 @@ export default function App() {
 
       const normalLogs = athLogs.filter(r => !isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       const ppDate = new Date(latestPP.created_at);
-      
-      const sameDayLogs = normalLogs.filter(wl => {
-        const wld = new Date(wl.created_at);
-        return wld.getFullYear() === ppDate.getFullYear() && 
-               wld.getMonth() === ppDate.getMonth() && 
-               wld.getDate() === ppDate.getDate();
-      });
+      const ppDateCentralStr = getCentralDateString(ppDate);
+
+      const sameDayLogs = normalLogs.filter(wl => getCentralDateString(new Date(wl.created_at)) === ppDateCentralStr);
       
       let bWeight = null;
       if (sameDayLogs.length > 0) {

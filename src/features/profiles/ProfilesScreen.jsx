@@ -1,7 +1,7 @@
 import { User, Search, X, ArrowUpRight, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
-import { isPostPracticeLog, getAthleteBaseline } from '../../utils/athleteData';
+import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
 
 export default function ProfilesScreen({
   selectedProfileId,
@@ -502,8 +502,8 @@ export default function ProfilesScreen({
               setManualEntryForm(prev => ({
                 ...prev,
                 athleteId: athlete.id,
-                date: new Date().toISOString().slice(0, 10),
-                time: new Date().toTimeString().slice(0, 5),
+                date: getCentralDateString(),
+                time: getCentralTimeString(),
                 weight: '',
                 successMsg: ''
               }));
@@ -544,12 +544,8 @@ export default function ProfilesScreen({
               const pWeight = parseFloat(plog.weight_lbs);
 
               // Find pre-practice/morning weight from the same day, or fallback to latest prior normal weigh-in
-              const sameDayLogs = weightLogs.filter(wl => {
-                const wld = new Date(wl.created_at);
-                return wld.getFullYear() === plogDate.getFullYear() &&
-                       wld.getMonth() === plogDate.getMonth() &&
-                       wld.getDate() === plogDate.getDate();
-              });
+              const plogDateCentralStr = getCentralDateString(plogDate);
+              const sameDayLogs = weightLogs.filter(wl => getCentralDateString(new Date(wl.created_at)) === plogDateCentralStr);
               let bWeight = null;
               if (sameDayLogs.length > 0) {
                 bWeight = parseFloat(sameDayLogs[sameDayLogs.length - 1].weight_lbs);

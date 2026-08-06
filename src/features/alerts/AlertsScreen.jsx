@@ -124,7 +124,7 @@ export default function AlertsScreen({
                   padding: '4px',
                   boxShadow: item.count > 2 ? '0 0 10px rgba(239, 68, 68, 0.2)' : 'none'
                 }}>
-                  <span style={{ fontSize: '11px', color: 'var(--white)', opacity: 0.6, fontWeight: 700 }}>{item.date.getDate()}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--white)', opacity: 0.6, fontWeight: 700 }}>{item.dayOfMonth}</span>
                   {item.count > 0 ? (
                     <>
                       <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)' }}>{item.count}</span>

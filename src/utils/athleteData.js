@@ -1,5 +1,39 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v4.1.1';
+export const APP_VERSION = 'v4.1.2';
+
+// The program operates out of Shiloh Christian in Arkansas, which is always
+// America/Chicago (Central) - CDT in summer, CST in winter, DST handled by the
+// IANA timezone database automatically. Anchoring "today"/date-picker defaults
+// to this fixed zone (rather than each device's own OS timezone) keeps every
+// coach's device agreeing on what calendar day a practice session falls on,
+// which matters most for evening/post-practice entries made close to midnight.
+const PROGRAM_TIMEZONE = 'America/Chicago';
+
+// Returns the given instant's date as "YYYY-MM-DD" in the program's timezone.
+export const getCentralDateString = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PROGRAM_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const lookup = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return `${lookup.year}-${lookup.month}-${lookup.day}`;
+};
+
+// Returns the given instant's time as "HH:MM" (24-hour) in the program's timezone.
+export const getCentralTimeString = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PROGRAM_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(date);
+  const lookup = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  // Intl reports midnight as "24" with some engines - normalize to "00".
+  const hour = lookup.hour === '24' ? '00' : lookup.hour;
+  return `${hour}:${lookup.minute}`;
+};
 
 export const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 

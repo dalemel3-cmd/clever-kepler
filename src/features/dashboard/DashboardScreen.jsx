@@ -1,5 +1,5 @@
 import { CheckCircle, Zap } from 'lucide-react';
-import { getAthleteBaseline } from '../../utils/athleteData';
+import { getAthleteBaseline, getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
 
 export default function DashboardScreen({
   athletes,
@@ -124,8 +124,8 @@ export default function DashboardScreen({
                     setManualEntryForm(prev => ({
                       ...prev,
                       athleteId: athletes.length > 0 ? athletes[0].id : '',
-                      date: new Date().toISOString().slice(0, 10),
-                      time: new Date().toTimeString().slice(0, 5),
+                      date: getCentralDateString(),
+                      time: getCentralTimeString(),
                       weight: '',
                       successMsg: ''
                     }));

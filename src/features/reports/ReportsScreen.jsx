@@ -1,5 +1,5 @@
 import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2 } from 'lucide-react';
-import { getAthleteBaseline } from '../../utils/athleteData';
+import { getAthleteBaseline, getCentralDateString } from '../../utils/athleteData';
 
 export default function ReportsScreen({
   reportData,
@@ -32,10 +32,8 @@ export default function ReportsScreen({
   }
   const now = new Date();
   if (reportTimeframe === 'today') {
-    filteredLogs = filteredLogs.filter(r => {
-      const rd = new Date(r.created_at);
-      return rd.getFullYear() === now.getFullYear() && rd.getMonth() === now.getMonth() && rd.getDate() === now.getDate();
-    });
+    const todayCentralStr = getCentralDateString(now);
+    filteredLogs = filteredLogs.filter(r => getCentralDateString(new Date(r.created_at)) === todayCentralStr);
   } else if (reportTimeframe === '7d') {
     const cut = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     filteredLogs = filteredLogs.filter(r => new Date(r.created_at) >= cut);
