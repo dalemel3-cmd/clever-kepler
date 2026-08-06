@@ -449,9 +449,13 @@ export default function ReportsScreen({
             </div>
           )}
 
-          {/* Section 6: Chronological Raw Log Table */}
+          {/* Section 6: Chronological Raw Log Table - excluded from Export to PDF (see
+              print-summary-only rules in styles.css): it's the whole point of the on-screen
+              report, but a 300+ row table isn't "summary" material for a printed handout, and
+              it's what was single-handedly blowing the PDF out to a dozen pages. Still fully
+              visible/scrollable on screen, and available via Settings > Export CSV. */}
           {showRawLogs && (
-            <div className="card-glass" style={{ overflow: 'hidden' }}>
+            <div className="card-glass no-print" style={{ overflow: 'hidden' }}>
               <div
                 onClick={() => setShowReportsLogAccordion(!showReportsLogAccordion)}
                 className="no-print"
