@@ -2500,6 +2500,7 @@ export default function App() {
             <Suspense fallback={<ScreenLoadingFallback />}>
             {screen === 'dashboard' && (
               <DashboardScreen
+                dehydrationThreshold={dehydrationThreshold}
                 athletes={athletes}
                 executiveInsights={executiveInsights}
                 todaySessions={todaySessions}

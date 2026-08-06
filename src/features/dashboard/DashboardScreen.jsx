@@ -13,7 +13,8 @@ export default function DashboardScreen({
   setUnweighedOnlyFilter,
   setManualEntryForm,
   setShowManualEntryModal,
-  setSelectedSportFilter
+  setSelectedSportFilter,
+  dehydrationThreshold = 2.0
 }) {
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -82,10 +83,10 @@ export default function DashboardScreen({
                     {isComplete ? '• SESSION COMPLETE' : '• PRE-SESSION MONITORING'}
                   </span>
                   <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', letterSpacing: '0.03em', margin: '4px 0 0 0', lineHeight: 1.1 }}>
-                    {isComplete ? "All Athletes Weighed In Today!" : `${unrecordedAthletes.length} Athlete${unrecordedAthletes.length !== 1 ? 's' : ''} Not Yet Weighed In`}
+                    {isComplete ? "All Athletes Weighed In Today!" : "Start today's session"}
                   </h2>
                   <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '4px 0 0 0', fontWeight: 600 }}>
-                    {isComplete ? "100% compliance achieved across all teams today." : "Start today's session to quickly record weights and recovery metrics."}
+                    {isComplete ? "100% compliance achieved across all teams today." : `${unrecordedAthletes.length} Athlete${unrecordedAthletes.length !== 1 ? 's' : ''} Not Yet Weighed In`}
                   </p>
                 </div>
               </div>
@@ -97,13 +98,13 @@ export default function DashboardScreen({
                       setScreen('entry');
                     }}
                     style={{
-                      padding: '14px 24px',
-                      borderRadius: '14px',
+                      padding: '10px 18px',
+                      borderRadius: '12px',
                       background: 'linear-gradient(135deg, #d4af37 0%, #a68220 100%)',
                       border: 'none',
                       color: '#0a0d14',
                       fontFamily: 'var(--font-display)',
-                      fontSize: '15px',
+                      fontSize: '13px',
                       fontWeight: 800,
                       letterSpacing: '0.04em',
                       cursor: 'pointer',
@@ -132,13 +133,13 @@ export default function DashboardScreen({
                     setShowManualEntryModal(true);
                   }}
                   style={{
-                    padding: '14px 22px',
-                    borderRadius: '14px',
+                    padding: '10px 18px',
+                    borderRadius: '12px',
                     background: 'rgba(30, 58, 138, 0.4)',
                     border: '1px solid rgba(96, 165, 250, 0.5)',
                     color: '#60a5fa',
                     fontFamily: 'var(--font-display)',
-                    fontSize: '15px',
+                    fontSize: '13px',
                     fontWeight: 800,
                     letterSpacing: '0.04em',
                     cursor: 'pointer',
@@ -178,13 +179,14 @@ export default function DashboardScreen({
 
               const currentWt = parseFloat(latestRec.weight_lbs);
               const dropLbs = base - currentWt;
-              if (dropLbs > 5.0) {
+              const dropPercent = (dropLbs / base) * 100;
+              if (dropPercent >= dehydrationThreshold) {
                 attentionItems.push({
                   id: ath.id,
                   name: ath.name,
                   sport: ath.sport || 'Athlete',
-                  reason: `dropped ${dropLbs.toFixed(1)} lbs from baseline (${currentWt} lbs vs ${base} lbs base)`,
-                  badge: `-${dropLbs.toFixed(1)} LB`,
+                  reason: `down ${dropPercent.toFixed(1)}% (${currentWt} lbs vs ${base} lbs base)`,
+                  badge: `-${dropPercent.toFixed(1)}%`,
                   dropLbs: dropLbs,
                   isLoss: true
                 });
@@ -198,7 +200,7 @@ export default function DashboardScreen({
               return (
                 <div className="card-glass" style={{ padding: '18px 24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(34, 197, 94, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <CheckCircle size={20} style={{ color: 'var(--status-success)' }} />
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All athletes are currently within safe baseline limits (no athletes down &gt;5 lbs from baseline).</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All athletes are currently within safe baseline limits (no athletes down &gt;{dehydrationThreshold}% from baseline).</span>
                 </div>
               );
             }
