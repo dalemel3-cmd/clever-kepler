@@ -2003,7 +2003,7 @@ export default function App() {
       
       if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
         alerts.push({
-          id: r.id + '_sleep',
+          id: r.athlete_id + '_sleep', // Deduplicate by athlete
           athlete_id: r.athlete_id,
           athlete_name: r.athlete_name,
           sport: r.sport,
@@ -2024,7 +2024,7 @@ export default function App() {
         if (dropPercent >= (dehydrationThreshold / 100)) {
           const recommendation = drop >= 4.0 ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
           alerts.push({
-            id: r.id + '_weight',
+            id: r.athlete_id + '_weight', // Deduplicate by athlete
             athlete_id: r.athlete_id,
             athlete_name: r.athlete_name,
             sport: r.sport,
@@ -2038,7 +2038,9 @@ export default function App() {
       }
     });
     
-    return alerts.reverse(); // Newest first
+    // Deduplicate so we only show the latest alert of each type per athlete
+    const uniqueAlerts = Array.from(new Map(alerts.map(a => [a.id, a])).values());
+    return uniqueAlerts.reverse(); // Newest first
   };
 
   const renderNegativeSweatDropCards = (forceShow = false) => {
