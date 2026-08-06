@@ -1,4 +1,4 @@
-import { User, Search, X, ArrowUpRight, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2 } from 'lucide-react';
+import { User, Search, X, ArrowUpRight, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
 import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
@@ -598,6 +598,26 @@ export default function ProfilesScreen({
                     <div style={{ padding: '8px 16px', borderRadius: '12px', background: drop >= 5 ? 'rgba(239, 68, 68, 0.2)' : drop > 2 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: drop >= 5 ? '1px solid rgba(239, 68, 68, 0.4)' : drop > 2 ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: drop >= 5 ? '#ef4444' : drop > 2 ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
                       💧 Rx: Drink {fluidOz > 0 ? fluidOz : 32} oz fluids before tomorrow
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualEntryForm(p => ({
+                          ...p,
+                          athleteId: athlete.id,
+                          weight: String(pWeight),
+                          date: getCentralDateString(plogDate),
+                          time: getCentralTimeString(plogDate),
+                          sessionType: 'post_practice',
+                          successMsg: '',
+                          editingLogId: plog.id
+                        }));
+                        setShowManualEntryModal(true);
+                      }}
+                      style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--white)', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
+                      title="Fix a mis-entered date, time, or weight on this log"
+                    >
+                      <Pencil size={14} /> Edit
+                    </button>
                   </div>
                 </div>
               );

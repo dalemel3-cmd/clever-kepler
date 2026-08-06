@@ -70,7 +70,8 @@ export default function App() {
     time: getCentralTimeString(),
     sessionType: 'post_practice',
     notes: '',
-    successMsg: ''
+    successMsg: '',
+    editingLogId: null
   });
   const [athletes, setAthletes] = useState([]);
   const fetchReportRequestId = React.useRef(0);
@@ -1381,6 +1382,53 @@ export default function App() {
       try {
         const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
         offline.push({ action: 'insert', record: newRec, queue_id: 'q_' + Date.now() });
+        localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(offline));
+        setUnsyncedQueueCount(offline.length);
+      } catch (e) {}
+    }
+  };
+
+  // Corrects an existing log's date/time/weight/session type in place, rather than
+  // creating a new row - used by the "Edit" action on post-practice log entries.
+  const handleUpdateManualLog = async (logId, updatedRec) => {
+    // 1. Optimistic UI update on the existing row
+    setReportData(prev => prev.map(r => r.id === logId ? { ...r, ...updatedRec } : r));
+
+    // 2. Persist to local hardware vault as backup
+    try {
+      const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
+      vault.unshift({ saved_at: new Date().toISOString(), record: { ...updatedRec, id: logId }, is_edit: true });
+      localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
+    } catch (e) {}
+
+    // 3. Sync the correction to the live Supabase row
+    try {
+      const cloudPayload = {
+        athlete_id: updatedRec.athlete_id,
+        athlete_name: updatedRec.athlete_name || 'Unknown',
+        sport: updatedRec.sport || '',
+        weight_lbs: updatedRec.weight_lbs,
+        sleep_hrs: updatedRec.sleep_hrs || 0,
+        created_at: updatedRec.created_at,
+        session_type: updatedRec.session_type || null
+      };
+
+      const { error } = await supabase.from('weigh_ins').update(cloudPayload).eq('id', logId);
+      if (error) throw error;
+
+      if (updatedRec.session_type === 'post_practice') {
+        markLogAsPostPractice({ id: logId, ...updatedRec });
+      }
+
+      fetchReportData(true);
+      if (typeof selectedProfileId !== 'undefined' && selectedProfileId && selectedProfileId === updatedRec.athlete_id) {
+        fetchProfileData(selectedProfileId);
+      }
+    } catch (err) {
+      console.warn("Cloud edit failed or offline, queuing correction for background sync:", err);
+      try {
+        const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+        offline.push({ action: 'update', id: logId, record: updatedRec, queue_id: 'q_' + Date.now() });
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(offline));
         setUnsyncedQueueCount(offline.length);
       } catch (e) {}
@@ -3054,11 +3102,21 @@ export default function App() {
                   <Zap size={24} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>COACH MANUAL LOG STUDIO</h3>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>Log acute post-practice weights without altering morning baseline trends</div>
+                  <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    {manualEntryForm.editingLogId ? 'EDIT LOG ENTRY' : 'COACH MANUAL LOG STUDIO'}
+                  </h3>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                    {manualEntryForm.editingLogId ? 'Correct the date, time, or weight on this existing log' : "Log acute post-practice weights without altering morning baseline trends"}
+                  </div>
                 </div>
               </div>
-              <button onClick={() => setShowManualEntryModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--white)', cursor: 'pointer', padding: '4px' }}>
+              <button
+                onClick={() => {
+                  setShowManualEntryModal(false);
+                  setManualEntryForm(p => ({ ...p, editingLogId: null, weight: '', successMsg: '' }));
+                }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--white)', cursor: 'pointer', padding: '4px' }}
+              >
                 <X size={24} />
               </button>
             </div>
@@ -3190,9 +3248,9 @@ export default function App() {
                   }
                   const ath = athletes.find(a => a.id === manualEntryForm.athleteId);
                   const dateTimeStr = new Date(`${manualEntryForm.date}T${manualEntryForm.time || '12:00'}:00`).toISOString();
-                  const recId = 'manual_' + Date.now();
-                  const newRec = {
-                    id: recId,
+                  const isEditing = !!manualEntryForm.editingLogId;
+                  const rec = {
+                    id: isEditing ? manualEntryForm.editingLogId : 'manual_' + Date.now(),
                     athlete_id: manualEntryForm.athleteId,
                     athlete_name: ath ? ath.name : 'Unknown',
                     sport: ath ? ath.sport : '',
@@ -3202,15 +3260,21 @@ export default function App() {
                     session_type: manualEntryForm.sessionType
                   };
 
-                  if (manualEntryForm.sessionType === 'post_practice') {
-                    markLogAsPostPractice(newRec);
+                  if (rec.session_type === 'post_practice') {
+                    markLogAsPostPractice(rec);
                   }
 
-                  handleSaveManualLog(newRec);
+                  if (isEditing) {
+                    handleUpdateManualLog(manualEntryForm.editingLogId, rec);
+                  } else {
+                    handleSaveManualLog(rec);
+                  }
                   setManualEntryForm(p => ({
                     ...p,
-                    weight: '',
-                    successMsg: `Successfully recorded ${manualEntryForm.sessionType === 'post_practice' ? 'Post-Practice' : 'Morning'} weight (${newRec.weight_lbs} lbs) for ${newRec.athlete_name}!`
+                    weight: isEditing ? p.weight : '',
+                    successMsg: isEditing
+                      ? `Saved changes to ${rec.athlete_name}'s ${rec.session_type === 'post_practice' ? 'post-practice' : 'morning'} log (${rec.weight_lbs} lbs, ${manualEntryForm.date} ${manualEntryForm.time}).`
+                      : `Successfully recorded ${manualEntryForm.sessionType === 'post_practice' ? 'Post-Practice' : 'Morning'} weight (${rec.weight_lbs} lbs) for ${rec.athlete_name}!`
                   }));
                 }}
                 style={{
@@ -3229,7 +3293,7 @@ export default function App() {
                   marginTop: '10px'
                 }}
               >
-                SAVE MANUAL RECORD ➔
+                {manualEntryForm.editingLogId ? 'SAVE CHANGES ➔' : 'SAVE MANUAL RECORD ➔'}
               </button>
             </div>
           </div>
