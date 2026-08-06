@@ -68,6 +68,7 @@ export default function AlertsScreen({
       )}
 
       {alertsTab === 'WEEKLY' && (
+        <>
         <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>Past 7 Days - Categorized Alert Volume</h3>
           <div style={{ height: '260px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px' }}>
@@ -128,6 +129,7 @@ export default function AlertsScreen({
             ))
           )}
         </div>
+        </>
       )}
 
       {alertsTab === 'MONTHLY' && (
