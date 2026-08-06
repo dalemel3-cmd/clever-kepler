@@ -7,6 +7,7 @@ export default function AlertsScreen({
   setAlertsTab,
   renderNegativeSweatDropCards,
   getDailyAlerts,
+  getWeeklyAlertsList,
   getWeeklyAlerts,
   getMonthlyAlerts
 }) {
@@ -67,6 +68,7 @@ export default function AlertsScreen({
       )}
 
       {alertsTab === 'WEEKLY' && (
+        <>
         <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, textTransform: 'uppercase' }}>Past 7 Days - Categorized Alert Volume</h3>
           <div style={{ height: '260px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px' }}>
@@ -99,6 +101,35 @@ export default function AlertsScreen({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: '#f59e0b', borderRadius: '3px' }}/> 🌙 CNS / Low Sleep Deficits</div>
           </div>
         </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+          <h3 style={{ margin: '8px 0 0 0', fontSize: '16px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--white)' }}>Athletes to Monitor (Since Monday)</h3>
+          {getWeeklyAlertsList().length === 0 ? (
+            <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: 'var(--color-text-muted)' }}>
+              <CheckCircle size={24} style={{ color: 'var(--status-success)' }} />
+              <span style={{ fontSize: '14px', fontWeight: 600 }}>No alerts triggered this week.</span>
+            </div>
+          ) : (
+            getWeeklyAlertsList().map(alert => (
+              <div key={alert.id} className="card-glass animate-slide-up" style={{ padding: '16px 20px', borderLeft: `4px solid ${alert.color}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${alert.color}22`, color: alert.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {alert.icon}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700 }}>{alert.athlete_name}</span>
+                      <span style={{ fontSize: '9px', background: `${alert.color}33`, color: alert.color, padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>{alert.type}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{alert.message}</span>
+                  </div>
+                </div>
+                <span style={{ fontSize: '11px', color: alert.type === 'DEHYDRATION RISK' ? 'var(--color-accent)' : 'var(--color-text-muted)', fontWeight: 700 }}>{alert.action}</span>
+              </div>
+            ))
+          )}
+        </div>
+        </>
       )}
 
       {alertsTab === 'MONTHLY' && (

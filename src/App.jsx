@@ -1965,6 +1965,66 @@ export default function App() {
     return alerts;
   };
 
+  const getWeeklyAlertsList = () => {
+    const alerts = [];
+    const d = new Date();
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const lastMonday = new Date(d);
+    lastMonday.setDate(diff);
+    lastMonday.setHours(0, 0, 0, 0);
+
+    const weeklyRecords = reportData.filter(r => {
+      return new Date(r.created_at).getTime() >= lastMonday.getTime();
+    });
+
+    weeklyRecords.forEach(r => {
+      const athlete = athletes.find(a => a.id === r.athlete_id);
+      const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
+      const dateStr = new Date(r.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      
+      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
+        alerts.push({
+          id: r.athlete_id + '_sleep', // Deduplicate by athlete
+          athlete_id: r.athlete_id,
+          athlete_name: r.athlete_name,
+          sport: r.sport,
+          type: 'LOW SLEEP DEFICIT',
+          color: '#f59e0b',
+          icon: <Activity size={22} />,
+          message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged on ${dateStr}`,
+          action: '🌙 MONITOR CNS LOAD'
+        });
+      }
+
+      const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+      const activeBaseline = getAthleteBaseline(athlete || { id: r.athlete_id, athlete_id: r.athlete_id }, reportData);
+      
+      if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
+        const drop = activeBaseline.weight_lbs - r.weight_lbs;
+        const dropPercent = drop / activeBaseline.weight_lbs;
+        if (dropPercent >= (dehydrationThreshold / 100)) {
+          const recommendation = drop >= 4.0 ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
+          alerts.push({
+            id: r.athlete_id + '_weight', // Deduplicate by athlete
+            athlete_id: r.athlete_id,
+            athlete_name: r.athlete_name,
+            sport: r.sport,
+            type: 'DEHYDRATION RISK',
+            color: 'var(--status-error)',
+            icon: <AlertTriangle size={22} />,
+            message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop on ${dateStr} (-${(dropPercent*100).toFixed(1)}% vs Baseline)`,
+            action: recommendation
+          });
+        }
+      }
+    });
+    
+    // Deduplicate so we only show the latest alert of each type per athlete
+    const uniqueAlerts = Array.from(new Map(alerts.map(a => [a.id, a])).values());
+    return uniqueAlerts.reverse(); // Newest first
+  };
+
   const renderNegativeSweatDropCards = (forceShow = false) => {
     const list = [];
     const now = new Date();
@@ -2158,7 +2218,7 @@ export default function App() {
   };
 
   const renderSidebarItem = (key, icon, label) => {
-    const active = screen === key;
+    const active = screen === key || (key === 'groups' && screen === 'roster');
     return (
       <div onClick={() => { setScreen(key); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
            style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', cursor: 'pointer',
@@ -2172,7 +2232,7 @@ export default function App() {
   };
 
   const navItem = (key, icon, label) => {
-    const active = screen === key && !showMobileMore;
+    const active = (screen === key || (key === 'groups' && screen === 'roster')) && !showMobileMore;
     return (
       <div onClick={() => { setScreen(key); setShowMobileMore(false); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
@@ -2332,8 +2392,7 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
-            {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
-            {renderSidebarItem('groups', <Grid size={18} />, 'SPORT GROUPS')}
+            {renderSidebarItem('groups', <Shield size={18} />, 'TEAMS & ROSTERS')}
             {renderSidebarItem('profiles', <User size={18} />, 'PROFILES')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getDailyAlerts().length > 0 ? ` (${getDailyAlerts().length})` : ''))}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
@@ -2478,6 +2537,7 @@ export default function App() {
             <Suspense fallback={<ScreenLoadingFallback />}>
             {screen === 'dashboard' && (
               <DashboardScreen
+                dehydrationThreshold={dehydrationThreshold}
                 athletes={athletes}
                 executiveInsights={executiveInsights}
                 todaySessions={todaySessions}
@@ -2570,6 +2630,7 @@ export default function App() {
                 setAlertsTab={setAlertsTab}
                 renderNegativeSweatDropCards={renderNegativeSweatDropCards}
                 getDailyAlerts={getDailyAlerts}
+                getWeeklyAlertsList={getWeeklyAlertsList}
                 getWeeklyAlerts={getWeeklyAlerts}
                 getMonthlyAlerts={getMonthlyAlerts}
               />
@@ -2700,7 +2761,7 @@ export default function App() {
             {navItem('dashboard', <Users size={22} />, 'Home')}
             {navItem('entry', <Plus size={22} />, 'Log')}
             {navItem('profiles', <User size={22} />, 'Profiles')}
-            {navItem('roster', <Shield size={22} />, 'Roster')}
+            {navItem('groups', <Shield size={22} />, 'Teams')}
             
             {/* Clean More / Toolbox Button */}
             <div onClick={() => setShowMobileMore(!showMobileMore)} 
@@ -2742,7 +2803,7 @@ export default function App() {
                       <Grid size={24} style={{ color: 'var(--color-accent)' }} />
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>Sport Groups</div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>TEAMS</div>
                       <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Team comparison averages</div>
                     </div>
                   </div>
