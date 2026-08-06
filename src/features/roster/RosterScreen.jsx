@@ -26,6 +26,15 @@ export default function RosterScreen({
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {!isAddingAthlete && (
+        <button
+          onClick={() => setScreen('groups')}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', background: 'transparent', border: 'none', padding: 0, fontSize: '13px', fontWeight: 700, cursor: 'pointer', width: 'fit-content' }}
+        >
+          <ChevronLeft size={16} /> BACK TO SPORT GROUPS
+        </button>
+      )}
+      
+      {!isAddingAthlete && (
         <>
           {/* Roster Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px' }}>

@@ -2240,7 +2240,7 @@ export default function App() {
   };
 
   const renderSidebarItem = (key, icon, label) => {
-    const active = screen === key;
+    const active = screen === key || (key === 'groups' && screen === 'roster');
     return (
       <div onClick={() => { setScreen(key); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
            style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', cursor: 'pointer',
@@ -2254,7 +2254,7 @@ export default function App() {
   };
 
   const navItem = (key, icon, label) => {
-    const active = screen === key && !showMobileMore;
+    const active = (screen === key || (key === 'groups' && screen === 'roster')) && !showMobileMore;
     return (
       <div onClick={() => { setScreen(key); setShowMobileMore(false); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
@@ -2414,8 +2414,7 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
-            {renderSidebarItem('roster', <Shield size={18} />, 'ROSTER')}
-            {renderSidebarItem('groups', <Grid size={18} />, 'SPORT GROUPS')}
+            {renderSidebarItem('groups', <Shield size={18} />, 'TEAMS & ROSTERS')}
             {renderSidebarItem('profiles', <User size={18} />, 'PROFILES')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getDailyAlerts().length > 0 ? ` (${getDailyAlerts().length})` : ''))}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
@@ -2784,7 +2783,7 @@ export default function App() {
             {navItem('dashboard', <Users size={22} />, 'Home')}
             {navItem('entry', <Plus size={22} />, 'Log')}
             {navItem('profiles', <User size={22} />, 'Profiles')}
-            {navItem('roster', <Shield size={22} />, 'Roster')}
+            {navItem('groups', <Shield size={22} />, 'Teams')}
             
             {/* Clean More / Toolbox Button */}
             <div onClick={() => setShowMobileMore(!showMobileMore)} 
@@ -2826,7 +2825,7 @@ export default function App() {
                       <Grid size={24} style={{ color: 'var(--color-accent)' }} />
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>Sport Groups</div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>TEAMS</div>
                       <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Team comparison averages</div>
                     </div>
                   </div>
