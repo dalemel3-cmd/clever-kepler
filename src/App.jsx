@@ -1983,6 +1983,64 @@ export default function App() {
     return alerts;
   };
 
+  const getWeeklyAlertsList = () => {
+    const alerts = [];
+    const d = new Date();
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const lastMonday = new Date(d);
+    lastMonday.setDate(diff);
+    lastMonday.setHours(0, 0, 0, 0);
+
+    const weeklyRecords = reportData.filter(r => {
+      return new Date(r.created_at).getTime() >= lastMonday.getTime();
+    });
+
+    weeklyRecords.forEach(r => {
+      const athlete = athletes.find(a => a.id === r.athlete_id);
+      const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
+      const dateStr = new Date(r.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      
+      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
+        alerts.push({
+          id: r.id + '_sleep',
+          athlete_id: r.athlete_id,
+          athlete_name: r.athlete_name,
+          sport: r.sport,
+          type: 'LOW SLEEP DEFICIT',
+          color: '#f59e0b',
+          icon: <Activity size={22} />,
+          message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged on ${dateStr}`,
+          action: '🌙 MONITOR CNS LOAD'
+        });
+      }
+
+      const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+      const activeBaseline = getAthleteBaseline(athlete || { id: r.athlete_id, athlete_id: r.athlete_id }, reportData);
+      
+      if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
+        const drop = activeBaseline.weight_lbs - r.weight_lbs;
+        const dropPercent = drop / activeBaseline.weight_lbs;
+        if (dropPercent >= (dehydrationThreshold / 100)) {
+          const recommendation = drop >= 4.0 ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
+          alerts.push({
+            id: r.id + '_weight',
+            athlete_id: r.athlete_id,
+            athlete_name: r.athlete_name,
+            sport: r.sport,
+            type: 'DEHYDRATION RISK',
+            color: 'var(--status-error)',
+            icon: <AlertTriangle size={22} />,
+            message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop on ${dateStr} (-${(dropPercent*100).toFixed(1)}% vs Baseline)`,
+            action: recommendation
+          });
+        }
+      }
+    });
+    
+    return alerts.reverse(); // Newest first
+  };
+
   const renderNegativeSweatDropCards = (forceShow = false) => {
     const list = [];
     const now = new Date();
@@ -2593,6 +2651,7 @@ export default function App() {
                 setAlertsTab={setAlertsTab}
                 renderNegativeSweatDropCards={renderNegativeSweatDropCards}
                 getDailyAlerts={getDailyAlerts}
+                getWeeklyAlertsList={getWeeklyAlertsList}
                 getWeeklyAlerts={getWeeklyAlerts}
                 getMonthlyAlerts={getMonthlyAlerts}
               />
