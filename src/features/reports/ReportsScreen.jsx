@@ -130,13 +130,14 @@ export default function ReportsScreen({
   return (
     <div className="animate-slide-up report-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Title & Action Buttons Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>ANALYTICS &middot; HUMAN PERFORMANCE</div>
+      <div className="report-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="report-header-text">
+          <div className="no-print" style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>ANALYTICS &middot; HUMAN PERFORMANCE</div>
+          <img src="/logo1.png" alt="Human Performance - Shiloh Christian" className="only-print report-print-logo" style={{ display: 'none', height: '46px', width: 'auto', marginBottom: '10px' }} />
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
             {reportMode === 'quick' ? '⚡ QUICK PRIORITY READINESS REPORT' : '⚙️ CUSTOM METRIC PERFORMANCE REPORT'}
           </h1>
-          <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+          <div className="no-print" style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
             {reportMode === 'quick' ? 'High-priority performance indicators (Dehydration risk, sleep deficits, baseline audits).' : 'Customized metric view tailored for coaching analysis.'}
           </div>
         </div>

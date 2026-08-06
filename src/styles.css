@@ -308,21 +308,34 @@ body {
   .sidebar, .bottom-nav, .no-print, [style*='height: 70px'] {
     display: none !important;
   }
-  /* The report title/subtitle uses screen-sized type (clamp'd 3xl heading, 14px
-     subtitle) - shrink both for print so the header takes a few lines' less room. */
+  /* The report title uses screen-sized type (clamp'd 3xl heading) - shrink it for
+     print, and center the whole header (logo + title) since the button column
+     next to it is hidden in print. The logo is sized to read as the dominant
+     element, larger than the title beneath it. */
   .report-container h1 {
     font-size: 18px !important;
     line-height: 1.2 !important;
   }
-  .report-container > div:first-child {
+  .report-header-row {
+    justify-content: center !important;
+  }
+  .report-header-text {
+    width: 100% !important;
+    text-align: center !important;
     margin-bottom: 4px !important;
   }
-  .report-container > div:first-child > div:first-child > div:last-child {
-    font-size: 11px !important;
-    margin-top: 2px !important;
+  .report-print-logo {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    height: 90px !important;
   }
   .report-container h3 {
     font-size: 13px !important;
+    /* The Acute Exertional Monitoring heading is white text meant for its dark
+       on-screen card - without this it's invisible against the print card's
+       light background. Force every section heading to the standard print
+       text color regardless of its on-screen inline color. */
+    color: #0d1b2e !important;
   }
   .report-container svg {
     width: 15px !important;
