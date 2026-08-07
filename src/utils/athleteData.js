@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v4.2.0';
+export const APP_VERSION = 'v4.2.1';
 
 // The program operates out of Shiloh Christian in Arkansas, which is always
 // America/Chicago (Central) - CDT in summer, CST in winter, DST handled by the
@@ -69,6 +69,35 @@ export const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a
 // fat-fingered values like 9999999 before they pollute charts and averages.
 export const isPlausibleWeight = (w) => typeof w === 'number' && !isNaN(w) && w > 0 && w <= 1000;
 
+// ---- Cached localStorage JSON reads ----
+// Hot paths (alert scans, baseline lookups, post-practice checks) used to JSON.parse
+// these maps out of localStorage once per RECORD per render - O(athletes x logs)
+// parses per frame. Cache the parsed maps briefly; writers invalidate immediately so
+// same-render reads never see stale data from this device.
+const JSON_CACHE_TTL_MS = 2000;
+const jsonCache = new Map(); // storageKey -> { at, value }
+
+const readCachedJson = (key) => {
+  const hit = jsonCache.get(key);
+  const now = Date.now();
+  if (hit && now - hit.at < JSON_CACHE_TTL_MS) return hit.value;
+  let value = {};
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key));
+    if (parsed && typeof parsed === 'object') value = parsed;
+  } catch (e) {}
+  jsonCache.set(key, { at: now, value });
+  return value;
+};
+
+export const invalidateAthleteDataCache = (key) => {
+  if (key) jsonCache.delete(key);
+  else jsonCache.clear();
+};
+
+const getPostPracticeMap = () => readCachedJson('shiloh_post_practice_logs');
+export const getBaselinesMap = () => readCachedJson('shiloh_baselines_map');
+
 export const parseAthleteMeta = (posStr) => {
   if (!posStr || typeof posStr !== 'string') return { pos: posStr || '' };
   if (posStr.startsWith('{"') && posStr.endsWith('}')) {
@@ -101,7 +130,7 @@ export const isPostPracticeLog = (rec) => {
   if (!rec) return false;
   if (rec.session_type === 'post_practice' || rec.is_post_practice) return true;
   try {
-    const ppMap = JSON.parse(localStorage.getItem('shiloh_post_practice_logs') || '{}');
+    const ppMap = getPostPracticeMap();
     if (rec.id && ppMap[rec.id]) return true;
     if (rec.athlete_id && rec.created_at) {
       if (ppMap[`${rec.athlete_id}_${rec.created_at}`]) return true;
@@ -127,23 +156,22 @@ export const markLogAsPostPractice = (rec) => {
       ppMap[`${rec.athlete_id}_${prefix}`] = true;
     }
     localStorage.setItem('shiloh_post_practice_logs', JSON.stringify(ppMap));
+    invalidateAthleteDataCache('shiloh_post_practice_logs');
   } catch(e) {}
 };
 
 export const getAthleteBaseline = (athlete, allLogs = []) => {
   if (!athlete) return null;
   const athId = athlete.id || athlete.athlete_id;
-  const athleteRecords = allLogs
-    .filter(r => (r.athlete_id === athId || r.id === athId) && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0 && !isPostPracticeLog(r))
-    .sort((a, b) => new Date(a.created_at || a.date || 0) - new Date(b.created_at || b.date || 0));
 
   let baseWeight = null;
   let baseDate = '8/3/2026';
   let baseLogId = null;
 
-  // 1. Check custom override in localStorage map
+  // 1. Check custom override map first - it's the common case (fetchAthletes populates
+  // it for every athlete with metadata) and needs no scan of the full log list.
   try {
-    const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+    const customMap = getBaselinesMap();
     if (customMap[athId] && customMap[athId].weight_lbs && Number(customMap[athId].weight_lbs) > 0) {
       baseWeight = parseFloat(customMap[athId].weight_lbs);
       baseLogId = customMap[athId].log_id || 'map_base';
@@ -152,6 +180,11 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
       return { weight_lbs: baseWeight, date_str: baseDate, id: baseLogId };
     }
   } catch(e) {}
+
+  // Only filter + sort the full log list when no override exists.
+  const athleteRecords = allLogs
+    .filter(r => (r.athlete_id === athId || r.id === athId) && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0 && !isPostPracticeLog(r))
+    .sort((a, b) => new Date(a.created_at || a.date || 0) - new Date(b.created_at || b.date || 0));
 
   // 2. Check for explicit is_baseline === true log (most recent first)
   const explicitBaseLog = [...athleteRecords].reverse().find(r => r.is_baseline === true || r.is_baseline === 'true' || r.is_baseline === 1);

@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2 } from 'lucide-react';
 import { getAthleteBaseline, getCentralDateString } from '../../utils/athleteData';
+
+const LOG_TABLE_PAGE_SIZE = 250;
 
 export default function ReportsScreen({
   reportData,
@@ -25,6 +28,10 @@ export default function ReportsScreen({
   handleMakeDateBaselineMarker,
   handleDeleteWeighIn
 }) {
+  // Incremental rendering for the raw log table - with months of data it was mounting
+  // thousands of DOM rows at once, which crawls on older iPads.
+  const [visibleLogRows, setVisibleLogRows] = useState(LOG_TABLE_PAGE_SIZE);
+
   // 1. Filter logs
   let filteredLogs = [...reportData];
   if (reportSportFilter !== 'ALL') {
@@ -492,7 +499,7 @@ export default function ReportsScreen({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredLogs.map(log => (
+                      {filteredLogs.slice(0, visibleLogRows).map(log => (
                         <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                           <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
                           <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
@@ -532,6 +539,17 @@ export default function ReportsScreen({
                       ))}
                     </tbody>
                   </table>
+                  {filteredLogs.length > visibleLogRows && (
+                    <div className="no-print" style={{ padding: '14px', display: 'flex', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <button
+                        type="button"
+                        onClick={() => setVisibleLogRows(v => v + LOG_TABLE_PAGE_SIZE)}
+                        style={{ padding: '10px 24px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.15)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        ▼ SHOW {Math.min(LOG_TABLE_PAGE_SIZE, filteredLogs.length - visibleLogRows)} MORE ({filteredLogs.length - visibleLogRows} remaining)
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

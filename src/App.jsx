@@ -29,8 +29,22 @@ import {
   getCentralDateString,
   getCentralTimeString,
   centralWallTimeToISO,
-  isPlausibleWeight
+  isPlausibleWeight,
+  getBaselinesMap,
+  invalidateAthleteDataCache
 } from './utils/athleteData';
+
+const getLastName = (fullName) => {
+  if (!fullName) return '';
+  const parts = fullName.trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+};
+
+const getFirstName = (fullName) => {
+  if (!fullName) return '';
+  const parts = fullName.trim().split(/\s+/);
+  return parts[0];
+};
 
 export default function App() {
   // App State
@@ -81,20 +95,9 @@ export default function App() {
   const syncInFlight = React.useRef(false);
   const manualSaveInFlight = React.useRef(false);
   const kioskSaveInFlight = React.useRef(false);
+  const lastReportSerialized = React.useRef('');
 
-  const getLastName = (fullName) => {
-    if (!fullName) return '';
-    const parts = fullName.trim().split(/\s+/);
-    return parts.length > 1 ? parts[parts.length - 1] : parts[0];
-  };
-
-  const getFirstName = (fullName) => {
-    if (!fullName) return '';
-    const parts = fullName.trim().split(/\s+/);
-    return parts[0];
-  };
-
-  const filteredAthletes = athletes
+  const filteredAthletes = React.useMemo(() => athletes
     .filter(a => {
       const q = search.trim().toLowerCase();
       const hasQuery = q !== '';
@@ -125,7 +128,7 @@ export default function App() {
         if (firstA !== firstB) return firstA.localeCompare(firstB);
         return getLastName(String(a.name || '')).toLowerCase().localeCompare(getLastName(String(b.name || '')).toLowerCase());
       }
-    });
+    }), [athletes, search, selectedSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
   const [isKioskMode, setIsKioskMode] = useState(false);
   
   // Entry State
@@ -430,7 +433,9 @@ export default function App() {
       checkQueue();
       if (navigator.onLine) {
         syncOfflineCache();
-        fetchReportData(true);
+        // Skip the display refresh when the tab is hidden (nothing to paint) - the
+        // offline queue sync above still runs so records keep uploading.
+        if (!document.hidden) fetchReportData(true);
       }
     }, 5000);
 
@@ -666,7 +671,10 @@ export default function App() {
             (r.athlete_id === rec.athlete_id && Math.abs(new Date(r.created_at) - new Date(rec.created_at)) < 5000)
           );
           if (!alreadyExists) {
-            merged.unshift({ ...rec, id: rec.id || 'offline_' + Date.now() + Math.random().toString(36).substr(2, 4), is_offline_cached: true });
+            // Stable synthetic id (was Date.now()+random, which changed on every poll -
+            // breaking React keys and defeating the unchanged-data fingerprint below).
+            const t = new Date(rec.created_at).getTime();
+            merged.unshift({ ...rec, id: rec.id || 'offline_' + (rec.athlete_id || 'x') + '_' + (isNaN(t) ? String(rec.created_at) : t), is_offline_cached: true });
           }
         }
       });
@@ -675,7 +683,7 @@ export default function App() {
     }
 
     try {
-      const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+      const persistedMap = getBaselinesMap();
       merged = merged.map(item => {
         const p = persistedMap[item.athlete_id];
         // OR with the cloud value rather than overwrite it - the weigh_ins row's own is_baseline
@@ -694,10 +702,17 @@ export default function App() {
     // is stale (e.g. slow network response landing after a faster subsequent poll) — drop it.
     if (requestId !== fetchReportRequestId.current) return;
 
-    setReportData(merged);
-    try {
-      localStorage.setItem('shiloh_reports', JSON.stringify(merged));
-    } catch (e) {}
+    // Unchanged-data fingerprint: the 5s heartbeat used to setState + rewrite localStorage
+    // with an identical dataset every cycle, re-rendering the whole app nonstop. The
+    // stringify was already being paid for the localStorage write, so the compare is free.
+    const serialized = JSON.stringify(merged);
+    if (serialized !== lastReportSerialized.current) {
+      lastReportSerialized.current = serialized;
+      setReportData(merged);
+      try {
+        localStorage.setItem('shiloh_reports', serialized);
+      } catch (e) {}
+    }
     setReportLoading(false);
   };
 
@@ -1058,7 +1073,7 @@ export default function App() {
             baseline_log_id: lid
           };
         });
-        try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); } catch(e) {}
+        try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch(e) {}
         setAthletes(decodedAthletes);
         localStorage.setItem('shiloh_roster', JSON.stringify(decodedAthletes));
       } else {
@@ -1290,6 +1305,7 @@ export default function App() {
         const map = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
         map[selectedAthlete.id] = { log_id: null, weight_lbs: Number(weightVal), date_str: updatedBaselineDate };
         localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
+        invalidateAthleteDataCache('shiloh_baselines_map');
       } catch (e) {}
     }
 
@@ -1550,6 +1566,7 @@ export default function App() {
       const map = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
       map[athleteId] = { log_id: logId, weight_lbs: Number(weightVal), date_str: dateStr };
       localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
+        invalidateAthleteDataCache('shiloh_baselines_map');
     } catch (e) {}
 
     // 1b. Persist the baseline flag on the weigh_ins rows themselves so every device
@@ -1621,6 +1638,7 @@ export default function App() {
         map[l.athlete_id] = { log_id: l.id, weight_lbs: Number(l.weight_lbs), date_str: l.created_at };
       });
       localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
+        invalidateAthleteDataCache('shiloh_baselines_map');
     } catch (e) {}
 
     // 1b. Persist the baseline flag on the weigh_ins rows themselves so every device sees it.
@@ -1966,6 +1984,17 @@ export default function App() {
     const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const result = [];
     const today = new Date();
+    // Hoisted out of the per-day x per-record loops: these used to run
+    // athletes.find + a localStorage JSON.parse for every record of every day.
+    const athleteById = new Map(athletes.map(a => [a.id, a]));
+    const customMap = getBaselinesMap();
+    // Bucket each record's Central date once instead of re-deriving it 7 times.
+    const byDay = new Map();
+    reportData.forEach(r => {
+      const key = getCentralDateString(new Date(r.created_at));
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(r);
+    });
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
@@ -1974,19 +2003,14 @@ export default function App() {
 
       let sleepCount = 0;
       let weightCount = 0;
-      reportData.forEach(r => {
-        if (getCentralDateString(new Date(r.created_at)) === dayCentralStr) {
-          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) sleepCount++;
-          if (r.weight_lbs && Number(r.weight_lbs) > 0) {
-            const athlete = athletes.find(a => a.id === r.athlete_id);
-            let activeBaseline = null;
-            try {
-              const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-              if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
-              else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
-            } catch(e) {}
-            if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= (dehydrationThreshold / 100)) weightCount++;
-          }
+      (byDay.get(dayCentralStr) || []).forEach(r => {
+        if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) sleepCount++;
+        if (r.weight_lbs && Number(r.weight_lbs) > 0) {
+          const athlete = athleteById.get(r.athlete_id);
+          let activeBaseline = null;
+          if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
+          else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
+          if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= (dehydrationThreshold / 100)) weightCount++;
         }
       });
       result.push({ day: dayStr, count: sleepCount + weightCount, sleepCount, weightCount, date: d });
@@ -1997,6 +2021,16 @@ export default function App() {
   const getMonthlyAlerts = () => {
     const result = [];
     const today = new Date();
+    // Same hoisting as getWeeklyAlerts - this loop used to be 30 days x every record,
+    // with an athletes.find and a localStorage JSON.parse inside the inner loop.
+    const athleteById = new Map(athletes.map(a => [a.id, a]));
+    const customMap = getBaselinesMap();
+    const byDay = new Map();
+    reportData.forEach(r => {
+      const key = getCentralDateString(new Date(r.created_at));
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(r);
+    });
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
@@ -2005,19 +2039,14 @@ export default function App() {
       let count = 0;
       let hasWeight = false;
       let hasSleep = false;
-      reportData.forEach(r => {
-        if (getCentralDateString(new Date(r.created_at)) === dayCentralStr) {
-          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) { count++; hasSleep = true; }
-          if (r.weight_lbs && Number(r.weight_lbs) > 0) {
-            const athlete = athletes.find(a => a.id === r.athlete_id);
-            let activeBaseline = null;
-            try {
-              const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-              if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
-              else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
-            } catch(e) {}
-            if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= (dehydrationThreshold / 100)) { count++; hasWeight = true; }
-          }
+      (byDay.get(dayCentralStr) || []).forEach(r => {
+        if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) { count++; hasSleep = true; }
+        if (r.weight_lbs && Number(r.weight_lbs) > 0) {
+          const athlete = athleteById.get(r.athlete_id);
+          let activeBaseline = null;
+          if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
+          else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
+          if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= (dehydrationThreshold / 100)) { count++; hasWeight = true; }
         }
       });
       result.push({ count, hasWeight, hasSleep, date: d, dayOfMonth: parseInt(dayCentralStr.slice(8, 10), 10) });
@@ -2025,18 +2054,29 @@ export default function App() {
     return result;
   };
 
-  const getDailyAlerts = () => {
+  // Memoized: the sidebar badge, mobile nav, and Alerts screen each call this per
+  // render (previously recomputing a full baseline scan 3-5x per frame).
+  const dailyAlerts = React.useMemo(() => {
     const now = Date.now();
     const alerts = [];
-    
+
     const todaysRecords = reportData.filter(r => {
       return (now - new Date(r.created_at).getTime()) <= 24 * 60 * 60 * 1000;
     });
 
+    const athleteById = new Map(athletes.map(a => [a.id, a]));
+    const baselineByAthlete = new Map();
+    const baselineFor = (athleteId, athlete) => {
+      if (!baselineByAthlete.has(athleteId)) {
+        baselineByAthlete.set(athleteId, getAthleteBaseline(athlete || { id: athleteId, athlete_id: athleteId }, reportData));
+      }
+      return baselineByAthlete.get(athleteId);
+    };
+
     todaysRecords.forEach(r => {
-      const athlete = athletes.find(a => a.id === r.athlete_id);
+      const athlete = athleteById.get(r.athlete_id);
       const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
-      
+
       if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
         alerts.push({
           id: r.id + '_sleep',
@@ -2051,12 +2091,10 @@ export default function App() {
         });
       }
 
-      const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-      const currentIndex = athleteRecords.findIndex(x => x.id === r.id);
-      const baseInfo = getAthleteBaseline(athlete || { id: r.athlete_id, athlete_id: r.athlete_id }, reportData);
+      const baseInfo = baselineFor(r.athlete_id, athlete);
       const activeBaseline = baseInfo ? { id: baseInfo.id, weight_lbs: baseInfo.weight_lbs } : null;
       const baselineDateStr = baseInfo ? baseInfo.date_str : 'Established';
-      
+
       if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
@@ -2078,9 +2116,12 @@ export default function App() {
     });
 
     return alerts;
-  };
+  }, [reportData, athletes, dehydrationThreshold, sleepThreshold]);
 
-  const getWeeklyAlertsList = () => {
+  const getDailyAlerts = () => dailyAlerts;
+
+  // Memoized: the Alerts screen calls this twice per render (count + list).
+  const weeklyAlertsList = React.useMemo(() => {
     const alerts = [];
     const d = new Date();
     const day = d.getDay();
@@ -2093,11 +2134,20 @@ export default function App() {
       return new Date(r.created_at).getTime() >= lastMonday.getTime();
     });
 
+    const athleteById = new Map(athletes.map(a => [a.id, a]));
+    const baselineByAthlete = new Map();
+    const baselineFor = (athleteId, athlete) => {
+      if (!baselineByAthlete.has(athleteId)) {
+        baselineByAthlete.set(athleteId, getAthleteBaseline(athlete || { id: athleteId, athlete_id: athleteId }, reportData));
+      }
+      return baselineByAthlete.get(athleteId);
+    };
+
     weeklyRecords.forEach(r => {
-      const athlete = athletes.find(a => a.id === r.athlete_id);
+      const athlete = athleteById.get(r.athlete_id);
       const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
       const dateStr = new Date(r.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      
+
       if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
         alerts.push({
           id: r.athlete_id + '_sleep', // Deduplicate by athlete
@@ -2112,9 +2162,8 @@ export default function App() {
         });
       }
 
-      const athleteRecords = reportData.filter(x => x.athlete_id === r.athlete_id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-      const activeBaseline = getAthleteBaseline(athlete || { id: r.athlete_id, athlete_id: r.athlete_id }, reportData);
-      
+      const activeBaseline = baselineFor(r.athlete_id, athlete);
+
       if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
@@ -2138,7 +2187,9 @@ export default function App() {
     // Deduplicate so we only show the latest alert of each type per athlete
     const uniqueAlerts = Array.from(new Map(alerts.map(a => [a.id, a])).values());
     return uniqueAlerts.reverse(); // Newest first
-  };
+  }, [reportData, athletes, dehydrationThreshold, sleepThreshold]);
+
+  const getWeeklyAlertsList = () => weeklyAlertsList;
 
   const renderNegativeSweatDropCards = (forceShow = false) => {
     const list = [];

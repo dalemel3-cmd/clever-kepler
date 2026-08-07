@@ -1,6 +1,6 @@
 import { Search, X, Plus, Minus, CheckCircle, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
-import { parseAthleteMeta } from '../../utils/athleteData';
+import { parseAthleteMeta, getBaselinesMap } from '../../utils/athleteData';
 
 export default function EntryScreen({
   kioskTrackMode,
@@ -613,7 +613,7 @@ export default function EntryScreen({
             {kioskTrackMode !== 'sleep_only' && weightInput && !isNaN(parseFloat(weightInput)) && parseFloat(weightInput) > 0 && (() => {
               let baseline = null;
               try {
-                const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
+                const customMap = getBaselinesMap(); // cached - this runs on every numpad keystroke
                 if (customMap[selectedAthlete.id] && customMap[selectedAthlete.id].weight_lbs) baseline = parseFloat(customMap[selectedAthlete.id].weight_lbs);
                 else if (selectedAthlete.baseline_weight) baseline = parseFloat(selectedAthlete.baseline_weight);
               } catch(e) {}
