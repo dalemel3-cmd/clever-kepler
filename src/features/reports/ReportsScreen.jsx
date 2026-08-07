@@ -274,7 +274,7 @@ export default function ReportsScreen({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <AlertTriangle size={20} style={{ color: 'var(--status-error)' }} />
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    DEHYDRATION & MASS DROP RISK (≥2% MASS LOSS)
+                    DEHYDRATION & MASS DROP RISK (≥{dehydrationThreshold}% MASS LOSS)
                   </h3>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -297,7 +297,7 @@ export default function ReportsScreen({
               </div>
 
               {dehydrationList.length === 0 ? (
-                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>Clean! No athletes currently showing ≥2% body mass drops.</div>
+                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>Clean! No athletes currently showing ≥{dehydrationThreshold}% body mass drops.</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -388,14 +388,14 @@ export default function ReportsScreen({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Shield size={20} style={{ color: 'var(--color-accent)' }} />
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    EXPIRED BASELINE AUDIT (&gt;14 DAYS INACTIVE)
+                    EXPIRED BASELINE AUDIT (&gt;{baselineExpiryDays} DAYS INACTIVE)
                   </h3>
                 </div>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)' }}>{expiredBaselinesList.length} ATHLETES NEED BASELINE</span>
               </div>
 
               {expiredBaselinesList.length === 0 ? (
-                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>All active athletes have logged weight within the last 14 days!</div>
+                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>All active athletes have logged weight within the last {baselineExpiryDays} days!</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>

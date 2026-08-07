@@ -50,6 +50,16 @@ export default function EntryScreen({
   isAddingAthlete,
   screen
 }) {
+  // Last recorded weight for the open athlete - shown as a ghost placeholder and used
+  // to seed the +/- steppers, but never pre-filled into the input (a pre-filled value
+  // let one accidental double-tap record yesterday's weight as today's).
+  const lastLoggedWeight = selectedAthlete ? (() => {
+    const rec = reportData
+      .filter(r => r.athlete_id === selectedAthlete.id && Number(r.weight_lbs) > 0)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+    return rec ? parseFloat(rec.weight_lbs) : null;
+  })() : null;
+
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
@@ -545,20 +555,26 @@ export default function EntryScreen({
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
+                      {lastLoggedWeight && !weightInput && (
+                        <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 700 }}>LAST RECORDED: {lastLoggedWeight} LBS — ENTER TODAY'S</span>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button type="button" onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev||0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><Minus size={20} /></button>
+                      <button type="button" onClick={() => setWeightInput(prev => String(Math.max(0, (parseFloat(prev || lastLoggedWeight || 0) - 0.5).toFixed(1))))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><Minus size={20} /></button>
                       <input
                         type="text"
                         inputMode="decimal"
-                        placeholder="0.0"
+                        aria-label="Body weight (lbs)"
+                        placeholder={lastLoggedWeight ? String(lastLoggedWeight) : '0.0'}
                         value={weightInput || ''}
                         onFocus={() => setFocusedField('weight')}
                         onChange={(e) => setWeightInput(e.target.value.replace(/[^0-9.]/g, ''))}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
                         style={{ flex: 1, width: '100%', height: '64px', background: focusedField === 'weight' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'weight' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'weight' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '38px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
                       />
-                      <button type="button" onClick={() => setWeightInput(prev => String((parseFloat(prev||0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><Plus size={20} /></button>
+                      <button type="button" onClick={() => setWeightInput(prev => String((parseFloat(prev || lastLoggedWeight || 0) + 0.5).toFixed(1)))} style={{ width: '48px', height: '64px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><Plus size={20} /></button>
                     </div>
                   </div>
                 )}
@@ -571,6 +587,7 @@ export default function EntryScreen({
                   <input
                     type="text"
                     inputMode="decimal"
+                    aria-label="Hours of sleep"
                     placeholder="8.0"
                     value={sleepInput || ''}
                     onFocus={() => setFocusedField('sleep')}
@@ -699,7 +716,7 @@ export default function EntryScreen({
                     className="btn-primary glow-card"
                     style={{ height: '58px', fontSize: '18px', width: '100%', background: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#10b981' : 'var(--color-accent)', color: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#000' : 'var(--navy-950)', fontWeight: 800 }}
                   >
-                    {saving ? 'Saving...' : (isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? `🎯 Save as Athlete Baseline (${weightInput} lbs)` : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : 'Save Record & Complete'))}
+                    {saving ? 'Saving...' : (isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? `🎯 Save as Athlete Baseline${weightInput ? ` (${weightInput} lbs)` : ''}` : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : 'Save Record & Complete'))}
                   </button>
                 </div>
               );

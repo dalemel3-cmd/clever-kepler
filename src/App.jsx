@@ -66,7 +66,8 @@ export default function App() {
   const [selectedPositionFilter, setSelectedPositionFilter] = useState('ALL');
   const [nameSortOrder, setNameSortOrder] = useState('first'); // 'first' | 'last'
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null); // { type: 'athlete', id, name } or { type: 'all_weigh_ins' }
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' }); // optional: requireText for typed confirmation
+  const [confirmTypedText, setConfirmTypedText] = useState('');
   const [showExpiredBaselinesModal, setShowExpiredBaselinesModal] = useState(false);
   const [unweighedOnlyFilter, setUnweighedOnlyFilter] = useState(false);
   const [showHistoricalLogAccordion, setShowHistoricalLogAccordion] = useState(false);
@@ -96,6 +97,25 @@ export default function App() {
   const manualSaveInFlight = React.useRef(false);
   const kioskSaveInFlight = React.useRef(false);
   const lastReportSerialized = React.useRef('');
+
+  // Adaptive cloud sync state (see the heartbeat below): probe fingerprint of the
+  // cloud table, realtime channel health, and idle backoff bookkeeping.
+  const probeFingerprint = React.useRef('');
+  const realtimeHealthy = React.useRef(false);
+  const pollIdleStreak = React.useRef(0);
+  const lastPollActionAt = React.useRef(0);
+  const lastCloudSyncAtRef = React.useRef(0);
+  // 'connecting' | 'live' | 'reconnecting' | 'offline' - drives the honest status pills.
+  const [cloudStatus, setCloudStatus] = useState('connecting');
+
+  // Non-blocking toast notifications (replaces the old blocking alert() popups).
+  const [toast, setToast] = useState(null); // { id, message, type: 'success'|'error'|'info' }
+  const toastTimer = React.useRef(null);
+  const showToast = (message, type = 'success') => {
+    setToast({ id: Date.now(), message, type });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 4500);
+  };
 
   const filteredAthletes = React.useMemo(() => athletes
     .filter(a => {
@@ -417,34 +437,105 @@ export default function App() {
           fetchAthletes();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'weigh_ins' }, () => {
+          pollIdleStreak.current = 0;
           fetchReportData(true);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, () => {
           fetchAthletes();
           fetchReportData(true);
         })
-        .subscribe();
+        .subscribe((status) => {
+          // Channel health drives the poll cadence: when the WebSocket is alive the
+          // poll is only a slow safety net; when the school WiFi blocks it, we probe fast.
+          realtimeHealthy.current = status === 'SUBSCRIBED';
+        });
     } catch (e) {
       console.warn("Realtime UltraSync warning:", e);
     }
 
-    // 5-Second UltraSync Heartbeat: Continually pull new records from iPad or PC even if WiFi blocks WebSockets
+    // Cheap change-probe: one tiny query (row count + newest timestamp) instead of
+    // pulling the entire 30-day table. Only a changed fingerprint triggers the full fetch.
+    const probeCloudForChanges = async () => {
+      try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const { data, count, error } = await supabase
+          .from('weigh_ins')
+          .select('created_at', { count: 'exact' })
+          .gte('created_at', thirtyDaysAgo.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (error) throw error;
+        lastCloudSyncAtRef.current = Date.now();
+        const latestTs = data && data[0] ? data[0].created_at : '';
+        if (count == null) {
+          // Count header unreadable (e.g. proxy stripping CORS expose-headers):
+          // fall back to newest-timestamp comparison so we degrade to slightly
+          // weaker change detection instead of full-fetching on every probe.
+          const prevTs = (probeFingerprint.current.split('|')[1]) || '';
+          if (latestTs && latestTs === prevTs) {
+            pollIdleStreak.current += 1;
+            return;
+          }
+        } else if (`${count}|${latestTs}` === probeFingerprint.current) {
+          pollIdleStreak.current += 1; // unchanged - stretch the next poll
+          return;
+        }
+        pollIdleStreak.current = 0;
+        fetchReportData(true); // refreshes probeFingerprint from the full result
+      } catch (e) {
+        // Server unreachable: leave the fingerprint alone so recovery triggers a fetch.
+        console.warn("Cloud probe failed:", e);
+      }
+    };
+
+    // Adaptive UltraSync Heartbeat (replaces the fixed 5s full-table poll):
+    //  - realtime WebSocket healthy -> 60s safety-net probes (changes arrive via push)
+    //  - WebSocket blocked          -> 10s probes, stretching to 60s while nothing changes
+    //  - any local save or realtime event resets the backoff for instant responsiveness
     const autoSyncInterval = setInterval(() => {
       checkQueue();
-      if (navigator.onLine) {
-        syncOfflineCache();
-        // Skip the display refresh when the tab is hidden (nothing to paint) - the
-        // offline queue sync above still runs so records keep uploading.
-        if (!document.hidden) fetchReportData(true);
-      }
+
+      // Honest status pill: only claim "live" if the cloud actually answered recently.
+      const next = !navigator.onLine
+        ? 'offline'
+        : (Date.now() - lastCloudSyncAtRef.current < 90000 ? 'live' : 'reconnecting');
+      setCloudStatus(prev => (prev === next ? prev : next));
+
+      if (!navigator.onLine) return;
+      syncOfflineCache();
+      // Skip the display refresh when the tab is hidden (nothing to paint) - the
+      // offline queue sync above still runs so records keep uploading.
+      if (document.hidden) return;
+
+      const base = realtimeHealthy.current ? 60000 : 10000;
+      const stretched = Math.min(base + pollIdleStreak.current * 5000, 60000);
+      if (Date.now() - lastPollActionAt.current < stretched) return;
+      lastPollActionAt.current = Date.now();
+      probeCloudForChanges();
     }, 5000);
+
+    // Waking iPads catch up instantly (and this covers edits/deletes the probe can't see).
+    const handleFocusRefresh = () => {
+      if (document.hidden) return;
+      pollIdleStreak.current = 0;
+      fetchReportData(true);
+      fetchAthletes();
+    };
+    window.addEventListener('focus', handleFocusRefresh);
+    document.addEventListener('visibilitychange', handleFocusRefresh);
 
     const handleOnline = () => {
       setIsOnline(true);
+      setCloudStatus('reconnecting');
+      pollIdleStreak.current = 0;
       syncOfflineCache();
       fetchReportData(true);
     };
-    const handleOffline = () => setIsOnline(false);
+    const handleOffline = () => {
+      setIsOnline(false);
+      setCloudStatus('offline');
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -468,6 +559,8 @@ export default function App() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('focus', handleFocusRefresh);
+      document.removeEventListener('visibilitychange', handleFocusRefresh);
     };
   }, []);
 
@@ -639,6 +732,11 @@ export default function App() {
         .order('created_at', { ascending: false });
       if (!error && data) {
         onlineData = data;
+        // Keep the heartbeat's change-probe in sync with what we just pulled (same
+        // 30-day window, newest-first), and mark the cloud as freshly reachable.
+        probeFingerprint.current = `${data.length}|${data[0] ? data[0].created_at : ''}`;
+        lastCloudSyncAtRef.current = Date.now();
+        setCloudStatus(prev => (prev === 'live' ? prev : 'live'));
         // One-time per session: push any classifications this device recorded locally (before
         // the weigh_ins table had session_type/is_baseline columns, or made while offline) up to
         // the cloud, so they stop being visible on this device only.
@@ -726,7 +824,7 @@ export default function App() {
       const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
       if (offlineQueue.length === 0) {
         if (isClick) {
-          alert("☁️ No offline logs pending. Your iPad is completely synchronized with the cloud server!");
+          showToast("☁️ No offline logs pending — fully synchronized with the cloud.", 'info');
         }
         return;
       }
@@ -813,14 +911,14 @@ export default function App() {
 
       if (isClick) {
         if (failedItems.length === 0) {
-          alert(`⚡ Cloud Synchronization Complete!\n\n✅ Successfully reconciled & processed ${syncedCount} offline sessions! All records are secured in your dashboard and hardware vault.`);
+          showToast(`⚡ Sync complete — ${syncedCount} offline session${syncedCount === 1 ? '' : 's'} uploaded & secured.`);
         } else {
-          alert(`⚠️ Partial sync: ${syncedCount} uploaded, ${failedItems.length} could not reach the server yet.\n\nUnsynced logs remain safely queued and will retry automatically.`);
+          showToast(`⚠️ Partial sync: ${syncedCount} uploaded, ${failedItems.length} still queued.\nQueued logs retry automatically.`, 'error');
         }
       }
     } catch (err) {
       console.warn("Could not sync offline queue yet:", err);
-      if (isClick) alert("⚠️ Network error while attempting to reach server. Your records remain safe in the offline vault.");
+      if (isClick) showToast("⚠️ Could not reach the server — records remain safely queued.", 'error');
     } finally {
       syncInFlight.current = false;
     }
@@ -949,7 +1047,7 @@ export default function App() {
     }
 
     setRecoverySyncing(false);
-    alert(`⚡ Cloud Force Upload Complete:\n✅ Newly uploaded: ${successCount} logs.\n✔ Already in cloud (skipped, no duplicates created): ${skippedCount}.${failCount > 0 ? `\n⚠️ Failed to upload: ${failCount}` : ''}`);
+    showToast(`⚡ Force upload complete: ${successCount} new log${successCount === 1 ? '' : 's'} uploaded.\n✔ ${skippedCount} already in cloud (skipped).${failCount > 0 ? `\n⚠️ ${failCount} failed.` : ''}`, failCount > 0 ? 'error' : 'success');
     fetchReportData();
   };
 
@@ -1018,7 +1116,7 @@ export default function App() {
 
         const validRecords = foundRecords.filter(r => r && (r.weight_lbs !== undefined || r.sleep_hrs !== undefined || r.athlete_id || r.athlete_name));
         if (validRecords.length === 0) {
-          alert("Could not identify formatted weigh-in records in this file. Please make sure it is a valid diagnostics JSON or export CSV.");
+          showToast("Could not find weigh-in records in this file.\nUse a valid diagnostics JSON or export CSV.", 'error');
           return;
         }
 
@@ -1036,10 +1134,10 @@ export default function App() {
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(currentOffline));
         
         fetchReportData();
-        alert(`🎉 Success! Easily extracted & imported ${validRecords.length} records from your file (${file.name})! They are now merged into your active dashboard and recovery directory. Click '⚡ FORCE UPLOAD TO CLOUD SERVER' to save them immediately to Supabase!`);
+        showToast(`🎉 Imported ${validRecords.length} records from ${file.name}.\nClick FORCE UPLOAD to push them to the cloud.`);
       } catch (err) {
         console.error("Error importing file:", err);
-        alert("Failed to read diagnostic file. Please check the format and try again.");
+        showToast("Failed to read that file — check the format and try again.", 'error');
       }
     };
     reader.readAsText(file);
@@ -1086,12 +1184,15 @@ export default function App() {
         if (cached && Array.isArray(cached) && cached.length > 0) {
           setAthletes(cached.map(a => ({ ...a, name: (a.name && String(a.name).trim()) || 'Unnamed Athlete' })));
         } else {
-          console.warn("No local roster cache. Falling back to mock data.");
-          setMockAthletes();
+          // No mock fallback: fake athletes in a real roster invited real weigh-ins
+          // against them (which then auto-created them as cloud athletes on save).
+          console.warn("No local roster cache while offline - showing empty roster.");
+          setAthletes([]);
+          showToast('📡 Offline with no cached roster on this device yet.\nRoster will appear after the first successful cloud sync.', 'info');
         }
       } catch (e) {
-        console.warn("No local roster cache. Falling back to mock data.");
-        setMockAthletes();
+        console.warn("No local roster cache while offline - showing empty roster.");
+        setAthletes([]);
       }
     }
   };
@@ -1157,7 +1258,7 @@ export default function App() {
       }
       
       const lines = text.split(/\r\n|\r|\n/).filter(line => line.trim() !== '');
-      if (lines.length < 2) return alert("CSV appears empty or missing headers.");
+      if (lines.length < 2) return showToast("CSV appears empty or missing headers.", 'error');
       
       // Strip quotes and spaces from headers
       const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/^"|"$/g, ''));
@@ -1168,7 +1269,7 @@ export default function App() {
       const posIdx = headers.indexOf('position');
       
       if (nameIdx === -1) {
-        return alert("CSV must have an 'Athlete' column header. Optional columns: Sport, Team, Grade, Position");
+        return showToast("CSV needs an 'Athlete' column header.\nOptional: Sport, Team, Grade, Position.", 'error');
       }
 
       const athletesToInsert = [];
@@ -1186,16 +1287,16 @@ export default function App() {
         }
       }
 
-      if (athletesToInsert.length === 0) return alert("No valid athletes found in CSV.");
+      if (athletesToInsert.length === 0) return showToast("No valid athletes found in CSV.", 'error');
 
       try {
         const { error } = await supabase.from('athletes').insert(athletesToInsert);
         if (error) throw error;
-        alert(`Successfully uploaded ${athletesToInsert.length} athletes!`);
+        showToast(`✅ Uploaded ${athletesToInsert.length} athletes to the roster!`);
         fetchAthletes();
       } catch (err) {
         console.error("CSV Upload Error:", err);
-        alert("Failed to upload athletes to database.");
+        showToast("Failed to upload athletes to the database.", 'error');
       }
     };
     reader.readAsText(file);
@@ -1214,14 +1315,6 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const setMockAthletes = () => {
-    setAthletes([
-      { id: '1', name: 'Jaylen Carter', sport: 'Football', team: 'Varsity', position: 'WR' },
-      { id: '2', name: 'Micah Reeves', sport: 'Football', team: 'Varsity', position: 'LB' },
-      { id: '3', name: 'Owen Baxter', sport: 'Basketball', team: 'Varsity', position: 'PG' }
-    ]);
-  };
-
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId);
   const defaultSports = ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'SOCC', 'Softball', 'Tennis', 'Track & Field', 'VBB', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'];
   const sportsList = Array.from(new Set([...defaultSports, ...athletes.map(a => a.sport).filter(Boolean)])).sort();
@@ -1232,15 +1325,11 @@ export default function App() {
   const handleSelectAthleteForEntry = (athleteId) => {
     setEntryAthleteId(athleteId);
     setScreen('entry');
-    
-    // Find latest record for baseline weight
-    const records = reportData.filter(r => r.athlete_id === athleteId && r.weight_lbs && Number(r.weight_lbs) > 0);
-    if (records.length > 0) {
-      const sorted = [...records].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-      setWeightInput(String(sorted[sorted.length - 1].weight_lbs));
-    } else {
-      setWeightInput('0.0');
-    }
+    // Start the weight EMPTY - pre-filling the last weight meant one accidental
+    // double-tap recorded yesterday's number as today's. The last weight is shown
+    // as a ghost placeholder in the entry modal instead, and Save stays disabled
+    // until a real value is entered.
+    setWeightInput('');
     setSleepInput('8.0');
     setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight');
   };
@@ -1520,7 +1609,7 @@ export default function App() {
       }
 
       if (dataToExport.length === 0) {
-        alert("No weigh-in records found to export.");
+        showToast("No weigh-in records found to export.", 'info');
         return;
       }
 
@@ -1544,7 +1633,7 @@ export default function App() {
       document.body.removeChild(link);
     } catch (err) {
       console.error("Export error:", err);
-      alert("Failed to export CSV.");
+      showToast("Failed to export CSV.", 'error');
     }
   };
 
@@ -1607,7 +1696,7 @@ export default function App() {
       return item;
     }));
 
-    alert(`🎯 Baseline Weight Marker successfully updated to ${weightVal} lbs from ${dateStr}!`);
+    showToast(`🎯 Baseline marker updated: ${weightVal} lbs (${dateStr}).`);
     fetchReportData();
     if (typeof selectedProfileId !== 'undefined' && selectedProfileId) {
       fetchProfileData(selectedProfileId);
@@ -1685,7 +1774,7 @@ export default function App() {
       return item;
     }));
 
-    alert(`🎉 SUCCESS: Official baseline weight marker for ALL of ${sportName.toUpperCase()} has been synchronized to ${displayDateStr}! (${totalAthletesAffected} athletes updated)`);
+    showToast(`🎉 ${sportName.toUpperCase()} team baseline synchronized to ${displayDateStr}.\n${totalAthletesAffected} athletes updated.`);
     fetchReportData();
     broadcastDeviceSync({ type: 'BULK_BASELINE_SYNCED', sport: sportName });
   };
@@ -1708,18 +1797,20 @@ export default function App() {
       fetchReportData();
     } catch (err) {
       console.error("Could not delete weigh in:", err);
-      alert("Failed to delete record.");
+      showToast("Failed to delete record.", 'error');
     }
   };
 
   const handleDeleteAllWeighIns = async (skipConfirm = false) => {
-    if (!skipConfirm) {
+    // Strict check (this pattern once let a click event skip athlete-delete confirmation).
+    if (skipConfirm !== true) {
       setConfirmModal({
         isOpen: true,
         title: 'Wipe All Weigh-In Data',
-        message: 'WARNING: Are you sure you want to wipe ALL weigh-in data across the database? This cannot be undone.',
+        message: 'WARNING: This permanently erases ALL weigh-in data for EVERY device. It cannot be undone.',
         isDanger: true,
         actionText: 'Wipe Database',
+        requireText: 'WIPE',
         onConfirm: () => handleDeleteAllWeighIns(true)
       });
       return;
@@ -1730,7 +1821,7 @@ export default function App() {
       fetchReportData();
     } catch (err) {
       console.error("Could not delete all:", err);
-      alert("Failed to wipe data.");
+      showToast("Failed to wipe data.", 'error');
     }
   };
 
@@ -1911,7 +2002,7 @@ export default function App() {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Error deleting athlete:", err);
-      alert("Could not delete athlete: " + err.message);
+      showToast("Could not delete athlete: " + err.message, 'error');
     } finally {
       setSaving(false);
     }
@@ -2446,6 +2537,12 @@ export default function App() {
         </div>
       )}
       
+      {toast && (
+        <div key={toast.id} style={{ position: 'fixed', top: saved ? '156px' : '82px', left: '50%', transform: 'translateX(-50%)', zIndex: 10001, background: toast.type === 'error' ? 'rgba(190, 40, 40, 0.96)' : toast.type === 'info' ? 'rgba(23, 49, 105, 0.96)' : 'rgba(22, 163, 74, 0.96)', border: `2px solid ${toast.type === 'error' ? '#fca5a5' : toast.type === 'info' ? '#93c5fd' : '#86efac'}`, color: '#fff', padding: '12px 26px', borderRadius: '16px', maxWidth: 'min(560px, 92vw)', boxShadow: '0 10px 36px rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(10px)', animation: 'slideDown 0.3s ease', fontSize: '13px', fontWeight: 700, whiteSpace: 'pre-line', textAlign: 'center', lineHeight: 1.5 }}>
+          {toast.message}
+        </div>
+      )}
+
       {showRecoveryModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(16px)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
           <div className="card-glass glow-card" style={{ width: '100%', maxWidth: '950px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: 'rgba(13, 27, 46, 0.98)', border: '2px solid #ef4444', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 0 50px rgba(239, 68, 68, 0.35)' }}>
@@ -2622,10 +2719,10 @@ export default function App() {
                   <span
                     onClick={handleManualCloudRefresh}
                     title="Click or drag screen down to instantly synchronize cloud records"
-                    style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? 'var(--status-success)' : '#ef4444', padding: '4px 12px', borderRadius: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`, cursor: 'pointer', boxShadow: isOnline ? '0 0 10px rgba(34, 197, 94, 0.15)' : 'none' }}
+                    style={{ fontSize: '11px', background: cloudStatus === 'live' ? 'rgba(34, 197, 94, 0.15)' : cloudStatus === 'offline' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(234, 179, 8, 0.15)', color: cloudStatus === 'live' ? 'var(--status-success)' : cloudStatus === 'offline' ? '#ef4444' : '#fbbf24', padding: '4px 12px', borderRadius: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', border: `1px solid ${cloudStatus === 'live' ? 'rgba(34, 197, 94, 0.4)' : cloudStatus === 'offline' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(234, 179, 8, 0.4)'}`, cursor: 'pointer', boxShadow: cloudStatus === 'live' ? '0 0 10px rgba(34, 197, 94, 0.15)' : 'none' }}
                   >
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isOnline ? '#4ade80' : '#ef4444', boxShadow: isOnline ? '0 0 8px #4ade80' : 'none', animation: isRefreshing ? 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none' }} />
-                    {isRefreshing ? 'REFRESHING...' : (isOnline ? '☁️ CLOUD SYNCED & LIVE' : 'OFFLINE SYNC QUEUE')}
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cloudStatus === 'live' ? '#4ade80' : cloudStatus === 'offline' ? '#ef4444' : '#fbbf24', boxShadow: cloudStatus === 'live' ? '0 0 8px #4ade80' : 'none', animation: isRefreshing ? 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none' }} />
+                    {isRefreshing ? 'REFRESHING...' : (cloudStatus === 'live' ? '☁️ CLOUD SYNCED & LIVE' : cloudStatus === 'offline' ? 'OFFLINE SYNC QUEUE' : '⟳ RECONNECTING TO CLOUD...')}
                   </span>
                 )}
               </div>
@@ -2666,14 +2763,14 @@ export default function App() {
                     ⏳ {unsyncedQueueCount} UNSYNCED {unsyncedQueueCount === 1 ? 'LOG' : 'LOGS'} &middot; TAP TO SYNC
                   </span>
                 ) : (
-                  <span 
+                  <span
                     onClick={handleManualCloudRefresh}
                     title="Click or pull down screen to instantly synchronize cloud records"
-                    className="no-print" 
-                    style={{ fontSize: '11px', background: isOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.2)', color: isOnline ? '#4ade80' : '#ef4444', padding: '5px 14px', borderRadius: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', border: `1px solid ${isOnline ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.4)'}`, cursor: 'pointer', boxShadow: isOnline ? '0 0 12px rgba(34, 197, 94, 0.15)' : 'none' }}
+                    className="no-print"
+                    style={{ fontSize: '11px', background: cloudStatus === 'live' ? 'rgba(34, 197, 94, 0.12)' : cloudStatus === 'offline' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(234, 179, 8, 0.12)', color: cloudStatus === 'live' ? '#4ade80' : cloudStatus === 'offline' ? '#ef4444' : '#fbbf24', padding: '5px 14px', borderRadius: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', border: `1px solid ${cloudStatus === 'live' ? 'rgba(34, 197, 94, 0.35)' : cloudStatus === 'offline' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(234, 179, 8, 0.35)'}`, cursor: 'pointer', boxShadow: cloudStatus === 'live' ? '0 0 12px rgba(34, 197, 94, 0.15)' : 'none' }}
                   >
-                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#4ade80' : '#ef4444', boxShadow: isOnline ? '0 0 8px #4ade80' : 'none', animation: isRefreshing ? 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none' }} />
-                    {isRefreshing ? 'REFRESHING...' : (isOnline ? `CLOUD LIVE` : 'OFFLINE QUEUE')}
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: cloudStatus === 'live' ? '#4ade80' : cloudStatus === 'offline' ? '#ef4444' : '#fbbf24', boxShadow: cloudStatus === 'live' ? '0 0 8px #4ade80' : 'none', animation: isRefreshing ? 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none' }} />
+                    {isRefreshing ? 'REFRESHING...' : (cloudStatus === 'live' ? 'CLOUD LIVE' : cloudStatus === 'offline' ? 'OFFLINE QUEUE' : 'RECONNECTING...')}
                     <span style={{ color: 'rgba(255,255,255,0.3)', margin: '0 2px' }}>|</span>
                     <span style={{ color: 'var(--color-accent)' }}>{APP_VERSION}</span>
                   </span>
@@ -2807,6 +2904,7 @@ export default function App() {
                 handleBulkTeamBaseline={handleBulkTeamBaseline}
                 setSelectedSportFilter={setSelectedSportFilter}
                 setScreen={setScreen}
+                showToast={showToast}
               />
             )}
 
@@ -2933,6 +3031,8 @@ export default function App() {
                 setConfirmModal={setConfirmModal}
                 handleMergeAthletes={handleMergeAthletes}
                 handleDeleteAllWeighIns={handleDeleteAllWeighIns}
+                showToast={showToast}
+                cloudStatus={cloudStatus}
               />
             )}
             </Suspense>
@@ -3153,19 +3253,38 @@ export default function App() {
               <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--white)', fontFamily: 'var(--font-display)' }}>{confirmModal.title || 'Confirm Action'}</h3>
             </div>
             <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>{confirmModal.message}</p>
+            {confirmModal.requireText && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--status-error)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Type "{confirmModal.requireText}" to confirm this cannot be undone:
+                </span>
+                <input
+                  type="text"
+                  autoFocus
+                  className="input-glass"
+                  placeholder={confirmModal.requireText}
+                  value={confirmTypedText}
+                  onChange={e => setConfirmTypedText(e.target.value)}
+                  style={{ height: '46px', padding: '0 16px', fontSize: '16px', fontWeight: 800, letterSpacing: '0.1em', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.5)', textTransform: 'uppercase' }}
+                />
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '4px' }}>
               <button
-                onClick={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' })}
+                onClick={() => { setConfirmTypedText(''); setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' }); }}
                 style={{ padding: '12px 24px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--white)', fontSize: '14px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
               >
                 Cancel
               </button>
               <button
+                disabled={!!confirmModal.requireText && confirmTypedText.trim().toUpperCase() !== confirmModal.requireText.toUpperCase()}
                 onClick={() => {
+                  if (confirmModal.requireText && confirmTypedText.trim().toUpperCase() !== confirmModal.requireText.toUpperCase()) return;
                   if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  setConfirmTypedText('');
                   setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' });
                 }}
-                style={{ padding: '12px 24px', borderRadius: '10px', background: confirmModal.isDanger ? 'var(--status-error)' : 'var(--color-accent)', color: confirmModal.isDanger ? '#fff' : 'var(--navy-950)', border: 'none', fontSize: '14px', fontWeight: 800, cursor: 'pointer', boxShadow: confirmModal.isDanger ? '0 0 15px rgba(239, 68, 68, 0.3)' : '0 0 15px rgba(184, 156, 91, 0.3)', transition: 'all 0.2s' }}
+                style={{ padding: '12px 24px', borderRadius: '10px', background: confirmModal.isDanger ? 'var(--status-error)' : 'var(--color-accent)', color: confirmModal.isDanger ? '#fff' : 'var(--navy-950)', border: 'none', fontSize: '14px', fontWeight: 800, cursor: 'pointer', boxShadow: confirmModal.isDanger ? '0 0 15px rgba(239, 68, 68, 0.3)' : '0 0 15px rgba(184, 156, 91, 0.3)', transition: 'all 0.2s', opacity: (!!confirmModal.requireText && confirmTypedText.trim().toUpperCase() !== confirmModal.requireText.toUpperCase()) ? 0.4 : 1 }}
               >
                 {confirmModal.actionText || 'Confirm'}
               </button>
@@ -3384,7 +3503,7 @@ export default function App() {
                 onClick={() => {
                   const weightNum = parseFloat(manualEntryForm.weight);
                   if (!manualEntryForm.athleteId || !isPlausibleWeight(weightNum)) {
-                    alert('Please select an athlete and enter a valid body weight (between 0 and 1000 lbs).');
+                    showToast('Select an athlete and enter a valid body weight (0–1000 lbs).', 'error');
                     return;
                   }
                   const ath = athletes.find(a => a.id === manualEntryForm.athleteId);
@@ -3392,7 +3511,7 @@ export default function App() {
                   // cleared/invalid date used to throw an uncaught RangeError here.
                   const dateTimeStr = centralWallTimeToISO(manualEntryForm.date, manualEntryForm.time);
                   if (!dateTimeStr) {
-                    alert('Please select a valid date and time for this log.');
+                    showToast('Select a valid date and time for this log.', 'error');
                     return;
                   }
                   const isEditing = !!manualEntryForm.editingLogId;

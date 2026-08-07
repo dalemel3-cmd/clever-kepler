@@ -720,14 +720,21 @@ export default function ProfilesScreen({
                       </td>
 
                       <td style={{ padding: '16px 20px' }}>
-                        <span style={{
-                          display: 'inline-block', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
-                          background: sleepH >= 7.5 ? 'rgba(52, 211, 153, 0.15)' : sleepH >= 6.5 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.2)',
-                          color: sleepH >= 7.5 ? 'var(--status-success)' : sleepH >= 6.5 ? '#f59e0b' : '#ef4444',
-                          border: `1px solid ${sleepH >= 7.5 ? 'rgba(52, 211, 153, 0.4)' : sleepH >= 6.5 ? 'rgba(245, 158, 11, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
-                        }}>
-                          {sleepH >= 7.5 ? '🟢 Optimal Rest' : sleepH >= 6.5 ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning'}
-                        </span>
+                        {/* Only rate recovery when sleep was actually logged - sessions with no
+                            sleep data (e.g. post-practice sweat checks) used to show a false
+                            red "Sleep Deficit Warning". */}
+                        {sleepH > 0 ? (
+                          <span style={{
+                            display: 'inline-block', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                            background: sleepH >= 7.5 ? 'rgba(52, 211, 153, 0.15)' : sleepH >= 6.5 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.2)',
+                            color: sleepH >= 7.5 ? 'var(--status-success)' : sleepH >= 6.5 ? '#f59e0b' : '#ef4444',
+                            border: `1px solid ${sleepH >= 7.5 ? 'rgba(52, 211, 153, 0.4)' : sleepH >= 6.5 ? 'rgba(245, 158, 11, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+                          }}>
+                            {sleepH >= 7.5 ? '🟢 Optimal Rest' : sleepH >= 6.5 ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning'}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>—</span>
+                        )}
                       </td>
 
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>

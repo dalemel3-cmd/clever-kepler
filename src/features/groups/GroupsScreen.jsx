@@ -13,7 +13,8 @@ export default function GroupsScreen({
   reportData,
   handleBulkTeamBaseline,
   setSelectedSportFilter,
-  setScreen
+  setScreen,
+  showToast
 }) {
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -115,7 +116,7 @@ export default function GroupsScreen({
               <button
                 onClick={() => {
                   if (!selectedDateObj || selectedDateObj.logs.length === 0) {
-                    alert(`No weigh-in recordings found for ${activeSport} on the selected date.`);
+                    showToast(`No weigh-in recordings found for ${activeSport} on the selected date.`, 'error');
                     return;
                   }
                   handleBulkTeamBaseline(activeSport, selectedDateObj.date, selectedDateObj.display, selectedDateObj.logs);

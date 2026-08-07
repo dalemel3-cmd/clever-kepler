@@ -30,7 +30,9 @@ export default function SettingsScreen({
   setMergeTargetId,
   setConfirmModal,
   handleMergeAthletes,
-  handleDeleteAllWeighIns
+  handleDeleteAllWeighIns,
+  showToast,
+  cloudStatus
 }) {
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -310,7 +312,7 @@ export default function SettingsScreen({
               <button
                 onClick={() => {
                   broadcastDeviceSync({ isPing: true });
-                  alert("📡 Test Signal Sent!\n\nAn instant wireless verification ping was blasted across the cloud to all connected iPads and PCs. Any open device will display a confirmation pop-up right now!");
+                  showToast('📡 Test ping sent to all connected devices.\nOpen devices log the signal in their console.', 'info');
                 }}
                 className="no-print glow-card"
                 style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 800, background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
@@ -342,13 +344,20 @@ export default function SettingsScreen({
 
         {/* Cloud Health Metrics */}
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-          <div className="card-glass" style={{ flex: '1 1 180px', padding: '16px', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--status-success)', boxShadow: '0 0 8px var(--status-success)' }} />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>CLOUD CONNECTION</span>
-              <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--status-success)' }}>SUPABASE ONLINE</span>
-            </div>
-          </div>
+          {(() => {
+            // Wired to the real connection state - this used to be a hardcoded green light.
+            const statusColor = cloudStatus === 'live' ? 'var(--status-success)' : cloudStatus === 'offline' ? 'var(--status-error)' : '#fbbf24';
+            const statusLabel = cloudStatus === 'live' ? 'SUPABASE ONLINE' : cloudStatus === 'offline' ? 'DEVICE OFFLINE' : 'RECONNECTING...';
+            return (
+              <div className="card-glass" style={{ flex: '1 1 180px', padding: '16px', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: statusColor, boxShadow: cloudStatus === 'live' ? `0 0 8px ${statusColor}` : 'none' }} />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700 }}>CLOUD CONNECTION</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: statusColor }}>{statusLabel}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="card-glass" style={{ flex: '1 1 180px', padding: '16px', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Users size={18} style={{ color: 'var(--color-accent)' }} />
@@ -504,7 +513,7 @@ export default function SettingsScreen({
               <button
                 onClick={() => {
                   if (!mergeSourceId || !mergeTargetId) {
-                    alert("Please select both a source duplicate profile and a master target profile.");
+                    showToast('Select both a duplicate profile and a master profile first.', 'error');
                     return;
                   }
                   const sourceObj = athletes.find(a => a.id === mergeSourceId);
@@ -549,9 +558,10 @@ export default function SettingsScreen({
             onClick={() => setConfirmModal({
               isOpen: true,
               title: 'Clear All Historical Data',
-              message: 'WARNING: You are about to permanently purge ALL weigh-in logs, hydration records, and recovery sessions from the database across all devices. This action cannot be undone. Do you wish to proceed?',
+              message: 'WARNING: You are about to permanently purge ALL weigh-in logs, hydration records, and recovery sessions from the database across all devices. This action cannot be undone.',
               isDanger: true,
               actionText: 'Wipe Database',
+              requireText: 'WIPE',
               onConfirm: () => handleDeleteAllWeighIns(true)
             })}
             className="no-print"
