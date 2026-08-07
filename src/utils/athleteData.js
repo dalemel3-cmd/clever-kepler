@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v4.1.5';
+export const APP_VERSION = 'v4.2.0';
 
 // The program operates out of Shiloh Christian in Arkansas, which is always
 // America/Chicago (Central) - CDT in summer, CST in winter, DST handled by the
