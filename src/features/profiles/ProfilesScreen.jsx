@@ -4,6 +4,7 @@ import { CustomTooltip } from '../../components/CustomTooltip';
 import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
 
 export default function ProfilesScreen({
+  settings,
   selectedProfileId,
   setSelectedProfileId,
   filteredAthletes,
@@ -24,6 +25,12 @@ export default function ProfilesScreen({
   handleDeleteWeighIn,
   setConfirmModal
 }) {
+  // Every threshold below comes from Settings - no magic numbers in the UI.
+  const sleepDeficitBelow = settings.sleepThreshold;
+  const sleepRecoveryAt = settings.sleepRecoveryHours;
+  const sleepOptimalAt = settings.sleepTargetHours;
+  const sleepChartTarget = settings.sleepChartTargetHours;
+  const sleepBand = (h) => (h >= sleepOptimalAt ? 'optimal' : h >= sleepDeficitBelow ? 'adequate' : 'deficit');
   if (!selectedProfileId) {
     return (
       <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -199,8 +206,8 @@ export default function ProfilesScreen({
 
   const avgSleep = sleepLogs.length > 0 ? (sleepLogs.reduce((sum, l) => sum + Number(l.sleep_hrs), 0) / sleepLogs.length).toFixed(1) : '--';
   const maxSleep = sleepLogs.length > 0 ? Math.max(...sleepLogs.map(l => Number(l.sleep_hrs))) : '--';
-  const deficitNights = sleepLogs.filter(l => Number(l.sleep_hrs) < 6.5).length;
-  const recoveryScore = sleepLogs.length > 0 ? Math.round((sleepLogs.filter(l => Number(l.sleep_hrs) >= 7.0).length / sleepLogs.length) * 100) : null;
+  const deficitNights = sleepLogs.filter(l => Number(l.sleep_hrs) < sleepDeficitBelow).length;
+  const recoveryScore = sleepLogs.length > 0 ? Math.round((sleepLogs.filter(l => Number(l.sleep_hrs) >= sleepRecoveryAt).length / sleepLogs.length) * 100) : null;
 
   const daysAgo = sortedLogs.length > 0 && sortedLogs[sortedLogs.length-1].created_at ? Math.floor((new Date() - new Date(sortedLogs[sortedLogs.length-1].created_at)) / (1000 * 60 * 60 * 24)) : null;
 
@@ -257,7 +264,7 @@ export default function ProfilesScreen({
             </div>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: '34px', fontWeight: 800, textTransform: 'uppercase', lineHeight: 1, color: '#fff', letterSpacing: '0.02em' }}>{athlete.name}</span>
             <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-              <strong style={{ color: '#fff' }}>{athlete.sport || 'Athletics'}</strong> &middot; {athlete.team || 'Shiloh'}{athlete.grade ? ` · Class of ${athlete.grade}` : ''} &middot; {athlete.position || 'General Athlete'}
+              <strong style={{ color: '#fff' }}>{athlete.sport || 'Athletics'}</strong> &middot; {athlete.team || settings.organizationName}{athlete.grade ? ` · Class of ${athlete.grade}` : ''} &middot; {athlete.position || 'General Athlete'}
             </span>
           </div>
 
@@ -298,8 +305,8 @@ export default function ProfilesScreen({
                 {avgSleep} <span style={{ fontSize: '16px', color: 'var(--color-text-muted)' }}>hrs</span>
               </span>
             </div>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: avgSleep !== '--' && Number(avgSleep) >= 7.5 ? 'var(--status-success)' : avgSleep !== '--' && Number(avgSleep) >= 6.5 ? '#f59e0b' : 'var(--status-error)' }}>
-              {avgSleep !== '--' ? (Number(avgSleep) >= 7.5 ? '🟢 Optimal Rest Standard' : Number(avgSleep) >= 6.5 ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning') : 'No sleep data'}
+            <span style={{ fontSize: '12px', fontWeight: 700, color: avgSleep !== '--' && sleepBand(Number(avgSleep)) === 'optimal' ? 'var(--status-success)' : avgSleep !== '--' && sleepBand(Number(avgSleep)) === 'adequate' ? '#f59e0b' : 'var(--status-error)' }}>
+              {avgSleep !== '--' ? (sleepBand(Number(avgSleep)) === 'optimal' ? '🟢 Optimal Rest Standard' : sleepBand(Number(avgSleep)) === 'adequate' ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning') : 'No sleep data'}
             </span>
           </div>
 
@@ -454,7 +461,7 @@ export default function ProfilesScreen({
               const sleepData = sleepLogs.slice(-14).map(d => ({
                 date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown',
                 Sleep: Number(d.sleep_hrs) || 0,
-                fillColor: Number(d.sleep_hrs) >= 7.5 ? '#34d399' : Number(d.sleep_hrs) >= 6.5 ? '#f59e0b' : '#ef4444'
+                fillColor: sleepBand(Number(d.sleep_hrs)) === 'optimal' ? '#34d399' : sleepBand(Number(d.sleep_hrs)) === 'adequate' ? '#f59e0b' : '#ef4444'
               }));
 
               return (
@@ -463,7 +470,7 @@ export default function ProfilesScreen({
                     <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
                     <YAxis domain={[0, 12]} hide />
                     <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                    <ReferenceLine y={8.0} stroke="rgba(184, 156, 91, 0.7)" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: '8.0h Target', position: 'insideTopLeft', fill: 'var(--color-accent)', fontSize: 11, fontWeight: 'bold' }} />
+                    <ReferenceLine y={sleepChartTarget} stroke="rgba(184, 156, 91, 0.7)" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: `${Number(sleepChartTarget).toFixed(1)}h Target`, position: 'insideTopLeft', fill: 'var(--color-accent)', fontSize: 11, fontWeight: 'bold' }} />
                     <Bar dataKey="Sleep" fill="#60a5fa" radius={[6, 6, 0, 0]} fillOpacity={0.9} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -560,8 +567,8 @@ export default function ProfilesScreen({
 
               const drop = bWeight ? (bWeight - pWeight) : 0;
               const pctLoss = bWeight && bWeight > 0 ? ((drop / bWeight) * 100) : 0;
-              const fluidOz = drop > 0 ? Math.round(drop * 24) : 0;
-              const isSevere = drop >= 5.0 || pctLoss >= 2.5;
+              const fluidOz = drop > 0 ? Math.round(drop * settings.fluidOzPerLb) : 0;
+              const isSevere = drop >= settings.severeSweatLbs || pctLoss >= settings.severeSweatPct;
 
               return (
                 <div key={plog.id || idx} style={{ padding: '18px 24px', borderRadius: '16px', background: 'rgba(0, 0, 0, 0.35)', border: isSevere ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
@@ -595,8 +602,8 @@ export default function ProfilesScreen({
                         </span>
                       </div>
                     )}
-                    <div style={{ padding: '8px 16px', borderRadius: '12px', background: drop >= 5 ? 'rgba(239, 68, 68, 0.2)' : drop > 2 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: drop >= 5 ? '1px solid rgba(239, 68, 68, 0.4)' : drop > 2 ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: drop >= 5 ? '#ef4444' : drop > 2 ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
-                      💧 Rx: Drink {fluidOz > 0 ? fluidOz : 32} oz fluids before tomorrow
+                    <div style={{ padding: '8px 16px', borderRadius: '12px', background: drop >= settings.severeSweatLbs ? 'rgba(239, 68, 68, 0.2)' : drop > settings.acuteDropLbs ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: drop >= settings.severeSweatLbs ? '1px solid rgba(239, 68, 68, 0.4)' : drop > settings.acuteDropLbs ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: drop >= settings.severeSweatLbs ? '#ef4444' : drop > settings.acuteDropLbs ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
+                      💧 Rx: Drink {fluidOz > 0 ? fluidOz : settings.minFluidOz} oz fluids before tomorrow
                     </div>
                     <button
                       type="button"
@@ -726,11 +733,11 @@ export default function ProfilesScreen({
                         {sleepH > 0 ? (
                           <span style={{
                             display: 'inline-block', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
-                            background: sleepH >= 7.5 ? 'rgba(52, 211, 153, 0.15)' : sleepH >= 6.5 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.2)',
-                            color: sleepH >= 7.5 ? 'var(--status-success)' : sleepH >= 6.5 ? '#f59e0b' : '#ef4444',
-                            border: `1px solid ${sleepH >= 7.5 ? 'rgba(52, 211, 153, 0.4)' : sleepH >= 6.5 ? 'rgba(245, 158, 11, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+                            background: sleepBand(sleepH) === 'optimal' ? 'rgba(52, 211, 153, 0.15)' : sleepBand(sleepH) === 'adequate' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.2)',
+                            color: sleepBand(sleepH) === 'optimal' ? 'var(--status-success)' : sleepBand(sleepH) === 'adequate' ? '#f59e0b' : '#ef4444',
+                            border: `1px solid ${sleepBand(sleepH) === 'optimal' ? 'rgba(52, 211, 153, 0.4)' : sleepBand(sleepH) === 'adequate' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
                           }}>
-                            {sleepH >= 7.5 ? '🟢 Optimal Rest' : sleepH >= 6.5 ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning'}
+                            {sleepBand(sleepH) === 'optimal' ? '🟢 Optimal Rest' : sleepBand(sleepH) === 'adequate' ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning'}
                           </span>
                         ) : (
                           <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>—</span>

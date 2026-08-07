@@ -2,6 +2,7 @@ import { CheckCircle, Zap } from 'lucide-react';
 import { getAthleteBaseline, getCentralDateString, getCentralTimeString, isPostPracticeLog } from '../../utils/athleteData';
 
 export default function DashboardScreen({
+  settings,
   athletes,
   executiveInsights,
   todaySessions,

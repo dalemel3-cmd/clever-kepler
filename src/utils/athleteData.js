@@ -1,13 +1,36 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v4.3.0';
+export const APP_VERSION = 'v4.4.0';
 
-// The program operates out of Shiloh Christian in Arkansas, which is always
-// America/Chicago (Central) - CDT in summer, CST in winter, DST handled by the
-// IANA timezone database automatically. Anchoring "today"/date-picker defaults
-// to this fixed zone (rather than each device's own OS timezone) keeps every
-// coach's device agreeing on what calendar day a practice session falls on,
-// which matters most for evening/post-practice entries made close to midnight.
-const PROGRAM_TIMEZONE = 'America/Chicago';
+// Anchoring "today"/date-picker defaults to the program's timezone (rather than
+// each device's own OS timezone) keeps every coach's device agreeing on what
+// calendar day a practice session falls on, which matters most for evening or
+// post-practice entries made close to midnight.
+//
+// Configured in Settings; App pushes the value here on load and on save so these
+// pure helpers stay usable without threading settings through every call site.
+let PROGRAM_TIMEZONE = 'America/Chicago';
+let SEASON_START_DATE = '2026-08-03';
+
+export const configureProgramContext = ({ programTimezone, seasonStartDate } = {}) => {
+  if (programTimezone) {
+    // Reject an invalid zone rather than letting Intl throw on every date format.
+    try {
+      new Intl.DateTimeFormat('en-CA', { timeZone: programTimezone });
+      PROGRAM_TIMEZONE = programTimezone;
+    } catch (e) {
+      console.warn('Invalid program timezone, keeping', PROGRAM_TIMEZONE, e);
+    }
+  }
+  if (seasonStartDate) SEASON_START_DATE = seasonStartDate;
+};
+
+export const getProgramTimezone = () => PROGRAM_TIMEZONE;
+
+// Season start rendered the way dates appear elsewhere in the UI.
+const seasonStartDisplay = () => {
+  const d = new Date(`${SEASON_START_DATE}T12:00:00`);
+  return isNaN(d.getTime()) ? SEASON_START_DATE : d.toLocaleDateString();
+};
 
 // Returns the given instant's date as "YYYY-MM-DD" in the program's timezone.
 export const getCentralDateString = (date = new Date()) => {
@@ -67,7 +90,13 @@ export const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a
 
 // Sanity bounds for a human body weight entry (lbs). Rejects 0, negatives, and
 // fat-fingered values like 9999999 before they pollute charts and averages.
-export const isPlausibleWeight = (w) => typeof w === 'number' && !isNaN(w) && w > 0 && w <= 1000;
+let WEIGHT_BOUNDS = { min: 0, max: 1000 };
+export const configureWeightBounds = (min, max) => {
+  if (isFinite(min)) WEIGHT_BOUNDS.min = Number(min);
+  if (isFinite(max)) WEIGHT_BOUNDS.max = Number(max);
+};
+export const isPlausibleWeight = (w) => typeof w === 'number' && !isNaN(w) && w > WEIGHT_BOUNDS.min && w <= WEIGHT_BOUNDS.max;
+export const getWeightBounds = () => ({ ...WEIGHT_BOUNDS });
 
 // ---- Cached localStorage JSON reads ----
 // Hot paths (alert scans, baseline lookups, post-practice checks) used to JSON.parse
@@ -165,7 +194,7 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
   const athId = athlete.id || athlete.athlete_id;
 
   let baseWeight = null;
-  let baseDate = '8/3/2026';
+  let baseDate = seasonStartDisplay();
   let baseLogId = null;
 
   // 1. Check custom override map first - it's the common case (fetchAthletes populates
@@ -176,7 +205,7 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
       baseWeight = parseFloat(customMap[athId].weight_lbs);
       baseLogId = customMap[athId].log_id || 'map_base';
       const dVal = customMap[athId].date_str || customMap[athId].date;
-      baseDate = dVal ? (!isNaN(new Date(dVal).getTime()) ? new Date(dVal).toLocaleDateString() : dVal) : '8/3/2026';
+      baseDate = dVal ? (!isNaN(new Date(dVal).getTime()) ? new Date(dVal).toLocaleDateString() : dVal) : seasonStartDisplay();
       return { weight_lbs: baseWeight, date_str: baseDate, id: baseLogId };
     }
   } catch(e) {}
@@ -190,19 +219,21 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
   const explicitBaseLog = [...athleteRecords].reverse().find(r => r.is_baseline === true || r.is_baseline === 'true' || r.is_baseline === 1);
   if (explicitBaseLog && explicitBaseLog.weight_lbs) {
     baseWeight = parseFloat(explicitBaseLog.weight_lbs);
-    baseDate = explicitBaseLog.created_at ? new Date(explicitBaseLog.created_at).toLocaleDateString() : (explicitBaseLog.date || '8/3/2026');
+    baseDate = explicitBaseLog.created_at ? new Date(explicitBaseLog.created_at).toLocaleDateString() : (explicitBaseLog.date || seasonStartDisplay());
     return { weight_lbs: baseWeight, date_str: baseDate, id: explicitBaseLog.id };
   }
 
-  // 3. Check specifically for weigh-in on 8/3/2026 (or date string containing 2026-08-03 or matching 8/3/2026)
-  const aug3Log = [...athleteRecords].reverse().find(r => {
+  // 3. Check for a weigh-in recorded on the configured season start date.
+  const seasonStartLog = [...athleteRecords].reverse().find(r => {
     const dStr = r.created_at || r.date || '';
-    return dStr.includes('2026-08-03') || (!isNaN(new Date(dStr).getTime()) && new Date(dStr).toLocaleDateString() === '8/3/2026');
+    if (typeof dStr === 'string' && dStr.includes(SEASON_START_DATE)) return true;
+    const parsed = new Date(dStr);
+    return !isNaN(parsed.getTime()) && parsed.toLocaleDateString() === seasonStartDisplay();
   });
-  if (aug3Log && aug3Log.weight_lbs) {
-    baseWeight = parseFloat(aug3Log.weight_lbs);
-    baseDate = '8/3/2026';
-    return { weight_lbs: baseWeight, date_str: baseDate, id: aug3Log.id };
+  if (seasonStartLog && seasonStartLog.weight_lbs) {
+    baseWeight = parseFloat(seasonStartLog.weight_lbs);
+    baseDate = seasonStartDisplay();
+    return { weight_lbs: baseWeight, date_str: baseDate, id: seasonStartLog.id };
   }
 
   // 4. Check athlete table baseline_weight or position metadata
@@ -210,7 +241,7 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
   const bw = athlete.baseline_weight || meta.bw || meta.baseline_weight;
   if (bw && Number(bw) > 0) {
     baseWeight = parseFloat(bw);
-    baseDate = meta.bd || athlete.baseline_date || '8/3/2026';
+    baseDate = meta.bd || athlete.baseline_date || seasonStartDisplay();
     return { weight_lbs: baseWeight, date_str: baseDate, id: 'meta_base' };
   }
 

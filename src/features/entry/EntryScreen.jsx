@@ -3,6 +3,7 @@ import { KioskNumpad } from '../../components/KioskNumpad';
 import { parseAthleteMeta, getBaselinesMap } from '../../utils/athleteData';
 
 export default function EntryScreen({
+  settings,
   kioskTrackMode,
   setKioskTrackMode,
   isBaselineTestingMode,
@@ -190,7 +191,7 @@ export default function EntryScreen({
                 BASELINE TESTING STATION ENABLED
               </span>
               <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                Every weigh-in logged while this mode is active automatically updates the athlete's target baseline mass and resets their 14-day inactivity interval.
+                Every weigh-in logged while this mode is active automatically updates the athlete's target baseline mass and resets their {settings.baselineExpiryDays}-day inactivity interval.
               </span>
             </div>
           </div>
@@ -596,7 +597,7 @@ export default function EntryScreen({
                     style={{ width: '100%', height: '56px', background: focusedField === 'sleep' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'sleep' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', padding: '0 16px', color: focusedField === 'sleep' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s' }}
                   />
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-                    {['6.0', '7.0', '7.5', '8.0', '8.5', '9.0'].map(val => (
+                    {(settings.sleepQuickPicks || []).map(v => Number(v).toFixed(1)).map(val => (
                       <button
                         key={val}
                         type="button"
@@ -643,16 +644,17 @@ export default function EntryScreen({
               const diff = currentWt - baseline;
               const diffPct = (diff / baseline) * 100;
               const isLoss = diff < 0;
-              const color = isLoss ? (diff <= -3.0 ? '#ef4444' : '#f97316') : '#10b981';
-              const bg = isLoss ? (diff <= -3.0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(249, 115, 22, 0.15)') : 'rgba(16, 185, 129, 0.15)';
-              const border = isLoss ? (diff <= -3.0 ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(249, 115, 22, 0.4)') : '1px solid rgba(16, 185, 129, 0.4)';
+              const isSignificantDrop = diff <= -settings.acuteDropLbs;
+              const color = isLoss ? (isSignificantDrop ? '#ef4444' : '#f97316') : '#10b981';
+              const bg = isLoss ? (isSignificantDrop ? 'rgba(239, 68, 68, 0.15)' : 'rgba(249, 115, 22, 0.15)') : 'rgba(16, 185, 129, 0.15)';
+              const border = isLoss ? (isSignificantDrop ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(249, 115, 22, 0.4)') : '1px solid rgba(16, 185, 129, 0.4)';
 
               return (
                 <div className="animate-slide-up" style={{ width: '100%', padding: '14px 18px', background: bg, border, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: 800, color }}>
-                    <span style={{ fontSize: '24px' }}>{isLoss ? (diff <= -3.0 ? '⚠️' : '🔻') : '🟢'}</span>
+                    <span style={{ fontSize: '24px' }}>{isLoss ? (isSignificantDrop ? '⚠️' : '🔻') : '🟢'}</span>
                     <div>
-                      <div style={{ textTransform: 'uppercase' }}>{diff >= 0 ? 'MASS GAIN / UPWARDS TREND' : (diff <= -3.0 ? 'ALERT: SIGNIFICANT WEIGHT DROP DETECTED' : 'SLIGHT WEIGHT DROP vs BASELINE')}</div>
+                      <div style={{ textTransform: 'uppercase' }}>{diff >= 0 ? 'MASS GAIN / UPWARDS TREND' : (isSignificantDrop ? 'ALERT: SIGNIFICANT WEIGHT DROP DETECTED' : 'SLIGHT WEIGHT DROP vs BASELINE')}</div>
                       <div style={{ color: '#fff', fontSize: '16px', marginTop: '2px' }}>
                         Athlete is {diff >= 0 ? `+${diff.toFixed(1)}` : `${diff.toFixed(1)}`} lbs from baseline ({diff >= 0 ? `+${diffPct.toFixed(1)}` : `${diffPct.toFixed(1)}`}%)
                       </div>
@@ -669,13 +671,13 @@ export default function EntryScreen({
             {(() => {
               const athleteRecords = reportData.filter(r => r.athlete_id === selectedAthlete.id && r.weight_lbs && Number(r.weight_lbs) > 0).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
               const isFirstEntry = athleteRecords.length === 0;
-              const hasLongGap = athleteRecords.length > 0 && (new Date() - new Date(athleteRecords[athleteRecords.length - 1].created_at)) > 14 * 24 * 60 * 60 * 1000;
+              const hasLongGap = athleteRecords.length > 0 && (new Date() - new Date(athleteRecords[athleteRecords.length - 1].created_at)) > settings.baselineExpiryDays * 24 * 60 * 60 * 1000;
               const requiresBaseline = kioskTrackMode !== 'sleep_only' && (isFirstEntry || hasLongGap);
 
               // Numeric check: the old string comparison let "0" (typed via numpad) through
               // as a junk zero-weight record; also reject implausible giant values.
               const weightNum = parseFloat(weightInput);
-              const disableSubmit = saving || (kioskTrackMode === 'sleep_only' ? (!sleepInput || parseFloat(sleepInput) <= 0) : (!(weightNum > 0) || weightNum > 1000));
+              const disableSubmit = saving || (kioskTrackMode === 'sleep_only' ? (!sleepInput || parseFloat(sleepInput) <= 0) : (!(weightNum > settings.minWeightLbs) || weightNum > settings.maxWeightLbs));
 
               if (requiresBaseline) {
                 return (

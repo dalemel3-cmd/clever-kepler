@@ -1,6 +1,10 @@
-import { Check, Smartphone, CheckCircle, Download, Sliders, Minus, Plus, Database, Upload, Wifi, Zap, Users, Activity, RefreshCw, Trash2, Shield, Lock, AlertTriangle } from 'lucide-react';
+import { Check, Smartphone, CheckCircle, Download, Sliders, Minus, Plus, Database, Upload, Wifi, Zap, Users, Activity, RefreshCw, Trash2, Shield, Lock, AlertTriangle, RotateCcw } from 'lucide-react';
+import { getAppHost } from '../../settings';
 
 export default function SettingsScreen({
+  settings,
+  updateSetting,
+  handleResetSettings,
   settingsSavedToast,
   isAppInstalled,
   handleInstallApp,
@@ -49,7 +53,7 @@ export default function SettingsScreen({
         </div>
         {settingsSavedToast && (
           <div style={{ background: 'rgba(52, 211, 153, 0.15)', color: 'var(--status-success)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '8px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Check size={16} /> THRESHOLD SETTINGS SAVED!
+            <Check size={16} /> SETTINGS SAVED!
           </div>
         )}
       </div>
@@ -66,7 +70,7 @@ export default function SettingsScreen({
                 HOW TO INSTALL & DOWNLOAD APP
               </h2>
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Installs HPD App as a standalone native application (not a bookmark) with its own home screen icon, fullscreen view, and offline fail-safe cache.
+                Installs {settings.programName} as a standalone native application (not a bookmark) with its own home screen icon, fullscreen view, and offline fail-safe cache.
               </div>
             </div>
           </div>
@@ -81,7 +85,7 @@ export default function SettingsScreen({
               className="btn-primary"
               style={{ height: '44px', padding: '0 20px', fontSize: '13px' }}
             >
-              <Download size={18} /> INSTALL HPD APP NOW
+              <Download size={18} /> INSTALL APP NOW
             </button>
           )}
         </div>
@@ -94,7 +98,7 @@ export default function SettingsScreen({
               <span style={{ fontSize: '18px' }}>🍎</span> iPhone & iPad (Safari)
             </div>
             <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
-              <li>Open Safari and load <strong style={{ color: 'var(--color-accent)' }}>clever-kepler.vercel.app</strong></li>
+              <li>Open Safari and load <strong style={{ color: 'var(--color-accent)' }}>{getAppHost()}</strong></li>
               <li>Tap the <strong>Share button</strong> (box with arrow pointing up <span style={{ fontSize: '14px' }}>⎘</span>)</li>
               <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
               <li>Tap <strong>"Add"</strong> in top right. App icon appears on Home Screen!</li>
@@ -107,7 +111,7 @@ export default function SettingsScreen({
               <span style={{ fontSize: '18px' }}>🤖</span> Android (Chrome)
             </div>
             <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
-              <li>Open Chrome and load <strong style={{ color: 'var(--color-accent)' }}>clever-kepler.vercel.app</strong></li>
+              <li>Open Chrome and load <strong style={{ color: 'var(--color-accent)' }}>{getAppHost()}</strong></li>
               <li>Tap the <strong>3-dots menu</strong> (<strong>⋮</strong>) in top right corner</li>
               <li>Select <strong>"Install App"</strong> or <strong>"Add to Home screen"</strong></li>
               <li>Tap <strong>"Install"</strong> to place app on your app drawer!</li>
@@ -122,113 +126,176 @@ export default function SettingsScreen({
             <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
               <li>Look at the right side of your browser URL address bar</li>
               <li>Click the <strong>Install Icon</strong> (<span style={{ fontSize: '14px' }}>📥</span> or <span style={{ fontSize: '14px' }}>⊕</span>)</li>
-              <li>Click <strong>"Install HPD App"</strong> to launch as a standalone desktop window</li>
-              <li>Access HPD App anytime from your desktop or dock!</li>
+              <li>Click <strong>"Install {settings.programName} App"</strong> to launch as a standalone desktop window</li>
+              <li>Access it anytime from your desktop or dock!</li>
             </ol>
           </div>
 
         </div>
       </div>
 
-      {/* Card 2: Practical Alert & Rule Threshold Configurator */}
+      {/* Card 2: Program Identity, Thresholds & Windows - every tunable in one place.
+          Nothing in the app is a magic number anymore; each field below is read live
+          by the dashboards, alerts, reports, and kiosk entry screens. */}
       <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-500)' }}>
-            <Sliders size={22} />
-          </div>
-          <div>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0 }}>
-              ALERT & RULE THRESHOLD CONFIGURATOR
-            </h2>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              Adjust rule thresholds for risk detection, daily alerts, and mandatory baseline re-weigh prompts.
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-500)' }}>
+              <Sliders size={22} />
+            </div>
+            <div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0 }}>
+                PROGRAM CONFIGURATION
+              </h2>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                Every threshold, window, and label the app uses. Changes apply live across all screens once saved.
+              </div>
             </div>
           </div>
+          <button
+            onClick={handleResetSettings}
+            style={{ padding: '10px 18px', fontSize: '12px', fontWeight: 700, background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <RotateCcw size={15} /> RESTORE DEFAULTS
+          </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+        {(() => {
+          const GROUPS = [
+            {
+              title: 'PROGRAM IDENTITY',
+              hint: 'Shown in the sidebar, mobile menu, and printed report headers.',
+              fields: [
+                { key: 'organizationName', label: 'Organization Name', type: 'text' },
+                { key: 'programName', label: 'Program Name', type: 'text' },
+                { key: 'coachName', label: 'Coach / Owner Name', type: 'text' },
+                { key: 'programTimezone', label: 'Program Timezone (IANA)', type: 'text', help: 'Anchors "today" so every device agrees on the calendar day.' },
+                { key: 'seasonStartDate', label: 'Season Start Date', type: 'date', help: 'Baseline reference when an athlete has no explicit marker.' },
+              ]
+            },
+            {
+              title: 'HYDRATION & MASS LOSS',
+              hint: 'Drives dehydration alerts, the dashboard attention list, and sweat-loss cards.',
+              fields: [
+                { key: 'dehydrationThreshold', label: 'Dehydration Risk Threshold', unit: '%', step: 0.1, min: 0.1, max: 20 },
+                { key: 'acuteDropLbs', label: 'Significant Acute Drop', unit: 'lbs', step: 0.5, min: 0.1, max: 100 },
+                { key: 'calorieAdviceLbs', label: 'Escalate to Calories + Fluids At', unit: 'lbs', step: 0.5, min: 0.1, max: 100 },
+                { key: 'severeSweatLbs', label: 'Severe Sweat Loss', unit: 'lbs', step: 0.5, min: 0.1, max: 100 },
+                { key: 'severeSweatPct', label: 'Severe Sweat Loss', unit: '%', step: 0.1, min: 0.1, max: 50 },
+                { key: 'fluidOzPerLb', label: 'Fluid Replacement', unit: 'oz/lb', step: 1, min: 1, max: 200 },
+                { key: 'minFluidOz', label: 'Minimum Fluid Advice', unit: 'oz', step: 1, min: 0, max: 500 },
+              ]
+            },
+            {
+              title: 'SLEEP & RECOVERY',
+              hint: 'Deficit flags, the recovery index, and the sleep chart target line.',
+              fields: [
+                { key: 'sleepThreshold', label: 'Sleep Deficit Below', unit: 'hrs', step: 0.5, min: 0, max: 24 },
+                { key: 'sleepRecoveryHours', label: 'Counts as Recovered At', unit: 'hrs', step: 0.5, min: 0, max: 24 },
+                { key: 'sleepTargetHours', label: 'Optimal Rest At', unit: 'hrs', step: 0.5, min: 0, max: 24 },
+                { key: 'sleepChartTargetHours', label: 'Sleep Chart Target Line', unit: 'hrs', step: 0.5, min: 0, max: 24 },
+              ]
+            },
+            {
+              title: 'BASELINES & DATA WINDOWS',
+              hint: 'How far back the app looks and how long a baseline stays valid.',
+              fields: [
+                { key: 'baselineExpiryDays', label: 'Baseline Expires After', unit: 'days', step: 1, min: 1, max: 365 },
+                { key: 'dataWindowDays', label: 'Dashboard Data Window', unit: 'days', step: 1, min: 1, max: 3650 },
+                { key: 'profileHistoryLimit', label: 'Profile History Limit', unit: 'logs', step: 10, min: 10, max: 10000 },
+                { key: 'postPracticeLookbackDays', label: 'Sweat Card Lookback', unit: 'days', step: 1, min: 1, max: 365 },
+              ]
+            },
+            {
+              title: 'ENTRY VALIDATION',
+              hint: 'Bounds the kiosk and manual entry accept before saving a record.',
+              fields: [
+                { key: 'minWeightLbs', label: 'Minimum Weight', unit: 'lbs', step: 1, min: 0, max: 1000 },
+                { key: 'maxWeightLbs', label: 'Maximum Weight', unit: 'lbs', step: 10, min: 1, max: 5000 },
+                { key: 'maxSleepHours', label: 'Maximum Sleep', unit: 'hrs', step: 1, min: 1, max: 24 },
+              ]
+            },
+          ];
 
-          {/* Dehydration Threshold */}
-          <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              DEHYDRATION RISK THRESHOLD (% DROP)
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <button
-                onClick={() => setDehydrationThreshold(prev => Math.max(1.0, parseFloat((prev - 0.1).toFixed(1))))}
-                style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Minus size={18} />
-              </button>
-              <div style={{ flex: 1, height: '44px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-accent)' }}>
-                {dehydrationThreshold.toFixed(1)}%
+          return GROUPS.map(group => (
+            <div key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.08em' }}>{group.title}</span>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{group.hint}</div>
               </div>
-              <button
-                onClick={() => setDehydrationThreshold(prev => Math.min(5.0, parseFloat((prev + 0.1).toFixed(1))))}
-                style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Plus size={18} />
-              </button>
-            </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-              Flags athletes when body mass drops by &ge; {dehydrationThreshold}% between logs.
-            </span>
-          </div>
-
-          {/* Sleep Deficiency Threshold */}
-          <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              SLEEP DEFICIENCY THRESHOLD (HOURS)
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <button
-                onClick={() => setSleepThreshold(prev => Math.max(4.0, parseFloat((prev - 0.5).toFixed(1))))}
-                style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Minus size={18} />
-              </button>
-              <div style={{ flex: 1, height: '44px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-accent)' }}>
-                {sleepThreshold.toFixed(1)} hrs
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px' }}>
+                {group.fields.map(f => (
+                  <div key={f.key} className="card-glass" style={{ padding: '14px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '8px', borderRadius: '10px' }}>
+                    <label htmlFor={`setting-${f.key}`} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {f.label}{f.unit ? ` (${f.unit})` : ''}
+                    </label>
+                    {f.type === 'text' || f.type === 'date' ? (
+                      <input
+                        id={`setting-${f.key}`}
+                        type={f.type === 'date' ? 'date' : 'text'}
+                        className="input-glass"
+                        value={settings[f.key] ?? ''}
+                        onChange={e => updateSetting(f.key, e.target.value)}
+                        style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px' }}
+                      />
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          aria-label={`Decrease ${f.label}`}
+                          onClick={() => updateSetting(f.key, prev => Math.max(f.min, Number((Number(prev) - f.step).toFixed(2))))}
+                          style={{ width: '40px', height: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <input
+                          id={`setting-${f.key}`}
+                          type="number"
+                          step={f.step}
+                          min={f.min}
+                          max={f.max}
+                          value={settings[f.key]}
+                          onChange={e => updateSetting(f.key, e.target.value === '' ? '' : Number(e.target.value))}
+                          onBlur={e => {
+                            const v = Number(e.target.value);
+                            updateSetting(f.key, !isFinite(v) ? f.min : Math.min(Math.max(v, f.min), f.max));
+                          }}
+                          style={{ flex: 1, minWidth: 0, height: '42px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '8px', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'var(--color-accent)', outline: 'none' }}
+                        />
+                        <button
+                          type="button"
+                          aria-label={`Increase ${f.label}`}
+                          onClick={() => updateSetting(f.key, prev => Math.min(f.max, Number((Number(prev) + f.step).toFixed(2))))}
+                          style={{ width: '40px', height: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    )}
+                    {f.help && <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>{f.help}</span>}
+                  </div>
+                ))}
               </div>
-              <button
-                onClick={() => setSleepThreshold(prev => Math.min(9.0, parseFloat((prev + 0.5).toFixed(1))))}
-                style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Plus size={18} />
-              </button>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-              Flags athletes when logged sleep falls below &lt; {sleepThreshold} hours.
-            </span>
-          </div>
+          ));
+        })()}
 
-          {/* Baseline Expiration Rule */}
-          <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              BASELINE EXPIRATION RULE (DAYS INACTIVE)
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <button
-                onClick={() => setBaselineExpiryDays(prev => Math.max(3, prev - 1))}
-                style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Minus size={18} />
-              </button>
-              <div style={{ flex: 1, height: '44px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-accent)' }}>
-                {baselineExpiryDays} days
-              </div>
-              <button
-                onClick={() => setBaselineExpiryDays(prev => Math.min(30, prev + 1))}
-                style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Plus size={18} />
-              </button>
+        {/* Sports offered in pickers */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+          <div>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.08em' }}>SPORTS OFFERED</span>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+              Suggestions shown in sport pickers, comma separated. Sports already on the roster are always included automatically.
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-              Prompts athlete to set a new baseline if &gt; {baselineExpiryDays} days have passed without log.
-            </span>
           </div>
-
+          <textarea
+            aria-label="Sports offered, comma separated"
+            className="input-glass"
+            rows={2}
+            value={(settings.sportsList || []).join(', ')}
+            onChange={e => updateSetting('sportsList', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+            style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', resize: 'vertical', lineHeight: 1.6 }}
+          />
         </div>
 
         <button
@@ -236,7 +303,7 @@ export default function SettingsScreen({
           className="btn-primary"
           style={{ width: 'fit-content', padding: '12px 28px', fontSize: '14px', marginTop: '8px' }}
         >
-          <CheckCircle size={18} /> SAVE THRESHOLD SETTINGS
+          <CheckCircle size={18} /> SAVE ALL SETTINGS
         </button>
       </div>
 

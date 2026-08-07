@@ -5,6 +5,7 @@ import { getAthleteBaseline, getCentralDateString } from '../../utils/athleteDat
 const LOG_TABLE_PAGE_SIZE = 250;
 
 export default function ReportsScreen({
+  settings,
   reportData,
   reportSportFilter,
   reportTimeframe,
@@ -141,7 +142,7 @@ export default function ReportsScreen({
       <div className="report-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div className="report-header-text">
           <div className="no-print" style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>ANALYTICS &middot; HUMAN PERFORMANCE</div>
-          <img src="/logo1.png" alt="Human Performance - Shiloh Christian" className="only-print report-print-logo" style={{ display: 'none', height: '46px', width: 'auto', marginBottom: '10px' }} />
+          <img src="/logo1.png" alt={`${settings.programName} - ${settings.organizationName}`} className="only-print report-print-logo" style={{ display: 'none', height: '46px', width: 'auto', marginBottom: '10px' }} />
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
             {reportMode === 'quick' ? '⚡ QUICK PRIORITY READINESS REPORT' : '⚙️ CUSTOM METRIC PERFORMANCE REPORT'}
           </h1>
@@ -214,7 +215,7 @@ export default function ReportsScreen({
               onChange={e => setReportTimeframe(e.target.value)}
               style={{ background: 'var(--navy-900)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
             >
-              <option value="all">TIMEFRAME: ALL TIME</option>
+              <option value="all">TIMEFRAME: ALL LOADED ({settings.dataWindowDays} DAYS)</option>
               <option value="today">TIMEFRAME: TODAY</option>
               <option value="7d">TIMEFRAME: LAST 7 DAYS</option>
               <option value="30d">TIMEFRAME: LAST 30 DAYS</option>

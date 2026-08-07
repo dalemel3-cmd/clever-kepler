@@ -31,8 +31,11 @@ import {
   centralWallTimeToISO,
   isPlausibleWeight,
   getBaselinesMap,
-  invalidateAthleteDataCache
+  invalidateAthleteDataCache,
+  configureProgramContext,
+  configureWeightBounds
 } from './utils/athleteData';
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, getAppHost } from './settings';
 
 const getLastName = (fullName) => {
   if (!fullName) return '';
@@ -116,6 +119,47 @@ export default function App() {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 4500);
   };
+
+  // Single settings object drives every threshold, window, and label in the app.
+  // Values are merged over defaults on load, so a release that adds a new setting
+  // picks up its default without wiping what the coach already configured.
+  const [settings, setSettings] = useState(() => loadSettings());
+  const { dehydrationThreshold, sleepThreshold, baselineExpiryDays } = settings;
+
+  const updateSetting = React.useCallback((key, value) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: typeof value === 'function' ? value(prev[key]) : value
+    }));
+  }, []);
+
+  // Setter shims so existing controls keep their prev => next ergonomics.
+  const setDehydrationThreshold = React.useCallback(v => updateSetting('dehydrationThreshold', v), [updateSetting]);
+  const setSleepThreshold = React.useCallback(v => updateSetting('sleepThreshold', v), [updateSetting]);
+  const setBaselineExpiryDays = React.useCallback(v => updateSetting('baselineExpiryDays', v), [updateSetting]);
+
+  // The mount-once sync effect closes over its initial scope, so it reads settings
+  // through this ref to always see the current values rather than the ones at mount.
+  const settingsRef = React.useRef(settings);
+  React.useEffect(() => { settingsRef.current = settings; }, [settings]);
+
+  const coachInitials = React.useMemo(() => {
+    const parts = String(settings.coachName || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'HP';
+    // "Coach Mason" -> "CM"; a single name -> its first two letters.
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }, [settings.coachName]);
+
+  // Push settings that pure helpers depend on into the utils module whenever they
+  // change, so date math and weight validation always use the live configuration.
+  React.useEffect(() => {
+    configureProgramContext({
+      programTimezone: settings.programTimezone,
+      seasonStartDate: settings.seasonStartDate
+    });
+    configureWeightBounds(settings.minWeightLbs, settings.maxWeightLbs);
+  }, [settings.programTimezone, settings.seasonStartDate, settings.minWeightLbs, settings.maxWeightLbs]);
 
   const filteredAthletes = React.useMemo(() => athletes
     .filter(a => {
@@ -268,7 +312,7 @@ export default function App() {
       ? (parseFloat(todayAvgSleep) - parseFloat(yesterdayAvgSleep)).toFixed(1)
       : null;
 
-    // 3. Hydration & Mass Stability Watch (Acute Overnight Drops > 2.5% or > 3 lbs)
+    // 3. Hydration & Mass Stability Watch (thresholds configurable in Settings)
     const hydrationFlags = [];
     todayLogs.forEach(todayRec => {
       const currentWt = parseFloat(todayRec.weight_lbs);
@@ -286,7 +330,7 @@ export default function App() {
           const deltaLbs = currentWt - prevWt;
           const deltaPct = (deltaLbs / prevWt) * 100;
           
-          if (deltaLbs <= -3.0 || deltaPct <= -2.0) {
+          if (deltaLbs <= -settings.acuteDropLbs || deltaPct <= -settings.dehydrationThreshold) {
             hydrationFlags.push({
               athlete: ath,
               currentWt: currentWt.toFixed(1),
@@ -364,15 +408,6 @@ export default function App() {
   const [alertsTab, setAlertsTab] = useState('DAILY');
 
   // Settings & PWA State
-  const [dehydrationThreshold, setDehydrationThreshold] = useState(() => {
-    try { return Number(JSON.parse(localStorage.getItem('shiloh_threshold_settings'))?.dehydrationThreshold) || 2.0; } catch(e) { return 2.0; }
-  }); // %
-  const [sleepThreshold, setSleepThreshold] = useState(() => {
-    try { return Number(JSON.parse(localStorage.getItem('shiloh_threshold_settings'))?.sleepThreshold) || 6.5; } catch(e) { return 6.5; }
-  }); // hrs
-  const [baselineExpiryDays, setBaselineExpiryDays] = useState(() => {
-    try { return Number(JSON.parse(localStorage.getItem('shiloh_threshold_settings'))?.baselineExpiryDays) || 14; } catch(e) { return 14; }
-  }); // days
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
@@ -457,12 +492,12 @@ export default function App() {
     // pulling the entire 30-day table. Only a changed fingerprint triggers the full fetch.
     const probeCloudForChanges = async () => {
       try {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const windowStart = new Date();
+        windowStart.setDate(windowStart.getDate() - settingsRef.current.dataWindowDays);
         const { data, count, error } = await supabase
           .from('weigh_ins')
           .select('created_at', { count: 'exact' })
-          .gte('created_at', thirtyDaysAgo.toISOString())
+          .gte('created_at', windowStart.toISOString())
           .order('created_at', { ascending: false })
           .limit(1);
         if (error) throw error;
@@ -585,8 +620,8 @@ export default function App() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'HPD APP',
-          text: 'Install HPD App for High Performance Weight Tracking',
+          title: `${settings.programName} App`,
+          text: `Install ${settings.programName} for ${settings.organizationName}`,
           url: window.location.href,
         });
       } catch (err) {
@@ -608,15 +643,35 @@ export default function App() {
   };
 
   const handleSaveSettings = () => {
-    try {
-      localStorage.setItem('shiloh_threshold_settings', JSON.stringify({
-        dehydrationThreshold: Number(dehydrationThreshold),
-        sleepThreshold: Number(sleepThreshold),
-        baselineExpiryDays: Number(baselineExpiryDays)
-      }));
-    } catch(e) { console.error('Failed to save settings to localStorage:', e); }
+    const normalized = saveSettings(settings);
+    setSettings(normalized); // reflect any clamping back into the controls
+    configureProgramContext({
+      programTimezone: normalized.programTimezone,
+      seasonStartDate: normalized.seasonStartDate
+    });
+    configureWeightBounds(normalized.minWeightLbs, normalized.maxWeightLbs);
     setSettingsSavedToast(true);
     setTimeout(() => setSettingsSavedToast(false), 4000);
+  };
+
+  const handleResetSettings = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Restore Default Settings',
+      message: 'Reset every threshold, window, and label back to the shipped defaults? Your athletes and weigh-in history are not affected.',
+      isDanger: false,
+      actionText: 'Restore Defaults',
+      onConfirm: () => {
+        const normalized = saveSettings(DEFAULT_SETTINGS);
+        setSettings(normalized);
+        configureProgramContext({
+          programTimezone: normalized.programTimezone,
+          seasonStartDate: normalized.seasonStartDate
+        });
+        configureWeightBounds(normalized.minWeightLbs, normalized.maxWeightLbs);
+        showToast('Settings restored to defaults.', 'info');
+      }
+    });
   };
 
   const handleForceSync = async () => {
@@ -722,13 +777,13 @@ export default function App() {
     let onlineData = [];
     try {
       if (!navigator.onLine) throw new Error('Offline');
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
+      const windowStart = new Date();
+      windowStart.setDate(windowStart.getDate() - settingsRef.current.dataWindowDays);
+
       const { data, error } = await supabase
         .from('weigh_ins')
         .select('*')
-        .gte('created_at', thirtyDaysAgo.toISOString())
+        .gte('created_at', windowStart.toISOString())
         .order('created_at', { ascending: false });
       if (!error && data) {
         onlineData = data;
@@ -1316,8 +1371,12 @@ export default function App() {
   };
 
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId);
-  const defaultSports = ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'SOCC', 'Softball', 'Tennis', 'Track & Field', 'VBB', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'];
-  const sportsList = Array.from(new Set([...defaultSports, ...athletes.map(a => a.sport).filter(Boolean)])).sort();
+  // Suggested sports come from Settings; sports actually present on the roster are
+  // merged in so a team is never missing from a picker just because it wasn't listed.
+  const sportsList = React.useMemo(
+    () => Array.from(new Set([...(settings.sportsList || []), ...athletes.map(a => a.sport).filter(Boolean)])).sort(),
+    [settings.sportsList, athletes]
+  );
   const teamsList = Array.from(new Set(athletes.map(a => a.team).filter(Boolean)));
   const gradesList = Array.from(new Set(athletes.map(a => a.grade).filter(Boolean)));
   const positionsList = Array.from(new Set(athletes.map(a => a.position).filter(Boolean)));
@@ -1372,7 +1431,7 @@ export default function App() {
       sport: selectedAthlete.sport,
       weight_lbs: weightVal,
       // clamp sleep to a sane 0-24h so a stray keypad entry can't skew averages
-      sleep_hrs: !isNaN(parseFloat(sleepInput)) ? Math.min(Math.max(parseFloat(sleepInput), 0), 24) : 0,
+      sleep_hrs: !isNaN(parseFloat(sleepInput)) ? Math.min(Math.max(parseFloat(sleepInput), 0), settings.maxSleepHours) : 0,
       created_at: new Date().toISOString()
     };
 
@@ -1893,7 +1952,7 @@ export default function App() {
         .select('*')
         .eq('athlete_id', id)
         .order('created_at', { ascending: false })
-        .limit(180);
+        .limit(settingsRef.current.profileHistoryLimit);
       let pData = data ? [...data].reverse() : localData;
       try {
         const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
@@ -2190,7 +2249,7 @@ export default function App() {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
         if (dropPercent >= (dehydrationThreshold / 100)) {
-          const recommendation = drop >= 4.0 ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
+          const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
           alerts.push({
             id: r.id + '_weight',
             athlete_id: r.athlete_id,
@@ -2259,7 +2318,7 @@ export default function App() {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
         if (dropPercent >= (dehydrationThreshold / 100)) {
-          const recommendation = drop >= 4.0 ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
+          const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
           alerts.push({
             id: r.athlete_id + '_weight', // Deduplicate by athlete
             athlete_id: r.athlete_id,
@@ -2294,7 +2353,7 @@ export default function App() {
       
       const latestPP = ppLogs[ppLogs.length - 1];
       const daysOld = (now - new Date(latestPP.created_at)) / (1000 * 60 * 60 * 24);
-      if (daysOld > 7 && !shouldShowEmpty) return;
+      if (daysOld > settings.postPracticeLookbackDays && !shouldShowEmpty) return;
 
       const normalLogs = athLogs.filter(r => !isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       const ppDate = new Date(latestPP.created_at);
@@ -2320,8 +2379,8 @@ export default function App() {
       
       if (drop > 0) {
         const pctLoss = bWeight && bWeight > 0 ? ((drop / bWeight) * 100) : 0;
-        const fluidOz = Math.round(drop * 24);
-        const isSevere = drop >= 5.0 || pctLoss >= 2.5;
+        const fluidOz = Math.round(drop * settings.fluidOzPerLb);
+        const isSevere = drop >= settings.severeSweatLbs || pctLoss >= settings.severeSweatPct;
         
         list.push({
           athlete: ath,
@@ -2332,7 +2391,7 @@ export default function App() {
           bWeight,
           drop,
           pctLoss,
-          fluidOz: fluidOz > 0 ? fluidOz : 32,
+          fluidOz: fluidOz > 0 ? fluidOz : settings.minFluidOz,
           isSevere
         });
       }
@@ -2668,7 +2727,7 @@ export default function App() {
           <div style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <img 
               src="/logo1.png" 
-              alt="Shiloh Logo" 
+              alt={`${settings.organizationName} logo`} 
               style={{ width: '100%', objectFit: 'contain', cursor: 'pointer' }} 
               onClick={() => { setScreen('dashboard'); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
             />
@@ -2685,10 +2744,10 @@ export default function App() {
           </div>
           <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 700 }}>CM</div>
+              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 700 }}>{coachInitials}</div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700 }}>COACH MASON</span>
-                <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>Shiloh Athletics</span>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>{(settings.coachName || '').toUpperCase()}</span>
+                <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{settings.organizationName}</span>
               </div>
             </div>
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
@@ -2704,7 +2763,7 @@ export default function App() {
           {isKioskMode ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.08em' }}>HPD &middot; KIOSK MODE</span>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.08em' }}>KIOSK MODE</span>
                 <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 8px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
                 {unsyncedQueueCount > 0 ? (
                   <span
@@ -2822,6 +2881,7 @@ export default function App() {
             <Suspense fallback={<ScreenLoadingFallback />}>
             {screen === 'dashboard' && (
               <DashboardScreen
+                settings={settings}
                 dehydrationThreshold={dehydrationThreshold}
                 athletes={athletes}
                 executiveInsights={executiveInsights}
@@ -2841,6 +2901,7 @@ export default function App() {
             
             {screen === 'entry' && (
               <EntryScreen
+                settings={settings}
                 kioskTrackMode={kioskTrackMode}
                 setKioskTrackMode={setKioskTrackMode}
                 isBaselineTestingMode={isBaselineTestingMode}
@@ -2924,6 +2985,7 @@ export default function App() {
 
             {screen === 'reports' && (
               <ReportsScreen
+                settings={settings}
                 reportData={reportData}
                 reportSportFilter={reportSportFilter}
                 reportTimeframe={reportTimeframe}
@@ -2977,6 +3039,7 @@ export default function App() {
             {/* STANDALONE PROFILES TAB */}
             {screen === 'profiles' && (
               <ProfilesScreen
+                settings={settings}
                 selectedProfileId={selectedProfileId}
                 setSelectedProfileId={setSelectedProfileId}
                 filteredAthletes={filteredAthletes}
@@ -3001,6 +3064,9 @@ export default function App() {
 
             {screen === 'settings' && (
               <SettingsScreen
+                settings={settings}
+                updateSetting={updateSetting}
+                handleResetSettings={handleResetSettings}
                 settingsSavedToast={settingsSavedToast}
                 isAppInstalled={isAppInstalled}
                 handleInstallApp={handleInstallApp}
@@ -3140,10 +3206,10 @@ export default function App() {
 
                 <div style={{ marginTop: '4px', padding: '14px 16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 800, fontSize: '12px' }}>CM</div>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 800, fontSize: '12px' }}>{coachInitials}</div>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--white)' }}>Coach Mason</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Shiloh Athletics &middot; HPD</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--white)' }}>{settings.coachName}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{settings.organizationName}</div>
                     </div>
                   </div>
                   <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
@@ -3164,7 +3230,7 @@ export default function App() {
                   <Smartphone size={26} />
                 </div>
                 <div>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: 0, color: 'var(--white)' }}>INSTALL HPD APP</h2>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: 0, color: 'var(--white)' }}>INSTALL APP</h2>
                   <span style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 700 }}>1-TAP STANDALONE NATIVE APP</span>
                 </div>
               </div>
@@ -3177,7 +3243,7 @@ export default function App() {
             </div>
 
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-              Tap below to install HPD App directly onto your device:
+              Tap below to install {settings.programName} directly onto your device:
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
