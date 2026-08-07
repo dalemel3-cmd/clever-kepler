@@ -27,7 +27,9 @@ import {
   markLogAsPostPractice,
   getAthleteBaseline,
   getCentralDateString,
-  getCentralTimeString
+  getCentralTimeString,
+  centralWallTimeToISO,
+  isPlausibleWeight
 } from './utils/athleteData';
 
 export default function App() {
@@ -76,6 +78,9 @@ export default function App() {
   const [athletes, setAthletes] = useState([]);
   const fetchReportRequestId = React.useRef(0);
   const didBackfillLocalOverrides = React.useRef(false);
+  const syncInFlight = React.useRef(false);
+  const manualSaveInFlight = React.useRef(false);
+  const kioskSaveInFlight = React.useRef(false);
 
   const getLastName = (fullName) => {
     if (!fullName) return '';
@@ -697,19 +702,23 @@ export default function App() {
   };
 
   const syncOfflineCache = async (isInteractive = false) => {
-    const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
-    if (offlineQueue.length === 0) {
-      if (isInteractive === true || typeof isInteractive === 'object') {
-        alert("☁️ No offline logs pending. Your iPad is completely synchronized with the cloud server!");
-      }
-      return;
-    }
-
-    const remainingQueue = [];
-    let syncedAny = false;
     const isClick = isInteractive === true || typeof isInteractive === 'object';
-
+    // In-flight lock: the 5s heartbeat, manual taps, and post-save syncs can overlap on a
+    // slow network, which used to double-upload the same queued records.
+    if (syncInFlight.current) return;
+    syncInFlight.current = true;
     try {
+      const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+      if (offlineQueue.length === 0) {
+        if (isClick) {
+          alert("☁️ No offline logs pending. Your iPad is completely synchronized with the cloud server!");
+        }
+        return;
+      }
+
+      const failedItems = [];
+      let syncedCount = 0;
+
       for (const item of offlineQueue) {
         const rec = item.record || item;
         let targetAthId = rec.athlete_id;
@@ -732,7 +741,7 @@ export default function App() {
           const res = await supabase.from('weigh_ins').update(cleanPayload).eq('id', item.id);
           if (!res.error) success = true;
         }
-        
+
         if (!success && isValidUuid(cleanPayload.athlete_id)) {
           const res = await supabase.from('weigh_ins').insert([cleanPayload]);
           if (!res.error) success = true;
@@ -751,16 +760,25 @@ export default function App() {
           }
         }
 
-        // Whether uploaded to cloud or legacy ID rejected by Postgres schema, we archive to permanent vault & release the queue!
-        try {
-          const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
-          vault.unshift({ saved_at: new Date().toISOString(), record: rec, synced: success });
-          localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
-        } catch(e) {}
-        
-        syncedAny = true;
+        // Archive each record to the permanent vault once (not on every retry).
+        if (!item.vaulted || success) {
+          try {
+            const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
+            vault.unshift({ saved_at: new Date().toISOString(), record: rec, synced: success });
+            localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
+          } catch(e) {}
+        }
+
+        if (success) {
+          syncedCount++;
+        } else {
+          // KEEP failed records in the queue so the next heartbeat retries them.
+          // (They used to be dropped after the first failed attempt, silently losing
+          // logs whenever the server was unreachable or rejected the insert.)
+          failedItems.push({ ...item, vaulted: true, retry_count: (item.retry_count || 0) + 1 });
+        }
       }
-      
+
       // Merge any newly queued offline items that arrived while the cloud network request was processing
       const currentQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
       const newlyAdded = currentQueue.filter(i => {
@@ -772,18 +790,24 @@ export default function App() {
         });
         return idx === -1;
       });
-      const finalQueue = [...newlyAdded];
-      
+      const finalQueue = [...failedItems, ...newlyAdded];
+
       localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(finalQueue));
-      fetchReportData();
+      if (syncedCount > 0) fetchReportData();
       setUnsyncedQueueCount(finalQueue.length);
 
       if (isClick) {
-        alert(`⚡ Cloud Synchronization Complete!\n\n✅ Successfully reconciled & processed ${offlineQueue.length} offline sessions! All records are secured in your dashboard and hardware vault.`);
+        if (failedItems.length === 0) {
+          alert(`⚡ Cloud Synchronization Complete!\n\n✅ Successfully reconciled & processed ${syncedCount} offline sessions! All records are secured in your dashboard and hardware vault.`);
+        } else {
+          alert(`⚠️ Partial sync: ${syncedCount} uploaded, ${failedItems.length} could not reach the server yet.\n\nUnsynced logs remain safely queued and will retry automatically.`);
+        }
       }
     } catch (err) {
       console.warn("Could not sync offline queue yet:", err);
       if (isClick) alert("⚠️ Network error while attempting to reach server. Your records remain safe in the offline vault.");
+    } finally {
+      syncInFlight.current = false;
     }
   };
 
@@ -867,8 +891,24 @@ export default function App() {
     const logs = getRecoveredLocalData();
     let successCount = 0;
     let failCount = 0;
+    let skippedCount = 0;
+
+    // The recovered set includes shiloh_reports - a CACHE of rows already in the cloud.
+    // Blindly re-inserting those duplicated up to 30 days of records; skip anything the
+    // cloud already has (matched by row id, or by athlete + timestamp).
+    let cloudIds = new Set();
+    let cloudKeys = new Set();
+    try {
+      const { data: cloudRows } = await supabase.from('weigh_ins').select('id,athlete_id,created_at');
+      (cloudRows || []).forEach(r => {
+        if (r.id) cloudIds.add(r.id);
+        if (r.athlete_id && r.created_at) cloudKeys.add(`${r.athlete_id}_${new Date(r.created_at).getTime()}`);
+      });
+    } catch (e) {}
 
     for (const rec of logs) {
+      if (rec.id && cloudIds.has(rec.id)) { skippedCount++; continue; }
+      if (rec.athlete_id && rec.created_at && cloudKeys.has(`${rec.athlete_id}_${new Date(rec.created_at).getTime()}`)) { skippedCount++; continue; }
       const cleanPayload = {
         athlete_id: rec.athlete_id,
         athlete_name: rec.athlete_name || 'Unknown',
@@ -894,7 +934,7 @@ export default function App() {
     }
 
     setRecoverySyncing(false);
-    alert(`⚡ Cloud Force Upload Complete:\n✅ Successfully uploaded & synchronized: ${successCount} logs.\n${failCount > 0 ? `⚠️ Unchanged or already existing duplicates: ${failCount}` : ''}`);
+    alert(`⚡ Cloud Force Upload Complete:\n✅ Newly uploaded: ${successCount} logs.\n✔ Already in cloud (skipped, no duplicates created): ${skippedCount}.${failCount > 0 ? `\n⚠️ Failed to upload: ${failCount}` : ''}`);
     fetchReportData();
   };
 
@@ -1009,6 +1049,8 @@ export default function App() {
           }
           return {
             ...a,
+            // A null/blank name used to crash the Entry & Profiles screens (name.split on null)
+            name: (a.name && String(a.name).trim()) || 'Unnamed Athlete',
             position: meta.pos || '',
             raw_position: a.position || '',
             baseline_weight: bw,
@@ -1027,7 +1069,7 @@ export default function App() {
       try {
         const cached = JSON.parse(localStorage.getItem('shiloh_roster'));
         if (cached && Array.isArray(cached) && cached.length > 0) {
-          setAthletes(cached);
+          setAthletes(cached.map(a => ({ ...a, name: (a.name && String(a.name).trim()) || 'Unnamed Athlete' })));
         } else {
           console.warn("No local roster cache. Falling back to mock data.");
           setMockAthletes();
@@ -1190,12 +1232,18 @@ export default function App() {
 
   const handleSave = async (isBaselineOverride = false, skipOverrideConfirm = false) => {
     if (!selectedAthlete) return;
-    if (kioskTrackMode !== 'sleep_only' && (!weightInput || weightInput === '0.0' || weightInput === '')) return;
+    // Ref-based guard: double-taps on the kiosk Save button were creating duplicate
+    // records (React state alone can't block two clicks landing in the same JS task).
+    if (kioskSaveInFlight.current || saving) return;
+    if (kioskTrackMode !== 'sleep_only' && !isPlausibleWeight(parseFloat(weightInput))) return;
     if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
-    
+
     const todayCentralStr = getCentralDateString();
+    // Only regular (non post-practice) logs count for the overwrite prompt - a morning
+    // weigh-in must never overwrite a post-practice sweat check from the same day.
     const existingRecord = reportData.find(r => {
       if (r.athlete_id !== selectedAthlete.id) return false;
+      if (isPostPracticeLog(r)) return false;
       return getCentralDateString(new Date(r.created_at)) === todayCentralStr;
     });
     
@@ -1211,14 +1259,16 @@ export default function App() {
       return;
     }
     
+    kioskSaveInFlight.current = true;
     setSaving(true);
-    const weightVal = (kioskTrackMode !== 'sleep_only' && weightInput && !isNaN(parseFloat(weightInput)) && parseFloat(weightInput) > 0) ? parseFloat(weightInput) : null;
-    const record = { 
-      athlete_id: selectedAthlete.id, 
+    const weightVal = (kioskTrackMode !== 'sleep_only' && isPlausibleWeight(parseFloat(weightInput))) ? parseFloat(weightInput) : null;
+    const record = {
+      athlete_id: selectedAthlete.id,
       athlete_name: selectedAthlete.name,
       sport: selectedAthlete.sport,
       weight_lbs: weightVal,
-      sleep_hrs: !isNaN(parseFloat(sleepInput)) ? parseFloat(sleepInput) : 0,
+      // clamp sleep to a sane 0-24h so a stray keypad entry can't skew averages
+      sleep_hrs: !isNaN(parseFloat(sleepInput)) ? Math.min(Math.max(parseFloat(sleepInput), 0), 24) : 0,
       created_at: new Date().toISOString()
     };
 
@@ -1321,6 +1371,7 @@ export default function App() {
     }
       
     // Instant Optimistic Visual Celebration
+    kioskSaveInFlight.current = false;
     setSaving(false);
     setLastSavedWasBaseline(!!shouldSetBaseline);
     setLastSavedAthleteName(selectedAthlete.name);
@@ -1335,6 +1386,8 @@ export default function App() {
   };
 
   const handleSaveManualLog = async (newRec) => {
+    if (manualSaveInFlight.current) return; // rapid double-click => duplicate rows
+    manualSaveInFlight.current = true;
     // 1. Optimistic UI updates right away
     setReportData(prev => [newRec, ...prev]);
     setTodaySessions(prev => prev + 1);
@@ -1385,6 +1438,8 @@ export default function App() {
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(offline));
         setUnsyncedQueueCount(offline.length);
       } catch (e) {}
+    } finally {
+      manualSaveInFlight.current = false;
     }
   };
 
@@ -1722,13 +1777,15 @@ export default function App() {
     }
     
     try {
+      // Fetch newest-first then flip back to ascending: with ascending+limit the query
+      // returned the OLDEST 180 rows, so profiles froze once an athlete passed 180 logs.
       const { data, error } = await supabase
         .from('weigh_ins')
         .select('*')
         .eq('athlete_id', id)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(180);
-      let pData = data || localData;
+      let pData = data ? [...data].reverse() : localData;
       try {
         const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
         const p = persistedMap[id];
@@ -1760,28 +1817,36 @@ export default function App() {
   const handleUpdateAthlete = async () => {
     if (!newAthlete.name || !newAthlete.name.trim()) return;
     const sanitizedAthlete = { ...newAthlete, name: newAthlete.name.trim() };
+
+    // The cloud `position` column can carry JSON-encoded baseline metadata
+    // ({pos, bw, bd, lid}). The edit form works with the DECODED position, so writing
+    // it back verbatim was wiping the athlete's baseline for every device. Re-encode
+    // the edited position into the existing metadata instead.
+    const targetAthlete = athletes.find(a => a.id === editingAthleteId);
+    let positionToSave = sanitizedAthlete.position || '';
+    if (targetAthlete && typeof targetAthlete.raw_position === 'string' && targetAthlete.raw_position.startsWith('{"')) {
+      const meta = parseAthleteMeta(targetAthlete.raw_position);
+      positionToSave = JSON.stringify({ pos: sanitizedAthlete.position || '', bw: meta.bw, bd: meta.bd, lid: meta.lid });
+    }
+    const cloudPayload = { ...sanitizedAthlete, position: positionToSave };
+    const localPatch = { ...sanitizedAthlete, position: sanitizedAthlete.position || '', raw_position: positionToSave };
+
     setSaving(true);
     try {
       const { data, error } = await supabase
         .from('athletes')
-        .update(sanitizedAthlete)
+        .update(cloudPayload)
         .eq('id', editingAthleteId)
         .select();
-        
+
       if (error || !data || data.length === 0) {
         console.warn("Supabase update error or offline, falling back to local update.");
-        setAthletes(prev => {
-          const next = prev.map(a => a.id === editingAthleteId ? { ...a, ...sanitizedAthlete } : a);
-          try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch(e){}
-          return next;
-        });
-      } else {
-        setAthletes(prev => {
-          const next = prev.map(a => a.id === editingAthleteId ? data[0] : a);
-          try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch(e){}
-          return next;
-        });
       }
+      setAthletes(prev => {
+        const next = prev.map(a => a.id === editingAthleteId ? { ...a, ...localPatch } : a);
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch(e){}
+        return next;
+      });
       setIsAddingAthlete(false);
       setEditingAthleteId(null);
       setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' });
@@ -1795,7 +1860,9 @@ export default function App() {
   };
 
   const handleDeleteAthlete = async (skipConfirm = false) => {
-    if (!skipConfirm) {
+    // Strict check: this handler is wired directly as onClick, so the click EVENT used
+    // to arrive here as `skipConfirm` (truthy) and deleted athletes with NO confirmation.
+    if (skipConfirm !== true) {
       setConfirmModal({
         isOpen: true,
         title: 'Delete Athlete Profile',
@@ -2264,6 +2331,28 @@ export default function App() {
       </div>
     );
   };
+
+  // Athletes with no logs, or none within the expiry window - backs the expired-baselines
+  // modal (which previously referenced this list without it being defined => crash).
+  const expiredBaselinesList = React.useMemo(() => {
+    const list = [];
+    const nowMs = Date.now();
+    athletes.forEach(a => {
+      const aRecs = reportData
+        .filter(r => r.athlete_id === a.id && r.created_at)
+        .sort((x, y) => new Date(x.created_at) - new Date(y.created_at));
+      if (aRecs.length === 0) {
+        list.push({ id: a.id, athlete_name: a.name, sport: a.sport, last_weigh_in_date: null });
+      } else {
+        const lastLog = aRecs[aRecs.length - 1];
+        const gapDays = Math.floor((nowMs - new Date(lastLog.created_at).getTime()) / (1000 * 60 * 60 * 24));
+        if (gapDays >= baselineExpiryDays) {
+          list.push({ id: a.id, athlete_name: a.name, sport: a.sport, last_weigh_in_date: new Date(lastLog.created_at).toLocaleDateString() });
+        }
+      }
+    });
+    return list;
+  }, [athletes, reportData, baselineExpiryDays]);
 
   const renderSidebarItem = (key, icon, label) => {
     const active = screen === key || (key === 'groups' && screen === 'roster');
@@ -3242,12 +3331,19 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!manualEntryForm.athleteId || !manualEntryForm.weight || isNaN(parseFloat(manualEntryForm.weight))) {
-                    alert('Please select an athlete and enter a valid body weight.');
+                  const weightNum = parseFloat(manualEntryForm.weight);
+                  if (!manualEntryForm.athleteId || !isPlausibleWeight(weightNum)) {
+                    alert('Please select an athlete and enter a valid body weight (between 0 and 1000 lbs).');
                     return;
                   }
                   const ath = athletes.find(a => a.id === manualEntryForm.athleteId);
-                  const dateTimeStr = new Date(`${manualEntryForm.date}T${manualEntryForm.time || '12:00'}:00`).toISOString();
+                  // Interpret the picked date/time as Central (program) wall-clock time; a
+                  // cleared/invalid date used to throw an uncaught RangeError here.
+                  const dateTimeStr = centralWallTimeToISO(manualEntryForm.date, manualEntryForm.time);
+                  if (!dateTimeStr) {
+                    alert('Please select a valid date and time for this log.');
+                    return;
+                  }
                   const isEditing = !!manualEntryForm.editingLogId;
                   const rec = {
                     id: isEditing ? manualEntryForm.editingLogId : 'manual_' + Date.now(),

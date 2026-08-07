@@ -340,13 +340,15 @@ export default function EntryScreen({
           {(unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes).map(a => {
             const isSelected = entryAthleteId === a.id;
             const isDoneToday = athletesRecordedToday.has(a.id);
+            // Defensive: rosters cached before name normalization can still hold null names
+            const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
             const initials = nameSortOrder === 'last'
-              ? `${getLastName(a.name)[0] || ''}${getFirstName(a.name)[0] || ''}`
-              : a.name.split(' ').map(n=>n[0]).join('');
+              ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
+              : safeName.split(' ').map(n=>n[0]).join('');
 
             const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
             let hash = 0;
-            for (let i = 0; i < a.name.length; i++) hash = a.name.charCodeAt(i) + ((hash << 5) - hash);
+            for (let i = 0; i < safeName.length; i++) hash = safeName.charCodeAt(i) + ((hash << 5) - hash);
             const avatarBg = avatarColors[Math.abs(hash) % avatarColors.length];
 
             return (
@@ -374,7 +376,7 @@ export default function EntryScreen({
                   </div>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                     <span style={{ fontSize: '15px', fontWeight: 700, color: isDoneToday ? 'var(--status-success)' : (isSelected ? 'var(--color-accent)' : 'var(--white)'), textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {nameSortOrder === 'last' ? `${getLastName(a.name)}, ${getFirstName(a.name)}` : a.name}
+                      {nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
                     </span>
                     <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                       {a.sport}{a.position ? ` · ${a.position}` : (a.team ? ` · ${a.team}` : '')}
@@ -653,7 +655,10 @@ export default function EntryScreen({
               const hasLongGap = athleteRecords.length > 0 && (new Date() - new Date(athleteRecords[athleteRecords.length - 1].created_at)) > 14 * 24 * 60 * 60 * 1000;
               const requiresBaseline = kioskTrackMode !== 'sleep_only' && (isFirstEntry || hasLongGap);
 
-              const disableSubmit = saving || (kioskTrackMode === 'sleep_only' ? (!sleepInput || parseFloat(sleepInput) <= 0) : (!weightInput || weightInput === '0.0'));
+              // Numeric check: the old string comparison let "0" (typed via numpad) through
+              // as a junk zero-weight record; also reject implausible giant values.
+              const weightNum = parseFloat(weightInput);
+              const disableSubmit = saving || (kioskTrackMode === 'sleep_only' ? (!sleepInput || parseFloat(sleepInput) <= 0) : (!(weightNum > 0) || weightNum > 1000));
 
               if (requiresBaseline) {
                 return (

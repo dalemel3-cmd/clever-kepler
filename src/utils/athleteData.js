@@ -35,7 +35,39 @@ export const getCentralTimeString = (date = new Date()) => {
   return `${hour}:${lookup.minute}`;
 };
 
+// Milliseconds the given timezone is ahead of UTC at the given instant.
+const getTimeZoneOffsetMs = (date, timeZone) => {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  }).formatToParts(date).map(p => [p.type, p.value]));
+  const hour = parts.hour === '24' ? '00' : parts.hour;
+  const asUTC = Date.UTC(parts.year, parts.month - 1, parts.day, hour, parts.minute, parts.second);
+  return asUTC - date.getTime();
+};
+
+// Interprets "YYYY-MM-DD" + "HH:MM" as a wall-clock time in the program's timezone
+// (America/Chicago) and returns the corresponding UTC ISO string, so manual log
+// entries land on the same calendar day no matter what timezone the device is in.
+// Returns null when the date/time is unparsable.
+export const centralWallTimeToISO = (dateStr, timeStr = '12:00') => {
+  if (!dateStr) return null;
+  const guess = new Date(`${dateStr}T${timeStr || '12:00'}:00Z`);
+  if (isNaN(guess.getTime())) return null;
+  let offset = getTimeZoneOffsetMs(guess, PROGRAM_TIMEZONE);
+  let ts = guess.getTime() - offset;
+  // Second pass corrects entries that land right around a DST transition.
+  const offset2 = getTimeZoneOffsetMs(new Date(ts), PROGRAM_TIMEZONE);
+  if (offset2 !== offset) ts = guess.getTime() - offset2;
+  return new Date(ts).toISOString();
+};
+
 export const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+// Sanity bounds for a human body weight entry (lbs). Rejects 0, negatives, and
+// fat-fingered values like 9999999 before they pollute charts and averages.
+export const isPlausibleWeight = (w) => typeof w === 'number' && !isNaN(w) && w > 0 && w <= 1000;
 
 export const parseAthleteMeta = (posStr) => {
   if (!posStr || typeof posStr !== 'string') return { pos: posStr || '' };

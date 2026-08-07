@@ -112,8 +112,10 @@ export default function RosterScreen({
           {/* Card Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
             {filteredAthletes.map(a => {
-              // Find latest weigh-in and recovery logs for this athlete from reportData
-              const athleteLogs = reportData.filter(r => r.athlete_name === a.name).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+              // Find latest weigh-in and recovery logs for this athlete from reportData.
+              // Match by id (name matching mixed up same-named athletes and orphaned
+              // history after a rename); fall back to name only for legacy id-less logs.
+              const athleteLogs = reportData.filter(r => r.athlete_id === a.id || (!r.athlete_id && r.athlete_name === a.name)).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
               const weightLogs = athleteLogs.filter(r => r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r));
               const latestLog = athleteLogs[0];
               const latestWeightLog = weightLogs[0];

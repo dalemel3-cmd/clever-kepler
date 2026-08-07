@@ -94,10 +94,11 @@ export default function ReportsScreen({
     }
   });
 
-  // 5. Weight Fluctuation Leaderboard
+  // 5. Weight Fluctuation Leaderboard (weight-carrying logs only - sleep-only logs with
+  // weight 0/null used to register as huge bogus "drops" like 185 -> 0 lbs)
   const gains = [];
   filteredAthletes.forEach(a => {
-    const aRecs = reportData.filter(r => r.athlete_id === a.id).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+    const aRecs = reportData.filter(r => r.athlete_id === a.id && r.weight_lbs && Number(r.weight_lbs) > 0).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
     if (aRecs.length >= 2) {
       const first = aRecs[0];
       const latest = aRecs[aRecs.length - 1];

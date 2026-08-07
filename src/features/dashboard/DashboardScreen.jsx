@@ -1,5 +1,5 @@
 import { CheckCircle, Zap } from 'lucide-react';
-import { getAthleteBaseline, getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
+import { getAthleteBaseline, getCentralDateString, getCentralTimeString, isPostPracticeLog } from '../../utils/athleteData';
 
 export default function DashboardScreen({
   athletes,
@@ -171,8 +171,10 @@ export default function DashboardScreen({
               const base = baseInfo ? parseFloat(baseInfo.weight_lbs) : 0;
               if (!base || base <= 0) return;
 
+              // Exclude post-practice sweat checks - comparing those against baseline was
+              // false-flagging every athlete as dehydrated after each practice session.
               const latestRec = reportData
-                .filter(r => r.athlete_id === ath.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0)
+                .filter(r => r.athlete_id === ath.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0 && !isPostPracticeLog(r))
                 .sort((x, y) => new Date(y.created_at || 0) - new Date(x.created_at || 0))[0];
 
               if (!latestRec) return;
