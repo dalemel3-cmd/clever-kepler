@@ -40,6 +40,12 @@ export default function EntryScreen({
   newAthlete,
   weightInput,
   setWeightInput,
+  rpeInput,
+  setRpeInput,
+  rpeDurationInput,
+  setRpeDurationInput,
+  rpeLabelInput,
+  setRpeLabelInput,
   sleepInput,
   setSleepInput,
   focusedField,
@@ -67,7 +73,7 @@ export default function EntryScreen({
         <div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>QUICK ENTRY</h2>
           <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-            Tap your card to log today's {kioskTrackMode === 'sleep_only' ? 'sleep & recovery' : 'weigh-in & sleep'}
+            Tap your card to log today's {kioskTrackMode === 'sleep_only' ? 'sleep & recovery' : (kioskTrackMode === 'rpe' ? 'session RPE' : 'weigh-in & sleep')}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -118,6 +124,30 @@ export default function EntryScreen({
               }}
             >
               😴 Sleep Only
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setKioskTrackMode('rpe');
+                setFocusedField('rpe');
+                try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch(e) {}
+              }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '19px',
+                background: kioskTrackMode === 'rpe' ? 'var(--color-accent)' : 'transparent',
+                color: kioskTrackMode === 'rpe' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              🎯 Session RPE
             </button>
           </div>
 
@@ -580,48 +610,102 @@ export default function EntryScreen({
                   </div>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
-                    <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>KEYBOARD / NUMPAD / QUICK SELECT</span>
+                {kioskTrackMode === 'rpe' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Session RPE (1-10)</span>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="Session RPE"
+                      placeholder="e.g. 7"
+                      value={rpeInput || ''}
+                      onFocus={() => setFocusedField('rpe')}
+                      onChange={(e) => setRpeInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                      style={{ flex: 1, width: '100%', height: '56px', background: focusedField === 'rpe' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'rpe' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'rpe' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
+                    />
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Duration (Minutes)</span>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="Session Duration"
+                      placeholder="e.g. 90"
+                      value={rpeDurationInput || ''}
+                      onFocus={() => setFocusedField('rpe_duration')}
+                      onChange={(e) => setRpeDurationInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                      style={{ flex: 1, width: '100%', height: '56px', background: focusedField === 'rpe_duration' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'rpe_duration' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'rpe_duration' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
+                    />
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Session Label</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {['Practice', 'Lift', 'Conditioning', 'Walkthrough'].map(lbl => (
+                        <button
+                          key={lbl}
+                          type="button"
+                          onClick={() => setRpeLabelInput(lbl)}
+                          style={{
+                            flex: '1 1 auto', height: '38px', padding: '0 12px',
+                            background: rpeLabelInput === lbl ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                            color: rpeLabelInput === lbl ? 'var(--navy-950)' : 'var(--color-text)',
+                            border: '1px solid var(--color-border)', borderRadius: '8px',
+                            fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                          }}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    aria-label="Hours of sleep"
-                    placeholder="8.0"
-                    value={sleepInput || ''}
-                    onFocus={() => setFocusedField('sleep')}
-                    onChange={(e) => setSleepInput(e.target.value.replace(/[^0-9.]/g, ''))}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
-                    style={{ width: '100%', height: '56px', background: focusedField === 'sleep' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'sleep' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', padding: '0 16px', color: focusedField === 'sleep' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s' }}
-                  />
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-                    {(settings.sleepQuickPicks || []).map(v => Number(v).toFixed(1)).map(val => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => { setSleepInput(val); setFocusedField('sleep'); }}
-                        style={{
-                          flex: '1 1 42px', minWidth: '42px', height: '38px',
-                          background: sleepInput === val ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
-                          color: sleepInput === val ? 'var(--navy-950)' : 'var(--color-text)',
-                          border: '1px solid var(--color-border)', borderRadius: '8px',
-                          fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
-                        }}
-                      >
-                        {val}h
-                      </button>
-                    ))}
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Hours of Sleep</span>
+                      <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 600 }}>KEYBOARD / NUMPAD / QUICK SELECT</span>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="Hours of sleep"
+                      placeholder="8.0"
+                      value={sleepInput || ''}
+                      onFocus={() => setFocusedField('sleep')}
+                      onChange={(e) => setSleepInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+                      style={{ width: '100%', height: '56px', background: focusedField === 'sleep' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'sleep' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', padding: '0 16px', color: focusedField === 'sleep' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s' }}
+                    />
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                      {(settings.sleepQuickPicks || []).map(v => Number(v).toFixed(1)).map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => { setSleepInput(val); setFocusedField('sleep'); }}
+                          style={{
+                            flex: '1 1 42px', minWidth: '42px', height: '38px',
+                            background: sleepInput === val ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                            color: sleepInput === val ? 'var(--navy-950)' : 'var(--color-text)',
+                            border: '1px solid var(--color-border)', borderRadius: '8px',
+                            fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                          }}
+                        >
+                          {val}h
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Right Column: KioskNumpad */}
               <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column' }}>
                 <KioskNumpad
-                  value={focusedField === 'weight' ? weightInput : sleepInput}
-                  onChange={val => focusedField === 'weight' ? setWeightInput(val) : setSleepInput(val)}
+                  value={focusedField === 'weight' ? weightInput : (focusedField === 'rpe' ? rpeInput : (focusedField === 'rpe_duration' ? rpeDurationInput : sleepInput))}
+                  onChange={val => focusedField === 'weight' ? setWeightInput(val) : (focusedField === 'rpe' ? setRpeInput(val) : (focusedField === 'rpe_duration' ? setRpeDurationInput(val) : setSleepInput(val)))}
                   onEnter={handleSave}
                 />
               </div>
@@ -677,7 +761,7 @@ export default function EntryScreen({
               // Numeric check: the old string comparison let "0" (typed via numpad) through
               // as a junk zero-weight record; also reject implausible giant values.
               const weightNum = parseFloat(weightInput);
-              const disableSubmit = saving || (kioskTrackMode === 'sleep_only' ? (!sleepInput || parseFloat(sleepInput) <= 0) : (!(weightNum > settings.minWeightLbs) || weightNum > settings.maxWeightLbs));
+              const disableSubmit = saving || (kioskTrackMode === 'sleep_only' ? (!sleepInput || parseFloat(sleepInput) <= 0) : (kioskTrackMode === 'rpe' ? (!rpeInput || parseFloat(rpeInput) <= 0 || parseFloat(rpeInput) > 10 || !rpeDurationInput || parseFloat(rpeDurationInput) <= 0 || !rpeLabelInput) : (!(weightNum > settings.minWeightLbs) || weightNum > settings.maxWeightLbs)));
 
               if (requiresBaseline) {
                 return (
@@ -718,7 +802,7 @@ export default function EntryScreen({
                     className="btn-primary glow-card"
                     style={{ height: '58px', fontSize: '18px', width: '100%', background: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#10b981' : 'var(--color-accent)', color: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#000' : 'var(--navy-950)', fontWeight: 800 }}
                   >
-                    {saving ? 'Saving...' : (isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? `🎯 Save as Athlete Baseline${weightInput ? ` (${weightInput} lbs)` : ''}` : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : 'Save Record & Complete'))}
+                    {saving ? 'Saving...' : (isBaselineTestingMode && kioskTrackMode === 'both' ? `🎯 Save as Athlete Baseline${weightInput ? ` (${weightInput} lbs)` : ''}` : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : (kioskTrackMode === 'rpe' ? 'Save RPE & Complete' : 'Save Record & Complete')))}
                   </button>
                 </div>
               );

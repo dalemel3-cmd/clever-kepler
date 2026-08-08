@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2 } from 'lucide-react';
-import { getAthleteBaseline, getCentralDateString } from '../../utils/athleteData';
+import { getAthleteBaseline, getCentralDateString, hasWeight, isRpeLog } from '../../utils/athleteData';
 
 const LOG_TABLE_PAGE_SIZE = 250;
 
@@ -55,7 +55,7 @@ export default function ReportsScreen({
   // 2. Dehydration Roster (LIVE status: Latest weigh-in vs Official Baseline, >=2% drop)
   const dehydrationList = [];
   filteredAthletes.forEach(a => {
-    const aRecs = reportData.filter(x => x.athlete_id === a.id && x.weight_lbs && Number(x.weight_lbs) > 0).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+    const aRecs = reportData.filter(x => x.athlete_id === a.id && hasWeight(x) && !isRpeLog(x)).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
     if (aRecs.length === 0) return;
     const latestLog = aRecs[aRecs.length - 1];
 
@@ -106,7 +106,7 @@ export default function ReportsScreen({
   // weight 0/null used to register as huge bogus "drops" like 185 -> 0 lbs)
   const gains = [];
   filteredAthletes.forEach(a => {
-    const aRecs = reportData.filter(r => r.athlete_id === a.id && r.weight_lbs && Number(r.weight_lbs) > 0).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+    const aRecs = reportData.filter(r => r.athlete_id === a.id && hasWeight(r) && !isRpeLog(r)).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
     if (aRecs.length >= 2) {
       const first = aRecs[0];
       const latest = aRecs[aRecs.length - 1];
@@ -505,7 +505,7 @@ export default function ReportsScreen({
                           <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
                           <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
                           <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>
-                            {log.weight_lbs && Number(log.weight_lbs) > 0 ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>😴 Sleep Only</span>}
+                            {hasWeight(log) && !isRpeLog(log) ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>{isRpeLog(log) ? '🎯 Session RPE' : '😴 Sleep Only'}</span>}
                           </td>
                           <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < sleepThreshold) ? 'var(--status-error)' : 'var(--color-text)' }}>
                             {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
@@ -515,7 +515,7 @@ export default function ReportsScreen({
                           </td>
                             <td style={{ padding: '16px', textAlign: 'center' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                {log.weight_lbs && Number(log.weight_lbs) > 0 ? (
+                                {hasWeight(log) && !isRpeLog(log) ? (
                                   log.is_baseline ? (
                                     <span style={{ fontSize: '10px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '4px 10px', borderRadius: '12px', fontWeight: 800, whiteSpace: 'nowrap' }}>
                                       ⭐ BASELINE

@@ -1,7 +1,7 @@
 import { User, Search, X, ArrowUpRight, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
-import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
+import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, hasWeight, isRpeLog } from '../../utils/athleteData';
 
 export default function ProfilesScreen({
   settings,
@@ -149,7 +149,7 @@ export default function ProfilesScreen({
                   <div>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Current Mass</span>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>
-                      {latestLog && latestLog.weight_lbs && Number(latestLog.weight_lbs) > 0 ? `${latestLog.weight_lbs} lb` : (latestLog ? '😴 Sleep Only' : 'No logs')}
+                      {latestLog && hasWeight(latestLog) && !isRpeLog(latestLog) ? `${latestLog.weight_lbs} lb` : (latestLog ? (isRpeLog(latestLog) ? '🎯 Session RPE' : '😴 Sleep Only') : 'No logs')}
                     </div>
                   </div>
                   <div>
@@ -193,8 +193,8 @@ export default function ProfilesScreen({
   }
 
   const sortedLogs = [...profileData].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-  const weightLogs = sortedLogs.filter(l => l.weight_lbs && Number(l.weight_lbs) > 0 && !isPostPracticeLog(l));
-  const postPracticeLogs = sortedLogs.filter(l => l.weight_lbs && Number(l.weight_lbs) > 0 && isPostPracticeLog(l)).reverse();
+  const weightLogs = sortedLogs.filter(l => hasWeight(l) && !isRpeLog(l) && !isPostPracticeLog(l));
+  const postPracticeLogs = sortedLogs.filter(l => hasWeight(l) && !isRpeLog(l) && isPostPracticeLog(l)).reverse();
   const sleepLogs = sortedLogs.filter(l => l.sleep_hrs && Number(l.sleep_hrs) > 0);
 
   const latestWeight = weightLogs.length > 0 ? Number(weightLogs[weightLogs.length-1].weight_lbs) : null;
@@ -668,10 +668,10 @@ export default function ProfilesScreen({
               <tbody>
                 {sortedLogs.slice().reverse().map((log, idx, arr) => {
                   // Find older record with valid weight to compute delta
-                  const currentW = log.weight_lbs && Number(log.weight_lbs) > 0 ? Number(log.weight_lbs) : null;
+                  const currentW = hasWeight(log) && !isRpeLog(log) ? Number(log.weight_lbs) : null;
                   let prevW = null;
                   for (let j = idx + 1; j < arr.length; j++) {
-                    if (arr[j].weight_lbs && Number(arr[j].weight_lbs) > 0) {
+                    if (hasWeight(arr[j]) && !isRpeLog(arr[j])) {
                       prevW = Number(arr[j].weight_lbs);
                       break;
                     }
@@ -696,8 +696,8 @@ export default function ProfilesScreen({
                             {currentW.toFixed(1)} <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>lb</span>
                           </span>
                         ) : (
-                          <span style={{ fontSize: '12px', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', padding: '4px 12px', borderRadius: '12px', fontWeight: 700, border: '1px solid rgba(139, 92, 246, 0.3)' }}>
-                            😴 Sleep Only Mode
+                          <span style={{ fontSize: '12px', background: isRpeLog(log) ? 'rgba(59, 130, 246, 0.15)' : 'rgba(139, 92, 246, 0.15)', color: isRpeLog(log) ? '#60a5fa' : '#c084fc', padding: '4px 12px', borderRadius: '12px', fontWeight: 700, border: isRpeLog(log) ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(139, 92, 246, 0.3)' }}>
+                            {isRpeLog(log) ? '🎯 Session RPE' : '😴 Sleep Only Mode'}
                           </span>
                         )}
                       </td>

@@ -9,7 +9,8 @@ export default function AlertsScreen({
   getDailyAlerts,
   getWeeklyAlertsList,
   getWeeklyAlerts,
-  getMonthlyAlerts
+  getMonthlyAlerts,
+  handleClearAlert
 }) {
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -60,7 +61,15 @@ export default function AlertsScreen({
                     <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{alert.message}</span>
                   </div>
                 </div>
-                <span style={{ fontSize: '11px', color: alert.type === 'DEHYDRATION RISK' ? 'var(--color-accent)' : 'var(--color-text-muted)', fontWeight: 700 }}>{alert.action}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: alert.type === 'DEHYDRATION RISK' ? 'var(--color-accent)' : 'var(--color-text-muted)', fontWeight: 700 }}>{alert.action}</span>
+                  <button
+                    onClick={() => handleClearAlert(alert.id)}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
+                  >
+                    <CheckCircle size={14} /> ACKNOWLEDGE
+                  </button>
+                </div>
               </div>
             ))
           )}

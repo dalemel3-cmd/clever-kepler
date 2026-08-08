@@ -33,7 +33,10 @@ import {
   getBaselinesMap,
   invalidateAthleteDataCache,
   configureProgramContext,
-  configureWeightBounds
+  configureWeightBounds,
+  isRpeLog,
+  hasWeight,
+  hasSleep
 } from './utils/athleteData';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, getAppHost } from './settings';
 
@@ -52,6 +55,8 @@ const getFirstName = (fullName) => {
 export default function App() {
   // App State
   const [screen, setScreenState] = useState(() => {
+    const isUnlocked = localStorage.getItem('clever_kepler_unlocked') === 'true';
+    if (!isUnlocked) return 'entry';
     const hash = window.location.hash.replace('#', '');
     return hash || 'dashboard';
   });
@@ -86,6 +91,8 @@ export default function App() {
   const [manualEntryForm, setManualEntryForm] = useState({
     athleteId: '',
     weight: '',
+    sleepHours: '',
+    isSleepOnly: false,
     date: getCentralDateString(),
     time: getCentralTimeString(),
     sessionType: 'post_practice',
@@ -109,7 +116,17 @@ export default function App() {
   const lastPollActionAt = React.useRef(0);
   const lastCloudSyncAtRef = React.useRef(0);
   // 'connecting' | 'live' | 'reconnecting' | 'offline' - drives the honest status pills.
-  const [cloudStatus, setCloudStatus] = useState('connecting');
+  const [cloudStatus, setCloudStatus] = useState('connecting'); // 'connecting' | 'live' | 'offline' | 'error'
+
+  const [clearedAlertIds, setClearedAlertIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('clever_kepler_cleared_alerts') || '[]'); } catch { return []; }
+  });
+
+  const handleClearAlert = (alertId) => {
+    const newCleared = [...clearedAlertIds, alertId];
+    setClearedAlertIds(newCleared);
+    localStorage.setItem('clever_kepler_cleared_alerts', JSON.stringify(newCleared));
+  };
 
   // Non-blocking toast notifications (replaces the old blocking alert() popups).
   const [toast, setToast] = useState(null); // { id, message, type: 'success'|'error'|'info' }
@@ -193,11 +210,18 @@ export default function App() {
         return getLastName(String(a.name || '')).toLowerCase().localeCompare(getLastName(String(b.name || '')).toLowerCase());
       }
     }), [athletes, search, selectedSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
-  const [isKioskMode, setIsKioskMode] = useState(false);
+  const [isKioskMode, setIsKioskMode] = useState(() => {
+    return localStorage.getItem('clever_kepler_unlocked') === 'true' ? false : true;
+  }); // Default to true for secure Kiosk
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
   
   // Entry State
   const [entryAthleteId, setEntryAthleteId] = useState(null);
   const [weightInput, setWeightInput] = useState('');
+  const [rpeInput, setRpeInput] = useState('');
+  const [rpeDurationInput, setRpeDurationInput] = useState('');
+  const [rpeLabelInput, setRpeLabelInput] = useState('');
   const [sleepInput, setSleepInput] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -320,9 +344,9 @@ export default function App() {
       
       const ath = athletes.find(a => a.id === todayRec.athlete_id) || { name: todayRec.athlete_name || 'Unknown Athlete', sport: 'General' };
       
-      const previousLogs = allLogs
-        .filter(r => r.athlete_id === todayRec.athlete_id && getCentralDateString(new Date(r.created_at)) < todayCentralStr && r.weight_lbs)
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const previousLogs = Array.isArray(reportData) ? reportData
+        .filter(r => r.athlete_id === todayRec.athlete_id && getCentralDateString(new Date(r.created_at)) < todayCentralStr && hasWeight(r) && !isRpeLog(r))
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) : [];
         
       if (previousLogs.length > 0) {
         const prevWt = parseFloat(previousLogs[0].weight_lbs);
@@ -902,6 +926,9 @@ export default function App() {
           sleep_hrs: !isNaN(parseFloat(rec.sleep_hrs)) ? parseFloat(rec.sleep_hrs) : 0,
           created_at: rec.created_at || new Date().toISOString(),
           session_type: rec.session_type || null,
+          rpe: rec.rpe || null,
+          session_minutes: rec.session_minutes || null,
+          session_label: rec.session_label || null,
           is_baseline: !!rec.is_baseline
         };
         let success = false;
@@ -921,7 +948,11 @@ export default function App() {
               sport: cleanPayload.sport,
               weight_lbs: cleanPayload.weight_lbs || 0,
               sleep_hrs: cleanPayload.sleep_hrs || 0,
-              created_at: cleanPayload.created_at
+              created_at: cleanPayload.created_at,
+              session_type: cleanPayload.session_type || null,
+              rpe: cleanPayload.rpe || null,
+              session_minutes: cleanPayload.session_minutes || null,
+              session_label: cleanPayload.session_label || null
             };
             const resMini = await supabase.from('weigh_ins').insert([mini]);
             if (!resMini.error) success = true;
@@ -1389,8 +1420,13 @@ export default function App() {
     // as a ghost placeholder in the entry modal instead, and Save stays disabled
     // until a real value is entered.
     setWeightInput('');
+    setRpeInput('');
+    setRpeDurationInput('');
+    setRpeLabelInput('');
     setSleepInput('8.0');
-    setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight');
+    if (kioskTrackMode === 'sleep_only') setFocusedField('sleep');
+    else if (kioskTrackMode === 'rpe') setFocusedField('rpe');
+    else setFocusedField('weight');
   };
 
   const handleSave = async (isBaselineOverride = false, skipOverrideConfirm = false) => {
@@ -1398,15 +1434,16 @@ export default function App() {
     // Ref-based guard: double-taps on the kiosk Save button were creating duplicate
     // records (React state alone can't block two clicks landing in the same JS task).
     if (kioskSaveInFlight.current || saving) return;
-    if (kioskTrackMode !== 'sleep_only' && !isPlausibleWeight(parseFloat(weightInput))) return;
+    if (kioskTrackMode === 'both' && !isPlausibleWeight(parseFloat(weightInput))) return;
     if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
+    if (kioskTrackMode === 'rpe' && (!rpeInput || rpeInput === '' || parseFloat(rpeInput) <= 0 || parseFloat(rpeInput) > 10 || !rpeDurationInput || parseFloat(rpeDurationInput) <= 0)) return;
 
     const todayCentralStr = getCentralDateString();
     // Only regular (non post-practice) logs count for the overwrite prompt - a morning
     // weigh-in must never overwrite a post-practice sweat check from the same day.
     const existingRecord = reportData.find(r => {
       if (r.athlete_id !== selectedAthlete.id) return false;
-      if (isPostPracticeLog(r)) return false;
+      if (isPostPracticeLog(r) || isRpeLog(r)) return false;
       return getCentralDateString(new Date(r.created_at)) === todayCentralStr;
     });
     
@@ -1424,14 +1461,19 @@ export default function App() {
     
     kioskSaveInFlight.current = true;
     setSaving(true);
-    const weightVal = (kioskTrackMode !== 'sleep_only' && isPlausibleWeight(parseFloat(weightInput))) ? parseFloat(weightInput) : null;
+    const weightVal = (kioskTrackMode === 'both' && isPlausibleWeight(parseFloat(weightInput))) ? parseFloat(weightInput) : null;
+    const isRpe = kioskTrackMode === 'rpe';
     const record = {
       athlete_id: selectedAthlete.id,
       athlete_name: selectedAthlete.name,
       sport: selectedAthlete.sport,
       weight_lbs: weightVal,
       // clamp sleep to a sane 0-24h so a stray keypad entry can't skew averages
-      sleep_hrs: !isNaN(parseFloat(sleepInput)) ? Math.min(Math.max(parseFloat(sleepInput), 0), settings.maxSleepHours) : 0,
+      sleep_hrs: !isRpe && !isNaN(parseFloat(sleepInput)) ? Math.min(Math.max(parseFloat(sleepInput), 0), settings.maxSleepHours) : 0,
+      rpe: isRpe ? parseInt(rpeInput, 10) : null,
+      session_minutes: isRpe ? parseInt(rpeDurationInput, 10) : null,
+      session_label: isRpe ? rpeLabelInput : null,
+      session_type: isRpe ? 'rpe' : null,
       created_at: new Date().toISOString()
     };
 
@@ -1578,7 +1620,10 @@ export default function App() {
         weight_lbs: newRec.weight_lbs,
         sleep_hrs: newRec.sleep_hrs || 0,
         created_at: newRec.created_at,
-        session_type: newRec.session_type || null
+        session_type: newRec.session_type || null,
+        rpe: newRec.rpe || null,
+        session_minutes: newRec.session_minutes || null,
+        session_label: newRec.session_label || null
       };
 
       const { data, error } = await supabase.from('weigh_ins').insert([cloudPayload]).select();
@@ -1629,7 +1674,10 @@ export default function App() {
         weight_lbs: updatedRec.weight_lbs,
         sleep_hrs: updatedRec.sleep_hrs || 0,
         created_at: updatedRec.created_at,
-        session_type: updatedRec.session_type || null
+        session_type: updatedRec.session_type || null,
+        rpe: updatedRec.rpe || null,
+        session_minutes: updatedRec.session_minutes || null,
+        session_label: updatedRec.session_label || null
       };
 
       const { error } = await supabase.from('weigh_ins').update(cloudPayload).eq('id', logId);
@@ -2155,7 +2203,7 @@ export default function App() {
       let weightCount = 0;
       (byDay.get(dayCentralStr) || []).forEach(r => {
         if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) sleepCount++;
-        if (r.weight_lbs && Number(r.weight_lbs) > 0) {
+        if (hasWeight(r) && !isRpeLog(r)) {
           const athlete = athleteById.get(r.athlete_id);
           let activeBaseline = null;
           if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
@@ -2223,50 +2271,103 @@ export default function App() {
       return baselineByAthlete.get(athleteId);
     };
 
+    const recordsByAthlete = new Map();
     todaysRecords.forEach(r => {
-      const athlete = athleteById.get(r.athlete_id);
+      if (!recordsByAthlete.has(r.athlete_id)) recordsByAthlete.set(r.athlete_id, []);
+      recordsByAthlete.get(r.athlete_id).push(r);
+    });
+
+    for (const [athleteId, records] of recordsByAthlete.entries()) {
+      const athlete = athleteById.get(athleteId);
       const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
-
-      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
-        alerts.push({
-          id: r.id + '_sleep',
-          athlete_id: r.athlete_id,
-          athlete_name: r.athlete_name,
-          sport: r.sport,
-          type: 'LOW SLEEP DEFICIT',
-          color: '#f59e0b',
-          icon: <Activity size={22} />,
-          message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged today`,
-          action: '🌙 MONITOR CNS LOAD'
-        });
-      }
-
-      const baseInfo = baselineFor(r.athlete_id, athlete);
+      const baseInfo = baselineFor(athleteId, athlete);
       const activeBaseline = baseInfo ? { id: baseInfo.id, weight_lbs: baseInfo.weight_lbs } : null;
       const baselineDateStr = baseInfo ? baseInfo.date_str : 'Established';
 
-      if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
-        const drop = activeBaseline.weight_lbs - r.weight_lbs;
-        const dropPercent = drop / activeBaseline.weight_lbs;
-        if (dropPercent >= (dehydrationThreshold / 100)) {
-          const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
-          alerts.push({
-            id: r.id + '_weight',
-            athlete_id: r.athlete_id,
-            athlete_name: r.athlete_name,
-            sport: r.sport,
-            type: 'DEHYDRATION RISK',
-            color: 'var(--status-error)',
-            icon: <AlertTriangle size={22} />,
-            message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% vs Baseline: ${activeBaseline.weight_lbs} lbs on ${baselineDateStr})`,
-            action: recommendation
-          });
+      let hasLowSleep = false;
+      let hasWeightDrop = false;
+      let hasHighRpe = false;
+      let rpeVal = null;
+      let sleepVal = null;
+      let dropVal = null;
+      let dropPercentVal = null;
+      let primaryRecordId = records[0].id;
+
+      for (const r of records) {
+        if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
+          hasLowSleep = true;
+          sleepVal = r.sleep_hrs;
+        }
+        
+        if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r)) {
+          const drop = activeBaseline.weight_lbs - r.weight_lbs;
+          const dropPercent = drop / activeBaseline.weight_lbs;
+          if (dropPercent >= (dehydrationThreshold / 100)) {
+            hasWeightDrop = true;
+            dropVal = drop;
+            dropPercentVal = dropPercent;
+          }
+        }
+
+        if (isRpeLog(r) && r.rpe >= settings.rpeHighThreshold) {
+          hasHighRpe = true;
+          rpeVal = r.rpe;
+          primaryRecordId = r.id;
         }
       }
-    });
 
-    return alerts;
-  }, [reportData, athletes, dehydrationThreshold, sleepThreshold]);
+      if (hasLowSleep && hasWeightDrop && hasHighRpe) {
+        alerts.push({
+          id: primaryRecordId + '_trifecta',
+          athlete_id: athleteId,
+          athlete_name: athlete?.name || 'Unknown',
+          sport: athlete?.sport || 'Unknown',
+          type: 'COMPOUNDED RISK: TRIFECTA',
+          color: '#ef4444',
+          icon: <AlertTriangle size={22} />,
+          message: `${athlete?.sport || ''}${positionStr} · RPE ${rpeVal} + ${sleepVal}h sleep + -${dropVal.toFixed(1)} lbs weight drop today`,
+          action: '🚨 URGENT: WITHHOLD FROM EXERTION'
+        });
+      } else {
+        for (const r of records) {
+          if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
+            alerts.push({
+              id: r.id + '_sleep',
+              athlete_id: r.athlete_id,
+              athlete_name: r.athlete_name,
+              sport: r.sport,
+              type: 'LOW SLEEP DEFICIT',
+              color: '#f59e0b',
+              icon: <Activity size={22} />,
+              message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged today`,
+              action: '🌙 MONITOR CNS LOAD'
+            });
+          }
+          
+          if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r)) {
+            const drop = activeBaseline.weight_lbs - r.weight_lbs;
+            const dropPercent = drop / activeBaseline.weight_lbs;
+            if (dropPercent >= (dehydrationThreshold / 100)) {
+              const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
+              alerts.push({
+                id: r.id + '_weight',
+                athlete_id: r.athlete_id,
+                athlete_name: r.athlete_name,
+                sport: r.sport,
+                type: 'DEHYDRATION RISK',
+                color: 'var(--status-error)',
+                icon: <AlertTriangle size={22} />,
+                message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% vs Baseline: ${activeBaseline.weight_lbs} lbs on ${baselineDateStr})`,
+                action: recommendation
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return alerts.filter(a => !clearedAlertIds.includes(a.id));
+  }, [reportData, athletes, dehydrationThreshold, sleepThreshold, clearedAlertIds, settings]);
 
   const getDailyAlerts = () => dailyAlerts;
 
@@ -2314,7 +2415,7 @@ export default function App() {
 
       const activeBaseline = baselineFor(r.athlete_id, athlete);
 
-      if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
+      if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r)) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
         if (dropPercent >= (dehydrationThreshold / 100)) {
@@ -2347,7 +2448,7 @@ export default function App() {
     const shouldShowEmpty = forceShow || screen === 'reports';
     
     athletes.forEach(ath => {
-      const athLogs = reportData.filter(r => (r.athlete_id === ath.id || (r.athlete_name && r.athlete_name.trim().toLowerCase() === ath.name.trim().toLowerCase())) && r.weight_lbs && Number(r.weight_lbs) > 0);
+      const athLogs = reportData.filter(r => (r.athlete_id === ath.id || (r.athlete_name && r.athlete_name.trim().toLowerCase() === ath.name.trim().toLowerCase())) && hasWeight(r) && !isRpeLog(r));
       const ppLogs = athLogs.filter(r => isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       if (ppLogs.length === 0) return;
       
@@ -2786,24 +2887,32 @@ export default function App() {
                 )}
               </div>
               <button 
-                onClick={() => setIsKioskMode(false)}
-                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => { setPinInput(''); setShowPinModal(true); }}
+                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
               >
-                <Unlock size={14} /> EXIT KIOSK
+                <Unlock size={14} /> COACH LOGIN
               </button>
             </div>
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <button 
-                  onClick={() => { setIsKioskMode(true); setScreen('entry'); }}
+                  onClick={() => { 
+                    setIsKioskMode(true); 
+                    localStorage.setItem('clever_kepler_unlocked', 'false');
+                    setScreen('entry'); 
+                  }}
                   className="btn-primary no-print"
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px' }}
                 >
                   <Lock size={14} /> <span className="kiosk-btn-text">ACTIVATE KIOSK MODE</span>
                 </button>
                 <button 
-                  onClick={() => { setIsKioskMode(false); setScreen('entry'); }}
+                  onClick={() => { 
+                    setIsKioskMode(false); 
+                    localStorage.setItem('clever_kepler_unlocked', 'true');
+                    setScreen('entry'); 
+                  }}
                   className="no-print"
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px', background: screen === 'entry' ? 'rgba(184, 156, 91, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: screen === 'entry' ? 'var(--color-accent)' : 'var(--white)', border: screen === 'entry' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
                 >
@@ -2843,6 +2952,48 @@ export default function App() {
             </>
           )}
         </div>
+        
+        {/* Coach PIN Modal */}
+        {showPinModal && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setShowPinModal(false)}>
+            <div className="card-glass animate-slide-up" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '340px', padding: '32px', background: 'var(--navy-950)', borderRadius: '24px', border: '1px solid var(--color-accent)', boxShadow: '0 16px 48px rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(184, 156, 91, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', marginBottom: '4px' }}>
+                <Lock size={24} />
+              </div>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, margin: 0, color: 'var(--white)', textAlign: 'center' }}>COACH LOGIN</h3>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', margin: '0 0 8px 0' }}>Enter PIN to access dashboard</p>
+              
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoFocus
+                value={pinInput}
+                onChange={e => {
+                  const val = e.target.value;
+                  setPinInput(val);
+                  if (val === '1234' || val === '0000') {
+                    setIsKioskMode(false);
+                    localStorage.setItem('clever_kepler_unlocked', 'true');
+                    setShowPinModal(false);
+                    setPinInput('');
+                    setScreen('dashboard');
+                  }
+                }}
+                style={{ width: '100%', height: '56px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--color-border)', borderRadius: '12px', color: '#fff', fontSize: '24px', textAlign: 'center', letterSpacing: '0.5em', fontWeight: 800 }}
+                placeholder="••••"
+                maxLength={4}
+              />
+              
+              <button 
+                onClick={() => setShowPinModal(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 700, marginTop: '8px', cursor: 'pointer' }}
+              >
+                CANCEL
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Scroll Area */}
         <div 
@@ -2938,6 +3089,12 @@ export default function App() {
                 newAthlete={newAthlete}
                 weightInput={weightInput}
                 setWeightInput={setWeightInput}
+                rpeInput={rpeInput}
+                setRpeInput={setRpeInput}
+                rpeDurationInput={rpeDurationInput}
+                setRpeDurationInput={setRpeDurationInput}
+                rpeLabelInput={rpeLabelInput}
+                setRpeLabelInput={setRpeLabelInput}
                 sleepInput={sleepInput}
                 setSleepInput={setSleepInput}
                 focusedField={focusedField}
@@ -2980,6 +3137,7 @@ export default function App() {
                 getWeeklyAlertsList={getWeeklyAlertsList}
                 getWeeklyAlerts={getWeeklyAlerts}
                 getMonthlyAlerts={getMonthlyAlerts}
+                handleClearAlert={handleClearAlert}
               />
             )}
 
@@ -3438,7 +3596,7 @@ export default function App() {
               <button
                 onClick={() => {
                   setShowManualEntryModal(false);
-                  setManualEntryForm(p => ({ ...p, editingLogId: null, weight: '', successMsg: '' }));
+                  setManualEntryForm(p => ({ ...p, editingLogId: null, weight: '', sleepHours: '', isSleepOnly: false, successMsg: '' }));
                 }}
                 style={{ background: 'transparent', border: 'none', color: 'var(--white)', cursor: 'pointer', padding: '4px' }}
               >
@@ -3456,52 +3614,89 @@ export default function App() {
               )}
 
               {/* Session Type Switch */}
-              <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'post_practice', successMsg: '' }))}
                   style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    borderRadius: '14px',
+                    flex: '1 1 30%',
+                    padding: '10px',
+                    borderRadius: '12px',
                     border: manualEntryForm.sessionType === 'post_practice' ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
                     background: manualEntryForm.sessionType === 'post_practice' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
                     color: manualEntryForm.sessionType === 'post_practice' ? '#fff' : 'var(--color-text-muted)',
                     fontWeight: 800,
-                    fontSize: '13px',
+                    fontSize: '12px',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px'
+                    gap: '6px'
                   }}
                 >
-                  <span>⚡ Post-Practice Sweat Check</span>
+                  <span>⚡ Post-Practice</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'morning', successMsg: '' }))}
                   style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    borderRadius: '14px',
+                    flex: '1 1 30%',
+                    padding: '10px',
+                    borderRadius: '12px',
                     border: manualEntryForm.sessionType === 'morning' ? '2px solid #d4af37' : '1px solid rgba(255,255,255,0.1)',
                     background: manualEntryForm.sessionType === 'morning' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.02)',
                     color: manualEntryForm.sessionType === 'morning' ? '#fff' : 'var(--color-text-muted)',
                     fontWeight: 800,
-                    fontSize: '13px',
+                    fontSize: '12px',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px'
+                    gap: '6px'
                   }}
                 >
-                  <span>☀️ Morning / Baseline Correction</span>
+                  <span>☀️ Morning</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'rpe', successMsg: '', isSleepOnly: false }))}
+                  style={{
+                    flex: '1 1 30%',
+                    padding: '10px',
+                    borderRadius: '12px',
+                    border: manualEntryForm.sessionType === 'rpe' ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    background: manualEntryForm.sessionType === 'rpe' ? 'rgba(184, 156, 91, 0.2)' : 'rgba(255,255,255,0.02)',
+                    color: manualEntryForm.sessionType === 'rpe' ? '#fff' : 'var(--color-text-muted)',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span>🎯 Session RPE</span>
                 </button>
               </div>
+
+              {/* Sleep Only Toggle */}
+              {manualEntryForm.sessionType !== 'rpe' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div 
+                    onClick={() => setManualEntryForm(p => ({ ...p, isSleepOnly: !p.isSleepOnly, successMsg: '' }))}
+                    style={{ width: '44px', height: '24px', borderRadius: '12px', background: manualEntryForm.isSleepOnly ? '#8b5cf6' : 'rgba(255,255,255,0.1)', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}
+                  >
+                    <div style={{ position: 'absolute', top: '2px', left: manualEntryForm.isSleepOnly ? '22px' : '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                  </div>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: manualEntryForm.isSleepOnly ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer' }} onClick={() => setManualEntryForm(p => ({ ...p, isSleepOnly: !p.isSleepOnly, successMsg: '' }))}>
+                    Log Sleep Only (No Body Weight)
+                  </span>
+                </div>
+              )}
 
               {/* Athlete Selector */}
               <div>
@@ -3543,35 +3738,120 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Body Weight with quick tailored incrementers */}
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Body Weight (lbs)</label>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="210.5"
-                    className="input-glass"
-                    value={manualEntryForm.weight}
-                    onChange={e => setManualEntryForm(p => ({ ...p, weight: e.target.value, successMsg: '' }))}
-                    style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(96, 165, 250, 0.4)' }}
-                  />
-                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-1</button>
-                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-.1</button>
-                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+.1</button>
-                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+1</button>
+              {/* Conditional Rendering: Body Weight vs Sleep */}
+              {manualEntryForm.sessionType === 'rpe' ? (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>RPE (1-10)</label>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          placeholder="7"
+                          className="input-glass"
+                          value={manualEntryForm.rpe || ''}
+                          onChange={e => setManualEntryForm(p => ({ ...p, rpe: e.target.value, successMsg: '' }))}
+                          style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)' }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Duration (Mins)</label>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          placeholder="90"
+                          className="input-glass"
+                          value={manualEntryForm.session_minutes || ''}
+                          onChange={e => setManualEntryForm(p => ({ ...p, session_minutes: e.target.value, successMsg: '' }))}
+                          style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Session Label</label>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {['Practice', 'Lift', 'Conditioning', 'Walkthrough', 'Other'].map(lbl => (
+                        <button
+                          key={lbl}
+                          type="button"
+                          onClick={() => setManualEntryForm(p => ({ ...p, session_label: lbl }))}
+                          style={{
+                            flex: '1 1 auto', height: '38px', padding: '0 12px',
+                            background: manualEntryForm.session_label === lbl ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                            color: manualEntryForm.session_label === lbl ? 'var(--navy-950)' : 'var(--color-text)',
+                            border: '1px solid var(--color-border)', borderRadius: '8px',
+                            fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                          }}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (!manualEntryForm.isSleepOnly ? (
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Body Weight (lbs)</label>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="210.5"
+                      className="input-glass"
+                      value={manualEntryForm.weight}
+                      onChange={e => setManualEntryForm(p => ({ ...p, weight: e.target.value, successMsg: '' }))}
+                      style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(96, 165, 250, 0.4)' }}
+                    />
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-1</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-.1</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+.1</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+1</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Sleep (Hours)</label>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      step="0.5"
+                      placeholder="8.0"
+                      className="input-glass"
+                      value={manualEntryForm.sleepHours}
+                      onChange={e => setManualEntryForm(p => ({ ...p, sleepHours: e.target.value, successMsg: '' }))}
+                      style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(139, 92, 246, 0.4)' }}
+                    />
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.sleepHours || 8) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, sleepHours: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-1</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.sleepHours || 8) - 0.5).toFixed(1); setManualEntryForm(p => ({ ...p, sleepHours: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-.5</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.sleepHours || 8) + 0.5).toFixed(1); setManualEntryForm(p => ({ ...p, sleepHours: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+.5</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.sleepHours || 8) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, sleepHours: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+1</button>
+                  </div>
+                </div>
+              ))}
 
               {/* Submit Button */}
               <button
                 type="button"
                 onClick={() => {
+                  const isSleep = !!manualEntryForm.isSleepOnly;
                   const weightNum = parseFloat(manualEntryForm.weight);
-                  if (!manualEntryForm.athleteId || !isPlausibleWeight(weightNum)) {
-                    showToast('Select an athlete and enter a valid body weight (0–1000 lbs).', 'error');
+                  const sleepNum = parseFloat(manualEntryForm.sleepHours);
+                  
+                  if (!manualEntryForm.athleteId) {
+                    showToast('Select an athlete.', 'error');
                     return;
                   }
+                  if (!isSleep && !isPlausibleWeight(weightNum)) {
+                    showToast('Enter a valid body weight (0–1000 lbs).', 'error');
+                    return;
+                  }
+                  if (isSleep && (isNaN(sleepNum) || sleepNum < 0 || sleepNum > 24)) {
+                    showToast('Enter valid sleep hours (0–24).', 'error');
+                    return;
+                  }
+                  
                   const ath = athletes.find(a => a.id === manualEntryForm.athleteId);
                   // Interpret the picked date/time as Central (program) wall-clock time; a
                   // cleared/invalid date used to throw an uncaught RangeError here.
@@ -3581,15 +3861,19 @@ export default function App() {
                     return;
                   }
                   const isEditing = !!manualEntryForm.editingLogId;
+                  const isRpe = manualEntryForm.sessionType === 'rpe';
                   const rec = {
                     id: isEditing ? manualEntryForm.editingLogId : 'manual_' + Date.now(),
                     athlete_id: manualEntryForm.athleteId,
                     athlete_name: ath ? ath.name : 'Unknown',
                     sport: ath ? ath.sport : '',
-                    weight_lbs: parseFloat(manualEntryForm.weight),
-                    sleep_hrs: 0,
+                    weight_lbs: (isSleep || isRpe) ? 0 : parseFloat(manualEntryForm.weight),
+                    sleep_hrs: isSleep ? parseFloat(manualEntryForm.sleepHours) : 0,
                     created_at: dateTimeStr,
-                    session_type: manualEntryForm.sessionType
+                    session_type: isSleep ? 'morning' : manualEntryForm.sessionType,
+                    rpe: isRpe ? parseFloat(manualEntryForm.rpe || 0) : null,
+                    session_minutes: isRpe ? parseFloat(manualEntryForm.session_minutes || 0) : null,
+                    session_label: isRpe ? (manualEntryForm.session_label || 'Practice') : null
                   };
 
                   if (rec.session_type === 'post_practice') {
@@ -3601,12 +3885,16 @@ export default function App() {
                   } else {
                     handleSaveManualLog(rec);
                   }
+                  
+                  let successType = manualEntryForm.sessionType === 'post_practice' ? 'Post-Practice' : (manualEntryForm.sessionType === 'rpe' ? 'Session RPE' : 'Morning');
                   setManualEntryForm(p => ({
                     ...p,
                     weight: isEditing ? p.weight : '',
+                    rpe: isEditing ? p.rpe : '',
+                    session_minutes: isEditing ? p.session_minutes : '',
                     successMsg: isEditing
-                      ? `Saved changes to ${rec.athlete_name}'s ${rec.session_type === 'post_practice' ? 'post-practice' : 'morning'} log (${rec.weight_lbs} lbs, ${manualEntryForm.date} ${manualEntryForm.time}).`
-                      : `Successfully recorded ${manualEntryForm.sessionType === 'post_practice' ? 'Post-Practice' : 'Morning'} weight (${rec.weight_lbs} lbs) for ${rec.athlete_name}!`
+                      ? `Saved changes to ${rec.athlete_name}'s log (${manualEntryForm.date} ${manualEntryForm.time}).`
+                      : `Successfully recorded ${successType} data for ${rec.athlete_name}!`
                   }));
                 }}
                 style={{

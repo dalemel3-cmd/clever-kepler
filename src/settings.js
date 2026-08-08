@@ -68,6 +68,15 @@ export const DEFAULT_SETTINGS = {
   // Sports offered in pickers. Sports actually present on the roster are merged in
   // automatically, so this list is only the suggestions shown before anyone is added.
   sportsList: ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'SOCC', 'Softball', 'Tennis', 'Track & Field', 'VBB', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'],
+
+  // --- RPE & Training Load ---
+  enableRpe: false,
+  rpeTrackDuration: true,
+  rpeScaleMax: 10,
+  rpeHighThreshold: 8,
+  rpeSessionLabels: ['Lift', 'Run', 'Combined'],
+  rpeLoadSpikeRatio: 1.3,
+  rpeChronicWeeks: 4,
 };
 
 // Numeric fields get coerced and range-checked so a corrupt localStorage entry
@@ -91,6 +100,10 @@ const NUMERIC_BOUNDS = {
   minWeightLbs: [0, 1000],
   maxWeightLbs: [1, 5000],
   maxSleepHours: [1, 24],
+  rpeScaleMax: [1, 100],
+  rpeHighThreshold: [1, 100],
+  rpeLoadSpikeRatio: [0.1, 10.0],
+  rpeChronicWeeks: [1, 52],
 };
 
 const coerce = (key, value, fallback) => {
