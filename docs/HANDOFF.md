@@ -1,7 +1,8 @@
 # Handoff — open items
 
-Written 2026-08-07. Everything below was established during work on v4.1.5 → v4.4.0
-and exists nowhere else, so it's recorded here rather than living in a chat log.
+Written 2026-08-07, last updated 2026-08-09 (v4.9.1). Everything below was established
+during working sessions and exists nowhere else, so it's recorded here rather than
+living in a chat log.
 
 ---
 
@@ -33,10 +34,20 @@ See `docs/RPE-PLAN.md` §2.
 
 ## 2. 🔒 Row Level Security — auth is built, the switch is not thrown
 
-**Status as of v4.8.0: the app side is done and deployed. The database is still open.**
+**Status as of v4.9.1: the app side is done and working. The database is still open.**
 
-The login screen, kiosk session persistence, and sign-out all ship in v4.8.0, and the
-app works exactly as before because RLS is still disabled. Nothing is enforced yet.
+Shipped and verified in production:
+- Login screen, kiosk session persistence, sign-out (v4.8.0)
+- Coach sign-up with approval gating — creating an account grants nothing until an
+  approved coach approves it in Settings → Coach Access (v4.9.0)
+- Sign-in confirmed working on phone and desktop against the real Supabase project
+
+⚠️ **Still not done: the database is open.** RLS is disabled, no `coaches` table
+exists, and the anon key in this repo grants full read/write to anyone who finds it.
+The yellow banner in Settings → Coach Access is the app reporting this accurately.
+
+Note the login screen is client-side and already live — a device that has not signed
+in is gated regardless of RLS.
 
 **To finish it, follow `docs/RLS-RUNBOOK.md`.** In short: create the user in Supabase,
 sign in on each device while the database is still open, then run
@@ -73,10 +84,11 @@ filter stays empty until it's populated.
 
 | Repo | State |
 |---|---|
-| **`dalemel3-cmd/clever-kepler`** | v4.7.0 — deployed by Vercel, **source of truth** |
-| `dalemel3-cmd/MoneyMase` | v4.4.0 — has the same tests and docs, but not the v4.6.0/v4.7.0 Alerts/Reports split |
+| **`dalemel3-cmd/clever-kepler`** | v4.9.1 — deployed by Vercel, **source of truth** |
+| `dalemel3-cmd/MoneyMase` | v4.4.0 — same tests and docs, but missing the v4.6.0/v4.7.0 Alerts/Reports split and all of the v4.8.0–v4.9.1 auth work |
 
-Worth deciding whether MoneyMase catches up or is retired as a mirror. Right now,
+The gap has widened to five releases. Worth deciding whether MoneyMase catches up or
+is retired as a mirror — keeping it half-synced is the worst of both. Right now,
 **push app changes to clever-kepler** — that's what deploys.
 
 ---
@@ -85,9 +97,12 @@ Worth deciding whether MoneyMase catches up or is retired as a mirror. Right now
 
 Recorded so they don't get re-litigated:
 
-- **Version bumping** — rules in `VERSIONING.md`. Small push = patch (`4.7.1`),
-  large push = minor (`4.8.0`). Two files must match: `APP_VERSION` in
+- **Version bumping** — rules in `VERSIONING.md`. Small push = patch (`4.9.2`),
+  large push = minor (`4.10.0`). Two files must match: `APP_VERSION` in
   `src/utils/athleteData.js` and `version` in `package.json`.
+- **Auth** — `docs/RLS-RUNBOOK.md` is the sequence for finishing the lockdown;
+  `db/003_coach_approval.sql` is the one to run (it supersedes `001`). Its policy
+  behavior was verified against the live database in rolled-back transactions.
 - **Tests** — `tests/` + `tests/README.md`. They intercept all Supabase traffic, so
   they never touch the real database. Run them before pushing anything non-trivial.
 - **Settings** — as of v4.4.0 nothing is hardcoded; thresholds, windows, program
@@ -100,8 +115,13 @@ Recorded so they don't get re-litigated:
 
 ## 6. Next up
 
-`docs/RPE-PLAN.md` — Session RPE (1–10 post-session rating), planned for v4.5.0 but
-now landing after the v4.7.0 work. Read §2 of that doc before writing any code: RPE
+Two things, in this order:
+
+1. **Finish the RLS lockdown** — `docs/RLS-RUNBOOK.md`. Sign in on the kiosk iPad
+   first, then run `db/003_coach_approval.sql`. The BOOTSTRAP line at the bottom is
+   already set to `masonm@shilohsaints.org`.
+2. **Session RPE** — `docs/RPE-PLAN.md` (1–10 post-session rating), originally planned
+   for v4.5.0 and now landing after the auth work. Read §2 of that doc before writing any code: RPE
 rows carry no weight, which reintroduces a bug class that has already shipped twice
 (sleep-only logs showed as `185 → 0 lbs` on the leaderboard; post-practice logs
 false-flagged everyone as dehydrated). Phase 0 of that plan exists specifically to
