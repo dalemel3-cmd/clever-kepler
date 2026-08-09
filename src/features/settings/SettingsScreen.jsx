@@ -235,6 +235,19 @@ export default function SettingsScreen({
               ]
             },
             {
+              title: 'SESSION RPE (INTERNAL LOAD)',
+              hint: 'Post-session rating of perceived exertion. Turn this on to add a Session RPE mode to the kiosk, an internal-load panel on the dashboard, and acute:chronic load alerts.',
+              fields: [
+                { key: 'enableRpe', label: 'Session RPE Tracking', type: 'toggle', help: 'Off by default. When on, athletes get a third entry mode after a lift or run.' },
+                { key: 'rpeTrackDuration', label: 'Also Ask For Duration', type: 'toggle', help: 'Session load = RPE x minutes. Off means load is scored on RPE alone.' },
+                { key: 'rpeScaleMax', label: 'RPE Scale Maximum', unit: 'pts', step: 1, min: 1, max: 100, help: '10 = the standard Borg CR10 scale.' },
+                { key: 'rpeHighThreshold', label: 'Flag Hard Session At', unit: 'pts', step: 1, min: 1, max: 100, help: 'At or above this, the session counts as an outlier.' },
+                { key: 'rpeLoadSpikeRatio', label: 'Load Spike Alert At', unit: 'A:C', step: 0.1, min: 0.1, max: 10, help: 'Acute:chronic workload ratio that fires a spike alert. 1.3 is the common injury-risk cutoff.' },
+                { key: 'rpeChronicWeeks', label: 'Chronic Load Window', unit: 'weeks', step: 1, min: 1, max: 52, help: 'How far back the "normal" training load is averaged.' },
+                { key: 'rpeSessionLabels', label: 'Session Labels', type: 'list', help: 'Buttons the athlete picks from, comma separated.' },
+              ]
+            },
+            {
               title: 'ENTRY VALIDATION',
               hint: 'Bounds the kiosk and manual entry accept before saving a record.',
               fields: [
@@ -257,7 +270,30 @@ export default function SettingsScreen({
                     <label htmlFor={`setting-${f.key}`} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {f.label}{f.unit ? ` (${f.unit})` : ''}
                     </label>
-                    {f.type === 'text' || f.type === 'date' ? (
+                    {f.type === 'toggle' ? (
+                      <button
+                        id={`setting-${f.key}`}
+                        type="button"
+                        role="switch"
+                        aria-checked={!!settings[f.key]}
+                        onClick={() => updateSetting(f.key, !settings[f.key])}
+                        style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '0 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '13px', letterSpacing: '0.04em', background: settings[f.key] ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)', color: settings[f.key] ? 'var(--navy-950)' : 'var(--color-text-muted)', border: settings[f.key] ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}
+                      >
+                        <span>{settings[f.key] ? 'ON' : 'OFF'}</span>
+                        <span style={{ width: '34px', height: '18px', borderRadius: '9px', background: settings[f.key] ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.12)', position: 'relative', flexShrink: 0 }}>
+                          <span style={{ position: 'absolute', top: '2px', left: settings[f.key] ? '18px' : '2px', width: '14px', height: '14px', borderRadius: '50%', background: settings[f.key] ? 'var(--navy-950)' : 'var(--color-text-muted)', transition: 'left 0.15s' }} />
+                        </span>
+                      </button>
+                    ) : f.type === 'list' ? (
+                      <input
+                        id={`setting-${f.key}`}
+                        type="text"
+                        className="input-glass"
+                        value={(settings[f.key] || []).join(', ')}
+                        onChange={e => updateSetting(f.key, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                        style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px' }}
+                      />
+                    ) : f.type === 'text' || f.type === 'date' ? (
                       <input
                         id={`setting-${f.key}`}
                         type={f.type === 'date' ? 'date' : 'text'}

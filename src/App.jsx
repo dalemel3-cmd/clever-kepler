@@ -211,9 +211,32 @@ export default function App() {
   const [isBaselineTestingMode, setIsBaselineTestingMode] = useState(false);
   const [lastSavedWasBaseline, setLastSavedWasBaseline] = useState(false);
   const [lastSavedAthleteName, setLastSavedAthleteName] = useState('');
+  // The kiosk remembers its last entry mode across reloads. Only restore a mode that is
+  // still available: a device left in 'rpe' after RPE was switched off came back with the
+  // RPE header and no RPE inputs, because the mode button that would let you leave is
+  // hidden along with the feature.
   const [kioskTrackMode, setKioskTrackMode] = useState(() => {
-    try { return localStorage.getItem('shiloh_kiosk_track_mode') || 'both'; } catch (e) { return 'both'; }
+    const VALID = ['both', 'sleep_only', 'rpe'];
+    try {
+      const stored = localStorage.getItem('shiloh_kiosk_track_mode');
+      const ok = VALID.includes(stored) && !(stored === 'rpe' && !loadSettings().enableRpe);
+      if (ok) return stored;
+      // Rewrite the stored value as well, not just the in-memory one. Leaving 'rpe' on
+      // disk means the kiosk silently jumps back into RPE the next time the feature is
+      // switched on, instead of staying where the coach left it.
+      localStorage.setItem('shiloh_kiosk_track_mode', 'both');
+      return 'both';
+    } catch (e) { return 'both'; }
   });
+
+  // Same guard for a live change: switching RPE off in Settings drops any kiosk that is
+  // currently in RPE mode back to the default rather than leaving it stranded.
+  React.useEffect(() => {
+    if (!settings.enableRpe && kioskTrackMode === 'rpe') {
+      setKioskTrackMode('both');
+      try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch (e) {}
+    }
+  }, [settings.enableRpe, kioskTrackMode]);
 
   // Reports State
   const [reportData, setReportData] = useState([]);

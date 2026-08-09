@@ -100,7 +100,7 @@ export default function EntryScreen({
                 gap: '6px'
               }}
             >
-              ΓÜû∩╕Å Weight + Sleep
+              ⚖️ Weight + Sleep
             </button>
             <button
               type="button"
@@ -177,7 +177,7 @@ export default function EntryScreen({
               boxShadow: isBaselineTestingMode ? '0 0 18px rgba(16, 185, 129, 0.55)' : 'none'
             }}
           >
-            <span>{isBaselineTestingMode ? '≡ƒÄ» BASELINE MODE ACTIVE' : '≡ƒÄ» Enable Baseline Mode'}</span>
+            <span>{isBaselineTestingMode ? '🎯 BASELINE MODE ACTIVE' : '🎯 Enable Baseline Mode'}</span>
           </button>
 
           <button
@@ -217,7 +217,7 @@ export default function EntryScreen({
       {isBaselineTestingMode && (
         <div className="card-glass glow-card" style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.45)', padding: '16px 22px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', boxShadow: '0 8px 24px rgba(16, 185, 129, 0.2)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <span style={{ fontSize: '26px' }}>≡ƒÄ»</span>
+            <span style={{ fontSize: '26px' }}>🎯</span>
             <div>
               <span style={{ fontSize: '14px', fontWeight: 800, color: '#10b981', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 BASELINE TESTING STATION ENABLED
@@ -360,7 +360,7 @@ export default function EntryScreen({
         {unweighedOnlyFilter && (
           <div style={{ background: 'rgba(194, 164, 80, 0.15)', border: '1px solid var(--color-accent)', padding: '14px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '20px' }}>ΓÜí</span>
+              <span style={{ fontSize: '20px' }}>⚡</span>
               <div>
                 <div style={{ fontWeight: 800, fontSize: '15px', color: '#fff', textTransform: 'uppercase' }}>
                   PRIORITY FILTER ACTIVE: UNLOGGED ATHLETES ONLY
@@ -375,7 +375,7 @@ export default function EntryScreen({
               onClick={() => setUnweighedOnlyFilter(false)}
               style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', padding: '8px 16px', borderRadius: '12px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}
             >
-              Γ£ò SHOW ALL ATHLETES
+              ✕ SHOW ALL ATHLETES
             </button>
           </div>
         )}
@@ -422,7 +422,7 @@ export default function EntryScreen({
                       {nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
                     </span>
                     <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {a.sport}{a.position ? ` ┬╖ ${a.position}` : (a.team ? ` ┬╖ ${a.team}` : '')}
+                      {a.sport}{a.position ? ` · ${a.position}` : (a.team ? ` · ${a.team}` : '')}
                     </span>
                   </div>
                 </div>
@@ -522,7 +522,7 @@ export default function EntryScreen({
                     )}
                   </div>
                   <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
-                    {selectedAthlete.sport}{selectedAthlete.grade ? ` ┬╖ ${selectedAthlete.grade}` : ''} &middot; {selectedAthlete.position}
+                    {selectedAthlete.sport}{selectedAthlete.grade ? ` · ${selectedAthlete.grade}` : ''} &middot; {selectedAthlete.position}
                   </span>
                 </div>
               </div>
@@ -538,7 +538,7 @@ export default function EntryScreen({
             {/* Track Mode Indicator / Rapid Switch */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap', gap: '8px' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Mode: <span style={{ color: 'var(--white)' }}>{kioskTrackMode === 'sleep_only' ? '≡ƒÿ┤ Sleep & Recovery Only' : 'ΓÜû∩╕Å Weight + Sleep'}</span>
+                Mode: <span style={{ color: 'var(--white)' }}>{kioskTrackMode === 'sleep_only' ? '😴 Sleep & Recovery Only' : '⚖️ Weight + Sleep'}</span>
               </span>
               <div style={{ display: 'flex', background: 'rgba(0,0,0,0.4)', padding: '2px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <button
@@ -550,7 +550,7 @@ export default function EntryScreen({
                   }}
                   style={{ padding: '4px 10px', borderRadius: '14px', background: kioskTrackMode === 'both' ? 'var(--color-accent)' : 'transparent', color: kioskTrackMode === 'both' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', fontWeight: 700, fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s' }}
                 >
-                  ΓÜû∩╕Å + ≡ƒÿ┤ Both
+                  ⚖️ + 😴 Both
                 </button>
                 <button
                   type="button"
@@ -561,7 +561,7 @@ export default function EntryScreen({
                   }}
                   style={{ padding: '4px 10px', borderRadius: '14px', background: kioskTrackMode === 'sleep_only' ? 'var(--color-accent)' : 'transparent', color: kioskTrackMode === 'sleep_only' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', fontWeight: 700, fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s' }}
                 >
-                  ≡ƒÿ┤ Sleep Only
+                  😴 Sleep Only
                 </button>
               </div>
             </div>
@@ -580,7 +580,7 @@ export default function EntryScreen({
                     style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px dashed rgba(59, 130, 246, 0.4)', padding: '16px', borderRadius: 'var(--radius-md)', cursor: 'pointer', transition: 'all 0.2s' }}
                     title="Click to enable body weight tracking for this session"
                   >
-                    <div style={{ fontSize: '28px' }}>ΓÜû∩╕Å</div>
+                    <div style={{ fontSize: '28px' }}>⚖️</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--white)', letterSpacing: '0.02em' }}>Weight Tracking Disabled</span>
                       <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: 1.3 }}>Scale recording skipped in Sleep Only Mode. Tap here to enable body weight.</span>
@@ -591,7 +591,7 @@ export default function EntryScreen({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Body Weight (lbs)</span>
                       {lastLoggedWeight && !weightInput && (
-                        <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 700 }}>LAST RECORDED: {lastLoggedWeight} LBS ΓÇö ENTER TODAY'S</span>
+                        <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 700 }}>LAST RECORDED: {lastLoggedWeight} LBS — ENTER TODAY'S</span>
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -744,7 +744,7 @@ export default function EntryScreen({
               return (
                 <div className="animate-slide-up" style={{ width: '100%', padding: '14px 18px', background: bg, border, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '15px', fontWeight: 800, color }}>
-                    <span style={{ fontSize: '24px' }}>{isLoss ? (isSignificantDrop ? 'ΓÜá∩╕Å' : '≡ƒö╗') : '≡ƒƒó'}</span>
+                    <span style={{ fontSize: '24px' }}>{isLoss ? (isSignificantDrop ? '⚠️' : '🔻') : '🟢'}</span>
                     <div>
                       <div style={{ textTransform: 'uppercase' }}>{diff >= 0 ? 'MASS GAIN / UPWARDS TREND' : (isSignificantDrop ? 'ALERT: SIGNIFICANT WEIGHT DROP DETECTED' : 'SLIGHT WEIGHT DROP vs BASELINE')}</div>
                       <div style={{ color: '#fff', fontSize: '16px', marginTop: '2px' }}>
@@ -781,7 +781,7 @@ export default function EntryScreen({
                       className="btn-primary glow-card"
                       style={{ flex: '1 1 220px', height: '56px', fontSize: '16px', background: '#10b981', color: '#000', border: 'none', fontWeight: 800 }}
                     >
-                      {saving ? 'Saving...' : '≡ƒÄ» This is my baseline'}
+                      {saving ? 'Saving...' : '🎯 This is my baseline'}
                     </button>
                     <button
                       type="button"
@@ -800,7 +800,7 @@ export default function EntryScreen({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', marginTop: '4px' }}>
                   {isBaselineTestingMode && kioskTrackMode !== 'sleep_only' && (
                     <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.45)', padding: '10px 16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '13px', fontWeight: 700 }}>
-                      <span style={{ fontSize: '16px' }}>≡ƒÄ»</span> This entry will establish a NEW OFFICIAL BASELINE target for {selectedAthlete.name}.
+                      <span style={{ fontSize: '16px' }}>🎯</span> This entry will establish a NEW OFFICIAL BASELINE target for {selectedAthlete.name}.
                     </div>
                   )}
                   <button
@@ -810,7 +810,7 @@ export default function EntryScreen({
                     className="btn-primary glow-card"
                     style={{ height: '58px', fontSize: '18px', width: '100%', background: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#10b981' : 'var(--color-accent)', color: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#000' : 'var(--navy-950)', fontWeight: 800 }}
                   >
-                    {saving ? 'Saving...' : (isBaselineTestingMode && kioskTrackMode === 'both' ? `≡ƒÄ» Save as Athlete Baseline${weightInput ? ` (${weightInput} lbs)` : ''}` : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : (kioskTrackMode === 'rpe' ? 'Save RPE & Complete' : 'Save Record & Complete')))}
+                    {saving ? 'Saving...' : (isBaselineTestingMode && kioskTrackMode === 'both' ? `🎯 Save as Athlete Baseline${weightInput ? ` (${weightInput} lbs)` : ''}` : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : (kioskTrackMode === 'rpe' ? 'Save RPE & Complete' : 'Save Record & Complete')))}
                   </button>
                 </div>
               );
