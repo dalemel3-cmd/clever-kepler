@@ -26,13 +26,21 @@ working. Only the last step actually enforces anything, and it is one line to un
 - ✅ Tick **Auto Confirm User** (otherwise the account can't sign in until the email
   is confirmed, and the app will just say the credentials are wrong)
 
-**One account or several?** Either works — the policies are identical. One shared
-coach login is simpler and fine for a single-coach program. Separate accounts per
-coach cost nothing extra to support and are better practice if more than one person
-administers the roster. Nothing in the app cares which you choose.
+**Decided: one shared coach login.** Create a single account that every device and
+every coach uses. The policies are identical either way, so this can be revisited
+later without touching the app — adding per-coach accounts is just adding users.
 
-The kiosk iPad signs in with the same credentials as everything else. That's expected:
-the *device* is trusted, athletes still just tap their own card.
+Store the password somewhere durable (a password manager, not a sticky note on the
+iPad). It is the key to all athlete data.
+
+The kiosk iPad signs in with these same credentials. That's expected: the *device* is
+trusted, athletes still just tap their own card.
+
+⚠️ **The one consequence of sharing a login:** you can't revoke access for one person.
+If someone with the password leaves the program, change the password in Supabase
+(Authentication → Users → the account → Reset/Update password) and sign in again on
+each device. That's the trade for the simpler setup. If that ever becomes a regular
+occurrence, switch to per-coach accounts — no app changes needed.
 
 ---
 
@@ -113,11 +121,13 @@ to restrict that (say, assistants who can log but not delete), the policy can be
 per operation — `for select` / `for insert` / `for delete` with different roles — with
 no app changes.
 
-### If you ever need to add a coach
-Authentication → Users → Add user. Nothing else to do; the policies already cover
-any authenticated user.
+### Adding another coach
+Give them the shared credentials — nothing to configure. If you'd rather they had
+their own account, Authentication → Users → Add user; the policies already cover any
+authenticated user, so no app or SQL changes are needed.
 
 ### If someone leaves
-Delete their user in Supabase. Their device is signed out at the next token refresh.
-If it's urgent, delete the user *and* run the rollback + re-enable to force all
-sessions to re-validate.
+With a shared login, there is no individual account to delete. Change the shared
+password in Supabase, then sign in again on each device. Existing sessions on devices
+you control keep working until their token refresh fails, so do the devices you're
+keeping first.

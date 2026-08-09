@@ -38,9 +38,12 @@ See `docs/RPE-PLAN.md` §2.
 The login screen, kiosk session persistence, and sign-out all ship in v4.8.0, and the
 app works exactly as before because RLS is still disabled. Nothing is enforced yet.
 
-**To finish it, follow `docs/RLS-RUNBOOK.md`.** In short: create a user in Supabase,
+**To finish it, follow `docs/RLS-RUNBOOK.md`.** In short: create the user in Supabase,
 sign in on each device while the database is still open, then run
-`db/001_enable_rls.sql`. Verification steps and the instant rollback
+`db/001_enable_rls.sql`.
+
+**Decided: one shared coach login** for all devices and coaches. Trade-off recorded
+in the runbook — offboarding means rotating the shared password, not deleting a user. Verification steps and the instant rollback
 (`db/002_rollback_rls.sql`) are in the runbook.
 
 The policy shape was verified against this database inside a rolled-back transaction:
