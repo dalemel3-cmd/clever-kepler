@@ -1,4 +1,4 @@
-import { User, Search, X, ArrowUpRight, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil } from 'lucide-react';
+import { User, Search, X, ArrowUpRight, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
 import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, hasWeight, isRpeLog } from '../../utils/athleteData';

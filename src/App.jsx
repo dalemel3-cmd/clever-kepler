@@ -245,6 +245,10 @@ export default function App() {
     if (reportData && Array.isArray(reportData)) {
       reportData.forEach(r => {
         if (!r.created_at || !r.athlete_id) return;
+        // "Recorded today" means a weigh-in / sleep check-in. A Session RPE entry is a
+        // separate workflow that happens after practice - counting it here would show the
+        // whole team as checked in each morning before anyone had stepped on a scale.
+        if (isRpeLog(r)) return;
         if (getCentralDateString(new Date(r.created_at)) === todayStr) {
           recordedSet.add(r.athlete_id);
         }
@@ -254,7 +258,7 @@ export default function App() {
       const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
       offline.forEach(item => {
         const rec = item.record || item;
-        if (rec && rec.athlete_id && rec.created_at) {
+        if (rec && rec.athlete_id && rec.created_at && !isRpeLog(rec)) {
           if (getCentralDateString(new Date(rec.created_at)) === todayStr) {
             recordedSet.add(rec.athlete_id);
           }
@@ -1445,14 +1449,21 @@ export default function App() {
     if (kioskSaveInFlight.current || saving) return;
     if (kioskTrackMode !== 'sleep_only' && kioskTrackMode !== 'rpe' && !isPlausibleWeight(parseFloat(weightInput))) return;
     if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
-    if (kioskTrackMode === 'rpe' && (!rpeInput || parseFloat(rpeInput) <= 0 || parseFloat(rpeInput) > 10 || !rpeDurationInput || parseFloat(rpeDurationInput) <= 0 || !rpeLabelInput)) return;
+    // Duration is only required when the program is tracking it; the scale ceiling comes
+    // from settings, not a hardcoded 10, so raising rpeScaleMax actually raises the cap.
+    if (kioskTrackMode === 'rpe' && (!rpeInput || parseFloat(rpeInput) <= 0 || parseFloat(rpeInput) > settings.rpeScaleMax || !rpeLabelInput)) return;
+    if (kioskTrackMode === 'rpe' && settings.rpeTrackDuration && (!rpeDurationInput || parseFloat(rpeDurationInput) <= 0)) return;
 
     const todayCentralStr = getCentralDateString();
-    // Only regular (non post-practice) logs count for the overwrite prompt - a morning
-    // weigh-in must never overwrite a post-practice sweat check from the same day.
+    // The overwrite prompt only ever compares like with like. A morning weigh-in must not
+    // overwrite a post-practice sweat check from the same day, and it must not overwrite a
+    // Session RPE entry either - doing so blanked the athlete's weight (or wiped their RPE)
+    // depending on which order the two were entered. Each log type owns its own row per day.
+    const isRpeEntry = kioskTrackMode === 'rpe';
     const existingRecord = reportData.find(r => {
       if (r.athlete_id !== selectedAthlete.id) return false;
       if (isPostPracticeLog(r)) return false;
+      if (isRpeLog(r) !== isRpeEntry) return false;
       return getCentralDateString(new Date(r.created_at)) === todayCentralStr;
     });
     
@@ -1476,10 +1487,12 @@ export default function App() {
       athlete_name: selectedAthlete.name,
       sport: selectedAthlete.sport,
       weight_lbs: weightVal,
-      // clamp sleep to a sane 0-24h so a stray keypad entry can't skew averages
-      sleep_hrs: !isNaN(parseFloat(sleepInput)) ? Math.min(Math.max(parseFloat(sleepInput), 0), settings.maxSleepHours) : 0,
+      // clamp sleep to a sane 0-24h so a stray keypad entry can't skew averages. An RPE
+      // entry never carries sleep - otherwise a value left in the field from a previous
+      // mode rides along and lands in the sleep-deficit alerts.
+      sleep_hrs: (kioskTrackMode !== 'rpe' && !isNaN(parseFloat(sleepInput))) ? Math.min(Math.max(parseFloat(sleepInput), 0), settings.maxSleepHours) : 0,
       rpe: kioskTrackMode === 'rpe' ? parseFloat(rpeInput) : null,
-      session_minutes: kioskTrackMode === 'rpe' ? parseInt(rpeDurationInput, 10) : null,
+      session_minutes: (kioskTrackMode === 'rpe' && settings.rpeTrackDuration) ? (parseInt(rpeDurationInput, 10) || null) : null,
       session_label: kioskTrackMode === 'rpe' ? rpeLabelInput : null,
       session_type: kioskTrackMode === 'rpe' ? 'rpe' : null,
       created_at: new Date().toISOString()
@@ -2206,6 +2219,9 @@ export default function App() {
       if (!byDay.has(key)) byDay.set(key, new Set());
       const flags = byDay.get(key);
       if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) flags.add(r.athlete_id + '|sleep');
+      // A day counts toward an RPE streak when the athlete reported a hard session, so the
+      // load-spike card can show "3rd straight day" the same way the other alert types do.
+      if (isRpeLog(r) && r.rpe != null && Number(r.rpe) >= settings.rpeHighThreshold) flags.add(r.athlete_id + '|rpe');
       if (r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r)) {
         const athlete = athleteById.get(r.athlete_id);
         const baseInfo = baselineFor(r.athlete_id, athlete);
@@ -2225,7 +2241,7 @@ export default function App() {
       }
       return streak;
     };
-  }, [reportData, athletes, dehydrationThreshold, sleepThreshold]);
+  }, [reportData, athletes, dehydrationThreshold, sleepThreshold, settings.rpeHighThreshold]);
 
   const getWeeklyAlerts = () => {
     const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -2382,12 +2398,25 @@ export default function App() {
         const daysMs = (days) => days * 24 * 60 * 60 * 1000;
         const recentRpe = athleteLogs.filter(l => (now - new Date(l.created_at).getTime()) <= daysMs(7));
         const chronicRpe = athleteLogs.filter(l => (now - new Date(l.created_at).getTime()) <= daysMs(settings.rpeChronicWeeks * 7));
-        
-        const acuteLoad = recentRpe.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
-        const chronicLoadTotal = chronicRpe.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
-        const chronicAvgWeeklyLoad = settings.rpeChronicWeeks > 0 ? (chronicLoadTotal / settings.rpeChronicWeeks) : 0;
-        
-        if (chronicAvgWeeklyLoad > 0) {
+
+        // Session load is RPE x minutes when the program tracks duration. With duration
+        // off, session_minutes is null and every load would come out 0 - so fall back to
+        // the RPE value itself, which keeps the ratio meaningful either way.
+        const sessionLoad = (l) => (l.rpe || 0) * (settings.rpeTrackDuration ? (l.session_minutes || 0) : 1);
+        const acuteLoad = recentRpe.reduce((sum, l) => sum + sessionLoad(l), 0);
+        const chronicLoadTotal = chronicRpe.reduce((sum, l) => sum + sessionLoad(l), 0);
+
+        // Divide by the weeks of history the athlete actually has, not the full configured
+        // window. Dividing a single week of data by 4 made every athlete's very first week
+        // look like a 4x spike and fired a load alert for the whole team on day one.
+        const oldestRpeMs = chronicRpe.length ? Math.min(...chronicRpe.map(l => new Date(l.created_at).getTime())) : now;
+        const weeksOfHistory = (now - oldestRpeMs) / daysMs(7);
+        const effectiveWeeks = Math.min(settings.rpeChronicWeeks, Math.max(weeksOfHistory, 1));
+        const chronicAvgWeeklyLoad = effectiveWeeks > 0 ? (chronicLoadTotal / effectiveWeeks) : 0;
+
+        // An A:C ratio needs a chronic baseline to compare against. Under two weeks of
+        // history the "chronic" load is just the acute load again, so hold the alert.
+        if (chronicAvgWeeklyLoad > 0 && weeksOfHistory >= 2) {
           const acRatio = (acuteLoad / chronicAvgWeeklyLoad);
           if (acRatio >= settings.rpeLoadSpikeRatio) {
             const streak = alertStreakLookup(athleteId, 'rpe');

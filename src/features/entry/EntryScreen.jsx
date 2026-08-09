@@ -615,7 +615,7 @@ export default function EntryScreen({
                 {kioskTrackMode === 'rpe' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Session RPE (1-10)</span>
+                      <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Session RPE (1-{settings.rpeScaleMax})</span>
                     </div>
                     <input
                       type="text"
@@ -628,6 +628,9 @@ export default function EntryScreen({
                       style={{ flex: 1, width: '100%', height: '56px', background: focusedField === 'rpe' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'rpe' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'rpe' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
                     />
                     
+                    {/* Duration is optional per program - when rpeTrackDuration is off the
+                        field is hidden, and the save no longer requires it. */}
+                    {settings.rpeTrackDuration && (<>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Duration (Minutes)</span>
                     </div>
@@ -641,12 +644,15 @@ export default function EntryScreen({
                       onChange={(e) => setRpeDurationInput(e.target.value.replace(/[^0-9.]/g, ''))}
                       style={{ flex: 1, width: '100%', height: '56px', background: focusedField === 'rpe_duration' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'rpe_duration' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'rpe_duration' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
                     />
+                    </>)}
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Session Label</span>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {['Practice', 'Lift', 'Conditioning', 'Walkthrough'].map(lbl => (
+                      {/* Labels come from settings so a program can name its own session
+                          types; the hardcoded list ignored rpeSessionLabels entirely. */}
+                      {(settings.rpeSessionLabels || []).map(lbl => (
                         <button
                           key={lbl}
                           type="button"

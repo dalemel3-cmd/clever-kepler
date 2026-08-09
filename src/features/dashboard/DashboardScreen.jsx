@@ -274,7 +274,10 @@ export default function DashboardScreen({
         {/* 3. Session RPE Analytics (Only shown if RPE is enabled) */}
         {settings.enableRpe && (() => {
           const todayDateStr = getCentralDateString();
-          const todaysRpeLogs = (reportData || []).filter(r => isRpeLog(r) && r.created_at && r.created_at.startsWith(todayDateStr));
+          // created_at is a UTC ISO string; comparing its prefix against the program's
+          // Central date silently dropped every evening session (7pm CT is already
+          // tomorrow in UTC). Convert first, the same way every other screen does.
+          const todaysRpeLogs = (reportData || []).filter(r => isRpeLog(r) && r.created_at && getCentralDateString(new Date(r.created_at)) === todayDateStr);
           const avgRpe = todaysRpeLogs.length > 0 ? (todaysRpeLogs.reduce((acc, r) => acc + (r.rpe || 0), 0) / todaysRpeLogs.length).toFixed(1) : 0;
           const outliers = todaysRpeLogs.filter(r => r.rpe >= settings.rpeHighThreshold);
           const rpeRate = athletes.length > 0 ? Math.round((todaysRpeLogs.length / athletes.length) * 100) : 0;

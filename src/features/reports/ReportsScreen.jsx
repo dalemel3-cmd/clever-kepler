@@ -95,7 +95,7 @@ export default function ReportsScreen({
   // applied on Dashboard and in the Alerts daily-alert computation).
   const dehydrationList = [];
   filteredAthletes.forEach(a => {
-    const aRecs = reportData.filter(x => x.athlete_id === a.id && x.weight_lbs && Number(x.weight_lbs) > 0 && !isPostPracticeLog(x)).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+    const aRecs = reportData.filter(x => x.athlete_id === a.id && x.weight_lbs && Number(x.weight_lbs) > 0 && !isPostPracticeLog(x) && !isRpeLog(x)).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
     if (aRecs.length === 0) return;
     const latestLog = aRecs[aRecs.length - 1];
 
@@ -128,9 +128,13 @@ export default function ReportsScreen({
   const sleepDeficitList = filteredLogs.filter(r => r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold);
 
   // 4. Expired Baselines (>baselineExpiryDays Inactivity)
+  // A baseline expires from lack of weigh-ins, so only weight-carrying logs count as
+  // activity here. Session RPE entries have no weight - letting them count made an
+  // athlete who logs RPE but never steps on the scale look permanently current, so their
+  // stale baseline never surfaced.
   const expiredBaselinesList = [];
   filteredAthletes.forEach(a => {
-    const aRecs = reportData.filter(r => r.athlete_id === a.id).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+    const aRecs = reportData.filter(r => r.athlete_id === a.id && !isRpeLog(r) && r.weight_lbs && Number(r.weight_lbs) > 0).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
     if (aRecs.length === 0) {
       expiredBaselinesList.push({ athlete_name: a.name, sport: a.sport, team: a.team, status: 'No Weight Log Yet' });
     } else {
@@ -143,10 +147,12 @@ export default function ReportsScreen({
   });
 
   // 5. Weight Fluctuation Leaderboard (weight-carrying logs only - sleep-only logs with
-  // weight 0/null used to register as huge bogus "drops" like 185 -> 0 lbs)
+  // weight 0/null used to register as huge bogus "drops" like 185 -> 0 lbs). Post-practice
+  // sweat checks are excluded too: if the athlete's most recent row is one, the board reads
+  // their normal fluid loss as season-long weight loss.
   const gains = [];
   filteredAthletes.forEach(a => {
-    const aRecs = reportData.filter(r => r.athlete_id === a.id && r.weight_lbs && Number(r.weight_lbs) > 0).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+    const aRecs = reportData.filter(r => r.athlete_id === a.id && r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r) && !isRpeLog(r)).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
     if (aRecs.length >= 2) {
       const first = aRecs[0];
       const latest = aRecs[aRecs.length - 1];
@@ -166,6 +172,10 @@ export default function ReportsScreen({
   // 6. Team/Roster Rollups — compliance (logged within baseline expiry window) & 7-day
   // participation, broken out per sport program. This is the "monthly staff meeting" view,
   // not something anyone needs to see every day.
+  // Compliance and participation both mean "checked in on the scale / for sleep", not
+  // "produced any row at all". A Session RPE entry is a training-load report, so counting
+  // it here would show a program at 100% compliance in a week nobody weighed in.
+  const isCheckIn = (r) => !isRpeLog(r) && ((r.weight_lbs && Number(r.weight_lbs) > 0) || (r.sleep_hrs != null && Number(r.sleep_hrs) > 0));
   const rollupAthletes = reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const bySport = new Map();
@@ -175,7 +185,7 @@ export default function ReportsScreen({
     const bucket = bySport.get(sport);
     bucket.total += 1;
 
-    const aRecs = reportData.filter(r => r.athlete_id === a.id).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+    const aRecs = reportData.filter(r => r.athlete_id === a.id && isCheckIn(r)).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
     if (aRecs.length > 0) {
       const gapDays = Math.floor((now - new Date(aRecs[0].created_at)) / (1000 * 60 * 60 * 24));
       if (gapDays < baselineExpiryDays) bucket.compliant += 1;
@@ -187,13 +197,13 @@ export default function ReportsScreen({
   });
   const sportRollups = Array.from(bySport.values()).sort((a, b) => (a.compliant / a.total) - (b.compliant / b.total));
   const overallCompliance = rollupAthletes.length ? Math.round((rollupAthletes.filter(a => {
-    const aRecs = reportData.filter(r => r.athlete_id === a.id);
+    const aRecs = reportData.filter(r => r.athlete_id === a.id && isCheckIn(r));
     if (aRecs.length === 0) return false;
     const latest = aRecs.reduce((m, r) => new Date(r.created_at) > new Date(m.created_at) ? r : m);
     return Math.floor((now - new Date(latest.created_at)) / (1000 * 60 * 60 * 24)) < baselineExpiryDays;
   }).length / rollupAthletes.length) * 100) : 0;
   const overallParticipation = rollupAthletes.length ? Math.round((rollupAthletes.filter(a =>
-    reportData.some(r => r.athlete_id === a.id && new Date(r.created_at) >= sevenDaysAgo)
+    reportData.some(r => r.athlete_id === a.id && isCheckIn(r) && new Date(r.created_at) >= sevenDaysAgo)
   ).length / rollupAthletes.length) * 100) : 0;
 
   // 7. Case-file: full alert lifecycle history for a single selected athlete (audit trail —
