@@ -75,23 +75,46 @@ const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHigh
   check('Football card present', /Football/.test(loadPanel));
   check('Volleyball card present', /Volleyball/.test(loadPanel));
   check('Wrestling card present', /Wrestling/.test(loadPanel));
-  check('a sport with no logs still gets a card', /NO LOGS/.test(loadPanel),
+  check('a sport with no logs still gets a card',
+    (await page.locator('[data-testid="rpe-sport-card"]').count()) === 3,
     'sports without activity vanished instead of showing 0%');
 
   console.log('\n[B] Per-sport numbers are right');
   // Football: 2 logs from 1 of 2 athletes -> 50%, avg (4+6)/2 = 5.0
-  check('Football shows 50% (1 of 2 reported)', /50%\s*\(1\/2\)/.test(loadPanel),
-    (loadPanel.match(/Football[\s\S]{0,220}/) || [''])[0].replace(/\n/g, ' | '));
-  check('Football averages its two sessions to 5.0', /AVG 5\.0/.test(loadPanel));
-  check('Football counts 2 sessions logged', /2 Sessions Logged/.test(loadPanel));
-  check('Volleyball shows 0% (0/2)', /0%\s*\(0\/2\)/.test(loadPanel));
-  check('Wrestling flagged as hard', /1 hard/.test(loadPanel),
-    'an RPE at/above the high threshold was not surfaced on the sport card');
+  // Read each card from the DOM rather than slicing panel text: the outliers strip above
+  // the grid also names sports, which made text slicing pick up the wrong region.
+  const cards = {};
+  for (const el of await page.locator('[data-testid="rpe-sport-card"]').all()) {
+    cards[await el.getAttribute('data-sport')] = await el.innerText();
+  }
+  const football = cards['Football'] || '';
+  const volleyball = cards['Volleyball'] || '';
+  const wrestling = cards['Wrestling'] || '';
+
+  check('one card rendered per sport', Object.keys(cards).length === 3, `got ${Object.keys(cards).join(', ')}`);
+  check('each card carries its own TEAM AVG RPE label',
+    [football, volleyball, wrestling].every(c => /TEAM AVG RPE/i.test(c)));
+  check('each card carries its own LOG RESPONSE RATE label',
+    [football, volleyball, wrestling].every(c => /LOG RESPONSE RATE/i.test(c)));
+
+  // Football: 2 logs from 1 of 2 athletes -> 50%, avg (4+6)/2 = 5.0
+  check('Football avg is 5.0 / 10', /5\.0\s*\/\s*10/.test(football), football.replace(/\n/g, ' | '));
+  check('Football response rate is 50%', /50%/.test(football));
+  check('Football counts 2 sessions logged', /2 Sessions Logged/i.test(football));
+  // Volleyball logged nothing: an em dash rather than a fake 0.0 average.
+  check('Volleyball avg reads as no data, not 0.0', /\u2014\s*\/\s*10/.test(volleyball), volleyball.replace(/\n/g, ' | '));
+  check('Volleyball response rate is 0%', /0%/.test(volleyball));
+  check('Volleyball reports 0/2 athletes', /0\/2 athletes/i.test(volleyball));
+  check('Wrestling flagged as hard', /1 HARD/i.test(wrestling), wrestling.replace(/\n/g, ' | '));
+  check('Wrestling avg is 9.0', /9\.0\s*\/\s*10/.test(wrestling));
 
   console.log('\n[C] Response rate counts athletes, not rows');
   // 2 of 5 athletes reported = 40%. Counting the 3 log rows would give 60%.
-  const headerRate = (loadPanel.match(/LOG RESPONSE RATE\s*\n?\s*(\d+)%/) || [])[1];
-  check('team response rate is 40%, not 60%', headerRate === '40', `got ${headerRate}%`);
+  // Roll-up pill in the panel header: 2 of 5 athletes reported = 40%.
+  // Counting the 3 log rows instead would read 60%.
+  check('header roll-up reports 2 of 5', /2 of 5 REPORTED/i.test(loadPanel),
+    (loadPanel.match(/TODAY'S SESSION LOAD[\s\S]{0,120}/) || [''])[0].replace(/\n/g, ' | '));
+  check('header roll-up rate is 40%, not 60%', /40%/.test(loadPanel) && !/60%/.test(loadPanel));
   // 100% is legitimate (Wrestling: its one athlete reported). Only above 100 is a bug -
   // which is exactly what dividing rows by athletes used to produce.
   const rates = [...loadPanel.matchAll(/(\d+)%/g)].map(m => Number(m[1]));

@@ -357,20 +357,22 @@ export default function DashboardScreen({
                     TODAY'S SESSION LOAD
                   </h3>
                 </div>
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TEAM AVG RPE</span>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: avgRpe >= settings.rpeHighThreshold ? '#ef4444' : '#60a5fa' }}>
-                      {avgRpe} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>/ {settings.rpeScaleMax}</span>
-                    </span>
-                  </div>
-                  <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LOG RESPONSE RATE</span>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: 'var(--white)' }}>
-                      {rpeRate}%
-                    </span>
-                  </div>
+                {/* The avg/response pair now lives on each team card. What stays up here is
+                    a roll-up pill, matching the accountability tracker's summary below. */}
+                <div style={{
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {todaysRpeLogs.length === 0
+                      ? 'NO SESSIONS LOGGED YET'
+                      : `${respondedIds.size} of ${athletes.length} REPORTED \u00b7 ${rpeRate}% \u00b7 AVG ${avgRpe}`}
+                  </span>
                 </div>
               </div>
 
@@ -406,7 +408,7 @@ export default function DashboardScreen({
                   const none = s.logCount === 0;
                   const isHard = s.avg != null && s.avg >= settings.rpeHighThreshold;
                   return (
-                    <div key={s.sport} className="glow-card" style={{
+                    <div key={s.sport} data-testid={`rpe-sport-card`} data-sport={s.sport} className="glow-card" style={{
                       padding: '20px',
                       borderRadius: '18px',
                       background: none ? 'rgba(255,255,255,0.02)' : (isHard ? 'rgba(239, 68, 68, 0.04)' : 'rgba(59, 130, 246, 0.04)'),
@@ -425,18 +427,37 @@ export default function DashboardScreen({
                             {s.logCount === 0 ? `${s.rosterCount} Athletes Listed` : `${s.logCount} Session${s.logCount !== 1 ? 's' : ''} Logged`}
                           </span>
                         </div>
-                        <span style={{
-                          fontSize: '12px',
-                          fontWeight: 800,
-                          padding: '4px 10px',
-                          borderRadius: '12px',
-                          whiteSpace: 'nowrap',
-                          background: none ? 'rgba(255,255,255,0.06)' : (isHard ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)'),
-                          color: none ? 'var(--color-text-muted)' : (isHard ? '#ef4444' : '#60a5fa'),
-                          letterSpacing: '0.04em'
-                        }}>
-                          {none ? 'NO LOGS' : `AVG ${s.avg.toFixed(1)} / ${settings.rpeScaleMax}`}
-                        </span>
+                        {s.hard > 0 && (
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            padding: '4px 10px',
+                            borderRadius: '12px',
+                            whiteSpace: 'nowrap',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: '#ef4444',
+                            letterSpacing: '0.04em'
+                          }}>
+                            {s.hard} HARD
+                          </span>
+                        )}
+                      </div>
+
+                      {/* The pair that used to sit in the panel header, now per team. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TEAM AVG RPE</span>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: none ? 'var(--color-text-muted)' : (isHard ? '#ef4444' : '#60a5fa') }}>
+                            {none ? '\u2014' : s.avg.toFixed(1)} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>/ {settings.rpeScaleMax}</span>
+                          </span>
+                        </div>
+                        <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LOG RESPONSE RATE</span>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: 'var(--white)' }}>
+                            {s.pct}%
+                          </span>
+                        </div>
                       </div>
 
                       <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
@@ -452,10 +473,7 @@ export default function DashboardScreen({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Reported Today</span>
                         <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--white)' }}>
-                          {s.pct}% ({s.responded}/{s.rosterCount})
-                          {s.hard > 0 && (
-                            <span style={{ color: '#ef4444', marginLeft: '8px' }}>· {s.hard} hard</span>
-                          )}
+                          {s.responded}/{s.rosterCount} athletes
                         </span>
                       </div>
                     </div>
