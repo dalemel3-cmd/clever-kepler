@@ -95,6 +95,48 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
     await ctx.close();
   }
 
+
+  console.log('\n[D] Toggling RPE survives a refresh without pressing Save');
+  {
+    const { ctx, page } = await newPage();
+    await page.goto(`${APP}/#settings`); await page.waitForTimeout(1600);
+    await page.locator('#setting-enableRpe').click(); await page.waitForTimeout(400);
+    // Deliberately do NOT press "Save All Settings" - a switch reads as already applied.
+    await page.reload(); await page.waitForTimeout(1800);
+    const after = await page.locator('#setting-enableRpe').getAttribute('aria-checked');
+    check('toggle is still ON after refresh (no Save pressed)', after === 'true',
+      'the switch reverted - it only lived in React state');
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hpd_settings') || '{}').enableRpe);
+    check('enableRpe was written to storage on click', stored === true, `stored=${stored}`);
+    await ctx.close();
+  }
+
+  console.log('\n[E] Log-type pickers offer Session RPE');
+  {
+    const { ctx, page } = await newPage({ settings: { enableRpe: true } });
+    await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(1800);
+    const rpeBtn = page.getByRole('button', { name: /^Session RPE$/ });
+    check('dashboard banner offers Session RPE', await rpeBtn.count() > 0,
+      'only Start Weigh-Ins / Post-Practice were available');
+    if (await rpeBtn.count()) {
+      await rpeBtn.first().click(); await page.waitForTimeout(1500);
+      const body = await page.locator('body').innerText();
+      check('it lands on the kiosk in RPE mode', /session RPE/i.test(body), body.slice(0, 120));
+    }
+
+    // The per-athlete modal must offer the same choice.
+    await page.goto(`${APP}/#entry`); await page.waitForTimeout(1500);
+    await page.getByText('Test Athlete').first().click(); await page.waitForTimeout(1200);
+    check('athlete modal offers RPE Only', await page.getByRole('button', { name: /RPE Only/i }).count() > 0);
+    await page.getByRole('button', { name: /RPE Only/i }).first().click(); await page.waitForTimeout(700);
+    const modal = await page.locator('body').innerText();
+    check('modal header shows Session RPE Only', /Session RPE Only/i.test(modal));
+    check('body weight field is hidden in RPE Only', !/BODY WEIGHT/i.test(modal),
+      'a scale field is shown that the save discards');
+    check('RPE field is shown', /SESSION RPE \(1-/i.test(modal));
+    await ctx.close();
+  }
+
   console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
   await browser.close();
   process.exit(fail === 0 ? 0 : 1);

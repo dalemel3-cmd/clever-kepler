@@ -538,7 +538,7 @@ export default function EntryScreen({
             {/* Track Mode Indicator / Rapid Switch */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap', gap: '8px' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Mode: <span style={{ color: 'var(--white)' }}>{kioskTrackMode === 'sleep_only' ? '😴 Sleep & Recovery Only' : '⚖️ Weight + Sleep'}</span>
+                Mode: <span style={{ color: 'var(--white)' }}>{kioskTrackMode === 'sleep_only' ? '😴 Sleep & Recovery Only' : (kioskTrackMode === 'rpe' ? '🎯 Session RPE Only' : '⚖️ Weight + Sleep')}</span>
               </span>
               <div style={{ display: 'flex', background: 'rgba(0,0,0,0.4)', padding: '2px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <button
@@ -563,6 +563,19 @@ export default function EntryScreen({
                 >
                   😴 Sleep Only
                 </button>
+                {settings?.enableRpe && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKioskTrackMode('rpe');
+                      try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch(e){}
+                      setFocusedField('rpe');
+                    }}
+                    style={{ padding: '4px 10px', borderRadius: '14px', background: kioskTrackMode === 'rpe' ? 'var(--color-accent)' : 'transparent', color: kioskTrackMode === 'rpe' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', fontWeight: 700, fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s' }}
+                  >
+                    🎯 RPE Only
+                  </button>
+                )}
               </div>
             </div>
 
@@ -570,7 +583,10 @@ export default function EntryScreen({
             <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
               {/* Left Column: Inputs */}
               <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {kioskTrackMode === 'sleep_only' ? (
+                {/* RPE Only records no body weight, so don't show a scale field the save
+                    would throw away. Sleep Only still shows the "tap to enable" card,
+                    because there the weight is genuinely one tap away. */}
+                {kioskTrackMode === 'rpe' ? null : kioskTrackMode === 'sleep_only' ? (
                   <div
                     onClick={() => {
                       setKioskTrackMode('both');

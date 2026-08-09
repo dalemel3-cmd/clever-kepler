@@ -5,6 +5,7 @@ import CoachAccessCard from './CoachAccessCard';
 export default function SettingsScreen({
   settings,
   updateSetting,
+  updateSettingNow,
   handleResetSettings,
   settingsSavedToast,
   isAppInstalled,
@@ -276,7 +277,7 @@ export default function SettingsScreen({
                         type="button"
                         role="switch"
                         aria-checked={!!settings[f.key]}
-                        onClick={() => updateSetting(f.key, !settings[f.key])}
+                        onClick={() => (updateSettingNow || updateSetting)(f.key, !settings[f.key])}
                         style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '0 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '13px', letterSpacing: '0.04em', background: settings[f.key] ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)', color: settings[f.key] ? 'var(--navy-950)' : 'var(--color-text-muted)', border: settings[f.key] ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}
                       >
                         <span>{settings[f.key] ? 'ON' : 'OFF'}</span>

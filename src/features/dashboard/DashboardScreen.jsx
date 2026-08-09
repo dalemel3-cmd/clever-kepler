@@ -3,6 +3,7 @@ import { getCentralDateString, getCentralTimeString, isRpeLog } from '../../util
 
 export default function DashboardScreen({
   settings,
+  setKioskTrackMode,
   athletes,
   reportData,
   executiveInsights,
@@ -96,6 +97,11 @@ export default function DashboardScreen({
                 {!isComplete && (
                   <button
                     onClick={() => {
+                      // Set the mode explicitly: this row is a "what am I logging?" picker,
+                      // so landing on the kiosk in whatever mode it was left in would make
+                      // the button lie about what it does.
+                      setKioskTrackMode('both');
+                      try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch (e) {}
                       setUnweighedOnlyFilter(true);
                       setScreen('entry');
                     }}
@@ -120,6 +126,39 @@ export default function DashboardScreen({
                   >
                     <span>Start Weigh-Ins</span>
                     <span>➔</span>
+                  </button>
+                )}
+                {settings.enableRpe && (
+                  <button
+                    onClick={() => {
+                      setKioskTrackMode('rpe');
+                      try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch (e) {}
+                      // RPE is logged after a session by whoever trained, not just by the
+                      // athletes who missed a morning weigh-in, so don't carry the
+                      // unweighed-only filter into it.
+                      setUnweighedOnlyFilter(false);
+                      setScreen('entry');
+                    }}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: '12px',
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      border: '1px solid rgba(96, 165, 250, 0.5)',
+                      color: '#60a5fa',
+                      fontFamily: 'var(--font-display)',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      letterSpacing: '0.04em',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexShrink: 0,
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Target size={15} />
+                    <span>Session RPE</span>
                   </button>
                 )}
                 <button

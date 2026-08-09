@@ -135,6 +135,18 @@ export default function App() {
     }));
   }, []);
 
+  // On/off switches persist the moment they are flipped, rather than waiting for
+  // "Save All Settings" like the numeric fields do. A half-typed threshold is a good
+  // reason to defer a write; a switch is not - it reads as already applied, so leaving
+  // it unsaved meant turning Session RPE on, watching it appear, and losing it on the
+  // next refresh.
+  const updateSettingNow = React.useCallback((key, value) => {
+    setSettings(prev => {
+      const next = { ...prev, [key]: typeof value === 'function' ? value(prev[key]) : value };
+      return saveSettings(next);
+    });
+  }, []);
+
   // Setter shims so existing controls keep their prev => next ergonomics.
   const setDehydrationThreshold = React.useCallback(v => updateSetting('dehydrationThreshold', v), [updateSetting]);
   const setSleepThreshold = React.useCallback(v => updateSetting('sleepThreshold', v), [updateSetting]);
@@ -3026,6 +3038,7 @@ export default function App() {
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}
                 setUnweighedOnlyFilter={setUnweighedOnlyFilter}
+                setKioskTrackMode={setKioskTrackMode}
                 setManualEntryForm={setManualEntryForm}
                 setShowManualEntryModal={setShowManualEntryModal}
                 setSelectedSportFilter={setSelectedSportFilter}
@@ -3216,6 +3229,7 @@ export default function App() {
               <SettingsScreen
                 settings={settings}
                 updateSetting={updateSetting}
+                updateSettingNow={updateSettingNow}
                 handleResetSettings={handleResetSettings}
                 settingsSavedToast={settingsSavedToast}
                 isAppInstalled={isAppInstalled}
