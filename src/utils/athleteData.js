@@ -212,7 +212,7 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
 
   // Only filter + sort the full log list when no override exists.
   const athleteRecords = allLogs
-    .filter(r => (r.athlete_id === athId || r.id === athId) && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0 && !isPostPracticeLog(r))
+    .filter(r => (r.athlete_id === athId || r.id === athId) && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r))
     .sort((a, b) => new Date(a.created_at || a.date || 0) - new Date(b.created_at || b.date || 0));
 
   // 2. Check for explicit is_baseline === true log (most recent first)
@@ -260,3 +260,8 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
 
   return null;
 };
+
+// RPE & Training Load Predicates
+export const isRpeLog   = (r) => r?.session_type === 'rpe' || (r?.rpe != null && !r?.weight_lbs);
+export const hasWeight  = (r) => r?.weight_lbs != null && Number(r.weight_lbs) > 0;
+export const hasSleep   = (r) => r?.sleep_hrs != null && Number(r.sleep_hrs) > 0;
