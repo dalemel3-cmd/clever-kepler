@@ -1,7 +1,7 @@
 import { User, Search, X, ArrowUpRight, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
-import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
+import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, hasWeight, isRpeLog } from '../../utils/athleteData';
 
 export default function ProfilesScreen({
   settings,
@@ -193,9 +193,10 @@ export default function ProfilesScreen({
   }
 
   const sortedLogs = [...profileData].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-  const weightLogs = sortedLogs.filter(l => l.weight_lbs && Number(l.weight_lbs) > 0 && !isPostPracticeLog(l));
-  const postPracticeLogs = sortedLogs.filter(l => l.weight_lbs && Number(l.weight_lbs) > 0 && isPostPracticeLog(l)).reverse();
+  const weightLogs = sortedLogs.filter(l => hasWeight(l) && !isPostPracticeLog(l) && !isRpeLog(l));
+  const postPracticeLogs = sortedLogs.filter(l => hasWeight(l) && isPostPracticeLog(l) && !isRpeLog(l)).reverse();
   const sleepLogs = sortedLogs.filter(l => l.sleep_hrs && Number(l.sleep_hrs) > 0);
+  const rpeLogs = sortedLogs.filter(isRpeLog);
 
   const latestWeight = weightLogs.length > 0 ? Number(weightLogs[weightLogs.length-1].weight_lbs) : null;
   const baseInfo = getAthleteBaseline(athlete, sortedLogs.length ? sortedLogs : reportData);
@@ -208,6 +209,18 @@ export default function ProfilesScreen({
   const maxSleep = sleepLogs.length > 0 ? Math.max(...sleepLogs.map(l => Number(l.sleep_hrs))) : '--';
   const deficitNights = sleepLogs.filter(l => Number(l.sleep_hrs) < sleepDeficitBelow).length;
   const recoveryScore = sleepLogs.length > 0 ? Math.round((sleepLogs.filter(l => Number(l.sleep_hrs) >= sleepRecoveryAt).length / sleepLogs.length) * 100) : null;
+
+  const todayMs = new Date().getTime();
+  const daysMs = (days) => days * 24 * 60 * 60 * 1000;
+  const recentRpe = rpeLogs.filter(l => (todayMs - new Date(l.created_at).getTime()) <= daysMs(7));
+  const chronicRpe = rpeLogs.filter(l => (todayMs - new Date(l.created_at).getTime()) <= daysMs(settings.rpeChronicWeeks * 7));
+  
+  const acuteLoad = recentRpe.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
+  const chronicLoadTotal = chronicRpe.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
+  const chronicAvgWeeklyLoad = settings.rpeChronicWeeks > 0 ? (chronicLoadTotal / settings.rpeChronicWeeks) : 0;
+  const acRatio = chronicAvgWeeklyLoad > 0 ? (acuteLoad / chronicAvgWeeklyLoad).toFixed(2) : '--';
+  const avgRpeNum = recentRpe.length > 0 ? (recentRpe.reduce((sum, l) => sum + (l.rpe || 0), 0) / recentRpe.length).toFixed(1) : '--';
+  const isDangerSpike = acRatio !== '--' && Number(acRatio) >= settings.rpeLoadSpikeRatio;
 
   const daysAgo = sortedLogs.length > 0 && sortedLogs[sortedLogs.length-1].created_at ? Math.floor((new Date() - new Date(sortedLogs[sortedLogs.length-1].created_at)) / (1000 * 60 * 60 * 24)) : null;
 
@@ -334,6 +347,34 @@ export default function ProfilesScreen({
               {daysAgo != null ? (daysAgo === 0 ? '✨ Active Today' : `Last active ${daysAgo}d ago`) : 'No historical sessions'}
             </span>
           </div>
+
+          {settings.enableRpe && (
+            <>
+              <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: isDangerSpike ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>7-DAY A:C WORKLOAD RATIO</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, color: isDangerSpike ? '#ef4444' : '#60a5fa' }}>
+                    {acRatio}
+                  </span>
+                </div>
+                <span style={{ fontSize: '12px', color: isDangerSpike ? '#ef4444' : 'var(--color-text-muted)', fontWeight: 600 }}>
+                  {isDangerSpike ? `⚠️ High Spike Risk (≥${settings.rpeLoadSpikeRatio})` : `Compared to ${settings.rpeChronicWeeks}-wk baseline`}
+                </span>
+              </div>
+              <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>7-DAY CUMULATIVE LOAD</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, color: '#fff' }}>
+                    {acuteLoad}
+                  </span>
+                  <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 700 }}>AU</span>
+                </div>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  Average RPE: {avgRpeNum}
+                </span>
+              </div>
+            </>
+          )}
 
         </div>
       </div>
@@ -482,6 +523,57 @@ export default function ProfilesScreen({
             )}
           </div>
         </div>
+
+        {/* 3. Session RPE Trends (Only if enabled) */}
+        {settings.enableRpe && (
+          <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Target size={15} /> INTERNAL LOAD TRACKING
+                </span>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, margin: '4px 0 0', color: '#fff', textTransform: 'uppercase' }}>
+                  SESSION LOAD & RPE TRENDS
+                </h3>
+              </div>
+            </div>
+
+            <div style={{ height: '260px', position: 'relative', paddingTop: '16px', marginLeft: '-20px' }}>
+              {rpeLogs.length > 0 ? (() => {
+                const rpeData = rpeLogs.slice(-20).map(d => ({
+                  date: d.created_at ? new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown',
+                  RPE: Number(d.rpe) || 0,
+                  Load: (Number(d.rpe) || 0) * (Number(d.session_minutes) || 0),
+                  fillColor: Number(d.rpe) >= settings.rpeHighThreshold ? '#ef4444' : '#60a5fa'
+                }));
+
+                return (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={rpeData} margin={{ top: 15, right: 30, left: 10, bottom: 0 }}>
+                      <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
+                      <YAxis domain={[0, settings.rpeScaleMax]} hide />
+                      <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                      <ReferenceLine y={settings.rpeHighThreshold} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} label={{ value: 'HIGH RPE', position: 'insideTopLeft', fill: '#ef4444', fontSize: 10, fontWeight: 'bold' }} />
+                      <Bar dataKey="RPE" radius={[4, 4, 0, 0]}>
+                        {rpeData.map((entry, index) => (
+                          <cell key={`cell-${index}`} fill={entry.fillColor} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })() : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px dashed rgba(255, 255, 255, 0.1)', padding: '24px' }}>
+                  <Target size={32} style={{ opacity: 0.5 }} />
+                  <span style={{ fontSize: '15px', fontWeight: 700, textAlign: 'center' }}>NO RPE DATA RECORDED</span>
+                  <span style={{ fontSize: '13px', textAlign: 'center', maxWidth: '320px', lineHeight: 1.5 }}>
+                    This athlete has not logged any session RPE values yet.
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       </div>
 
@@ -662,6 +754,7 @@ export default function ProfilesScreen({
                   <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>SESSION DELTA</th>
                   <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>SLEEP DURATION</th>
                   <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>RECOVERY STATUS</th>
+                  {settings.enableRpe && <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>RPE / LOAD</th>}
                   <th style={{ padding: '16px 20px', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right' }}>ACTION</th>
                 </tr>
               </thead>
@@ -696,8 +789,8 @@ export default function ProfilesScreen({
                             {currentW.toFixed(1)} <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>lb</span>
                           </span>
                         ) : (
-                          <span style={{ fontSize: '12px', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', padding: '4px 12px', borderRadius: '12px', fontWeight: 700, border: '1px solid rgba(139, 92, 246, 0.3)' }}>
-                            😴 Sleep Only Mode
+                          <span style={{ fontSize: '12px', background: isRpeLog(log) ? 'rgba(59, 130, 246, 0.15)' : 'rgba(139, 92, 246, 0.15)', color: isRpeLog(log) ? '#60a5fa' : '#c084fc', padding: '4px 12px', borderRadius: '12px', fontWeight: 700, border: isRpeLog(log) ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(139, 92, 246, 0.3)' }}>
+                            {isRpeLog(log) ? '🎯 Session RPE' : '😴 Sleep Only Mode'}
                           </span>
                         )}
                       </td>
@@ -743,6 +836,18 @@ export default function ProfilesScreen({
                           <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>—</span>
                         )}
                       </td>
+
+                      {settings.enableRpe && (
+                        <td style={{ padding: '16px 20px' }}>
+                          {log.rpe != null ? (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: log.rpe >= settings.rpeHighThreshold ? '#ef4444' : '#60a5fa' }}>{log.rpe} <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>/ {settings.rpeScaleMax}</span></span>
+                              {log.session_minutes ? <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>({log.rpe * log.session_minutes} AU)</span> : null}
+                              {log.session_label && <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{log.session_label}</span>}
+                            </div>
+                          ) : <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>—</span>}
+                        </td>
+                      )}
 
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>

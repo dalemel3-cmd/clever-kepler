@@ -1,9 +1,10 @@
-import { CheckCircle, Zap } from 'lucide-react';
-import { getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
+import { CheckCircle, Zap, Activity, Target, AlertTriangle } from 'lucide-react';
+import { getCentralDateString, getCentralTimeString, isRpeLog } from '../../utils/athleteData';
 
 export default function DashboardScreen({
   settings,
   athletes,
+  reportData,
   executiveInsights,
   todaySessions,
   athletesRecordedToday,
@@ -269,6 +270,75 @@ export default function DashboardScreen({
             );
           })()}
         </div>
+
+        {/* 3. Session RPE Analytics (Only shown if RPE is enabled) */}
+        {settings.enableRpe && (() => {
+          const todayDateStr = getCentralDateString();
+          const todaysRpeLogs = (reportData || []).filter(r => isRpeLog(r) && r.created_at && r.created_at.startsWith(todayDateStr));
+          const avgRpe = todaysRpeLogs.length > 0 ? (todaysRpeLogs.reduce((acc, r) => acc + (r.rpe || 0), 0) / todaysRpeLogs.length).toFixed(1) : 0;
+          const outliers = todaysRpeLogs.filter(r => r.rpe >= settings.rpeHighThreshold);
+          const rpeRate = athletes.length > 0 ? Math.round((todaysRpeLogs.length / athletes.length) * 100) : 0;
+
+          return (
+            <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Target size={14} /> INTERNAL LOAD METRICS
+                  </span>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: '4px 0 0 0', letterSpacing: '0.03em' }}>
+                    TODAY'S SESSION LOAD
+                  </h3>
+                </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TEAM AVG RPE</span>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: avgRpe >= settings.rpeHighThreshold ? '#ef4444' : '#60a5fa' }}>
+                      {avgRpe} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>/ {settings.rpeScaleMax}</span>
+                    </span>
+                  </div>
+                  <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LOG RESPONSE RATE</span>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: 'var(--white)' }}>
+                      {rpeRate}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {outliers.length > 0 && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '16px', padding: '16px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#ef4444', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+                    <AlertTriangle size={14} /> {outliers.length} OUTLIERS (RPE ≥ {settings.rpeHighThreshold})
+                  </span>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    {outliers.map(r => {
+                      const athlete = athletes.find(a => a.id === r.athlete_id);
+                      const initials = r.athlete_name ? r.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
+                      return (
+                        <div key={r.id} onClick={() => { setSelectedProfileId(r.athlete_id); fetchProfileData(r.athlete_id); setScreen('profiles'); }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#ef4444', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
+                            {r.rpe}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--white)' }}>{r.athlete_name}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{athlete?.sport || 'General'}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {todaysRpeLogs.length === 0 && (
+                <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>
+                  No RPE logs recorded yet today.
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 4. Full-Width Gamified Compliance Hub: WEIGH-INS REMAINING */}
         <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>

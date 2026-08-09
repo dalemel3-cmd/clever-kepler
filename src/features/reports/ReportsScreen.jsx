@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2, Download, TrendingUp, User, Users } from 'lucide-react';
-import { getAthleteBaseline, getCentralDateString, isPostPracticeLog } from '../../utils/athleteData';
+import { getAthleteBaseline, getCentralDateString, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 const LOG_TABLE_PAGE_SIZE = 250;
 
@@ -222,11 +222,49 @@ export default function ReportsScreen({
 
   const exportReportCSV = () => {
     const headers = ['Athlete', 'Sport', 'Weight (lbs)', 'Sleep (hrs)', 'Date'];
-    const rows = filteredLogs.map(log => [
-      log.athlete_name || '', log.sport || '', log.weight_lbs || '', log.sleep_hrs || '',
-      new Date(log.created_at).toLocaleString()
-    ]);
-    downloadCSV(`Report_${reportSportFilter}_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+    if (settings.enableRpe) {
+      headers.push('RPE', 'Session Minutes', 'Session Load', 'Session Label');
+    }
+    
+    const rows = filteredLogs.map(log => {
+      const row = [
+        log.athlete_name || '', log.sport || '', log.weight_lbs || '', log.sleep_hrs || '',
+        new Date(log.created_at).toLocaleString()
+      ];
+      if (settings.enableRpe) {
+        row.push(
+          log.rpe || '', 
+          log.session_minutes || '', 
+          (log.rpe && log.session_minutes) ? (log.rpe * log.session_minutes) : '',
+          log.session_label || ''
+        );
+      }
+      return row;
+    });
+    
+    // Helper to escape CSV fields
+    const escapeCSV = (field) => {
+      if (field == null) return '';
+      const str = String(field);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Report_${reportSportFilter}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -747,6 +785,47 @@ export default function ReportsScreen({
             </div>
           )}
 
+          {/* Section 5d: Session Load Analytics (RPE) */}
+          {settings.enableRpe && (
+            <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #ef4444' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Activity size={20} style={{ color: '#ef4444' }} />
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>SESSION LOAD ANALYTICS</h3>
+              </div>
+              
+              {(() => {
+                const rpeLogs = filteredLogs.filter(isRpeLog);
+                const totalLogs = rpeLogs.length;
+                const totalLoad = rpeLogs.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
+                const avgRpe = totalLogs > 0 ? (rpeLogs.reduce((sum, l) => sum + (l.rpe || 0), 0) / totalLogs).toFixed(1) : 0;
+                
+                const uniqueAthletes = new Set(rpeLogs.map(l => l.athlete_id)).size;
+                const avgAthleteLoad = uniqueAthletes > 0 ? (totalLoad / uniqueAthletes).toFixed(0) : 0;
+
+                return (
+                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                    <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#ef4444' }}>{totalLogs}</div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Total RPE Sessions</div>
+                    </div>
+                    <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-accent)' }}>{avgRpe}</div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Average Session RPE</div>
+                    </div>
+                    <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>{totalLoad} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 600 }}>AU</span></div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Cumulative Load (AU)</div>
+                    </div>
+                    <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>{avgAthleteLoad} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 600 }}>AU</span></div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Avg Load per Athlete</div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Section 6: Chronological Raw Log Table - excluded from Export to PDF (see
               print-summary-only rules in styles.css): it's the whole point of the on-screen
               report, but a 300+ row table isn't "summary" material for a printed handout, and
@@ -783,6 +862,7 @@ export default function ReportsScreen({
                         <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>SPORT / TEAM</th>
                         <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST WEIGHT</th>
                         <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST SLEEP</th>
+                        {settings.enableRpe && <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>RPE / LOAD</th>}
                         <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LOG DATE</th>
                         <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', width: '60px' }}></th>
                       </tr>
@@ -793,11 +873,21 @@ export default function ReportsScreen({
                           <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
                           <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
                           <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>
-                            {log.weight_lbs && Number(log.weight_lbs) > 0 ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>😴 Sleep Only</span>}
+                            {log.weight_lbs && Number(log.weight_lbs) > 0 ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>{isRpeLog(log) ? '🎯 Session RPE' : '😴 Sleep Only'}</span>}
                           </td>
                           <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < sleepThreshold) ? 'var(--status-error)' : 'var(--color-text)' }}>
                             {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
                           </td>
+                          {settings.enableRpe && (
+                            <td style={{ padding: '16px', fontWeight: 700 }}>
+                              {log.rpe != null ? (
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                  <span style={{ color: log.rpe >= settings.rpeHighThreshold ? '#ef4444' : '#60a5fa' }}>{log.rpe}</span>
+                                  {log.session_minutes && <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>({log.rpe * log.session_minutes} AU)</span>}
+                                </div>
+                              ) : '-'}
+                            </td>
+                          )}
                           <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
                             {new Date(log.created_at).toLocaleDateString()}
                           </td>

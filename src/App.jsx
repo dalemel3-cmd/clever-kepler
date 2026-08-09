@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database } from 'lucide-react';
+import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database, Target } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import './styles.css';
 import { Confetti } from './components/Confetti';
@@ -34,7 +34,8 @@ import {
   getBaselinesMap,
   invalidateAthleteDataCache,
   configureProgramContext,
-  configureWeightBounds
+  configureWeightBounds,
+  isRpeLog
 } from './utils/athleteData';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, getAppHost } from './settings';
 
@@ -2351,12 +2352,48 @@ export default function App() {
       }
     });
 
-    // Most urgent first: longest consecutive-day streak wins, then largest magnitude
-    // (drop % or sleep-hour deficit) within the same streak length.
-    alerts.sort((a, b) => (b.streak - a.streak) || (b.magnitude - a.magnitude));
+    if (settings.enableRpe) {
+      const todaysRpeLogs = todaysRecords.filter(isRpeLog);
+      const athleteIdsWithRpeToday = [...new Set(todaysRpeLogs.map(r => r.athlete_id))];
 
-    return alerts;
-  }, [reportData, athletes, dehydrationThreshold, sleepThreshold, alertStreakLookup]);
+      athleteIdsWithRpeToday.forEach(athleteId => {
+        const athlete = athleteById.get(athleteId);
+        if (!athlete) return;
+        
+        const athleteLogs = reportData.filter(l => l.athlete_id === athleteId && isRpeLog(l));
+        const daysMs = (days) => days * 24 * 60 * 60 * 1000;
+        const recentRpe = athleteLogs.filter(l => (now - new Date(l.created_at).getTime()) <= daysMs(7));
+        const chronicRpe = athleteLogs.filter(l => (now - new Date(l.created_at).getTime()) <= daysMs(settings.rpeChronicWeeks * 7));
+        
+        const acuteLoad = recentRpe.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
+        const chronicLoadTotal = chronicRpe.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
+        const chronicAvgWeeklyLoad = settings.rpeChronicWeeks > 0 ? (chronicLoadTotal / settings.rpeChronicWeeks) : 0;
+        
+        if (chronicAvgWeeklyLoad > 0) {
+          const acRatio = (acuteLoad / chronicAvgWeeklyLoad);
+          if (acRatio >= settings.rpeLoadSpikeRatio) {
+            const streak = alertStreakLookup(athleteId, 'rpe');
+            alerts.push({
+              id: `${athleteId}_rpe_spike`,
+              alert_key: `${athleteId}_rpe_spike`,
+              athlete_id: athleteId,
+              athlete_name: athlete.name,
+              sport: athlete.sport,
+              type: 'ACUTE LOAD SPIKE',
+              color: '#ef4444',
+              icon: <Target size={22} />,
+              message: `${athlete.sport || 'General'} · A:C Ratio spiked to ${acRatio.toFixed(2)}x (Acute: ${acuteLoad} vs Chronic: ${chronicAvgWeeklyLoad.toFixed(0)})`,
+              action: '⚠️ MONITOR TRAINING VOLUME',
+              streak,
+              magnitude: acRatio
+            });
+          }
+        }
+      });
+    }
+
+    return alerts.sort((a, b) => (b.streak - a.streak) || (b.magnitude - a.magnitude));
+  }, [reportData, athletes, dehydrationThreshold, sleepThreshold, alertStreakLookup, settings]);
 
   const getDailyAlerts = () => dailyAlerts;
 
@@ -2911,6 +2948,7 @@ export default function App() {
               <DashboardScreen
                 settings={settings}
                 athletes={athletes}
+                reportData={reportData}
                 executiveInsights={executiveInsights}
                 todaySessions={todaySessions}
                 athletesRecordedToday={athletesRecordedToday}
