@@ -203,7 +203,8 @@ export default function SettingsScreen({
                 { key: 'baselineExpiryDays', label: 'Baseline Expires After', unit: 'days', step: 1, min: 1, max: 365 },
                 { key: 'dataWindowDays', label: 'Dashboard Data Window', unit: 'days', step: 1, min: 1, max: 3650 },
                 { key: 'profileHistoryLimit', label: 'Profile History Limit', unit: 'logs', step: 10, min: 10, max: 10000 },
-                { key: 'postPracticeLookbackDays', label: 'Sweat Card Lookback', unit: 'days', step: 1, min: 1, max: 365 },
+                { key: 'postPracticeLookbackDays', label: 'Sweat Card Lookback (Reports)', unit: 'days', step: 1, min: 1, max: 365 },
+                { key: 'alertsAcuteWindowHours', label: 'Sweat Card Window (Alerts)', unit: 'hrs', step: 1, min: 1, max: 168 },
               ]
             },
             {

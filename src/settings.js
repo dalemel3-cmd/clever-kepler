@@ -56,8 +56,13 @@ export const DEFAULT_SETTINGS = {
   dataWindowDays: 30,
   // Max rows fetched for a single athlete's profile history.
   profileHistoryLimit: 180,
-  // How recent a post-practice log must be to show on the acute sweat-loss cards.
+  // How recent a post-practice log must be to show on the acute sweat-loss cards
+  // in Reports (unbounded there beyond this - it's the historical/pull-up-as-needed view).
   postPracticeLookbackDays: 7,
+  // How recent a post-practice log must be to still show on the live Alerts screen.
+  // Kept separate and much shorter than postPracticeLookbackDays so Alerts stays a
+  // same-day "today" list instead of a card lingering there for a week.
+  alertsAcuteWindowHours: 48,
 
   // --- Entry validation bounds ---
   minWeightLbs: 0,
@@ -88,6 +93,7 @@ const NUMERIC_BOUNDS = {
   dataWindowDays: [1, 3650],
   profileHistoryLimit: [10, 10000],
   postPracticeLookbackDays: [1, 365],
+  alertsAcuteWindowHours: [1, 168],
   minWeightLbs: [0, 1000],
   maxWeightLbs: [1, 5000],
   maxSleepHours: [1, 24],

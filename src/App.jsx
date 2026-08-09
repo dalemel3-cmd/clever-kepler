@@ -2332,19 +2332,24 @@ export default function App() {
   // still count so the badge doesn't disappear the moment someone glances at it).
   const unresolvedDailyAlertsCount = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length;
 
-  const renderNegativeSweatDropCards = (forceShow = false) => {
+  // maxAgeDays lets a caller override the default Reports/historical lookback
+  // (settings.postPracticeLookbackDays) with a tighter window - Alerts passes its own
+  // short settings.alertsAcuteWindowHours so a sweat-loss card doesn't linger on the
+  // live "today" screen for a full week.
+  const renderNegativeSweatDropCards = (forceShow = false, maxAgeDays = null) => {
     const list = [];
     const now = new Date();
     const shouldShowEmpty = forceShow || screen === 'reports';
-    
+    const effectiveMaxAgeDays = maxAgeDays != null ? maxAgeDays : settings.postPracticeLookbackDays;
+
     athletes.forEach(ath => {
       const athLogs = reportData.filter(r => (r.athlete_id === ath.id || (r.athlete_name && r.athlete_name.trim().toLowerCase() === ath.name.trim().toLowerCase())) && r.weight_lbs && Number(r.weight_lbs) > 0);
       const ppLogs = athLogs.filter(r => isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       if (ppLogs.length === 0) return;
-      
+
       const latestPP = ppLogs[ppLogs.length - 1];
       const daysOld = (now - new Date(latestPP.created_at)) / (1000 * 60 * 60 * 24);
-      if (daysOld > settings.postPracticeLookbackDays && !shouldShowEmpty) return;
+      if (daysOld > effectiveMaxAgeDays && !shouldShowEmpty) return;
 
       const normalLogs = athLogs.filter(r => !isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
       const ppDate = new Date(latestPP.created_at);
@@ -2964,7 +2969,7 @@ export default function App() {
               <AlertsScreen
                 dehydrationThreshold={dehydrationThreshold}
                 sleepThreshold={sleepThreshold}
-                renderNegativeSweatDropCards={renderNegativeSweatDropCards}
+                renderNegativeSweatDropCards={() => renderNegativeSweatDropCards(false, settings.alertsAcuteWindowHours / 24)}
                 getDailyAlerts={getDailyAlerts}
                 alertStatusFor={alertStatusFor}
                 acknowledgeAlert={acknowledgeAlert}
