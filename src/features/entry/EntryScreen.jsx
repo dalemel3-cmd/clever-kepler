@@ -624,7 +624,11 @@ export default function EntryScreen({
                       placeholder="e.g. 7"
                       value={rpeInput || ''}
                       onFocus={() => setFocusedField('rpe')}
-                      onChange={(e) => setRpeInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                      /* RPE is stored as a smallint, so a decimal entry was silently
+                         rounded on the way to the database - 7.5 landed as 8. The Borg
+                         scale is whole numbers anyway, so reject the separator here
+                         instead of accepting input the column cannot hold. */
+                      onChange={(e) => setRpeInput(e.target.value.replace(/[^0-9]/g, ''))}
                       style={{ flex: 1, width: '100%', height: '56px', background: focusedField === 'rpe' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'rpe' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'rpe' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
                     />
                     
@@ -641,7 +645,7 @@ export default function EntryScreen({
                       placeholder="e.g. 90"
                       value={rpeDurationInput || ''}
                       onFocus={() => setFocusedField('rpe_duration')}
-                      onChange={(e) => setRpeDurationInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                      onChange={(e) => setRpeDurationInput(e.target.value.replace(/[^0-9]/g, ''))}
                       style={{ flex: 1, width: '100%', height: '56px', background: focusedField === 'rpe_duration' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'rpe_duration' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'rpe_duration' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
                     />
                     </>)}
@@ -713,7 +717,10 @@ export default function EntryScreen({
               <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column' }}>
                 <KioskNumpad
                   value={focusedField === 'weight' ? weightInput : (focusedField === 'rpe' ? rpeInput : (focusedField === 'rpe_duration' ? rpeDurationInput : sleepInput))}
-                  onChange={val => focusedField === 'weight' ? setWeightInput(val) : (focusedField === 'rpe' ? setRpeInput(val) : (focusedField === 'rpe_duration' ? setRpeDurationInput(val) : setSleepInput(val)))}
+                  /* The numpad writes straight through, so the whole-number rule for RPE
+                     and duration has to be applied here as well as on the text input -
+                     both columns are integers. */
+                  onChange={val => focusedField === 'weight' ? setWeightInput(val) : (focusedField === 'rpe' ? setRpeInput(String(val).replace(/[^0-9]/g, '')) : (focusedField === 'rpe_duration' ? setRpeDurationInput(String(val).replace(/[^0-9]/g, '')) : setSleepInput(val)))}
                   onEnter={handleSave}
                 />
               </div>
