@@ -35,6 +35,7 @@ const logs = [
       if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': '*' } });
       if (url.includes('/realtime/')) return route.abort();
     if (isAuthRoute(url)) return fulfillAuth(route, url, h);
+    if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ approved: true }]) });
       if (opts.killRest && url.includes('/rest/')) return route.abort('connectionfailed');
       if (url.includes('/rest/v1/athletes')) {
         if (opts.killAthletes) return route.abort('connectionfailed');

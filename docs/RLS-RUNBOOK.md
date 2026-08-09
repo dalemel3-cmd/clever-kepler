@@ -93,9 +93,15 @@ refreshed in the background. You should not have to repeat this.
 
 ## Step 3 — Enable RLS
 
-**Supabase → SQL Editor** → paste and run **`db/001_enable_rls.sql`**.
+**Supabase → SQL Editor** → paste and run **`db/003_coach_approval.sql`**.
+(This supersedes `001_enable_rls.sql` — it enables RLS *and* adds approval gating, so
+signing up is no longer the same thing as getting in.)
 
-Expected result: `rls_enabled = true`, `policies = 2`.
+⚠️ **Edit the email in the final BOOTSTRAP step before running it.** That statement
+approves the first coach. Miss it and nobody can approve anybody, and everyone is
+locked out — recoverable by running the same UPDATE, or `db/002_rollback_rls.sql`.
+
+Expected result: at least one row with `approved = true`.
 
 ---
 
@@ -110,6 +116,8 @@ Do all four. The third is the one people forget.
       RLS. The client passes the session token automatically, so this should work —
       but verify it rather than assume, because a silent failure here means devices
       quietly stop seeing each other's entries.)*
+- [ ] **Approval gating works** — Settings → Coach Access lists you as approved. If a
+      second person signs up, they should land on a waiting screen, not the app.
 - [ ] **Anon is actually blocked** — run this in the SQL Editor:
 
       ```sql

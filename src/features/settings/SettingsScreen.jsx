@@ -1,5 +1,6 @@
 import { Check, Smartphone, CheckCircle, Download, Sliders, Minus, Plus, Database, Upload, Wifi, Zap, Users, Activity, RefreshCw, Trash2, Shield, Lock, AlertTriangle, RotateCcw } from 'lucide-react';
 import { getAppHost } from '../../settings';
+import CoachAccessCard from './CoachAccessCard';
 
 export default function SettingsScreen({
   settings,
@@ -157,6 +158,8 @@ export default function SettingsScreen({
           Sign Out
         </button>
       </div>
+
+      <CoachAccessCard showToast={showToast} setConfirmModal={setConfirmModal} currentEmail={authEmail} />
 
       {/* Card 2: Program Identity, Thresholds & Windows - every tunable in one place.
           Nothing in the app is a magic number anymore; each field below is read live

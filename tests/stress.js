@@ -83,6 +83,7 @@ let athleteInserts = [];
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (url.includes('/realtime/')) return route.abort();
     if (isAuthRoute(url)) return fulfillAuth(route, url, h);
+    if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ approved: true }]) });
     if (url.includes('/rest/v1/athletes')) {
       if (method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(athletes) });
       if (method === 'POST') { const b = req.postDataJSON(); athleteInserts.push(b); const arr = Array.isArray(b) ? b : [b]; const out = arr.map((x, i) => ({ ...x, id: uuid(50000 + athleteInserts.length * 10 + i) })); return route.fulfill({ status: 201, headers: hdrs, body: JSON.stringify(out) }); }
@@ -257,6 +258,7 @@ let athleteInserts = [];
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (url.includes('/realtime/')) return route.abort();
     if (isAuthRoute(url)) return fulfillAuth(route, url, h);
+    if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ approved: true }]) });
     if (url.includes('/rest/v1/weigh_ins') && (method === 'POST' || method === 'PATCH'))
       return route.fulfill({ status: 500, headers: hdrs, body: JSON.stringify({ message: 'simulated server error' }) });
     if (url.includes('/rest/v1/weigh_ins')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(logs) });

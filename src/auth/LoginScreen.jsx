@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, LogIn, AlertTriangle } from 'lucide-react';
+import { Lock, LogIn, AlertTriangle, UserPlus } from 'lucide-react';
 import { supabase, markSignedInBefore } from '../supabaseClient';
 import { loadSettings } from '../settings';
 
@@ -7,8 +7,12 @@ export default function LoginScreen({ offlineNotice }) {
   const settings = loadSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const isSignup = mode === 'signup';
 
   const submit = async (e) => {
     e.preventDefault();
@@ -16,6 +20,17 @@ export default function LoginScreen({ offlineNotice }) {
     if (!email.trim() || !password) {
       setError('Enter your email and password.');
       return;
+    }
+    if (isSignup) {
+      if (password.length < 8) {
+        setError('Use a password of at least 8 characters.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('The two passwords do not match.');
+        return;
+      }
+      return signUp();
     }
     setBusy(true);
     setError('');
@@ -44,6 +59,55 @@ export default function LoginScreen({ offlineNotice }) {
       setError('Cannot reach the server. Check the connection and try again.');
       setBusy(false);
     }
+  };
+
+  const signUp = async () => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (signUpError) {
+        const msg = String(signUpError.message || '');
+        if (/Failed to fetch|NetworkError|fetch/i.test(msg)) {
+          setError('Cannot reach the server. Check the connection and try again.');
+        } else if (/already registered|already exists/i.test(msg)) {
+          setError('An account with that email already exists. Try signing in.');
+        } else if (/signups not allowed|disabled/i.test(msg)) {
+          setError('New accounts are turned off. Ask a coach to create one for you.');
+        } else {
+          setError(msg || 'Could not create the account.');
+        }
+        setBusy(false);
+        return;
+      }
+      markSignedInBefore();
+      if (!data?.session) {
+        // Email confirmation is on, so there's no session yet. AuthGate can't
+        // take over; tell them here instead of leaving a dead screen.
+        setNotice('Account created. Confirm your email, then sign in — a coach still needs to approve you before you can see athlete data.');
+        setMode('signin');
+        setPassword('');
+        setConfirmPassword('');
+        setBusy(false);
+        return;
+      }
+      // Session exists: AuthGate re-resolves and shows the pending-approval screen.
+    } catch (err) {
+      setError('Cannot reach the server. Check the connection and try again.');
+      setBusy(false);
+    }
+  };
+
+  const switchMode = (next) => {
+    setMode(next);
+    setError('');
+    setNotice('');
+    setPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -87,7 +151,7 @@ export default function LoginScreen({ offlineNotice }) {
               {settings.programName || 'Human Performance'}
             </h1>
             <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-              {settings.organizationName || 'Sign in to continue'}
+              {isSignup ? 'Request coach access' : (settings.organizationName || 'Sign in to continue')}
             </span>
           </div>
         </div>
@@ -135,6 +199,32 @@ export default function LoginScreen({ offlineNotice }) {
           />
         </div>
 
+        {isSignup && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label htmlFor="login-confirm" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Confirm password
+            </label>
+            <input
+              id="login-confirm"
+              type="password"
+              autoComplete="new-password"
+              className="input-glass"
+              value={confirmPassword}
+              onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
+              style={{ height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '12px', fontWeight: 600 }}
+            />
+          </div>
+        )}
+
+        {notice && (
+          <div style={{
+            padding: '12px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700, lineHeight: 1.5,
+            background: 'rgba(52, 211, 153, 0.12)', border: '1px solid rgba(52, 211, 153, 0.4)', color: '#6ee7b7',
+          }}>
+            {notice}
+          </div>
+        )}
+
         {error && (
           <div role="alert" style={{
             padding: '12px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
@@ -155,12 +245,34 @@ export default function LoginScreen({ offlineNotice }) {
             justifyContent: 'center', gap: '10px', opacity: busy ? 0.7 : 1,
           }}
         >
-          <LogIn size={20} /> {busy ? 'SIGNING IN...' : 'SIGN IN'}
+          {isSignup ? <UserPlus size={20} /> : <LogIn size={20} />}
+          {busy ? (isSignup ? 'CREATING...' : 'SIGNING IN...') : (isSignup ? 'CREATE ACCOUNT' : 'SIGN IN')}
         </button>
 
-        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
-          Kiosk devices stay signed in — you only need to do this once per device.
-        </span>
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+          {isSignup ? (
+            <>
+              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
+                Creating an account does not grant access on its own — an existing coach
+                approves it before any athlete data is visible.
+              </span>
+              <button type="button" onClick={() => switchMode('signin')}
+                style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', padding: '4px' }}>
+                Already have an account? Sign in
+              </button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
+                Kiosk devices stay signed in — you only need to do this once per device.
+              </span>
+              <button type="button" onClick={() => switchMode('signup')}
+                style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', padding: '4px' }}>
+                New coach? Create an account
+              </button>
+            </>
+          )}
+        </div>
       </form>
     </div>
   );

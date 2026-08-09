@@ -44,6 +44,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.9.0` | Coach sign-up with approval gating: creating an account grants nothing until an approved coach approves it (`db/003_coach_approval.sql`) |
 | `4.8.0` | Supabase auth: login screen, kiosk session persistence, sign-out; RLS policies + rollout runbook (see `docs/RLS-RUNBOOK.md`) |
 | `4.4.0` | Removed all hardcoded values; every threshold, window, label, and sports list is now a live setting |
 | `4.3.0` | Adaptive cloud sync (~95% less egress), toasts replacing blocking alerts, honest connection status |

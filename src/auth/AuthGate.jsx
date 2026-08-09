@@ -1,63 +1,88 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase, markSignedInBefore, hasSignedInBefore } from '../supabaseClient';
+import { checkApproval, wasApproved } from './approval';
 import LoginScreen from './LoginScreen';
+import PendingApproval from './PendingApproval';
 
 /**
- * Decides whether to show the app or the login screen.
+ * Decides whether to show the app, the login screen, or the pending-approval screen.
  *
- * The important behavior here is the offline case. The weight-room kiosk has to keep
- * working when the gym WiFi drops: if this device has signed in before, we let the app
- * through even when the session can't be verified, so weigh-ins keep landing in the
- * offline queue instead of being lost behind a login wall. With RLS on, an expired
- * token simply means writes fail and get queued - which is exactly the path the queue
- * was built and tested for.
+ * Two behaviors here are deliberate and easy to break:
+ *
+ * 1. Offline kiosk. The weight room has to keep working when the WiFi drops. A device
+ *    that has signed in before is let through even when the session or approval can't
+ *    be verified, so weigh-ins keep landing in the offline queue instead of being lost
+ *    behind a login wall. With RLS on, an expired token just means writes fail and get
+ *    queued - the path the queue was built and tested for.
+ *
+ * 2. Migration ordering. This build ships before db/003_coach_approval.sql is run. Until
+ *    it is, public.coaches doesn't exist and approval isn't a concept, so 'not-configured'
+ *    means let everyone signed in through. The app must not break in that window.
  */
 export default function AuthGate({ children }) {
-  const [status, setStatus] = useState('checking'); // 'checking' | 'in' | 'out'
+  const [status, setStatus] = useState('checking'); // 'checking' | 'in' | 'out' | 'pending'
+  const [email, setEmail] = useState('');
+  const [rechecking, setRechecking] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
 
-  useEffect(() => {
-    let cancelled = false;
+  const resolve = useCallback(async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
 
-    const resolve = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (cancelled) return;
-        if (data?.session) {
-          markSignedInBefore();
-          setStatus('in');
-          return;
-        }
-        // No usable session. Only hold the user at the login screen if we could
-        // actually have reached the server - otherwise this is the offline kiosk case.
+      if (!session) {
+        // Only hold at the login screen if we could actually have reached the
+        // server - otherwise this is the offline kiosk case.
         if (!navigator.onLine && hasSignedInBefore()) {
           setStatus('in');
           return;
         }
         setStatus('out');
-      } catch (e) {
-        // getSession only throws on storage problems; fail open for known devices.
-        if (cancelled) return;
-        setStatus(hasSignedInBefore() ? 'in' : 'out');
+        return;
       }
-    };
 
-    resolve();
+      markSignedInBefore();
+      setEmail(session.user?.email || '');
+
+      const verdict = await checkApproval(session.user?.id);
+      if (verdict === 'approved' || verdict === 'not-configured') {
+        setStatus('in');
+      } else if (verdict === 'unknown') {
+        // Couldn't reach the server. Trust the last known answer rather than
+        // stranding a kiosk mid-session.
+        setStatus(wasApproved() || !navigator.onLine ? 'in' : 'pending');
+      } else {
+        setStatus('pending');
+      }
+    } catch (e) {
+      setStatus(hasSignedInBefore() ? 'in' : 'out');
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const safeResolve = async () => { if (!cancelled) await resolve(); };
+
+    safeResolve();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
+      if (event === 'SIGNED_OUT') {
+        setEmail('');
+        setStatus('out');
+        return;
+      }
       if (session) {
         markSignedInBefore();
-        setStatus('in');
-      } else if (event === 'SIGNED_OUT') {
-        // An explicit sign-out always returns to the login screen, even offline.
-        setStatus('out');
+        setEmail(session.user?.email || '');
+        // Re-resolve rather than assuming: a fresh sign-in still needs approval.
+        safeResolve();
       }
       // Token refresh failures are deliberately ignored: they must not eject a
       // kiosk mid-session. The next successful refresh or reload re-resolves.
     });
 
-    const onOnline = () => { setIsOnline(true); resolve(); };
+    const onOnline = () => { setIsOnline(true); safeResolve(); };
     const onOffline = () => setIsOnline(false);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
@@ -68,7 +93,13 @@ export default function AuthGate({ children }) {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
-  }, []);
+  }, [resolve]);
+
+  const recheck = async () => {
+    setRechecking(true);
+    await resolve();
+    setRechecking(false);
+  };
 
   if (status === 'checking') {
     return (
@@ -82,9 +113,7 @@ export default function AuthGate({ children }) {
     );
   }
 
-  if (status === 'out') {
-    return <LoginScreen offlineNotice={!isOnline} />;
-  }
-
+  if (status === 'out') return <LoginScreen offlineNotice={!isOnline} />;
+  if (status === 'pending') return <PendingApproval email={email} onRecheck={recheck} rechecking={rechecking} />;
   return children;
 }

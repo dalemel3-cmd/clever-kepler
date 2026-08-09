@@ -74,6 +74,8 @@ const check = (label, actual, expected) => {
       }
       if (url.includes('/auth/v1/logout')) return route.fulfill({ status: 204, headers: h, body: '' });
       if (url.includes('/auth/v1/user')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify(makeSession().user) });
+      // Approved by default so the pre-approval tests exercise what they intend.
+      if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify([{ user_id: makeSession().user.id, email: 'coach@example.com', approved: true }]) });
 
       // --- data endpoints ---
       if (url.includes('/rest/v1/athletes') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
@@ -87,6 +89,38 @@ const check = (label, actual, expected) => {
     localStorage.setItem('hpd_auth', JSON.stringify(s));
     localStorage.setItem('hpd_signed_in_before', '1');
   }, makeSession());
+
+
+  // Route helper for the approval tests: same fake auth, plus a controllable
+  // public.coaches response.
+  const stubAuthLocal = (page) => page.addInitScript((s) => {
+    try {
+      localStorage.setItem('hpd_auth', JSON.stringify(s));
+      localStorage.setItem('hpd_signed_in_before', '1');
+    } catch (e) {}
+  }, makeSession());
+
+  const routeWith = (page, opts) => page.route(SUPA, async (route) => {
+    const req = route.request();
+    const url = req.url();
+    const m = req.method();
+    const h = { 'access-control-allow-origin': '*', 'content-type': 'application/json', 'access-control-expose-headers': 'Content-Range', 'content-range': `0-0/${logs.length}` };
+    if (m === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...h, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
+    if (url.includes('/realtime/')) return route.abort();
+    if (url.includes('/auth/v1/logout')) return route.fulfill({ status: 204, headers: h, body: '' });
+    if (url.includes('/auth/v1/signup')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify(makeSession('newcoach@example.com')) });
+    if (url.includes('/auth/v1/')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify(makeSession()) });
+    if (url.includes('/rest/v1/coaches')) {
+      if (opts.coachesMissing) {
+        return route.fulfill({ status: 404, headers: h, body: JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.coaches' in the schema cache" }) });
+      }
+      if (opts.coachesError) return route.abort('connectionfailed');
+      return route.fulfill({ status: 200, headers: h, body: JSON.stringify(opts.coaches || []) });
+    }
+    if (url.includes('/rest/v1/athletes') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
+    if (url.includes('/rest/v1/weigh_ins') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(logs) });
+    return route.fulfill({ status: 200, headers: h, body: '[]' });
+  });
 
   // ---------- 1. A fresh device is gated ----------
   {
@@ -213,6 +247,101 @@ const check = (label, actual, expected) => {
     await page.waitForTimeout(700);
     const body = await page.locator('body').innerText();
     check('sign-out warns about unsynced logs', /1 Unsynced Log/i.test(body), true);
+    await ctx.close();
+  }
+
+
+  // ---------- 9. Approval gating ----------
+  // The coaches table decides who gets in. These mirror the SQL-level checks
+  // already verified against the database (pending sees 0 athletes and cannot
+  // self-approve) at the UI layer.
+  {
+    // 9a. Pending user is held at the waiting screen, not shown an empty app.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await stubAuthLocal(page);
+    await routeWith(page, { coaches: [{ approved: false }] });
+    await page.goto(APP, { waitUntil: 'load' });
+    await page.waitForTimeout(2500);
+    let body = await page.locator('body').innerText();
+    check('pending user sees waiting screen', /Waiting for approval/i.test(body), true);
+    check('pending user cannot see the app', body.toUpperCase().includes('TOTAL ATHLETES'), false);
+    await ctx.close();
+  }
+  {
+    // 9b. Approved user goes straight in.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await stubAuthLocal(page);
+    await routeWith(page, { coaches: [{ approved: true }] });
+    await page.goto(APP, { waitUntil: 'load' });
+    await page.waitForTimeout(2500);
+    const body = await page.locator('body').innerText();
+    check('approved user reaches the app', body.toUpperCase().includes('TOTAL ATHLETES'), true);
+    await ctx.close();
+  }
+  {
+    // 9c. Before the migration runs, coaches doesn't exist. The app must still work.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await stubAuthLocal(page);
+    await routeWith(page, { coachesMissing: true });
+    await page.goto(APP, { waitUntil: 'load' });
+    await page.waitForTimeout(2500);
+    const body = await page.locator('body').innerText();
+    check('pre-migration (no coaches table) still works', body.toUpperCase().includes('TOTAL ATHLETES'), true);
+    await ctx.close();
+  }
+  {
+    // 9d. Approval cached, then the server becomes unreachable: a kiosk must not
+    // be demoted to the pending screen mid-session.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await stubAuthLocal(page);
+    await page.addInitScript(() => { try { localStorage.setItem('hpd_approved', '1'); } catch (e) {} });
+    await routeWith(page, { coachesError: true });
+    await page.goto(APP, { waitUntil: 'load' });
+    // Longer than the approval-check timeout, so the fallback has resolved.
+    await page.waitForTimeout(7000);
+    const body = await page.locator('body').innerText();
+    check('previously-approved kiosk survives an unreachable server', body.toUpperCase().includes('TOTAL ATHLETES'), true);
+    await ctx.close();
+  }
+  {
+    // 9e. Sign-up leads to the waiting screen, never straight into the app.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await routeWith(page, { coaches: [{ approved: false }] });
+    await page.goto(APP, { waitUntil: 'load' });
+    await page.waitForTimeout(1800);
+    await page.getByRole('button', { name: /Create an account/i }).click();
+    await page.waitForTimeout(400);
+    await page.locator('#login-email').fill('newcoach@example.com');
+    await page.locator('#login-password').fill('averylongpassword');
+    await page.locator('#login-confirm').fill('averylongpassword');
+    await page.getByRole('button', { name: /CREATE ACCOUNT/i }).click();
+    await page.waitForTimeout(2500);
+    const body = await page.locator('body').innerText();
+    check('new signup lands on waiting screen', /Waiting for approval/i.test(body), true);
+    check('new signup does not reach the app', body.toUpperCase().includes('TOTAL ATHLETES'), false);
+    await ctx.close();
+  }
+  {
+    // 9f. Sign-up validates before it hits the network.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await routeWith(page, { coaches: [{ approved: false }] });
+    await page.goto(APP, { waitUntil: 'load' });
+    await page.waitForTimeout(1800);
+    await page.getByRole('button', { name: /Create an account/i }).click();
+    await page.waitForTimeout(400);
+    await page.locator('#login-email').fill('newcoach@example.com');
+    await page.locator('#login-password').fill('averylongpassword');
+    await page.locator('#login-confirm').fill('DIFFERENT');
+    await page.getByRole('button', { name: /CREATE ACCOUNT/i }).click();
+    await page.waitForTimeout(800);
+    const body = await page.locator('body').innerText();
+    check('mismatched passwords are rejected', /do not match/i.test(body), true);
     await ctx.close();
   }
 

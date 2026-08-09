@@ -26,6 +26,7 @@ const athletes = [{ id: uuid(1), name: 'Rec Overy', sport: 'Football', team: 'V'
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (url.includes('/realtime/')) return route.abort();
     if (isAuthRoute(url)) return fulfillAuth(route, url, h);
+    if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ approved: true }]) });
     if (url.includes('/rest/v1/athletes') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(athletes) });
     if (url.includes('/rest/v1/weigh_ins')) {
       if (method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: '[]' });
