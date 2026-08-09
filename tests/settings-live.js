@@ -4,6 +4,7 @@
 // All Supabase traffic is intercepted - these tests never touch the real database.
 /* v4.4.0: prove settings are live end-to-end (no hardcoded values left in the paths). */
 import { chromium } from 'playwright';
+import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
 // CHROMIUM_PATH lets CI point at a preinstalled browser; otherwise Playwright's own.
 const LAUNCH_OPTS = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
@@ -23,6 +24,7 @@ const logs = [
   const browser = await chromium.launch(LAUNCH_OPTS);
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
+  await stubAuth(page);
   const errs = [];
   page.on('pageerror', e => errs.push(String(e).slice(0, 200)));
 
@@ -31,6 +33,7 @@ const logs = [
     const h = { 'access-control-allow-origin': '*', 'content-type': 'application/json', 'access-control-expose-headers': 'Content-Range', 'content-range': `0-0/${logs.length}` };
     if (m === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...h, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (url.includes('/realtime/')) return route.abort();
+    if (isAuthRoute(url)) return fulfillAuth(route, url, h);
     if (url.includes('/rest/v1/athletes') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
     if (url.includes('/rest/v1/weigh_ins') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(logs) });
     return route.fulfill({ status: 200, headers: h, body: '[]' });

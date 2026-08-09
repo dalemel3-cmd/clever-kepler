@@ -4,6 +4,7 @@
 // All Supabase traffic is intercepted - these tests never touch the real database.
 /* HPD App stress test — intercepts ALL Supabase traffic (no prod writes). */
 import { chromium } from 'playwright';
+import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
 // CHROMIUM_PATH lets CI point at a preinstalled browser; otherwise Playwright's own.
 const LAUNCH_OPTS = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
@@ -65,6 +66,7 @@ let athleteInserts = [];
   const browser = await chromium.launch(LAUNCH_OPTS);
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
+  await stubAuth(page);
 
   const consoleErrors = [];
   const pageErrors = [];
@@ -80,6 +82,7 @@ let athleteInserts = [];
     const hdrs = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (url.includes('/realtime/')) return route.abort();
+    if (isAuthRoute(url)) return fulfillAuth(route, url, h);
     if (url.includes('/rest/v1/athletes')) {
       if (method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(athletes) });
       if (method === 'POST') { const b = req.postDataJSON(); athleteInserts.push(b); const arr = Array.isArray(b) ? b : [b]; const out = arr.map((x, i) => ({ ...x, id: uuid(50000 + athleteInserts.length * 10 + i) })); return route.fulfill({ status: 201, headers: hdrs, body: JSON.stringify(out) }); }
@@ -253,6 +256,7 @@ let athleteInserts = [];
     const hdrs = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (url.includes('/realtime/')) return route.abort();
+    if (isAuthRoute(url)) return fulfillAuth(route, url, h);
     if (url.includes('/rest/v1/weigh_ins') && (method === 'POST' || method === 'PATCH'))
       return route.fulfill({ status: 500, headers: hdrs, body: JSON.stringify({ message: 'simulated server error' }) });
     if (url.includes('/rest/v1/weigh_ins')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(logs) });

@@ -4,6 +4,7 @@
 // All Supabase traffic is intercepted - these tests never touch the real database.
 /* Recovery probe: queued record survives 500s, then auto-uploads when server recovers. */
 import { chromium } from 'playwright';
+import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
 // CHROMIUM_PATH lets CI point at a preinstalled browser; otherwise Playwright's own.
 const LAUNCH_OPTS = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
@@ -16,6 +17,7 @@ const athletes = [{ id: uuid(1), name: 'Rec Overy', sport: 'Football', team: 'V'
   const browser = await chromium.launch(LAUNCH_OPTS);
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
+  await stubAuth(page);
   let failing = true;
   const posts = [];
   await page.route(SUPA, async (route) => {
@@ -23,6 +25,7 @@ const athletes = [{ id: uuid(1), name: 'Rec Overy', sport: 'Football', team: 'V'
     const hdrs = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (url.includes('/realtime/')) return route.abort();
+    if (isAuthRoute(url)) return fulfillAuth(route, url, h);
     if (url.includes('/rest/v1/athletes') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(athletes) });
     if (url.includes('/rest/v1/weigh_ins')) {
       if (method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: '[]' });

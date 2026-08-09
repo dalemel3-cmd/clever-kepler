@@ -36,7 +36,9 @@ export default function SettingsScreen({
   handleMergeAthletes,
   handleDeleteAllWeighIns,
   showToast,
-  cloudStatus
+  cloudStatus,
+  authEmail,
+  handleSignOut
 }) {
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -132,6 +134,28 @@ export default function SettingsScreen({
           </div>
 
         </div>
+      </div>
+
+      {/* Card 1b: Signed-in account */}
+      <div className="card-glass" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(52, 211, 153, 0.12)', border: '1px solid rgba(52, 211, 153, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-success)' }}>
+            <Lock size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Signed in as</div>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>{authEmail || 'This device'}</div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+              Kiosk devices stay signed in. Sign out only if this device is leaving the program.
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={handleSignOut}
+          style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.4)', color: 'var(--status-error)', borderRadius: '10px', cursor: 'pointer' }}
+        >
+          Sign Out
+        </button>
       </div>
 
       {/* Card 2: Program Identity, Thresholds & Windows - every tunable in one place.

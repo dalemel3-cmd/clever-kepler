@@ -31,42 +31,23 @@ See `docs/RPE-PLAN.md` §2.
 
 ---
 
-## 2. 🔒 Row Level Security is still disabled
+## 2. 🔒 Row Level Security — auth is built, the switch is not thrown
 
-Both `public.athletes` and `public.weigh_ins` have RLS **off**. The anon key is
-published in this repo, so anyone who finds it can read, modify, or delete every
-athlete record and weigh-in. Supabase flags this as a critical advisory.
+**Status as of v4.8.0: the app side is done and deployed. The database is still open.**
 
-### The catch that makes this more than a one-liner
+The login screen, kiosk session persistence, and sign-out all ship in v4.8.0, and the
+app works exactly as before because RLS is still disabled. Nothing is enforced yet.
 
-**There is no authentication anywhere in the codebase.** No login screen, no
-`supabase.auth` calls — `supabaseClient.js` creates a client with the anon key and
-every read and write runs as `anon`. Enabling RLS without policies takes the app
-**completely offline**: all history becomes unreachable and every kiosk save fails.
+**To finish it, follow `docs/RLS-RUNBOOK.md`.** In short: create a user in Supabase,
+sign in on each device while the database is still open, then run
+`db/001_enable_rls.sql`. Verification steps and the instant rollback
+(`db/002_rollback_rls.sql`) are in the runbook.
 
-So the work is two pieces, not one:
-1. **App side** — a login screen + session handling (the part that takes time)
-2. **Database side** — policies that let authenticated users through
+The policy shape was verified against this database inside a rolled-back transaction:
+`anon` sees 0 rows and cannot write; `authenticated` has full access.
 
-Kiosk consideration: the weight-room iPad needs to *stay* signed in. Supabase
-persists the session in localStorage and auto-refreshes, so signing in once holds
-indefinitely as long as the device comes online periodically. If a session does lapse
-while offline, the offline queue (fixed in v4.1.5) holds the weigh-ins safely until
-it's back — they won't be lost.
-
-### Rollback — keep this handy
-
-If it's enabled and something breaks:
-
-```sql
-alter table public.athletes disable row level security;
-alter table public.weigh_ins disable row level security;
-```
-
-### Decide first
-One shared coach login, or an account per coach? That choice drives the policies.
-
----
+Until that SQL is run, the anon key in this repo still grants full read/write to
+anyone who finds it.
 
 ## 3. 📋 Most teams are still not in Supabase
 

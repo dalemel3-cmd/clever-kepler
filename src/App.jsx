@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database } from 'lucide-react';
-import { supabase } from './supabaseClient';
+import { supabase, clearSignedInBefore } from './supabaseClient';
 import './styles.css';
 import { Confetti } from './components/Confetti';
 import { KioskNumpad } from './components/KioskNumpad';
@@ -658,6 +658,38 @@ export default function App() {
     configureWeightBounds(normalized.minWeightLbs, normalized.maxWeightLbs);
     setSettingsSavedToast(true);
     setTimeout(() => setSettingsSavedToast(false), 4000);
+  };
+
+  const [authEmail, setAuthEmail] = useState('');
+  React.useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setAuthEmail(data?.session?.user?.email || '');
+    }).catch(() => {});
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (!cancelled) setAuthEmail(session?.user?.email || '');
+    });
+    return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); };
+  }, []);
+
+  const handleSignOut = () => {
+    // Signing out on a device that still holds unsynced weigh-ins would strand them:
+    // the queue can only upload while authenticated. Warn before that happens.
+    let pending = 0;
+    try { pending = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch (e) {}
+    setConfirmModal({
+      isOpen: true,
+      title: pending > 0 ? `Sign Out With ${pending} Unsynced ${pending === 1 ? 'Log' : 'Logs'}?` : 'Sign Out',
+      message: pending > 0
+        ? `This device still has ${pending} weigh-in ${pending === 1 ? 'record' : 'records'} waiting to upload, and they can only sync while signed in. Connect and let them sync first if you can.`
+        : 'Sign out of this device? Kiosk devices normally stay signed in.',
+      isDanger: pending > 0,
+      actionText: 'Sign Out',
+      onConfirm: async () => {
+        clearSignedInBefore();
+        try { await supabase.auth.signOut(); } catch (e) { console.warn('Sign out error:', e); }
+      }
+    });
   };
 
   const handleResetSettings = () => {
@@ -3103,6 +3135,8 @@ export default function App() {
                 handleDeleteAllWeighIns={handleDeleteAllWeighIns}
                 showToast={showToast}
                 cloudStatus={cloudStatus}
+                authEmail={authEmail}
+                handleSignOut={handleSignOut}
               />
             )}
             </Suspense>

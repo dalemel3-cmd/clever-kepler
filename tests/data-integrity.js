@@ -4,6 +4,7 @@
 // All Supabase traffic is intercepted - these tests never touch the real database.
 /* Focused probes: null-name crash, baseline-metadata wipe on edit, leaderboard corruption, real offline queue. */
 import { chromium } from 'playwright';
+import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
 // CHROMIUM_PATH lets CI point at a preinstalled browser; otherwise Playwright's own.
 const LAUNCH_OPTS = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
@@ -30,12 +31,15 @@ const logs = [
   const newPage = async (opts = {}) => {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
+  await stubAuth(page);
+    await stubAuth(page);
     page.patches = [];
     await page.route(SUPA, async (route) => {
       const req = route.request(); const url = req.url(); const method = req.method();
       const hdrs = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
       if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
       if (url.includes('/realtime/')) return route.abort();
+    if (isAuthRoute(url)) return fulfillAuth(route, url, h);
       if (opts.killRest && url.includes('/rest/')) return route.abort('connectionfailed');
       if (url.includes('/rest/v1/athletes')) {
         if (method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(opts.athletes || athletes) });
