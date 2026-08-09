@@ -4,17 +4,27 @@ Locks the database down so the public anon key can no longer read or modify athl
 data. Do this in a window when nobody is using the app.
 
 **The order matters.** The app is deployed with a login screen *first*, while the
-database is still open. Nothing breaks at that stage — you sign in, everything keeps
-working. Only the last step actually enforces anything, and it is one line to undo.
+database is still open. Only the last step protects the data, and it is one line to undo.
+
+> ⚠️ **The login screen goes live the moment v4.8.0 deploys — it does not wait for RLS.**
+> The gate is in the app itself; RLS only controls whether the *data* is protected.
+>
+> The practical consequence: **any device that has not signed in is looking at a login
+> screen right now**, including the weight-room kiosk. Athletes cannot log anything on
+> a device until someone signs in on it. Sign in on the kiosk before the next session —
+> Step 2 is blocking, not preparation.
 
 ---
 
 ## Before you start
 
 - [ ] v4.8.0 (or later) is deployed and the version badge confirms it
+- [ ] The kiosk iPad has been signed in (see the warning above — it is gated already)
 - [ ] Nobody is mid-session — no weigh-ins happening
 - [ ] You can reach Supabase → SQL Editor
 - [ ] `db/002_rollback_rls.sql` is open in a tab, ready to paste
+- [ ] **Public sign-ups are disabled** — see Step 1b. Skipping this undoes most of
+      what RLS buys you.
 
 ---
 
@@ -41,6 +51,27 @@ If someone with the password leaves the program, change the password in Supabase
 (Authentication → Users → the account → Reset/Update password) and sign in again on
 each device. That's the trade for the simpler setup. If that ever becomes a regular
 occurrence, switch to per-coach accounts — no app changes needed.
+
+---
+
+## Step 1b — Turn OFF public sign-ups (do not skip)
+
+**Supabase → Authentication → Providers → Email → uncheck "Enable sign ups"**
+(older dashboards: Authentication → Settings → "Allow new users to sign up")
+
+The anon key is public, and Supabase's sign-up endpoint is public with it. If sign-ups
+are enabled, **anyone who finds the URL can create their own account** — and the policy
+below grants every authenticated user full access, including Wipe Database. That would
+hand back most of what locking the database is meant to achieve.
+
+With sign-ups off, accounts can only be created by you in the dashboard.
+
+Verify:
+
+```sql
+-- Should only ever list accounts you created yourself.
+select email, created_at from auth.users order by created_at;
+```
 
 ---
 
@@ -99,6 +130,8 @@ offline queue and upload once access is restored.
 ## Step 5 — Clean up
 
 - [ ] Delete the test weigh-in from step 4
+- [ ] Review **Authentication → Users** and remove any account you don't intend to
+      keep. Every account listed has full access — there are no lesser accounts.
 - [ ] Update `docs/HANDOFF.md` — item 2 is now done
 
 ---
