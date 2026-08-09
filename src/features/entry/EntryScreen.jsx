@@ -1,4 +1,4 @@
-﻿import { Search, X, Plus, Minus, CheckCircle, User } from 'lucide-react';
+import { Search, X, Plus, Minus, CheckCircle, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
 import { parseAthleteMeta, getBaselinesMap } from '../../utils/athleteData';
 
@@ -123,32 +123,34 @@ export default function EntryScreen({
                 gap: '6px'
               }}
             >
-              ≡ƒÿ┤ Sleep Only
+              😴 Sleep Only
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setKioskTrackMode('rpe');
-                setFocusedField('rpe');
-                try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch(e) {}
-              }}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '19px',
-                background: kioskTrackMode === 'rpe' ? 'var(--color-accent)' : 'transparent',
-                color: kioskTrackMode === 'rpe' ? 'var(--navy-950)' : 'var(--color-text-muted)',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              ≡ƒÄ» Session RPE
-            </button>
+            {settings?.enableRpe && (
+              <button
+                type="button"
+                onClick={() => {
+                  setKioskTrackMode('rpe');
+                  setFocusedField('rpe');
+                  try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch(e) {}
+                }}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '19px',
+                  background: kioskTrackMode === 'rpe' ? 'var(--color-accent)' : 'transparent',
+                  color: kioskTrackMode === 'rpe' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                🎯 Session RPE
+              </button>
+            )}
           </div>
 
           {/* Baseline Testing Mode Toggle */}

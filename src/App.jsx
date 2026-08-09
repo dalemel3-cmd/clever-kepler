@@ -201,6 +201,9 @@ export default function App() {
   const [entryAthleteId, setEntryAthleteId] = useState(null);
   const [weightInput, setWeightInput] = useState('');
   const [sleepInput, setSleepInput] = useState('');
+  const [rpeInput, setRpeInput] = useState('');
+  const [rpeDurationInput, setRpeDurationInput] = useState('');
+  const [rpeLabelInput, setRpeLabelInput] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [todaySessions, setTodaySessions] = useState(0);
@@ -1429,7 +1432,10 @@ export default function App() {
     // until a real value is entered.
     setWeightInput('');
     setSleepInput('8.0');
-    setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight');
+    setRpeInput('');
+    setRpeDurationInput('');
+    setRpeLabelInput('');
+    setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : (kioskTrackMode === 'rpe' ? 'rpe' : 'weight'));
   };
 
   const handleSave = async (isBaselineOverride = false, skipOverrideConfirm = false) => {
@@ -1437,8 +1443,9 @@ export default function App() {
     // Ref-based guard: double-taps on the kiosk Save button were creating duplicate
     // records (React state alone can't block two clicks landing in the same JS task).
     if (kioskSaveInFlight.current || saving) return;
-    if (kioskTrackMode !== 'sleep_only' && !isPlausibleWeight(parseFloat(weightInput))) return;
+    if (kioskTrackMode !== 'sleep_only' && kioskTrackMode !== 'rpe' && !isPlausibleWeight(parseFloat(weightInput))) return;
     if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
+    if (kioskTrackMode === 'rpe' && (!rpeInput || parseFloat(rpeInput) <= 0 || parseFloat(rpeInput) > 10 || !rpeDurationInput || parseFloat(rpeDurationInput) <= 0 || !rpeLabelInput)) return;
 
     const todayCentralStr = getCentralDateString();
     // Only regular (non post-practice) logs count for the overwrite prompt - a morning
@@ -1463,7 +1470,7 @@ export default function App() {
     
     kioskSaveInFlight.current = true;
     setSaving(true);
-    const weightVal = (kioskTrackMode !== 'sleep_only' && isPlausibleWeight(parseFloat(weightInput))) ? parseFloat(weightInput) : null;
+    const weightVal = (kioskTrackMode !== 'sleep_only' && kioskTrackMode !== 'rpe' && isPlausibleWeight(parseFloat(weightInput))) ? parseFloat(weightInput) : null;
     const record = {
       athlete_id: selectedAthlete.id,
       athlete_name: selectedAthlete.name,
@@ -1471,6 +1478,10 @@ export default function App() {
       weight_lbs: weightVal,
       // clamp sleep to a sane 0-24h so a stray keypad entry can't skew averages
       sleep_hrs: !isNaN(parseFloat(sleepInput)) ? Math.min(Math.max(parseFloat(sleepInput), 0), settings.maxSleepHours) : 0,
+      rpe: kioskTrackMode === 'rpe' ? parseFloat(rpeInput) : null,
+      session_minutes: kioskTrackMode === 'rpe' ? parseInt(rpeDurationInput, 10) : null,
+      session_label: kioskTrackMode === 'rpe' ? rpeLabelInput : null,
+      session_type: kioskTrackMode === 'rpe' ? 'rpe' : null,
       created_at: new Date().toISOString()
     };
 
@@ -1531,6 +1542,10 @@ export default function App() {
         sport: record.sport || '',
         weight_lbs: (record.weight_lbs !== undefined && record.weight_lbs !== null) ? record.weight_lbs : 0,
         sleep_hrs: !isNaN(parseFloat(record.sleep_hrs)) ? parseFloat(record.sleep_hrs) : 0,
+        rpe: record.rpe,
+        session_minutes: record.session_minutes,
+        session_label: record.session_label,
+        session_type: record.session_type,
         created_at: record.created_at || new Date().toISOString(),
         is_baseline: !!record.is_baseline
       };
@@ -1584,6 +1599,9 @@ export default function App() {
     }, 2500);
     setWeightInput('');
     setSleepInput('');
+    setRpeInput('');
+    setRpeDurationInput('');
+    setRpeLabelInput('');
     setEntryAthleteId(null);
     setSearch('');
   };
@@ -3006,6 +3024,12 @@ export default function App() {
                 setWeightInput={setWeightInput}
                 sleepInput={sleepInput}
                 setSleepInput={setSleepInput}
+                rpeInput={rpeInput}
+                setRpeInput={setRpeInput}
+                rpeDurationInput={rpeDurationInput}
+                setRpeDurationInput={setRpeDurationInput}
+                rpeLabelInput={rpeLabelInput}
+                setRpeLabelInput={setRpeLabelInput}
                 focusedField={focusedField}
                 setFocusedField={setFocusedField}
                 handleSave={handleSave}
