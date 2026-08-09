@@ -319,7 +319,32 @@ export default function DashboardScreen({
           const todaysRpeLogs = (reportData || []).filter(r => isRpeLog(r) && r.created_at && getCentralDateString(new Date(r.created_at)) === todayDateStr);
           const avgRpe = todaysRpeLogs.length > 0 ? (todaysRpeLogs.reduce((acc, r) => acc + (r.rpe || 0), 0) / todaysRpeLogs.length).toFixed(1) : 0;
           const outliers = todaysRpeLogs.filter(r => r.rpe >= settings.rpeHighThreshold);
-          const rpeRate = athletes.length > 0 ? Math.round((todaysRpeLogs.length / athletes.length) * 100) : 0;
+          // Response rate counts athletes who reported, not logs filed. An athlete who
+          // rates a lift and a run on the same day files two rows, which used to push the
+          // rate over 100%.
+          const respondedIds = new Set(todaysRpeLogs.map(r => r.athlete_id));
+          const rpeRate = athletes.length > 0
+            ? Math.round((athletes.filter(a => respondedIds.has(a.id)).length / athletes.length) * 100)
+            : 0;
+
+          // Per-sport breakdown, mirroring the accountability tracker below so each program
+          // can be read on its own once more teams are loaded. Sport comes from the roster
+          // (the source of truth), falling back to whatever the log recorded.
+          const sportOf = (r) => (athletes.find(a => a.id === r.athlete_id)?.sport) || r.sport || 'General';
+          const rpeBySport = Array.from(new Set(athletes.map(a => a.sport || 'General'))).map(sport => {
+            const roster = athletes.filter(a => (a.sport || 'General') === sport);
+            const logs = todaysRpeLogs.filter(r => sportOf(r) === sport);
+            const responded = roster.filter(a => logs.some(l => l.athlete_id === a.id)).length;
+            return {
+              sport,
+              rosterCount: roster.length,
+              logCount: logs.length,
+              responded,
+              pct: roster.length > 0 ? Math.round((responded / roster.length) * 100) : 0,
+              avg: logs.length > 0 ? (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) : null,
+              hard: logs.filter(r => r.rpe >= settings.rpeHighThreshold).length,
+            };
+          }).sort((a, b) => a.pct - b.pct);
 
           return (
             <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
@@ -373,8 +398,73 @@ export default function DashboardScreen({
                   </div>
                 </div>
               )}
+              {/* Per-sport load, same card shape as WEIGH-INS REMAINING BY SPORT below. */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                {rpeBySport.length === 0 ? (
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>
+                ) : rpeBySport.map(s => {
+                  const none = s.logCount === 0;
+                  const isHard = s.avg != null && s.avg >= settings.rpeHighThreshold;
+                  return (
+                    <div key={s.sport} className="glow-card" style={{
+                      padding: '20px',
+                      borderRadius: '18px',
+                      background: none ? 'rgba(255,255,255,0.02)' : (isHard ? 'rgba(239, 68, 68, 0.04)' : 'rgba(59, 130, 246, 0.04)'),
+                      border: none ? '1px solid rgba(255,255,255,0.08)' : (isHard ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(59, 130, 246, 0.25)'),
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
+                      transition: 'all 0.2s ease',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                        <div>
+                          <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)', display: 'block', letterSpacing: '0.02em' }}>{s.sport}</span>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                            {s.logCount === 0 ? `${s.rosterCount} Athletes Listed` : `${s.logCount} Session${s.logCount !== 1 ? 's' : ''} Logged`}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          padding: '4px 10px',
+                          borderRadius: '12px',
+                          whiteSpace: 'nowrap',
+                          background: none ? 'rgba(255,255,255,0.06)' : (isHard ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)'),
+                          color: none ? 'var(--color-text-muted)' : (isHard ? '#ef4444' : '#60a5fa'),
+                          letterSpacing: '0.04em'
+                        }}>
+                          {none ? 'NO LOGS' : `AVG ${s.avg.toFixed(1)} / ${settings.rpeScaleMax}`}
+                        </span>
+                      </div>
+
+                      <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${s.pct}%`,
+                          borderRadius: '4px',
+                          background: isHard ? 'linear-gradient(90deg, #f87171 0%, #dc2626 100%)' : 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
+                          transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                        }} />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Reported Today</span>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--white)' }}>
+                          {s.pct}% ({s.responded}/{s.rosterCount})
+                          {s.hard > 0 && (
+                            <span style={{ color: '#ef4444', marginLeft: '8px' }}>· {s.hard} hard</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               {todaysRpeLogs.length === 0 && (
-                <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>
+                <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>
                   No RPE logs recorded yet today.
                 </div>
               )}
