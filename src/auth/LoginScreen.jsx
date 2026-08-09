@@ -3,6 +3,37 @@ import { Lock, LogIn, AlertTriangle, UserPlus } from 'lucide-react';
 import { supabase, markSignedInBefore } from '../supabaseClient';
 import { loadSettings } from '../settings';
 
+/**
+ * Turn a Supabase auth error into something a coach can act on.
+ *
+ * Everything that wasn't a network or confirmation problem used to be reported as
+ * "Email or password is incorrect", which is wrong and actively misleading for the
+ * common case of hitting the rate limit after a few fat-fingered attempts on a
+ * phone keyboard. Only claim the password is wrong when the server actually said so.
+ */
+export function describeAuthError(err) {
+  const msg = String(err?.message || '');
+  const status = err?.status;
+
+  if (/Failed to fetch|NetworkError|Load failed|fetch/i.test(msg)) {
+    return 'Cannot reach the server. Check the connection and try again.';
+  }
+  if (status === 429 || /rate limit|too many requests/i.test(msg)) {
+    return 'Too many sign-in attempts. Wait about a minute, then try again — this is a temporary lockout, not a wrong password.';
+  }
+  if (/Email not confirmed/i.test(msg)) {
+    return 'That account still needs its email confirmed in Supabase.';
+  }
+  if (/Invalid login credentials|invalid_grant/i.test(msg)) {
+    return 'Email or password is incorrect.';
+  }
+  if (status >= 500) {
+    return 'The sign-in service is having trouble. Try again in a moment.';
+  }
+  // Anything unrecognised: show what the server said rather than guessing wrong.
+  return msg || 'Could not sign in. Try again.';
+}
+
 export default function LoginScreen({ offlineNotice }) {
   const settings = loadSettings();
   const [email, setEmail] = useState('');
@@ -36,20 +67,11 @@ export default function LoginScreen({ offlineNotice }) {
     setError('');
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
       });
       if (signInError) {
-        // Supabase returns a deliberately vague message for bad credentials;
-        // separate out the genuinely actionable cases.
-        const msg = String(signInError.message || '');
-        if (/Failed to fetch|NetworkError|fetch/i.test(msg)) {
-          setError('Cannot reach the server. Check the connection and try again.');
-        } else if (/Email not confirmed/i.test(msg)) {
-          setError('That account still needs its email confirmed in Supabase.');
-        } else {
-          setError('Email or password is incorrect.');
-        }
+        setError(describeAuthError(signInError));
         setBusy(false);
         return;
       }
@@ -67,19 +89,17 @@ export default function LoginScreen({ offlineNotice }) {
     setNotice('');
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
       });
       if (signUpError) {
         const msg = String(signUpError.message || '');
-        if (/Failed to fetch|NetworkError|fetch/i.test(msg)) {
-          setError('Cannot reach the server. Check the connection and try again.');
-        } else if (/already registered|already exists/i.test(msg)) {
+        if (/already registered|already exists/i.test(msg)) {
           setError('An account with that email already exists. Try signing in.');
         } else if (/signups not allowed|disabled/i.test(msg)) {
           setError('New accounts are turned off. Ask a coach to create one for you.');
         } else {
-          setError(msg || 'Could not create the account.');
+          setError(describeAuthError(signUpError));
         }
         setBusy(false);
         return;
