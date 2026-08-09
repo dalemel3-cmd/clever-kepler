@@ -1,14 +1,35 @@
 import { useState } from 'react';
-import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2 } from 'lucide-react';
+import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2, Download, TrendingUp, User, Users } from 'lucide-react';
 import { getAthleteBaseline, getCentralDateString } from '../../utils/athleteData';
 
 const LOG_TABLE_PAGE_SIZE = 250;
+
+// CSV escape/format helper shared by every export in this screen.
+const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+const downloadCSV = (filename, headers, rows) => {
+  const csvContent = [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 
 export default function ReportsScreen({
   settings,
   reportData,
   reportSportFilter,
   reportTimeframe,
+  reportRangeStart,
+  setReportRangeStart,
+  reportRangeEnd,
+  setReportRangeEnd,
+  reportAthleteFilter,
+  setReportAthleteFilter,
   athletes,
   dehydrationThreshold,
   sleepThreshold,
@@ -27,7 +48,10 @@ export default function ReportsScreen({
   showReportsLogAccordion,
   setShowReportsLogAccordion,
   handleMakeDateBaselineMarker,
-  handleDeleteWeighIn
+  handleDeleteWeighIn,
+  getWeeklyAlerts,
+  getMonthlyAlerts,
+  alertStatusMap
 }) {
   // Incremental rendering for the raw log table - with months of data it was mounting
   // thousands of DOM rows at once, which crawls on older iPads.
@@ -37,6 +61,9 @@ export default function ReportsScreen({
   let filteredLogs = [...reportData];
   if (reportSportFilter !== 'ALL') {
     filteredLogs = filteredLogs.filter(r => r.sport === reportSportFilter);
+  }
+  if (reportAthleteFilter !== 'ALL') {
+    filteredLogs = filteredLogs.filter(r => r.athlete_id === reportAthleteFilter);
   }
   const now = new Date();
   if (reportTimeframe === 'today') {
@@ -48,9 +75,19 @@ export default function ReportsScreen({
   } else if (reportTimeframe === '30d') {
     const cut = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     filteredLogs = filteredLogs.filter(r => new Date(r.created_at) >= cut);
+  } else if (reportTimeframe === 'range' && (reportRangeStart || reportRangeEnd)) {
+    const startBound = reportRangeStart ? new Date(reportRangeStart + 'T00:00:00') : null;
+    const endBound = reportRangeEnd ? new Date(reportRangeEnd + 'T23:59:59') : null;
+    filteredLogs = filteredLogs.filter(r => {
+      const t = new Date(r.created_at);
+      if (startBound && t < startBound) return false;
+      if (endBound && t > endBound) return false;
+      return true;
+    });
   }
 
-  const filteredAthletes = reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter);
+  const filteredAthletes = (reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter))
+    .filter(a => reportAthleteFilter === 'ALL' || a.id === reportAthleteFilter);
 
   // 2. Dehydration Roster (LIVE status: Latest weigh-in vs Official Baseline, >=2% drop)
   const dehydrationList = [];
@@ -123,6 +160,48 @@ export default function ReportsScreen({
   const topGains = [...gains].sort((a,b) => b.diff - a.diff).slice(0, 5);
   const topDrops = [...gains].sort((a,b) => a.diff - b.diff).slice(0, 5);
 
+  // 6. Team/Roster Rollups — compliance (logged within baseline expiry window) & 7-day
+  // participation, broken out per sport program. This is the "monthly staff meeting" view,
+  // not something anyone needs to see every day.
+  const rollupAthletes = reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter);
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const bySport = new Map();
+  rollupAthletes.forEach(a => {
+    const sport = a.sport || 'Unassigned';
+    if (!bySport.has(sport)) bySport.set(sport, { sport, total: 0, compliant: 0, participatedThisWeek: 0, alerts: 0 });
+    const bucket = bySport.get(sport);
+    bucket.total += 1;
+
+    const aRecs = reportData.filter(r => r.athlete_id === a.id).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+    if (aRecs.length > 0) {
+      const gapDays = Math.floor((now - new Date(aRecs[0].created_at)) / (1000 * 60 * 60 * 24));
+      if (gapDays < baselineExpiryDays) bucket.compliant += 1;
+      if (aRecs.some(r => new Date(r.created_at) >= sevenDaysAgo)) bucket.participatedThisWeek += 1;
+    }
+    bucket.alerts += reportData.filter(r => r.athlete_id === a.id && new Date(r.created_at) >= sevenDaysAgo && (
+      (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold)
+    )).length;
+  });
+  const sportRollups = Array.from(bySport.values()).sort((a, b) => (a.compliant / a.total) - (b.compliant / b.total));
+  const overallCompliance = rollupAthletes.length ? Math.round((rollupAthletes.filter(a => {
+    const aRecs = reportData.filter(r => r.athlete_id === a.id);
+    if (aRecs.length === 0) return false;
+    const latest = aRecs.reduce((m, r) => new Date(r.created_at) > new Date(m.created_at) ? r : m);
+    return Math.floor((now - new Date(latest.created_at)) / (1000 * 60 * 60 * 24)) < baselineExpiryDays;
+  }).length / rollupAthletes.length) * 100) : 0;
+  const overallParticipation = rollupAthletes.length ? Math.round((rollupAthletes.filter(a =>
+    reportData.some(r => r.athlete_id === a.id && new Date(r.created_at) >= sevenDaysAgo)
+  ).length / rollupAthletes.length) * 100) : 0;
+
+  // 7. Case-file: full alert lifecycle history for a single selected athlete (audit trail —
+  // when each alert fired, and whether/when/who resolved it).
+  const caseFileAthlete = reportAthleteFilter !== 'ALL' ? athletes.find(a => a.id === reportAthleteFilter) : null;
+  const caseFileHistory = caseFileAthlete
+    ? Object.values(alertStatusMap || {})
+        .filter(s => s.athlete_id === reportAthleteFilter)
+        .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+    : [];
+
   // Toggles
   const showTeamSummary = reportMode === 'quick' || enabledMetrics.teamSummary;
   const showAcuteSweatLoss = reportMode === 'quick' || enabledMetrics.acuteSweatLoss;
@@ -131,9 +210,20 @@ export default function ReportsScreen({
   const showExpiredBaselines = reportMode === 'quick' || enabledMetrics.expiredBaselines;
   const showLeaderboard = reportMode === 'custom' && enabledMetrics.weightLeaderboard;
   const showRawLogs = reportMode === 'custom' ? enabledMetrics.rawLogs : true;
+  const showTrends = reportMode === 'quick' || enabledMetrics.trends;
+  const showTeamRollups = reportMode === 'quick' || enabledMetrics.teamRollups;
 
   const toggleMetric = (key) => {
     setEnabledMetrics(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const exportReportCSV = () => {
+    const headers = ['Athlete', 'Sport', 'Weight (lbs)', 'Sleep (hrs)', 'Date'];
+    const rows = filteredLogs.map(log => [
+      log.athlete_name || '', log.sport || '', log.weight_lbs || '', log.sleep_hrs || '',
+      new Date(log.created_at).toLocaleString()
+    ]);
+    downloadCSV(`Report_${reportSportFilter}_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
   return (
@@ -151,6 +241,14 @@ export default function ReportsScreen({
           </div>
         </div>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginLeft: 'auto' }}>
+          <button
+            onClick={exportReportCSV}
+            className="no-print"
+            style={{ padding: '10px 22px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, background: 'rgba(255,255,255,0.06)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '8px', cursor: 'pointer' }}
+            title="Export the currently filtered log rows as CSV"
+          >
+            <Download size={16} /> Export CSV
+          </button>
           <button
             onClick={() => window.print()}
             className="btn-primary no-print"
@@ -219,7 +317,41 @@ export default function ReportsScreen({
               <option value="today">TIMEFRAME: TODAY</option>
               <option value="7d">TIMEFRAME: LAST 7 DAYS</option>
               <option value="30d">TIMEFRAME: LAST 30 DAYS</option>
+              <option value="range">TIMEFRAME: CUSTOM RANGE...</option>
             </select>
+
+            {reportTimeframe === 'range' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="date"
+                  value={reportRangeStart}
+                  onChange={e => setReportRangeStart(e.target.value)}
+                  style={{ background: 'var(--navy-900)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '7px 10px', fontSize: '13px', fontWeight: 600 }}
+                />
+                <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>to</span>
+                <input
+                  type="date"
+                  value={reportRangeEnd}
+                  onChange={e => setReportRangeEnd(e.target.value)}
+                  style={{ background: 'var(--navy-900)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '7px 10px', fontSize: '13px', fontWeight: 600 }}
+                />
+              </div>
+            )}
+
+            {/* Athlete Filter — narrows the whole report to one athlete's case file */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <User size={14} style={{ color: 'var(--color-accent)' }} />
+              <select
+                value={reportAthleteFilter}
+                onChange={e => setReportAthleteFilter(e.target.value)}
+                style={{ background: 'var(--navy-900)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', maxWidth: '200px' }}
+              >
+                <option value="ALL">ALL ATHLETES</option>
+                {athletes.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -236,6 +368,8 @@ export default function ReportsScreen({
                 { key: 'dehydration', label: 'Dehydration Roster', desc: `Athletes dropping ≥${dehydrationThreshold}% weight` },
                 { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: `Athletes logging <${sleepThreshold}h sleep` },
                 { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
+                { key: 'trends', label: 'Trend Analysis', desc: 'Week-over-week & 30-day risk trends' },
+                { key: 'teamRollups', label: 'Team Rollups', desc: 'Compliance & participation by sport' },
                 { key: 'rawLogs', label: 'Log History Table', desc: 'Chronological weigh-in table' },
               ].map(item => {
                 const isSelected = enabledMetrics[item.key];
@@ -267,6 +401,44 @@ export default function ReportsScreen({
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading report data...</div>
       ) : (
         <>
+          {/* Athlete Case File — full alert lifecycle audit trail for one athlete, only
+              shown when the athlete filter narrows the report to a single person. This is
+              the "show me every alert this athlete triggered" audit view. */}
+          {caseFileAthlete && (
+            <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #a78bfa' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <User size={20} style={{ color: '#a78bfa' }} />
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  CASE FILE: {caseFileAthlete.name} &middot; {caseFileHistory.length} ALERTS ON RECORD
+                </h3>
+              </div>
+              {caseFileHistory.length === 0 ? (
+                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No alert history recorded for this athlete.</div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(167, 139, 250, 0.1)', borderBottom: '1px solid rgba(167, 139, 250, 0.3)' }}>
+                        <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#a78bfa' }}>ALERT TYPE</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#a78bfa' }}>STATUS</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#a78bfa' }}>LAST UPDATED</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {caseFileHistory.map((h, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '10px 14px', fontWeight: 700 }}>{h.alert_type}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: h.status === 'resolved' ? 'var(--status-success)' : h.status === 'acknowledged' ? '#f59e0b' : 'var(--status-error)' }}>{h.status}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{new Date(h.updated_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {showAcuteSweatLoss && renderNegativeSweatDropCards(true)}
           {/* Section 2: Priority Dehydration Roster */}
           {showDehydration && (
@@ -455,6 +627,119 @@ export default function ReportsScreen({
                     <span style={{ fontSize: '14px', fontWeight: 700, color: '#ef4444' }}>{item.diff.toFixed(1)} lbs</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Section 5b: Trend Analysis — the retrospective view Alerts intentionally
+              doesn't do: week-over-week alert volume plus a 30-day risk heat map, so staff
+              can see whether things are trending better or worse, not just today's snapshot. */}
+          {showTrends && (
+            <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <TrendingUp size={20} style={{ color: 'var(--color-accent)' }} />
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>TREND ANALYSIS</h3>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Past 7 Days — Categorized Alert Volume</h4>
+                <div style={{ height: '220px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px' }}>
+                  {(() => {
+                    const weekData = getWeeklyAlerts();
+                    const maxCount = Math.max(...weekData.map(d => d.count), 1);
+                    return weekData.map((item, i) => {
+                      const totalHeightPx = Math.max((item.count / maxCount) * 170, 6);
+                      const weightHeightPx = item.count > 0 ? (item.weightCount / item.count) * totalHeightPx : 0;
+                      const sleepHeightPx = item.count > 0 ? (item.sleepCount / item.count) * totalHeightPx : 0;
+                      return (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: item.count > 0 ? 'var(--white)' : 'var(--color-text-muted)' }}>{item.count}</span>
+                          </div>
+                          <div style={{ width: '100%', maxWidth: '44px', height: `${totalHeightPx}px`, background: 'var(--navy-800)', borderRadius: '6px', overflow: 'hidden', display: 'flex', flexDirection: 'column-reverse', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            {weightHeightPx > 0 && <div style={{ height: `${weightHeightPx}px`, background: 'var(--status-error)', width: '100%' }} title={`Mass Loss Alerts: ${item.weightCount}`} />}
+                            {sleepHeightPx > 0 && <div style={{ height: `${sleepHeightPx}px`, background: '#f59e0b', width: '100%' }} title={`Sleep Alerts: ${item.sleepCount}`} />}
+                            {item.count === 0 && <div style={{ height: '100%', background: 'var(--navy-600)', width: '100%' }} />}
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)' }}>{item.day}</span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px' }}>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>30-Day Risk & Deficit Heat Map</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '6px' }}>
+                  {getMonthlyAlerts().map((item, i) => {
+                    let bgColor = 'var(--navy-800)';
+                    if (item.count > 0 && item.count <= 2) bgColor = 'rgba(245, 158, 11, 0.35)';
+                    if (item.count > 2) bgColor = 'rgba(239, 68, 68, 0.5)';
+                    return (
+                      <div key={i} title={`${item.dayOfMonth}: ${item.count} alerts`} style={{ aspectRatio: '1', background: bgColor, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>
+                        {item.dayOfMonth}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '20px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: 'var(--status-error)', borderRadius: '3px' }}/> 💧 Mass Loss / Dehydration</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: '#f59e0b', borderRadius: '3px' }}/> 🌙 CNS / Low Sleep Deficits</div>
+              </div>
+            </div>
+          )}
+
+          {/* Section 5c: Team/Roster Rollups — compliance & participation per sport program,
+              the "monthly staff meeting" view rather than a live status. */}
+          {showTeamRollups && (
+            <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #10b981' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Users size={20} style={{ color: '#10b981' }} />
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>TEAM & ROSTER ROLLUPS</h3>
+              </div>
+
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#10b981' }}>{overallCompliance}%</div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Baseline Compliance</div>
+                </div>
+                <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-accent)' }}>{overallParticipation}%</div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>7-Day Participation</div>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(16, 185, 129, 0.08)', borderBottom: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>SPORT PROGRAM</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>ROSTER SIZE</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>COMPLIANCE</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>7-DAY PARTICIPATION</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>SLEEP ALERTS (7D)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sportRollups.map((row, i) => {
+                      const compliancePct = row.total ? Math.round((row.compliant / row.total) * 100) : 0;
+                      const participationPct = row.total ? Math.round((row.participatedThisWeek / row.total) * 100) : 0;
+                      const isTrendingWorse = compliancePct < 70 || participationPct < 70;
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '10px 14px', fontWeight: 700 }}>{row.sport}{isTrendingWorse && <span style={{ marginLeft: '8px', fontSize: '10px', color: 'var(--status-error)', fontWeight: 800 }}>⚠ NEEDS ATTENTION</span>}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{row.total}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: compliancePct < 70 ? 'var(--status-error)' : '#10b981' }}>{compliancePct}%</td>
+                          <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: participationPct < 70 ? 'var(--status-error)' : 'var(--color-accent)' }}>{participationPct}%</td>
+                          <td style={{ padding: '10px 14px', fontSize: '13px', color: '#f59e0b', fontWeight: 700 }}>{row.alerts}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

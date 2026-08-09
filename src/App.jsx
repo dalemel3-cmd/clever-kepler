@@ -5,6 +5,7 @@ import './styles.css';
 import { Confetti } from './components/Confetti';
 import { KioskNumpad } from './components/KioskNumpad';
 const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
+import { useAlertStatus } from './features/alerts/useAlertStatus';
 const GroupsScreen = lazy(() => import('./features/groups/GroupsScreen'));
 const RosterScreen = lazy(() => import('./features/roster/RosterScreen'));
 const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
@@ -386,7 +387,10 @@ export default function App() {
   const [bulkBaselineDate, setBulkBaselineDate] = useState('');
   const [reportMode, setReportMode] = useState('quick'); // 'quick' | 'custom'
   const [reportSportFilter, setReportSportFilter] = useState('ALL');
-  const [reportTimeframe, setReportTimeframe] = useState('all'); // 'today' | '7d' | '30d' | 'all'
+  const [reportTimeframe, setReportTimeframe] = useState('all'); // 'today' | '7d' | '30d' | 'all' | 'range'
+  const [reportRangeStart, setReportRangeStart] = useState('');
+  const [reportRangeEnd, setReportRangeEnd] = useState('');
+  const [reportAthleteFilter, setReportAthleteFilter] = useState('ALL'); // athlete_id or 'ALL', drives the case-file view
   const [enabledMetrics, setEnabledMetrics] = useState({
     teamSummary: true,
     acuteSweatLoss: true,
@@ -394,7 +398,9 @@ export default function App() {
     sleepDeficit: true,
     expiredBaselines: true,
     weightLeaderboard: true,
-    rawLogs: true
+    rawLogs: true,
+    trends: true,
+    teamRollups: true
   });
 
   // Roster State
@@ -405,7 +411,7 @@ export default function App() {
   const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', grade: '', position: '' });
   
   // Alerts State
-  const [alertsTab, setAlertsTab] = useState('DAILY');
+  const { statusMap: alertStatusMap, statusFor: alertStatusFor, acknowledgeAlert, resolveAlert, reopenAlert } = useAlertStatus();
 
   // Settings & PWA State
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
@@ -2130,6 +2136,46 @@ export default function App() {
     return result;
   };
 
+  // Consecutive-day streak lookup per athlete+type, used to escalate alert severity
+  // (an athlete flagged 4 days running reads very differently from a first-time flag).
+  // Scans back up to 45 days from a per-day flag set so DAILY alert cards can show it.
+  const alertStreakLookup = React.useMemo(() => {
+    const athleteById = new Map(athletes.map(a => [a.id, a]));
+    const baselineByAthlete = new Map();
+    const baselineFor = (athleteId, athlete) => {
+      if (!baselineByAthlete.has(athleteId)) {
+        baselineByAthlete.set(athleteId, getAthleteBaseline(athlete || { id: athleteId, athlete_id: athleteId }, reportData));
+      }
+      return baselineByAthlete.get(athleteId);
+    };
+    const byDay = new Map(); // 'YYYY-MM-DD' -> Set of 'athleteId|type'
+    reportData.forEach(r => {
+      if (!r.athlete_id) return;
+      const key = getCentralDateString(new Date(r.created_at));
+      if (!byDay.has(key)) byDay.set(key, new Set());
+      const flags = byDay.get(key);
+      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) flags.add(r.athlete_id + '|sleep');
+      if (r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r)) {
+        const athlete = athleteById.get(r.athlete_id);
+        const baseInfo = baselineFor(r.athlete_id, athlete);
+        if (baseInfo && baseInfo.id !== r.id && baseInfo.weight_lbs) {
+          const drop = baseInfo.weight_lbs - Number(r.weight_lbs);
+          if (drop / baseInfo.weight_lbs >= (dehydrationThreshold / 100)) flags.add(r.athlete_id + '|weight');
+        }
+      }
+    });
+    return (athleteId, type) => {
+      let streak = 0;
+      const d = new Date();
+      for (let i = 0; i < 45; i++) {
+        const flags = byDay.get(getCentralDateString(d));
+        if (flags && flags.has(athleteId + '|' + type)) { streak++; d.setDate(d.getDate() - 1); }
+        else break;
+      }
+      return streak;
+    };
+  }, [reportData, athletes, dehydrationThreshold, sleepThreshold]);
+
   const getWeeklyAlerts = () => {
     const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const result = [];
@@ -2228,8 +2274,10 @@ export default function App() {
       const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
 
       if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
+        const streak = alertStreakLookup(r.athlete_id, 'sleep');
         alerts.push({
           id: r.id + '_sleep',
+          alert_key: r.id + '_sleep',
           athlete_id: r.athlete_id,
           athlete_name: r.athlete_name,
           sport: r.sport,
@@ -2237,7 +2285,9 @@ export default function App() {
           color: '#f59e0b',
           icon: <Activity size={22} />,
           message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged today`,
-          action: '🌙 MONITOR CNS LOAD'
+          action: '🌙 MONITOR CNS LOAD',
+          streak,
+          magnitude: sleepThreshold - Number(r.sleep_hrs)
         });
       }
 
@@ -2250,8 +2300,10 @@ export default function App() {
         const dropPercent = drop / activeBaseline.weight_lbs;
         if (dropPercent >= (dehydrationThreshold / 100)) {
           const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
+          const streak = alertStreakLookup(r.athlete_id, 'weight');
           alerts.push({
             id: r.id + '_weight',
+            alert_key: r.id + '_weight',
             athlete_id: r.athlete_id,
             athlete_name: r.athlete_name,
             sport: r.sport,
@@ -2259,87 +2311,26 @@ export default function App() {
             color: 'var(--status-error)',
             icon: <AlertTriangle size={22} />,
             message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% vs Baseline: ${activeBaseline.weight_lbs} lbs on ${baselineDateStr})`,
-            action: recommendation
+            action: recommendation,
+            streak,
+            magnitude: dropPercent * 100
           });
         }
       }
     });
 
+    // Most urgent first: longest consecutive-day streak wins, then largest magnitude
+    // (drop % or sleep-hour deficit) within the same streak length.
+    alerts.sort((a, b) => (b.streak - a.streak) || (b.magnitude - a.magnitude));
+
     return alerts;
-  }, [reportData, athletes, dehydrationThreshold, sleepThreshold]);
+  }, [reportData, athletes, dehydrationThreshold, sleepThreshold, alertStreakLookup]);
 
   const getDailyAlerts = () => dailyAlerts;
 
-  // Memoized: the Alerts screen calls this twice per render (count + list).
-  const weeklyAlertsList = React.useMemo(() => {
-    const alerts = [];
-    const d = new Date();
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    const lastMonday = new Date(d);
-    lastMonday.setDate(diff);
-    lastMonday.setHours(0, 0, 0, 0);
-
-    const weeklyRecords = reportData.filter(r => {
-      return new Date(r.created_at).getTime() >= lastMonday.getTime();
-    });
-
-    const athleteById = new Map(athletes.map(a => [a.id, a]));
-    const baselineByAthlete = new Map();
-    const baselineFor = (athleteId, athlete) => {
-      if (!baselineByAthlete.has(athleteId)) {
-        baselineByAthlete.set(athleteId, getAthleteBaseline(athlete || { id: athleteId, athlete_id: athleteId }, reportData));
-      }
-      return baselineByAthlete.get(athleteId);
-    };
-
-    weeklyRecords.forEach(r => {
-      const athlete = athleteById.get(r.athlete_id);
-      const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
-      const dateStr = new Date(r.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
-        alerts.push({
-          id: r.athlete_id + '_sleep', // Deduplicate by athlete
-          athlete_id: r.athlete_id,
-          athlete_name: r.athlete_name,
-          sport: r.sport,
-          type: 'LOW SLEEP DEFICIT',
-          color: '#f59e0b',
-          icon: <Activity size={22} />,
-          message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged on ${dateStr}`,
-          action: '🌙 MONITOR CNS LOAD'
-        });
-      }
-
-      const activeBaseline = baselineFor(r.athlete_id, athlete);
-
-      if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
-        const drop = activeBaseline.weight_lbs - r.weight_lbs;
-        const dropPercent = drop / activeBaseline.weight_lbs;
-        if (dropPercent >= (dehydrationThreshold / 100)) {
-          const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
-          alerts.push({
-            id: r.athlete_id + '_weight', // Deduplicate by athlete
-            athlete_id: r.athlete_id,
-            athlete_name: r.athlete_name,
-            sport: r.sport,
-            type: 'DEHYDRATION RISK',
-            color: 'var(--status-error)',
-            icon: <AlertTriangle size={22} />,
-            message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop on ${dateStr} (-${(dropPercent*100).toFixed(1)}% vs Baseline)`,
-            action: recommendation
-          });
-        }
-      }
-    });
-    
-    // Deduplicate so we only show the latest alert of each type per athlete
-    const uniqueAlerts = Array.from(new Map(alerts.map(a => [a.id, a])).values());
-    return uniqueAlerts.reverse(); // Newest first
-  }, [reportData, athletes, dehydrationThreshold, sleepThreshold]);
-
-  const getWeeklyAlertsList = () => weeklyAlertsList;
+  // Badge/sort count: alerts a coach hasn't actioned yet (open or acknowledged-but-not-resolved
+  // still count so the badge doesn't disappear the moment someone glances at it).
+  const unresolvedDailyAlertsCount = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length;
 
   const renderNegativeSweatDropCards = (forceShow = false) => {
     const list = [];
@@ -2738,7 +2729,7 @@ export default function App() {
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('groups', <Shield size={18} />, 'TEAMS & ROSTERS')}
             {renderSidebarItem('profiles', <User size={18} />, 'PROFILES')}
-            {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (getDailyAlerts().length > 0 ? ` (${getDailyAlerts().length})` : ''))}
+            {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (unresolvedDailyAlertsCount > 0 ? ` (${unresolvedDailyAlertsCount})` : ''))}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
             {renderSidebarItem('settings', <Settings size={18} />, 'SETTINGS')}
           </div>
@@ -2973,13 +2964,12 @@ export default function App() {
               <AlertsScreen
                 dehydrationThreshold={dehydrationThreshold}
                 sleepThreshold={sleepThreshold}
-                alertsTab={alertsTab}
-                setAlertsTab={setAlertsTab}
                 renderNegativeSweatDropCards={renderNegativeSweatDropCards}
                 getDailyAlerts={getDailyAlerts}
-                getWeeklyAlertsList={getWeeklyAlertsList}
-                getWeeklyAlerts={getWeeklyAlerts}
-                getMonthlyAlerts={getMonthlyAlerts}
+                alertStatusFor={alertStatusFor}
+                acknowledgeAlert={acknowledgeAlert}
+                resolveAlert={resolveAlert}
+                reopenAlert={reopenAlert}
               />
             )}
 
@@ -2989,6 +2979,12 @@ export default function App() {
                 reportData={reportData}
                 reportSportFilter={reportSportFilter}
                 reportTimeframe={reportTimeframe}
+                reportRangeStart={reportRangeStart}
+                setReportRangeStart={setReportRangeStart}
+                reportRangeEnd={reportRangeEnd}
+                setReportRangeEnd={setReportRangeEnd}
+                reportAthleteFilter={reportAthleteFilter}
+                setReportAthleteFilter={setReportAthleteFilter}
                 athletes={athletes}
                 dehydrationThreshold={dehydrationThreshold}
                 sleepThreshold={sleepThreshold}
@@ -3008,6 +3004,9 @@ export default function App() {
                 setShowReportsLogAccordion={setShowReportsLogAccordion}
                 handleMakeDateBaselineMarker={handleMakeDateBaselineMarker}
                 handleDeleteWeighIn={handleDeleteWeighIn}
+                getWeeklyAlerts={getWeeklyAlerts}
+                getMonthlyAlerts={getMonthlyAlerts}
+                alertStatusMap={alertStatusMap}
               />
             )}
 
@@ -3166,10 +3165,10 @@ export default function App() {
                        className="card-glass glow-card"
                        style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'alerts' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'alerts' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <AlertTriangle size={24} style={{ color: getDailyAlerts().length > 0 ? '#ef4444' : 'var(--color-accent)' }} />
-                      {getDailyAlerts().length > 0 && (
+                      <AlertTriangle size={24} style={{ color: unresolvedDailyAlertsCount > 0 ? '#ef4444' : 'var(--color-accent)' }} />
+                      {unresolvedDailyAlertsCount > 0 && (
                         <span style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>
-                          {getDailyAlerts().length}
+                          {unresolvedDailyAlertsCount}
                         </span>
                       )}
                     </div>
