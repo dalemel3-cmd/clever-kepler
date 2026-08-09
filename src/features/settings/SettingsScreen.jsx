@@ -373,9 +373,10 @@ export default function SettingsScreen({
               <button
                 onClick={exportToCSV}
                 className="btn-primary no-print"
+                title="Full unfiltered dump of every weigh-in record ever logged. For a filtered/scoped export, use Export CSV on the Reports screen instead."
                 style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 700, background: 'rgba(255,255,255,0.05)', color: 'var(--white)', border: '1px solid var(--color-border)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
               >
-                <Download size={15} /> Export CSV
+                <Download size={15} /> Export All Records (CSV)
               </button>
               <button
                 onClick={() => {

@@ -2878,12 +2878,10 @@ export default function App() {
             {screen === 'dashboard' && (
               <DashboardScreen
                 settings={settings}
-                dehydrationThreshold={dehydrationThreshold}
                 athletes={athletes}
                 executiveInsights={executiveInsights}
                 todaySessions={todaySessions}
                 athletesRecordedToday={athletesRecordedToday}
-                reportData={reportData}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}
@@ -2891,6 +2889,8 @@ export default function App() {
                 setManualEntryForm={setManualEntryForm}
                 setShowManualEntryModal={setShowManualEntryModal}
                 setSelectedSportFilter={setSelectedSportFilter}
+                dailyAlerts={dailyAlerts}
+                alertStatusFor={alertStatusFor}
               />
             )}
             

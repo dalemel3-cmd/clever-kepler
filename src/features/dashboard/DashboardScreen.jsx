@@ -1,5 +1,5 @@
 import { CheckCircle, Zap } from 'lucide-react';
-import { getAthleteBaseline, getCentralDateString, getCentralTimeString, isPostPracticeLog } from '../../utils/athleteData';
+import { getCentralDateString, getCentralTimeString } from '../../utils/athleteData';
 
 export default function DashboardScreen({
   settings,
@@ -7,7 +7,6 @@ export default function DashboardScreen({
   executiveInsights,
   todaySessions,
   athletesRecordedToday,
-  reportData,
   setSelectedProfileId,
   fetchProfileData,
   setScreen,
@@ -15,7 +14,8 @@ export default function DashboardScreen({
   setManualEntryForm,
   setShowManualEntryModal,
   setSelectedSportFilter,
-  dehydrationThreshold = 2.0
+  dailyAlerts,
+  alertStatusFor
 }) {
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -159,61 +159,46 @@ export default function DashboardScreen({
           );
         })()}
 
-        {/* 2. NEEDS ATTENTION Row Section */}
+        {/* 2. NEEDS ATTENTION Row Section — pulled straight from the same canonical
+            dailyAlerts list Alerts uses (dehydration + sleep, with severity streaks),
+            instead of a separate dehydration-only recompute. Keeps this in lockstep with
+            whatever a coach has already acknowledged/resolved on the Alerts screen. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>NEEDS ATTENTION</span>
             <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+            {dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length > 0 && (
+              <button
+                onClick={() => setScreen('alerts')}
+                style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', fontSize: '11px', fontWeight: 800, letterSpacing: '0.05em', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                VIEW ALL IN ALERTS →
+              </button>
+            )}
           </div>
           {(() => {
-            const attentionItems = [];
-            athletes.forEach(ath => {
-              const baseInfo = getAthleteBaseline(ath, reportData);
-              const base = baseInfo ? parseFloat(baseInfo.weight_lbs) : 0;
-              if (!base || base <= 0) return;
+            const unresolved = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved');
 
-              // Exclude post-practice sweat checks - comparing those against baseline was
-              // false-flagging every athlete as dehydrated after each practice session.
-              const latestRec = reportData
-                .filter(r => r.athlete_id === ath.id && r.weight_lbs && !isNaN(parseFloat(r.weight_lbs)) && parseFloat(r.weight_lbs) > 0 && !isPostPracticeLog(r))
-                .sort((x, y) => new Date(y.created_at || 0) - new Date(x.created_at || 0))[0];
-
-              if (!latestRec) return;
-
-              const currentWt = parseFloat(latestRec.weight_lbs);
-              const dropLbs = base - currentWt;
-              const dropPercent = (dropLbs / base) * 100;
-              if (dropPercent >= dehydrationThreshold) {
-                attentionItems.push({
-                  id: ath.id,
-                  name: ath.name,
-                  sport: ath.sport || 'Athlete',
-                  reason: `down ${dropPercent.toFixed(1)}% (${currentWt} lbs vs ${base} lbs base)`,
-                  badge: `-${dropPercent.toFixed(1)}%`,
-                  dropLbs: dropLbs,
-                  isLoss: true
-                });
-              }
-            });
-
-            // Sort from highest weight drop to lowest
-            attentionItems.sort((a, b) => (b.dropLbs || 0) - (a.dropLbs || 0));
-
-            if (attentionItems.length === 0) {
+            if (unresolved.length === 0) {
               return (
                 <div className="card-glass" style={{ padding: '18px 24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(34, 197, 94, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <CheckCircle size={20} style={{ color: 'var(--status-success)' }} />
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All athletes are currently within safe baseline limits (no athletes down &gt;{dehydrationThreshold}% from baseline).</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All athletes are currently within safe baseline and sleep limits.</span>
                 </div>
               );
             }
 
+            // dailyAlerts already arrives sorted most-urgent-first (streak, then magnitude);
+            // show the top handful here and leave the rest for the full Alerts screen.
+            const preview = unresolved.slice(0, 5);
+
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {attentionItems.map((item, index) => {
-                  const initials = item.name ? item.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
+                {preview.map((item) => {
+                  const initials = item.athlete_name ? item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
+                  const status = alertStatusFor(item.alert_key);
                   return (
-                    <div key={index} className="card-glass" onClick={() => { setSelectedProfileId(item.id); fetchProfileData(item.id); setScreen('profiles'); }} style={{
+                    <div key={item.id} className="card-glass" onClick={() => { setSelectedProfileId(item.athlete_id); fetchProfileData(item.athlete_id); setScreen('profiles'); }} style={{
                       padding: '16px 24px',
                       borderRadius: '16px',
                       border: '1px solid rgba(255,255,255,0.1)',
@@ -242,26 +227,44 @@ export default function DashboardScreen({
                           {initials}
                         </div>
                         <div>
-                          <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)', display: 'block' }}>{item.name}</span>
-                          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{item.sport} &middot; {item.reason}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)' }}>{item.athlete_name}</span>
+                            {item.streak >= 2 && (
+                              <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.25)', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>🔥 {item.streak}-DAY</span>
+                            )}
+                            {status === 'acknowledged' && (
+                              <span style={{ fontSize: '9px', color: '#f59e0b', fontWeight: 800 }}>ACKNOWLEDGED</span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{item.sport} &middot; {item.message}</span>
                         </div>
                       </div>
                       <div style={{
                         padding: '6px 14px',
                         borderRadius: '16px',
-                        background: item.isLoss ? 'rgba(239, 68, 68, 0.15)' : 'rgba(249, 115, 22, 0.15)',
-                        border: item.isLoss ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(249, 115, 22, 0.35)',
-                        color: item.isLoss ? '#ef4444' : '#f97316',
+                        background: `${item.color}22`,
+                        border: `1px solid ${item.color}55`,
+                        color: item.color,
                         fontFamily: 'var(--font-display)',
-                        fontSize: '14px',
+                        fontSize: '11px',
                         fontWeight: 800,
-                        letterSpacing: '0.04em'
+                        letterSpacing: '0.04em',
+                        whiteSpace: 'nowrap'
                       }}>
-                        {item.badge}
+                        {item.type}
                       </div>
                     </div>
                   );
                 })}
+                {unresolved.length > preview.length && (
+                  <button
+                    onClick={() => setScreen('alerts')}
+                    className="card-glass"
+                    style={{ padding: '12px', borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.15)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    +{unresolved.length - preview.length} more unresolved — view all in Alerts →
+                  </button>
+                )}
               </div>
             );
           })()}

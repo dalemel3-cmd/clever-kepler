@@ -755,7 +755,7 @@ export default function ProfilesScreen({
                               <button
                                 onClick={() => handleMakeDateBaselineMarker(log.id, athlete.id, currentW, new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), athlete.name)}
                                 style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
-                                title="Make this specific date and weight the official baseline marker for dehydration alerts"
+                                title={`Make this specific date and weight the official baseline marker for ${athlete.name || 'this athlete'}'s dehydration alerts. To set a baseline for a whole team/sport at once, use Bulk Team Baseline Studio under Teams & Rosters.`}
                               >
                                 📍 MAKE BASELINE MARKER
                               </button>

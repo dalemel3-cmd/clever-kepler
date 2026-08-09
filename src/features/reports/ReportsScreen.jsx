@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2, Download, TrendingUp, User, Users } from 'lucide-react';
-import { getAthleteBaseline, getCentralDateString } from '../../utils/athleteData';
+import { getAthleteBaseline, getCentralDateString, isPostPracticeLog } from '../../utils/athleteData';
 
 const LOG_TABLE_PAGE_SIZE = 250;
 
@@ -90,9 +90,12 @@ export default function ReportsScreen({
     .filter(a => reportAthleteFilter === 'ALL' || a.id === reportAthleteFilter);
 
   // 2. Dehydration Roster (LIVE status: Latest weigh-in vs Official Baseline, >=2% drop)
+  // Post-practice sweat-check logs are excluded - comparing those against baseline
+  // false-flags every athlete as dehydrated after a normal practice (same fix already
+  // applied on Dashboard and in the Alerts daily-alert computation).
   const dehydrationList = [];
   filteredAthletes.forEach(a => {
-    const aRecs = reportData.filter(x => x.athlete_id === a.id && x.weight_lbs && Number(x.weight_lbs) > 0).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
+    const aRecs = reportData.filter(x => x.athlete_id === a.id && x.weight_lbs && Number(x.weight_lbs) > 0 && !isPostPracticeLog(x)).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
     if (aRecs.length === 0) return;
     const latestLog = aRecs[aRecs.length - 1];
 
@@ -810,7 +813,7 @@ export default function ReportsScreen({
                                       onClick={() => handleMakeDateBaselineMarker(log.id, log.athlete_id, log.weight_lbs, new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), log.athlete_name)}
                                       className="no-print"
                                       style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}
-                                      title="Make this specific date the official baseline marker"
+                                      title={`Make this specific date the official baseline marker for ${log.athlete_name || 'this athlete'} only. To set a baseline for a whole team/sport at once, use Bulk Team Baseline Studio under Teams & Rosters.`}
                                     >
                                       📍 MAKE BASELINE
                                     </button>

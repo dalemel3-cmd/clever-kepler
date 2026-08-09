@@ -53,14 +53,15 @@ const logs = [
   let body = await page.locator('body').innerText();
   console.log(`[IDENTITY] org shown=${body.includes('Testville Prep')} coach shown=${body.includes('JAMIE RIVERA') || body.includes('Jamie Rivera')} initials JR=${body.includes('JR')} (all true expected)`);
 
-  // 2. Dehydration threshold drives the dashboard attention list.
-  //    197 vs 200 baseline = 1.5% drop. At 2% -> not flagged; at 1% -> flagged.
+  // 2. Dehydration threshold drives the Dashboard "Needs Attention" list, which is now
+  //    sourced straight from the same canonical dailyAlerts list Alerts uses (dehydration +
+  //    sleep). 197 vs 200 baseline = 1.5% drop. At 2% -> not flagged; at 1% -> flagged.
   await setSettings({ dehydrationThreshold: 2.0 });
   body = await page.locator('body').innerText();
-  const at2 = body.includes('within safe baseline limits');
+  const at2 = body.includes('within safe baseline and sleep limits');
   await setSettings({ dehydrationThreshold: 1.0 });
   body = await page.locator('body').innerText();
-  const at1 = /down 1\.5%/.test(body);
+  const at1 = /-3\.0 lbs drop \(-1\.5%/.test(body);
   console.log(`[DEHYDRATION] 2% -> clean=${at2} (true expected); 1% -> flags athlete=${at1} (true expected)`);
 
   // 3. Reports headers echo the configured thresholds
