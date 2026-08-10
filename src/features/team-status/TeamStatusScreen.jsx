@@ -16,7 +16,7 @@ export default function TeamStatusScreen({
   setSelectedProfileId,
   fetchProfileData
 }) {
-  const [sortMode, setSortMode] = useState('status'); // 'status' | 'lightest' | 'heaviest'
+  const [sortMode, setSortMode] = useState('status'); // 'status' | 'lightest' | 'heaviest' | 'loss'
   const todayStr = getCentralDateString();
   const sportAthletes = athletes.filter(a => (a.sport || '') === sport);
 
@@ -47,6 +47,18 @@ export default function TeamStatusScreen({
       if (w1 == null) return 1; // no weigh-in yet sinks to the bottom either way
       if (w2 == null) return -1;
       return sortMode === 'lightest' ? w1 - w2 : w2 - w1;
+    });
+  } else if (sortMode === 'loss') {
+    // Whoever's down the most vs baseline first, regardless of whether they've
+    // weighed in today - this is the "who needs my attention right now" view, as
+    // distinct from "status" which is purely about missing today's weigh-in.
+    rows.sort((r1, r2) => {
+      const d1 = r1.delta;
+      const d2 = r2.delta;
+      if (d1 == null && d2 == null) return r1.athlete.name.localeCompare(r2.athlete.name);
+      if (d1 == null) return 1; // no baseline/log to compare sinks to the bottom
+      if (d2 == null) return -1;
+      return d1 - d2; // most negative (biggest loss) first
     });
   } else {
     // Default: not weighed in today first (longest gap first within that group), then
@@ -81,6 +93,8 @@ export default function TeamStatusScreen({
           <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
             {sortMode === 'status'
               ? "Sorted by who still needs to weigh in today · based on each athlete's most recent log, not baseline"
+              : sortMode === 'loss'
+              ? 'Sorted by biggest weight loss vs baseline first, regardless of today\'s status'
               : `Sorted by current weight, ${sortMode} first`}
           </span>
         </div>
@@ -91,6 +105,13 @@ export default function TeamStatusScreen({
               style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: sortMode === 'status' ? 'var(--color-accent)' : 'transparent', color: sortMode === 'status' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
             >
               SORT: WEIGH-IN STATUS
+            </button>
+            <button
+              onClick={() => setSortMode('loss')}
+              style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: sortMode === 'loss' ? 'var(--status-error)' : 'transparent', color: sortMode === 'loss' ? '#fff' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
+              title="Biggest weight loss vs baseline first, whether or not they've logged today"
+            >
+              ⚠ BIGGEST LOSS FIRST
             </button>
             <button
               onClick={() => setSortMode('lightest')}
