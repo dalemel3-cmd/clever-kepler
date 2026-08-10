@@ -68,6 +68,10 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
   const [teamStatusSport, setTeamStatusSport] = useState(null);
+  // Lifted out of TeamStatusScreen so it survives navigating away to an athlete's
+  // profile and back (that screen unmounts on navigation, which would otherwise reset
+  // local state back to the default sort every time).
+  const [teamStatusSortMode, setTeamStatusSortMode] = useState('status');
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
   const [selectedGradeFilter, setSelectedGradeFilter] = useState('ALL');
   const [selectedPositionFilter, setSelectedPositionFilter] = useState('ALL');
@@ -3145,6 +3149,8 @@ export default function App() {
                 setScreen={setScreen}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
+                sortMode={teamStatusSortMode}
+                setSortMode={setTeamStatusSortMode}
               />
             )}
 

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ChevronLeft, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { getCentralDateString, isPostPracticeLog, getAthleteBaseline } from '../../utils/athleteData';
 
@@ -14,9 +13,13 @@ export default function TeamStatusScreen({
   reportData,
   setScreen,
   setSelectedProfileId,
-  fetchProfileData
+  fetchProfileData,
+  // Lifted up to App so the chosen sort survives clicking into an athlete's profile
+  // and navigating back - this screen unmounts on navigation, which would otherwise
+  // reset local state back to the default sort every time.
+  sortMode,
+  setSortMode
 }) {
-  const [sortMode, setSortMode] = useState('status'); // 'status' | 'lightest' | 'heaviest' | 'loss'
   const todayStr = getCentralDateString();
   const sportAthletes = athletes.filter(a => (a.sport || '') === sport);
 
