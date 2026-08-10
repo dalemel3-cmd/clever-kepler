@@ -72,6 +72,29 @@ flagging flipping between 1% and 2%, report headers echoing thresholds, the same
 scaling with oz/lb, sports pickers, weight bounds blocking a save, the install host,
 restore-defaults round trip, and recovery from corrupt stored settings.
 
+### `rpe.js`
+Session RPE data isolation. An RPE row carries no weight and no sleep, and the other
+suites have no RPE rows in their fixtures, so only this one exercises that hazard.
+Covers: the athlete profile rendering with RPE history (the Target icon was unimported
+and crashed the whole screen), an RPE row never becoming a baseline or appearing as a
+weight, RPE-only athletes excluded from compliance and still flagged as expired
+baselines, and an RPE entry inserting rather than overwriting the same day's weigh-in.
+
+### `rpe-settings.js`
+The feature's reachability and the entry screen's text. Covers: the entry screen
+rendering no CP437 mojibake (the file was once committed with every emoji corrupted),
+`enableRpe` being reachable from Settings at all, the switch persisting on click
+without pressing Save, a kiosk stored in RPE mode not being stranded when RPE is off,
+and Session RPE appearing in both the dashboard banner and the per-athlete modal.
+
+### `rpe-dashboard.js`
+The dashboard's per-sport Session Load panel, over a three-sport fixture including an
+athlete who logs twice in one day. Covers: a card per sport including sports with no
+activity, each card's own TEAM AVG RPE / LOG RESPONSE RATE pair, an em dash rather
+than a fake 0.0 for teams that logged nothing, hard-session badges, and the response
+rate counting athletes rather than rows (counting rows read 60% where the truth was
+40%, and would exceed 100% for a team that trained twice).
+
 ## Adding a test
 
 When you fix a bug, add a check here that fails on the old behavior. The pattern is
