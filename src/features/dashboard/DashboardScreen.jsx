@@ -12,6 +12,7 @@ export default function DashboardScreen({
   setSelectedProfileId,
   fetchProfileData,
   setScreen,
+  setProfileEntryScreen,
   setUnweighedOnlyFilter,
   setManualEntryForm,
   setShowManualEntryModal,
@@ -238,7 +239,7 @@ export default function DashboardScreen({
                   const initials = item.athlete_name ? item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
                   const status = alertStatusFor(item.alert_key);
                   return (
-                    <div key={item.id} className="card-glass" onClick={() => { setSelectedProfileId(item.athlete_id); fetchProfileData(item.athlete_id); setScreen('profiles'); }} style={{
+                    <div key={item.id} className="card-glass" onClick={() => { setSelectedProfileId(item.athlete_id); fetchProfileData(item.athlete_id); setProfileEntryScreen?.(null); setScreen('profiles'); }} style={{
                       padding: '16px 24px',
                       borderRadius: '16px',
                       border: '1px solid rgba(255,255,255,0.1)',
@@ -386,7 +387,7 @@ export default function DashboardScreen({
                       const athlete = athletes.find(a => a.id === r.athlete_id);
                       const initials = r.athlete_name ? r.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
                       return (
-                        <div key={r.id} onClick={() => { setSelectedProfileId(r.athlete_id); fetchProfileData(r.athlete_id); setScreen('profiles'); }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div key={r.id} onClick={() => { setSelectedProfileId(r.athlete_id); fetchProfileData(r.athlete_id); setProfileEntryScreen?.(null); setScreen('profiles'); }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
                           <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#ef4444', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
                             {r.rpe}
                           </div>

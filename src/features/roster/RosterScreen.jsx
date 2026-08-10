@@ -17,6 +17,7 @@ export default function RosterScreen({
   setSelectedProfileId,
   fetchProfileData,
   setScreen,
+  setProfileEntryScreen,
   editingAthleteId,
   handleUpdateAthlete,
   handleCreateAthlete,
@@ -132,7 +133,7 @@ export default function RosterScreen({
               return (
                 <div
                   key={a.id}
-                  onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); setScreen('profiles'); }}
+                  onClick={() => { setSelectedProfileId(a.id); fetchProfileData(a.id); setProfileEntryScreen?.(null); setScreen('profiles'); }}
                   className="card-glass glow-card"
                   style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '18px 20px', cursor: 'pointer', minHeight: '88px' }}
                 >
@@ -205,7 +206,7 @@ export default function RosterScreen({
 
       {isAddingAthlete && (
         <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div onClick={() => { setIsAddingAthlete(false); if(editingAthleteId) { setSelectedProfileId(editingAthleteId); setScreen('profiles'); } }} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
+          <div onClick={() => { setIsAddingAthlete(false); if(editingAthleteId) { setSelectedProfileId(editingAthleteId); setProfileEntryScreen?.(null); setScreen('profiles'); } }} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
             <ChevronLeft size={16} /> Back
           </div>
 

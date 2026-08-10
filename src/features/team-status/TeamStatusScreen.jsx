@@ -18,7 +18,8 @@ export default function TeamStatusScreen({
   // and navigating back - this screen unmounts on navigation, which would otherwise
   // reset local state back to the default sort every time.
   sortMode,
-  setSortMode
+  setSortMode,
+  setProfileEntryScreen
 }) {
   const todayStr = getCentralDateString();
   const sportAthletes = athletes.filter(a => (a.sport || '') === sport);
@@ -152,7 +153,7 @@ export default function TeamStatusScreen({
         {rows.map(({ athlete, latest, weighedInToday, daysSince, baseInfo, delta }) => (
           <div
             key={athlete.id}
-            onClick={() => { setSelectedProfileId(athlete.id); fetchProfileData(athlete.id); setScreen('profiles'); }}
+            onClick={() => { setSelectedProfileId(athlete.id); fetchProfileData(athlete.id); setProfileEntryScreen('team-status'); setScreen('profiles'); }}
             className="card-glass glow-card"
             style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', cursor: 'pointer', borderLeft: `4px solid ${weighedInToday ? 'var(--status-success)' : 'var(--status-error)'}` }}
           >

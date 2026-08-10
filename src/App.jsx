@@ -72,6 +72,12 @@ export default function App() {
   // profile and back (that screen unmounts on navigation, which would otherwise reset
   // local state back to the default sort every time).
   const [teamStatusSortMode, setTeamStatusSortMode] = useState('status');
+  // Where a profile was opened FROM, so the "ALL PROFILES / NAME" back chevron on
+  // Profiles can return there instead of always landing on the generic profiles
+  // directory. Only Weigh-In Status needs this special-cased today (it's the one
+  // screen with its own state - sport + sort - worth returning to intact); every
+  // other entry point keeps the existing behavior of just deselecting the profile.
+  const [profileEntryScreen, setProfileEntryScreen] = useState(null);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
   const [selectedGradeFilter, setSelectedGradeFilter] = useState('ALL');
   const [selectedPositionFilter, setSelectedPositionFilter] = useState('ALL');
@@ -1468,6 +1474,17 @@ export default function App() {
   const gradesList = Array.from(new Set(athletes.map(a => a.grade).filter(Boolean)));
   const positionsList = Array.from(new Set(athletes.map(a => a.position).filter(Boolean)));
 
+  // Profiles' "ALL PROFILES / NAME" back chevron: return to Weigh-In Status (with its
+  // sport + sort intact) if that's where this profile was opened from, otherwise fall
+  // back to the existing behavior of just deselecting the profile.
+  const handleBackFromProfile = () => {
+    setSelectedProfileId(null);
+    if (profileEntryScreen === 'team-status' && teamStatusSport) {
+      setScreen('team-status');
+    }
+    setProfileEntryScreen(null);
+  };
+
   const handleSelectAthleteForEntry = (athleteId) => {
     setEntryAthleteId(athleteId);
     setScreen('entry');
@@ -2720,7 +2737,7 @@ export default function App() {
   const renderSidebarItem = (key, icon, label) => {
     const active = screen === key || (key === 'groups' && screen === 'roster');
     return (
-      <div onClick={() => { setScreen(key); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
+      <div onClick={() => { setScreen(key); setSaved(false); if (key !== 'profiles') { setSelectedProfileId(null); setProfileEntryScreen(null); } setIsAddingAthlete(false); }}
            style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', cursor: 'pointer',
                     background: active ? 'rgba(255,255,255,0.02)' : 'transparent',
                     borderLeft: active ? '4px solid var(--color-accent)' : '4px solid transparent',
@@ -2734,7 +2751,7 @@ export default function App() {
   const navItem = (key, icon, label) => {
     const active = (screen === key || (key === 'groups' && screen === 'roster')) && !showMobileMore;
     return (
-      <div onClick={() => { setScreen(key); setShowMobileMore(false); setSaved(false); if (key !== 'profiles') setSelectedProfileId(null); setIsAddingAthlete(false); }} 
+      <div onClick={() => { setScreen(key); setShowMobileMore(false); setSaved(false); if (key !== 'profiles') { setSelectedProfileId(null); setProfileEntryScreen(null); } setIsAddingAthlete(false); }}
            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
                     color: active ? 'var(--color-accent)' : 'var(--color-text-muted)', transition: 'color 0.2s, transform 0.15s' }}>
         {icon}
@@ -2891,7 +2908,7 @@ export default function App() {
               src="/logo1.png" 
               alt={`${settings.organizationName} logo`} 
               style={{ width: '100%', objectFit: 'contain', cursor: 'pointer' }} 
-              onClick={() => { setScreen('dashboard'); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+              onClick={() => { setScreen('dashboard'); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
             />
           </div>
           <div style={{ padding: '0 24px 16px', fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>WORKSPACE</div>
@@ -3052,6 +3069,7 @@ export default function App() {
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}
+                setProfileEntryScreen={setProfileEntryScreen}
                 setUnweighedOnlyFilter={setUnweighedOnlyFilter}
                 setKioskTrackMode={setKioskTrackMode}
                 setManualEntryForm={setManualEntryForm}
@@ -3151,6 +3169,7 @@ export default function App() {
                 fetchProfileData={fetchProfileData}
                 sortMode={teamStatusSortMode}
                 setSortMode={setTeamStatusSortMode}
+                setProfileEntryScreen={setProfileEntryScreen}
               />
             )}
 
@@ -3221,6 +3240,7 @@ export default function App() {
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}
+                setProfileEntryScreen={setProfileEntryScreen}
                 editingAthleteId={editingAthleteId}
                 handleUpdateAthlete={handleUpdateAthlete}
                 handleCreateAthlete={handleCreateAthlete}
@@ -3252,6 +3272,7 @@ export default function App() {
                 handleMakeDateBaselineMarker={handleMakeDateBaselineMarker}
                 handleDeleteWeighIn={handleDeleteWeighIn}
                 setConfirmModal={setConfirmModal}
+                handleBackFromProfile={handleBackFromProfile}
               />
             )}
 
@@ -3346,7 +3367,7 @@ export default function App() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div onClick={() => { setScreen('groups'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+                  <div onClick={() => { setScreen('groups'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
                        className="card-glass glow-card"
                        style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'groups' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'groups' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3358,7 +3379,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div onClick={() => { setScreen('alerts'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+                  <div onClick={() => { setScreen('alerts'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
                        className="card-glass glow-card"
                        style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'alerts' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'alerts' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3375,7 +3396,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div onClick={() => { setScreen('reports'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+                  <div onClick={() => { setScreen('reports'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
                        className="card-glass glow-card"
                        style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'reports' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'reports' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -3387,7 +3408,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div onClick={() => { setScreen('settings'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setIsAddingAthlete(false); }}
+                  <div onClick={() => { setScreen('settings'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
                        className="card-glass glow-card"
                        style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'settings' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'settings' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

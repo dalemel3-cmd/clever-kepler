@@ -23,7 +23,8 @@ export default function ProfilesScreen({
   setShowManualEntryModal,
   handleMakeDateBaselineMarker,
   handleDeleteWeighIn,
-  setConfirmModal
+  setConfirmModal,
+  handleBackFromProfile
 }) {
   // Every threshold below comes from Settings - no magic numbers in the UI.
   const sleepDeficitBelow = settings.sleepThreshold;
@@ -232,7 +233,7 @@ export default function ProfilesScreen({
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Top Control & Switcher Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '16px' }}>
-        <div onClick={() => setSelectedProfileId(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.1em', background: 'rgba(184, 156, 91, 0.12)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.3)', transition: 'all 0.2s' }}>
+        <div onClick={() => (handleBackFromProfile ? handleBackFromProfile() : setSelectedProfileId(null))} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.1em', background: 'rgba(184, 156, 91, 0.12)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.3)', transition: 'all 0.2s' }}>
           <ChevronLeft size={16} /> ALL PROFILES / {athlete.name.toUpperCase()}
         </div>
 
