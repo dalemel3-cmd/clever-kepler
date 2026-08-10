@@ -21,7 +21,11 @@ export const DEFAULT_SETTINGS = {
   seasonStartDate: '2026-08-03',
 
   // --- Hydration / mass-loss thresholds ---
-  // % drop vs baseline that flags an athlete as a dehydration risk.
+  // Flat lbs drop vs baseline/most-recent weigh-in that flags an athlete as a
+  // dehydration risk (e.g. 2.0 = flag anyone down more than 2 lbs). Changed from a
+  // %-of-bodyweight threshold to a flat lbs threshold in v4.12.0 per coach feedback -
+  // % was inconsistent across very different athlete weights (a 2% drop means very
+  // different things for a 140lb and a 280lb athlete).
   dehydrationThreshold: 2.0,
   // Absolute lbs drop that counts as an acute/significant drop.
   acuteDropLbs: 3.0,
@@ -87,7 +91,7 @@ export const DEFAULT_SETTINGS = {
 // Numeric fields get coerced and range-checked so a corrupt localStorage entry
 // can't poison a threshold with NaN or a negative.
 const NUMERIC_BOUNDS = {
-  dehydrationThreshold: [0.1, 20],
+  dehydrationThreshold: [0.1, 50],
   acuteDropLbs: [0.1, 100],
   calorieAdviceLbs: [0.1, 100],
   severeSweatLbs: [0.1, 100],

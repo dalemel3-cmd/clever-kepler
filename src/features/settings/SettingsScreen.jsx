@@ -1,4 +1,5 @@
-import { Check, Smartphone, CheckCircle, Download, Sliders, Minus, Plus, Database, Upload, Wifi, Zap, Users, Activity, RefreshCw, Trash2, Shield, Lock, AlertTriangle, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Smartphone, CheckCircle, Download, Sliders, Minus, Plus, Database, Upload, Wifi, Zap, Users, Activity, RefreshCw, Trash2, Shield, Lock, AlertTriangle, RotateCcw, ChevronDown } from 'lucide-react';
 import { getAppHost } from '../../settings';
 import CoachAccessCard from './CoachAccessCard';
 
@@ -42,6 +43,10 @@ export default function SettingsScreen({
   authEmail,
   handleSignOut
 }) {
+  // Program Configuration used to render all 5 field groups open at once, which made
+  // this the longest, most scroll-heavy card in Settings. Collapsed behind a dropdown
+  // per coach feedback (8/10/26) - pick a section, see just those fields.
+  const [activeConfigGroup, setActiveConfigGroup] = useState('HYDRATION & MASS LOSS');
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
@@ -205,7 +210,7 @@ export default function SettingsScreen({
               title: 'HYDRATION & MASS LOSS',
               hint: 'Drives dehydration alerts, the dashboard attention list, and sweat-loss cards.',
               fields: [
-                { key: 'dehydrationThreshold', label: 'Dehydration Risk Threshold', unit: '%', step: 0.1, min: 0.1, max: 20 },
+                { key: 'dehydrationThreshold', label: 'Dehydration Risk Threshold', unit: 'lbs', step: 0.5, min: 0.1, max: 50, help: 'Flags an athlete the moment they’re down more than this many lbs vs baseline.' },
                 { key: 'acuteDropLbs', label: 'Significant Acute Drop', unit: 'lbs', step: 0.5, min: 0.1, max: 100 },
                 { key: 'calorieAdviceLbs', label: 'Escalate to Calories + Fluids At', unit: 'lbs', step: 0.5, min: 0.1, max: 100 },
                 { key: 'severeSweatLbs', label: 'Severe Sweat Loss', unit: 'lbs', step: 0.5, min: 0.1, max: 100 },
@@ -259,12 +264,28 @@ export default function SettingsScreen({
             },
           ];
 
-          return GROUPS.map(group => (
-            <div key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
-              <div>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.08em' }}>{group.title}</span>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{group.hint}</div>
+          const group = GROUPS.find(g => g.title === activeConfigGroup) || GROUPS[0];
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+              <div style={{ position: 'relative', width: 'fit-content' }}>
+                <select
+                  aria-label="Configuration section"
+                  value={group.title}
+                  onChange={e => setActiveConfigGroup(e.target.value)}
+                  style={{
+                    appearance: 'none', WebkitAppearance: 'none',
+                    background: 'var(--navy-900)', color: 'var(--color-accent)',
+                    border: '1px solid var(--color-accent)', borderRadius: '8px',
+                    padding: '10px 40px 10px 14px', fontSize: '13px', fontWeight: 800,
+                    letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', outline: 'none'
+                  }}
+                >
+                  {GROUPS.map(g => <option key={g.title} value={g.title}>{g.title}</option>)}
+                </select>
+                <ChevronDown size={16} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-accent)', pointerEvents: 'none' }} />
               </div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{group.hint}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px' }}>
                 {group.fields.map(f => (
                   <div key={f.key} className="card-glass" style={{ padding: '14px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '8px', borderRadius: '10px' }}>
@@ -342,7 +363,7 @@ export default function SettingsScreen({
                 ))}
               </div>
             </div>
-          ));
+          );
         })()}
 
         {/* Sports offered in pickers */}

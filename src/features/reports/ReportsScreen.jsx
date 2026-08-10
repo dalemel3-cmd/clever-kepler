@@ -108,7 +108,7 @@ export default function ReportsScreen({
       const currW = Number(latestLog.weight_lbs);
       const drop = baseW - currW;
       const dropPercent = drop / baseW;
-      if (dropPercent >= (dehydrationThreshold / 100)) {
+      if (drop > dehydrationThreshold) {
         dehydrationList.push({
           id: latestLog.id,
           athlete_name: a.name,
@@ -416,7 +416,7 @@ export default function ReportsScreen({
               {[
                 { key: 'teamSummary', label: 'Team Readiness Summary', desc: 'Overview stats & readiness scores' },
                 { key: 'acuteSweatLoss', label: 'Acute Sweat Loss', desc: 'Post-practice negative sweat drop' },
-                { key: 'dehydration', label: 'Dehydration Roster', desc: `Athletes dropping ≥${dehydrationThreshold}% weight` },
+                { key: 'dehydration', label: 'Dehydration Roster', desc: `Athletes down more than ${dehydrationThreshold} lbs` },
                 { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: `Athletes logging <${sleepThreshold}h sleep` },
                 { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
                 { key: 'trends', label: 'Trend Analysis', desc: 'Week-over-week & 30-day risk trends' },
@@ -498,7 +498,7 @@ export default function ReportsScreen({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <AlertTriangle size={20} style={{ color: 'var(--status-error)' }} />
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    DEHYDRATION & MASS DROP RISK (≥{dehydrationThreshold}% MASS LOSS)
+                    DEHYDRATION & MASS DROP RISK (&gt;{dehydrationThreshold} LBS DOWN)
                   </h3>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -507,7 +507,7 @@ export default function ReportsScreen({
                       onClick={() => setDehySortBy('drop')}
                       style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: dehySortBy === 'drop' ? 'var(--status-error)' : 'transparent', color: dehySortBy === 'drop' ? '#fff' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
                     >
-                      SORT: DROP %
+                      SORT: LBS DOWN
                     </button>
                     <button
                       onClick={() => setDehySortBy('name')}
@@ -521,7 +521,7 @@ export default function ReportsScreen({
               </div>
 
               {dehydrationList.length === 0 ? (
-                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>Clean! No athletes currently showing ≥{dehydrationThreshold}% body mass drops.</div>
+                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>Clean! No athletes currently down more than {dehydrationThreshold} lbs.</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -538,7 +538,7 @@ export default function ReportsScreen({
                     <tbody>
                       {[...dehydrationList].sort((a, b) => {
                         if (dehySortBy === 'name') return (a.athlete_name || '').localeCompare(b.athlete_name || '');
-                        return (b.drop_percent || 0) - (a.drop_percent || 0);
+                        return (b.drop_lbs || 0) - (a.drop_lbs || 0);
                       }).map(item => (
                         <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                           <td style={{ padding: '12px 16px', fontWeight: 700 }}>{item.athlete_name}</td>

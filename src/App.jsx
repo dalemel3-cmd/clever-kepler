@@ -7,6 +7,7 @@ import { KioskNumpad } from './components/KioskNumpad';
 const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
 import { useAlertStatus } from './features/alerts/useAlertStatus';
 const GroupsScreen = lazy(() => import('./features/groups/GroupsScreen'));
+const TeamStatusScreen = lazy(() => import('./features/team-status/TeamStatusScreen'));
 const RosterScreen = lazy(() => import('./features/roster/RosterScreen'));
 const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
 const DashboardScreen = lazy(() => import('./features/dashboard/DashboardScreen'));
@@ -66,6 +67,7 @@ export default function App() {
   };
   const [search, setSearch] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
+  const [teamStatusSport, setTeamStatusSport] = useState(null);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
   const [selectedGradeFilter, setSelectedGradeFilter] = useState('ALL');
   const [selectedPositionFilter, setSelectedPositionFilter] = useState('ALL');
@@ -374,7 +376,7 @@ export default function App() {
           const deltaLbs = currentWt - prevWt;
           const deltaPct = (deltaLbs / prevWt) * 100;
           
-          if (deltaLbs <= -settings.acuteDropLbs || deltaPct <= -settings.dehydrationThreshold) {
+          if (deltaLbs <= -settings.acuteDropLbs || deltaLbs <= -settings.dehydrationThreshold) {
             hydrationFlags.push({
               athlete: ath,
               currentWt: currentWt.toFixed(1),
@@ -2262,7 +2264,7 @@ export default function App() {
         const baseInfo = baselineFor(r.athlete_id, athlete);
         if (baseInfo && baseInfo.id !== r.id && baseInfo.weight_lbs) {
           const drop = baseInfo.weight_lbs - Number(r.weight_lbs);
-          if (drop / baseInfo.weight_lbs >= (dehydrationThreshold / 100)) flags.add(r.athlete_id + '|weight');
+          if (drop > dehydrationThreshold) flags.add(r.athlete_id + '|weight');
         }
       }
     });
@@ -2278,6 +2280,27 @@ export default function App() {
     };
   }, [reportData, athletes, dehydrationThreshold, sleepThreshold, settings.rpeHighThreshold]);
 
+  // Shared by getWeeklyAlerts/getMonthlyAlerts below - previously each of these ran
+  // its own baseline lookup (custom baseline map, then athlete.baseline_weight) that
+  // didn't match the canonical getAthleteBaseline() resolution dailyAlerts/the
+  // Dehydration Roster use (which also falls back to explicit is_baseline logs, the
+  // season-start weigh-in, and finally an inferred log). That mismatch meant Trends
+  // routinely under-counted or zeroed out days that Alerts/Reports correctly flagged,
+  // making the weekly bars and 30-day heat map read as flat/meaningless. Also now
+  // excludes post-practice sweat-check logs from the weight comparison, matching the
+  // dehydration-detection fix already applied everywhere else.
+  const weightAlertOnDay = (r, athleteById, baselineByAthlete) => {
+    if (!r.weight_lbs || Number(r.weight_lbs) <= 0 || isPostPracticeLog(r)) return false;
+    const athlete = athleteById.get(r.athlete_id);
+    if (!baselineByAthlete.has(r.athlete_id)) {
+      baselineByAthlete.set(r.athlete_id, getAthleteBaseline(athlete || { id: r.athlete_id, athlete_id: r.athlete_id }, reportData));
+    }
+    const baseInfo = baselineByAthlete.get(r.athlete_id);
+    if (!baseInfo || !baseInfo.weight_lbs || baseInfo.id === r.id) return false;
+    const drop = baseInfo.weight_lbs - Number(r.weight_lbs);
+    return drop > dehydrationThreshold;
+  };
+
   const getWeeklyAlerts = () => {
     const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const result = [];
@@ -2285,7 +2308,7 @@ export default function App() {
     // Hoisted out of the per-day x per-record loops: these used to run
     // athletes.find + a localStorage JSON.parse for every record of every day.
     const athleteById = new Map(athletes.map(a => [a.id, a]));
-    const customMap = getBaselinesMap();
+    const baselineByAthlete = new Map();
     // Bucket each record's Central date once instead of re-deriving it 7 times.
     const byDay = new Map();
     reportData.forEach(r => {
@@ -2303,13 +2326,7 @@ export default function App() {
       let weightCount = 0;
       (byDay.get(dayCentralStr) || []).forEach(r => {
         if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) sleepCount++;
-        if (r.weight_lbs && Number(r.weight_lbs) > 0) {
-          const athlete = athleteById.get(r.athlete_id);
-          let activeBaseline = null;
-          if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
-          else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
-          if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= (dehydrationThreshold / 100)) weightCount++;
-        }
+        if (weightAlertOnDay(r, athleteById, baselineByAthlete)) weightCount++;
       });
       result.push({ day: dayStr, count: sleepCount + weightCount, sleepCount, weightCount, date: d });
     }
@@ -2322,7 +2339,7 @@ export default function App() {
     // Same hoisting as getWeeklyAlerts - this loop used to be 30 days x every record,
     // with an athletes.find and a localStorage JSON.parse inside the inner loop.
     const athleteById = new Map(athletes.map(a => [a.id, a]));
-    const customMap = getBaselinesMap();
+    const baselineByAthlete = new Map();
     const byDay = new Map();
     reportData.forEach(r => {
       const key = getCentralDateString(new Date(r.created_at));
@@ -2339,13 +2356,7 @@ export default function App() {
       let hasSleep = false;
       (byDay.get(dayCentralStr) || []).forEach(r => {
         if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) { count++; hasSleep = true; }
-        if (r.weight_lbs && Number(r.weight_lbs) > 0) {
-          const athlete = athleteById.get(r.athlete_id);
-          let activeBaseline = null;
-          if (customMap[r.athlete_id] && customMap[r.athlete_id].weight_lbs) activeBaseline = Number(customMap[r.athlete_id].weight_lbs);
-          else if (athlete?.baseline_weight) activeBaseline = Number(athlete.baseline_weight);
-          if (activeBaseline && (activeBaseline - Number(r.weight_lbs)) / activeBaseline >= (dehydrationThreshold / 100)) { count++; hasWeight = true; }
-        }
+        if (weightAlertOnDay(r, athleteById, baselineByAthlete)) { count++; hasWeight = true; }
       });
       result.push({ count, hasWeight, hasSleep, date: d, dayOfMonth: parseInt(dayCentralStr.slice(8, 10), 10) });
     }
@@ -2400,7 +2411,7 @@ export default function App() {
       if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
-        if (dropPercent >= (dehydrationThreshold / 100)) {
+        if (drop > dehydrationThreshold) {
           const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
           const streak = alertStreakLookup(r.athlete_id, 'weight');
           alerts.push({
@@ -2415,7 +2426,7 @@ export default function App() {
             message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% vs Baseline: ${activeBaseline.weight_lbs} lbs on ${baselineDateStr})`,
             action: recommendation,
             streak,
-            magnitude: dropPercent * 100
+            magnitude: drop
           });
         }
       }
@@ -3121,6 +3132,19 @@ export default function App() {
                 setSelectedSportFilter={setSelectedSportFilter}
                 setScreen={setScreen}
                 showToast={showToast}
+                teamStatusSport={teamStatusSport}
+                setTeamStatusSport={setTeamStatusSport}
+              />
+            )}
+
+            {screen === 'team-status' && (
+              <TeamStatusScreen
+                sport={teamStatusSport}
+                athletes={athletes}
+                reportData={reportData}
+                setScreen={setScreen}
+                setSelectedProfileId={setSelectedProfileId}
+                fetchProfileData={fetchProfileData}
               />
             )}
 

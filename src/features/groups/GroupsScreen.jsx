@@ -1,4 +1,4 @@
-import { TrendingUp, CheckCircle } from 'lucide-react';
+import { TrendingUp, CheckCircle, ClipboardList } from 'lucide-react';
 import { getAthleteBaseline } from '../../utils/athleteData';
 
 export default function GroupsScreen({
@@ -14,7 +14,8 @@ export default function GroupsScreen({
   handleBulkTeamBaseline,
   setSelectedSportFilter,
   setScreen,
-  showToast
+  showToast,
+  setTeamStatusSport
 }) {
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -197,6 +198,13 @@ export default function GroupsScreen({
                   </span>
                 </div>
               </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setTeamStatusSport(sport); setScreen('team-status'); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(184, 156, 91, 0.12)', border: '1px solid rgba(184, 156, 91, 0.35)', color: 'var(--color-accent)', fontSize: '12px', fontWeight: 800, letterSpacing: '0.02em', cursor: 'pointer' }}
+                title="See who on this team hasn't weighed in yet, sorted by most recent log"
+              >
+                <ClipboardList size={15} /> WEIGH-IN STATUS
+              </button>
             </div>
           );
         })}

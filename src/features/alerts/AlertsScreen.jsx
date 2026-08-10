@@ -35,7 +35,7 @@ export default function AlertsScreen({
         <div style={{ flex: '1 1 280px' }}>
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.1em', marginBottom: '4px' }}>TRAINING SAFETY &middot; TODAY'S RISK ALERTS</div>
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 5vw, var(--text-3xl))', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.1 }}>ATHLETE RECOVERY ALERTS</h1>
-          <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>Automated flags for rapid mass loss (&gt;{dehydrationThreshold}%) and low sleep (&lt;{sleepThreshold}h) &middot; sorted most urgent first</div>
+          <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>Automated flags for mass loss (&gt;{dehydrationThreshold} lbs) and low sleep (&lt;{sleepThreshold}h) &middot; sorted most urgent first</div>
         </div>
 
         {allAlerts.length > 0 && (
