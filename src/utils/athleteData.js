@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v4.12.0';
+export const APP_VERSION = 'v4.12.1';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what

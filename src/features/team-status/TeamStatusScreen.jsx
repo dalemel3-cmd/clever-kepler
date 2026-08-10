@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { ChevronLeft, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
-import { getCentralDateString, isPostPracticeLog } from '../../utils/athleteData';
+import { getCentralDateString, isPostPracticeLog, getAthleteBaseline } from '../../utils/athleteData';
 
 // Dedicated per-team weigh-in compliance drill-down, separate from the general
 // Athlete Roster grid. Requested because the roster's "last weighed in" readout was
@@ -15,6 +16,7 @@ export default function TeamStatusScreen({
   setSelectedProfileId,
   fetchProfileData
 }) {
+  const [sortMode, setSortMode] = useState('status'); // 'status' | 'lightest' | 'heaviest'
   const todayStr = getCentralDateString();
   const sportAthletes = athletes.filter(a => (a.sport || '') === sport);
 
@@ -25,20 +27,40 @@ export default function TeamStatusScreen({
     const latest = logs[0] || null;
     const weighedInToday = !!latest && getCentralDateString(new Date(latest.created_at)) === todayStr;
     const daysSince = latest ? Math.floor((Date.now() - new Date(latest.created_at).getTime()) / (1000 * 60 * 60 * 24)) : null;
-    return { athlete: a, latest, weighedInToday, daysSince };
+
+    // Gained/lost vs baseline (same baseline resolution used everywhere else - explicit
+    // marker, season-start weigh-in, or inferred fallback) so this reads consistently
+    // with the Dehydration Roster and Alerts, not just a raw first-vs-latest diff.
+    const baseInfo = getAthleteBaseline(a, reportData);
+    const delta = (latest && baseInfo && baseInfo.weight_lbs && baseInfo.id !== latest.id)
+      ? Number(latest.weight_lbs) - Number(baseInfo.weight_lbs)
+      : null;
+
+    return { athlete: a, latest, weighedInToday, daysSince, baseInfo, delta };
   });
 
-  // Not weighed in today first (longest gap first within that group), then everyone
-  // already checked in today, alphabetically.
-  rows.sort((r1, r2) => {
-    if (r1.weighedInToday !== r2.weighedInToday) return r1.weighedInToday ? 1 : -1;
-    if (!r1.weighedInToday) {
-      const d1 = r1.daysSince == null ? Infinity : r1.daysSince;
-      const d2 = r2.daysSince == null ? Infinity : r2.daysSince;
-      if (d1 !== d2) return d2 - d1;
-    }
-    return r1.athlete.name.localeCompare(r2.athlete.name);
-  });
+  if (sortMode === 'lightest' || sortMode === 'heaviest') {
+    rows.sort((r1, r2) => {
+      const w1 = r1.latest ? Number(r1.latest.weight_lbs) : null;
+      const w2 = r2.latest ? Number(r2.latest.weight_lbs) : null;
+      if (w1 == null && w2 == null) return r1.athlete.name.localeCompare(r2.athlete.name);
+      if (w1 == null) return 1; // no weigh-in yet sinks to the bottom either way
+      if (w2 == null) return -1;
+      return sortMode === 'lightest' ? w1 - w2 : w2 - w1;
+    });
+  } else {
+    // Default: not weighed in today first (longest gap first within that group), then
+    // everyone already checked in today, alphabetically.
+    rows.sort((r1, r2) => {
+      if (r1.weighedInToday !== r2.weighedInToday) return r1.weighedInToday ? 1 : -1;
+      if (!r1.weighedInToday) {
+        const d1 = r1.daysSince == null ? Infinity : r1.daysSince;
+        const d2 = r2.daysSince == null ? Infinity : r2.daysSince;
+        if (d1 !== d2) return d2 - d1;
+      }
+      return r1.athlete.name.localeCompare(r2.athlete.name);
+    });
+  }
 
   const notYetCount = rows.filter(r => !r.weighedInToday).length;
 
@@ -57,10 +79,36 @@ export default function TeamStatusScreen({
             {sport} &middot; WEIGH-IN STATUS
           </h2>
           <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-            Sorted by who still needs to weigh in today &middot; based on each athlete's most recent log, not baseline
+            {sortMode === 'status'
+              ? "Sorted by who still needs to weigh in today · based on each athlete's most recent log, not baseline"
+              : `Sorted by current weight, ${sortMode} first`}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <button
+              onClick={() => setSortMode('status')}
+              style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: sortMode === 'status' ? 'var(--color-accent)' : 'transparent', color: sortMode === 'status' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
+            >
+              SORT: WEIGH-IN STATUS
+            </button>
+            <button
+              onClick={() => setSortMode('lightest')}
+              style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: sortMode === 'lightest' ? 'var(--color-accent)' : 'transparent', color: sortMode === 'lightest' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
+            >
+              LIGHTEST → HEAVIEST
+            </button>
+            <button
+              onClick={() => setSortMode('heaviest')}
+              style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: sortMode === 'heaviest' ? 'var(--color-accent)' : 'transparent', color: sortMode === 'heaviest' ? 'var(--navy-950)' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
+            >
+              HEAVIEST → LIGHTEST
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px' }}>
           <div style={{ padding: '8px 16px', borderRadius: '8px', background: notYetCount > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)', border: `1px solid ${notYetCount > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`, textAlign: 'center' }}>
             <div style={{ fontSize: '18px', fontWeight: 800, color: notYetCount > 0 ? 'var(--status-error)' : 'var(--status-success)' }}>{notYetCount}</div>
             <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)' }}>NOT WEIGHED IN TODAY</div>
@@ -69,7 +117,6 @@ export default function TeamStatusScreen({
             <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--status-success)' }}>{rows.length - notYetCount}</div>
             <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)' }}>WEIGHED IN TODAY</div>
           </div>
-        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -78,7 +125,7 @@ export default function TeamStatusScreen({
             No athletes tagged to {sport} yet.
           </div>
         )}
-        {rows.map(({ athlete, latest, weighedInToday, daysSince }) => (
+        {rows.map(({ athlete, latest, weighedInToday, daysSince, baseInfo, delta }) => (
           <div
             key={athlete.id}
             onClick={() => { setSelectedProfileId(athlete.id); fetchProfileData(athlete.id); setScreen('profiles'); }}
@@ -92,15 +139,20 @@ export default function TeamStatusScreen({
                 <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{athlete.position || athlete.team || ''}</span>
               </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
+            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '3px' }}>
               {weighedInToday ? (
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-success)' }}>✅ Logged today &middot; {latest.weight_lbs} lbs</span>
               ) : latest ? (
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-error)', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
-                  <Clock size={13} /> Last weigh-in {daysSince === 0 ? 'earlier today' : daysSince === 1 ? '1 day ago' : `${daysSince} days ago`} ({new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                  <Clock size={13} /> Last weigh-in {daysSince === 0 ? 'earlier today' : daysSince === 1 ? '1 day ago' : `${daysSince} days ago`} ({new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}) &middot; {latest.weight_lbs} lbs
                 </span>
               ) : (
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-error)' }}>⚠ No weigh-in logged yet</span>
+              )}
+              {delta != null && (
+                <span style={{ fontSize: '11px', fontWeight: 700, color: delta > 0 ? 'var(--status-success)' : delta < 0 ? 'var(--status-error)' : 'var(--color-text-muted)' }}>
+                  {delta > 0 ? '▲' : delta < 0 ? '▼' : '—'} {delta > 0 ? '+' : ''}{delta.toFixed(1)} lbs vs baseline{baseInfo?.weight_lbs ? ` (${baseInfo.weight_lbs} lbs on ${baseInfo.date_str})` : ''}
+                </span>
               )}
             </div>
           </div>
