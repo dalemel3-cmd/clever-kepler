@@ -264,7 +264,40 @@ tweaks. Profile on the device before writing more code.
 
 ---
 
-## 11. Things that are already handled
+## 11. 🔑 There is no password recovery, and the login is shared
+
+`src/auth/LoginScreen.jsx` calls `signInWithPassword` and `signUp` and nothing else.
+There is no "Forgot password" link anywhere in the app, and nothing in `src/auth/`
+references `resetPasswordForEmail`.
+
+The only way to recover a forgotten password today is **Supabase Dashboard →
+Authentication → Users → the account → reset or send recovery**, which only the project
+owner can reach.
+
+That combination is the problem. The login is deliberately shared across every coach and
+the weight-room kiosk (§2), so a lockout is not one person's inconvenience — it is
+everybody, including the kiosk, with a single person able to fix it. This already
+happened once during a working session; it was resolved in minutes only because the
+owner was at a keyboard. During a session, with athletes waiting, it would not be.
+
+Two ways out, in increasing order of effort:
+
+1. **Add a "Forgot password" link** — one `supabase.auth.resetPasswordForEmail` call plus
+   a small reset screen. Supabase sends the mail; no new infrastructure. Note the
+   recovery link goes to the address on the shared account, so whoever holds that inbox
+   is still the bottleneck — better, but not fully solved.
+2. **Move off a single shared credential** to per-coach accounts. The RLS policies already
+   support this unchanged — approval gating is per user (§2), so this is adding users,
+   not rewriting authorization. It also restores the ability to offboard one person
+   without rotating everyone's password.
+
+Related and separate: **leaked-password protection is still off** in the Supabase
+dashboard (Authentication → Policies). For a shared, rarely-rotated credential that
+check is worth more than usual.
+
+---
+
+## 12. Things that are already handled
 
 Recorded so they don't get re-litigated:
 
@@ -288,11 +321,14 @@ Recorded so they don't get re-litigated:
 
 ---
 
-## 12. Next up
+## 13. Next up
 
-1. **Turn on leaked-password protection** — Supabase dashboard → Authentication →
-   Policies. Checks passwords against HaveIBeenPwned. Worth it for a shared login.
-   This is the only outstanding item from the security audit.
+1. **Close the account-recovery gap** (§11). Two parts, both small:
+   - Turn on **leaked-password protection** — Supabase dashboard → Authentication →
+     Policies. Checks against HaveIBeenPwned; worth more than usual for a shared,
+     rarely-rotated credential. Last outstanding item from the security audit.
+   - Add a **"Forgot password"** link to the login screen. Today a lockout takes out
+     every coach and the kiosk at once, and only the project owner can undo it.
 2. **Load the remaining teams** (§4). Everything else is built and waiting on data —
    the per-sport dashboard panels will show one Football card until then.
 3. **Use Session RPE with a real team** and see whether the defaults hold: the
