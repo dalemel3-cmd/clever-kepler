@@ -95,6 +95,16 @@ than a fake 0.0 for teams that logged nothing, hard-session badges, and the resp
 rate counting athletes rather than rows (counting rows read 60% where the truth was
 40%, and would exceed 100% for a team that trained twice).
 
+### `entry-perf.js`
+Guards the Quick Entry render-cost work over a 250-athlete / 2,000-weigh-in fixture:
+roster tiles render, search and weight typing stay responsive, the ghost placeholder
+still resolves (proving `lastLoggedWeight`'s memo did not break it), and neither the
+weigh-in nor the add-athlete modal leaves a live `backdrop-filter` surface behind it.
+
+Note the timing assertions are loose ceilings, not benchmarks — they catch a
+catastrophic regression, not a few milliseconds. See §7 of `docs/HANDOFF.md` for what
+was and was not actually measured.
+
 ## Adding a test
 
 When you fix a bug, add a check here that fails on the old behavior. The pattern is

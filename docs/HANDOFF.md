@@ -1,6 +1,6 @@
 # Handoff — open items
 
-Written 2026-08-07, last updated 2026-08-10 (v4.11.2). Everything below was established
+Written 2026-08-07, last updated 2026-08-10 (v4.12.5). Everything below was established
 during working sessions and exists nowhere else, so it's recorded here rather than
 living in a chat log.
 
@@ -34,7 +34,7 @@ did not repeat.
 
 ## 2. 🔒 Row Level Security — DONE and verified
 
-**Status as of v4.11.2: RLS is enabled and enforcing.** Earlier versions of this file
+**Status as of v4.12.5: RLS is enabled and enforcing.** Earlier versions of this file
 said otherwise; that is no longer true.
 
 - `db/003_coach_approval.sql` has been run. `athletes`, `weigh_ins`, `coaches` and
@@ -109,8 +109,10 @@ stays empty until it's populated.
 
 ## 5. 🎯 Session RPE — shipped, and its bug history
 
-Built across v4.10.0–v4.11.2. Off by default; enable at
-**Settings → SESSION RPE → toggle ON**. It then appears as a third kiosk entry mode, a
+Built across v4.10.0–v4.11.2. Off by default; enable at **Settings → Program
+Configuration → pick "SESSION RPE (INTERNAL LOAD)" from the dropdown → toggle ON**.
+(Since v4.12.0 that card shows one field group at a time, so the RPE fields are not
+visible until the section is selected — they are not missing.) It then appears as a third kiosk entry mode, a
 per-sport panel on the dashboard, and acute:chronic load alerts.
 
 The plan's warning came true, so it's worth keeping in mind for the next feature: an
@@ -142,19 +144,68 @@ mojibake, so a repeat should fail CI rather than reach a coach.
 
 ---
 
-## 7. Things that are already handled
+## 7. ⚡ Quick Entry performance, and what was actually measured
+
+v4.12.5 cut per-render work on the kiosk entry screen, reported as iPad sluggishness:
+
+- Roster tiles are now `src/features/entry/AthleteCard.jsx`, wrapped in `React.memo`.
+  Its props are **primitives on purpose** — passing the `athletesRecordedToday` Set
+  would re-render every tile whenever any one athlete logged, because a Set is a new
+  reference each time it is recomputed. `handleSelectAthleteForEntry` is `useCallback`'d
+  in App.jsx for the same reason: a fresh function identity per render would change
+  every card's props and defeat the memo entirely.
+- `lastLoggedWeight` is memoized on `[selectedAthleteId, reportData]`. It previously
+  filtered and sorted the whole weigh-in table on every keystroke in the modal.
+- The weigh-in and add-athlete overlays no longer run a `backdrop-filter` blur. A
+  full-surface blur makes the compositor re-blur everything behind it on every repaint,
+  and those modals repaint per keystroke.
+
+**Be honest about the evidence.** On desktop Chromium with 250 athletes and 2,000
+weigh-ins the before/after timings were *within noise* (search 133ms → 96ms, weight
+entry 68ms → 41ms, across runs varying by more than the difference). The changes are
+justified by the work they remove, not by a benchmark this environment can show;
+`backdrop-filter` is far more costly on iPad Safari than desktop Chromium, which is
+where the problem was reported. **If the iPad is still slow, this was not the cause —
+profile on the device before doing more of this.**
+
+A testing trap worth remembering: the first blur probe only counted *full-viewport*
+backdrop-filters and so matched nothing, passing against a build that still had the
+blur. The overlay is `position: fixed` but sizes to the nearest transformed ancestor
+(`animate-slide-up`), not the viewport. Any probe asserting an absence must be shown to
+fail on the build that has the thing.
+
+---
+
+## 8. 👥 This repo has more than one author
+
+The v4.12.0–v4.12.4 Weigh-In Status work (new `src/features/team-status/`, lbs-based
+dehydration thresholds, the Settings config dropdown) landed on `main` from a separate
+session while other work was in flight.
+
+Practical consequences:
+
+- **Fetch before starting, and rebase rather than force-push.** The one conflict was
+  trivial to resolve by hand; a force-push would have destroyed five commits.
+- **Re-run the full suite after a rebase, not just before.** The rebase silently broke
+  `rpe-settings` — the Settings dropdown meant the RPE fields were no longer in the DOM
+  by default. That looked like a regression and was not one, but only re-running caught
+  it at all.
+
+---
+
+## 9. Things that are already handled
 
 Recorded so they don't get re-litigated:
 
 - **Repos are in sync.** `clever-kepler` is the **source of truth** — Vercel deploys
   from its `main`. `MoneyMase` is a mirror kept at the same version. Push app changes
   to clever-kepler.
-- **Version bumping** — rules in `VERSIONING.md`. Small push = patch (`4.11.3`),
-  large push = minor (`4.12.0`). Two files must match: `APP_VERSION` in
+- **Version bumping** — rules in `VERSIONING.md`. Small push = patch (`4.12.6`),
+  large push = minor (`4.13.0`). Two files must match: `APP_VERSION` in
   `src/utils/athleteData.js` and `version` in `package.json`.
-- **Tests** — `tests/` + `tests/README.md`. Nine suites: `stress`, `data-integrity`,
+- **Tests** — `tests/` + `tests/README.md`. Ten suites: `stress`, `data-integrity`,
   `offline-recovery`, `sync-and-ux`, `settings-live`, `auth`, `rpe`, `rpe-settings`,
-  `rpe-dashboard`. They intercept all Supabase traffic, so they never touch the real
+  `rpe-dashboard`, `entry-perf`. They intercept all Supabase traffic, so they never touch the real
   database — which is also why they cannot catch the class of defect in §3. Run them
   before pushing anything non-trivial.
 - **Settings** — nothing is hardcoded; thresholds, windows, program identity, the
@@ -166,7 +217,7 @@ Recorded so they don't get re-litigated:
 
 ---
 
-## 8. Next up
+## 10. Next up
 
 1. **Turn on leaked-password protection** — Supabase dashboard → Authentication →
    Policies. Checks passwords against HaveIBeenPwned. Worth it for a shared login.
@@ -176,3 +227,8 @@ Recorded so they don't get re-litigated:
 3. **Use Session RPE with a real team** and see whether the defaults hold: the
    hard-session threshold (8), the load-spike A:C ratio (1.3), and the 4-week chronic
    window are all standard starting points, not tuned to this program.
+4. **Confirm on the actual iPad whether the kiosk still feels slow** (§7). The v4.12.5
+   work removed real per-render cost but could not be shown to help on desktop
+   Chromium. If it is still sluggish, profile on the device rather than guessing at
+   more React memoization — the next suspects are the 70vh scrolling roster grid and
+   the number of tiles in the DOM at once, which no amount of memoizing addresses.
