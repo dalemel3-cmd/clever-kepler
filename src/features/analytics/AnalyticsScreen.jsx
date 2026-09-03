@@ -203,8 +203,12 @@ export default function AnalyticsScreen({
             className="input-glass"
             style={{ height: '38px', padding: '0 12px', fontSize: '13px', fontWeight: 700, borderRadius: '10px' }}
           >
-            <option value="ALL">All Sports</option>
-            {sports.map(s => <option key={s} value={s}>{s}</option>)}
+            {/* Explicit option colors - same fix as EntryScreen's roster filters and
+                SpeedPowerPanel below: a native <option> popup ignores .input-glass's dark
+                background on most platforms, so light text on that light background is
+                invisible until hover happens to add contrast. */}
+            <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Sports</option>
+            {sports.map(s => <option key={s} value={s} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{s}</option>)}
           </select>
           <div style={{ display: 'flex', background: 'rgba(0,0,0,0.35)', padding: '3px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
             {RANGES.map(r => (

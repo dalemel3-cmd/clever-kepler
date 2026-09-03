@@ -82,15 +82,20 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       <form onSubmit={handleSave} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 200px', minWidth: 0 }}>
           <label htmlFor="sp-athlete" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Athlete</label>
+          {/* Native <option> popups don't inherit .input-glass's dark background on most
+              platforms - they render on the OS's own white/light popup, so light
+              --color-text on that light background was invisible until the browser's
+              hover highlight happened to add contrast. Same fix EntryScreen's roster
+              filters already use: color every option explicitly. */}
           <select id="sp-athlete" className="input-glass" value={athleteId} onChange={e => setAthleteId(e.target.value)} style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }} required>
-            <option value="">Select athlete…</option>
-            {roster.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <option value="" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>Select athlete…</option>
+            {roster.map(a => <option key={a.id} value={a.id} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{a.name}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <label htmlFor="sp-type" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Test</label>
           <select id="sp-type" className="input-glass" value={testType} onChange={e => setTestType(e.target.value)} style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }}>
-            {TEST_TYPES.map(tt => <option key={tt.key} value={tt.key}>{tt.label}</option>)}
+            {TEST_TYPES.map(tt => <option key={tt.key} value={tt.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{tt.label}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
