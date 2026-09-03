@@ -18,6 +18,14 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:4173';
 const SUPA = '**/cwfpjlomlvkburugolky.supabase.co/**';
 const uuid = (n) => `${String(n).padStart(8, '0')}-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
+
+// Program Configuration renders one field group at a time behind a dropdown (v4.12.0),
+// so the RPE fields are not in the DOM until that section is selected.
+const openRpeSection = async (page) => {
+  await page.getByLabel('Configuration section').selectOption({ label: 'SESSION RPE (INTERNAL LOAD)' });
+  await page.waitForTimeout(400);
+};
+
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => {
   if (ok) { pass++; console.log(`  PASS  ${name}`); }
@@ -66,6 +74,7 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
   {
     const { ctx, page } = await newPage();
     await page.goto(`${APP}/#settings`); await page.waitForTimeout(1600);
+    await openRpeSection(page);
     const toggle = page.locator('#setting-enableRpe');
     check('Session RPE toggle exists in Settings', await toggle.count() > 0, 'no way to turn the feature on');
     if (await toggle.count()) {
@@ -100,9 +109,11 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
   {
     const { ctx, page } = await newPage();
     await page.goto(`${APP}/#settings`); await page.waitForTimeout(1600);
+    await openRpeSection(page);
     await page.locator('#setting-enableRpe').click(); await page.waitForTimeout(400);
     // Deliberately do NOT press "Save All Settings" - a switch reads as already applied.
     await page.reload(); await page.waitForTimeout(1800);
+    await openRpeSection(page);
     const after = await page.locator('#setting-enableRpe').getAttribute('aria-checked');
     check('toggle is still ON after refresh (no Save pressed)', after === 'true',
       'the switch reverted - it only lived in React state');
