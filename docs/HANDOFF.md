@@ -1,6 +1,6 @@
 # Handoff — open items
 
-Written 2026-08-07, last updated 2026-08-10 (v4.13.0, branch). Everything below was established
+Written 2026-08-07, last updated 2026-08-11 (v4.14.0, branch). Everything below was established
 during working sessions and exists nowhere else, so it's recorded here rather than
 living in a chat log.
 
@@ -203,37 +203,37 @@ Practical consequences:
 
 ---
 
-## 9. 📊 Analytics / reporting layer — half built (v4.13.0)
+## 9. 📊 Analytics / reporting layer — charts and Speed & Power done (v4.14.0)
 
-**Done and on the `feature/analytics-charts` branch**, built against data that already
-exists — `src/features/analytics/AnalyticsScreen.jsx`, in the sidebar between Profiles
-and Reports:
+`src/features/analytics/AnalyticsScreen.jsx`, in the sidebar between Profiles and
+Reports. Both shipped on the `feature/units-and-speed-power` branch (v4.13.0's chart
+work, plus v4.14.0's tooltip fix and Speed & Power):
 
 - Average body weight over 30/60/90 days, filterable by sport
 - Daily logging compliance, and average sleep against the configured target
 - Daily session load (RPE × minutes), shown only when RPE is enabled
 - Leaderboards: weight gain and loss vs baseline, and highest training load
-- A Speed & Power card that says plainly it has no data, rather than drawing an empty
-  chart that reads as broken
+- **Speed & Power** (new in v4.14.0): manual entry of 10yd fly and laser times, best-time
+  leaderboards. Off by default behind `settings.enableSpeedPower`, same pattern as RPE -
+  toggle it at Settings → Program Configuration → SPEED & POWER.
 
-Preview: `hpd-app-git-feature-analytics-charts-dalemel3-cmds-projects.vercel.app`
+**Still blocked: CSV import from Plyomat.** Needs a sample export first — its column
+names cannot be guessed, and guessing wrong is precisely the silent failure in §1.
+`performance_tests.source` already distinguishes `'manual'` from `'plyomat'` rows, so the
+importer slots into the existing table and UI without a redesign once a sample arrives.
 
-**Still blocked, and why:**
+Schema decision made and applied: test results live in `public.performance_tests`
+(`db/006_performance_tests.sql`), not more columns on `weigh_ins`. Test results are a
+different shape — sparse, tied to test days rather than daily, several metrics per
+session — and bolting them onto `weigh_ins` would have created a second null-heavy row
+class; §5 is a complete account of the damage the first one did.
 
-- **CSV import from Plyomat** — needs a sample export first. Its column names cannot be
-  guessed, and guessing wrong is precisely the silent failure in §1.
-- **Manual entry of 10yd fly and laser times** — needs a table that does not exist.
+Its own hook (`usePerformanceTests`, same shape as `useAlertStatus`) rather than folded
+into `fetchReportData` — that pipeline is heavily tested and tuned around `weigh_ins`
+specifically, and this is a side panel, not something every screen needs.
 
-**When that half is built, put it in a new `performance_tests` table, not more columns
-on `weigh_ins`.** Test results are a different shape: sparse, tied to test days rather
-than daily, and several metrics per session. Bolting them onto `weigh_ins` would create
-a second null-heavy row class, and §5 is a complete account of the damage the first one
-did. A separate table also means `isRpeLog`/`hasWeight` stay sufficient for every
-existing consumer rather than needing another predicate.
-
-Whatever creates that table **must write its RLS policy in the same migration** — see
-§3. A new table in `public` is locked by default, and the last one sat silently broken
-for four releases.
+The RLS policy was written in the same migration that created the table (§3's rule) and
+verified against the live database by simulating `anon`: 0 rows read, insert denied.
 
 **Build it on a Vercel branch preview, not production.** Push the work to a branch;
 Vercel gives that branch its own preview URL, which can be opened on the iPad and shown
@@ -313,7 +313,27 @@ check is worth more than usual.
 
 ---
 
-## 12. Things that are already handled
+## 12. 🐛 A shared component silently mislabeled two Analytics charts
+
+`CustomTooltip` (`src/components/CustomTooltip.jsx`) was written for exactly one caller
+- ProfilesScreen's weight chart - and hardcoded the unit as a string match: `name ===
+'Weight' ? 'lbs' : 'hrs'`. When Analytics reused the same component with series named
+`'Avg Weight'` and `'Compliance'`, neither matched, so both silently fell into the
+`'hrs'` branch: a weight trend in lbs suffixed hrs, a percentage suffixed hrs. Fixed in
+v4.14.0 by making the tooltip take an explicit `units` map from its caller instead of
+guessing from the series name.
+
+**The general lesson: a shared component that special-cases one caller's exact prop
+values is a trap for the next caller, not a convenience for this one.** It compiles,
+renders, and looks fine - the wrongness only shows up in the label text, which is easy
+not to read closely. Worth an eye toward `CustomTooltip`'s siblings (`CustomTooltip` is
+now the second component group in this codebase - after the `isRpeLog`/`hasWeight`
+predicates in §5 - to have needed a "define the contract explicitly, don't infer it from
+one caller's shape" fix) if anything else gets reused across screens.
+
+---
+
+## 13. Things that are already handled
 
 Recorded so they don't get re-litigated:
 
@@ -337,7 +357,7 @@ Recorded so they don't get re-litigated:
 
 ---
 
-## 13. Next up
+## 14. Next up
 
 1. **Close the account-recovery gap** (§11). Two parts, both small:
    - Turn on **leaked-password protection** — Supabase dashboard → Authentication →
@@ -368,8 +388,8 @@ Recorded so they don't get re-litigated:
    through a CP437 round-trip and mangled every emoji into garbage that shipped to the
    kiosk. `tests/rpe-settings.js` will now catch a repeat, but only after the fact —
    the tool itself is still in the loop and unidentified.
-8. **Finish the analytics layer** (§9). The charts on existing data are built and
-   waiting on the branch preview. What remains needs input: a **sample Plyomat CSV
-   export** so the importer can be written against real columns rather than guessed
-   ones, and a decision to create the `performance_tests` table (with its RLS policy in
-   the same migration) before any code writes 10yd fly or laser times.
+8. **Send a sample Plyomat CSV export** (§9). The only thing left blocking that
+   importer - charts, Speed & Power manual entry, and the `performance_tests` table are
+   all built and live on the branch. Guessing the export's columns risks the exact
+   silent whole-row rejection in §1, so this one genuinely needs the file rather than a
+   best guess.
