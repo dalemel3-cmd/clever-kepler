@@ -1,6 +1,6 @@
 # Handoff — open items
 
-Written 2026-08-07, last updated 2026-08-10 (v4.12.5). Everything below was established
+Written 2026-08-07, last updated 2026-08-10 (v4.12.6, branch). Everything below was established
 during working sessions and exists nowhere else, so it's recorded here rather than
 living in a chat log.
 
@@ -238,12 +238,24 @@ but the intended verify-on-device-first step was skipped. If the iPad still feel
 choppy, the fixes are already live, so there is nothing to deploy; go straight to
 profiling on the device.
 
-**Still outstanding from that diagnosis:** it counted eleven `backdrop-filter` surfaces,
-two in EntryScreen and nine in App.jsx. Only the two in EntryScreen were removed. The
-nine in App.jsx remain — toasts, the recovery modal, the pull-to-refresh pill, the
-confirm dialog, and the manual-entry modal. The manual-entry one is the likeliest to
-matter, since it is a modal with inputs that repaint per keystroke, exactly like the two
-that were fixed.
+**The rest of that diagnosis is done in v4.12.6, awaiting on-device verification.** It
+counted eleven `backdrop-filter` surfaces: two in EntryScreen (removed in v4.12.5) and
+nine in App.jsx. Six of those nine cover the viewport and are now removed too — the
+recovery modal, the More / analytics modal, the install modal, the confirm dialog, the
+expired-baselines drill-down, and the coach manual-entry modal. That last one is the
+one that actually mattered: it was the only remaining full-screen overlay holding text
+inputs, so it repainted per keystroke exactly like the two already fixed.
+
+Three surfaces keep their blur deliberately — the two toast chips and the
+pull-to-refresh pill. Blur cost scales with the area being blurred, these are a few
+hundred pixels each, they are on screen briefly, and none sits behind a text input.
+
+**v4.12.6 is on the `perf/app-backdrop-blur` branch, not `main`** — this time following
+the diagnosis's own advice rather than repeating the mistake above. Vercel serves it at
+`hpd-app-git-perf-app-backdrop-blur-dalemel3-cmds-projects.vercel.app`. Open that on the
+iPad, compare against production, and merge only if it is actually better. If it is not,
+the honest outcome is to close the branch: blur was a hypothesis, and three rounds of
+removing it without a measured win means the bottleneck is elsewhere.
 
 ---
 
