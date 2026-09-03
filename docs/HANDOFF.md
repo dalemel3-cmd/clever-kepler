@@ -193,7 +193,51 @@ Practical consequences:
 
 ---
 
-## 9. Things that are already handled
+## 9. 📊 Analytics / reporting layer — planned, not started
+
+The next substantial feature. Nothing has been built; this records the intent so it
+does not live only in a chat log.
+
+Scope as described:
+
+- Custom charts and reporting on top of the existing weigh-in / sleep / RPE data
+- Richer athlete profiles
+- Leaderboards
+- **CSV import from Plyomat**
+- **Manual entry of 10yd fly and laser times** — this is new measurement data the schema
+  does not hold yet, so expect a migration. Re-read §1 before writing the code: Postgres
+  rejects the *entire row* when a payload names a column that does not exist, and that
+  failure is silent in the UI.
+
+**Build it on a Vercel branch preview, not production.** Push the work to a branch;
+Vercel gives that branch its own preview URL, which can be opened on the iPad and shown
+to staff without touching what the coaches use daily. Merge to `main` only once it is
+verified. `main` auto-deploys to production, so anything landing there is live
+immediately.
+
+---
+
+## 10. ⚠️ The iPad perf fixes went to `main`, not a branch
+
+The three fixes in §7 came from a diagnosis that explicitly recommended pushing them to
+a branch for an iPad preview first. They were pushed straight to `main` and are
+therefore already in production as v4.12.5.
+
+Nothing appears to be harmed — all ten suites pass and the changes only remove work —
+but the intended verify-on-device-first step was skipped. If the iPad still feels
+choppy, the fixes are already live, so there is nothing to deploy; go straight to
+profiling on the device.
+
+**Still outstanding from that diagnosis:** it counted eleven `backdrop-filter` surfaces,
+two in EntryScreen and nine in App.jsx. Only the two in EntryScreen were removed. The
+nine in App.jsx remain — toasts, the recovery modal, the pull-to-refresh pill, the
+confirm dialog, and the manual-entry modal. The manual-entry one is the likeliest to
+matter, since it is a modal with inputs that repaint per keystroke, exactly like the two
+that were fixed.
+
+---
+
+## 11. Things that are already handled
 
 Recorded so they don't get re-litigated:
 
@@ -217,7 +261,7 @@ Recorded so they don't get re-litigated:
 
 ---
 
-## 10. Next up
+## 12. Next up
 
 1. **Turn on leaked-password protection** — Supabase dashboard → Authentication →
    Policies. Checks passwords against HaveIBeenPwned. Worth it for a shared login.
@@ -229,6 +273,15 @@ Recorded so they don't get re-litigated:
    window are all standard starting points, not tuned to this program.
 4. **Confirm on the actual iPad whether the kiosk still feels slow** (§7). The v4.12.5
    work removed real per-render cost but could not be shown to help on desktop
-   Chromium. If it is still sluggish, profile on the device rather than guessing at
-   more React memoization — the next suspects are the 70vh scrolling roster grid and
-   the number of tiles in the DOM at once, which no amount of memoizing addresses.
+   Chromium, and it is already in production (§10), so there is nothing to deploy —
+   just open it on the iPad. If it is still sluggish, profile on the device rather than
+   guessing at more React memoization.
+5. **If it is still choppy, take the nine remaining `backdrop-filter` surfaces in
+   App.jsx** (§10), starting with the manual-entry modal — it repaints per keystroke,
+   exactly like the two already fixed. After that the suspects are the 70vh scrolling
+   roster grid and the sheer number of tiles in the DOM, which no amount of memoizing
+   addresses; that needs windowing, not memoization.
+6. **Start the analytics / reporting layer** (§9) — charts, richer profiles,
+   leaderboards, Plyomat CSV import, and manual 10yd fly / laser times. Build it on a
+   **branch preview**, not `main`. The new time fields need a migration written and
+   applied *before* the code that writes them ships (§1).
