@@ -50,9 +50,14 @@ Verified against the live database by simulating each role:
 
 | role | athletes | weigh_ins | alert_status | insert | self-approve |
 |---|---|---|---|---|---|
-| approved coach | 53 | 1340 | ✓ | OK | — |
+| approved coach | 53* | 1340* | ✓ | OK | — |
 | `anon` | 0 | 0 | 0 | denied | — |
 | signed-in, unapproved | 0 | 0 | 0 | denied | 0 rows changed |
+
+\* Row counts are from the v4.12.5 verification run. The roster has since grown to 182
+athletes and 1,538 weigh-ins (§4) — the point of the table is the **shape** (coach sees
+everything, anon and unapproved see nothing), which has not changed. Re-run the checks in
+`docs/RLS-RUNBOOK.md` if the policies are ever touched.
 
 The anon key in this repo is therefore safe to be public — that is what it is designed
 for, *given* RLS. If RLS is ever rolled back, the key becomes a full read/write
@@ -97,23 +102,36 @@ Applied as `db/004_fix_alert_status_realtime_and_indexes.sql`.
 
 ---
 
-## 4. 📋 Most teams are still not in Supabase
+## 4. ✅ The other teams are loaded — as a side effect of the Plyomat import
 
-As of writing: **53 athletes, all Football, all Varsity. 1,340 weigh-ins. 0 RPE logs.**
+**Resolved.** This section spent months reading "53 athletes, all Football, all Varsity"
+and calling that the largest gap between the app and the program. The live roster is now
+**182 athletes across 8 sports**:
 
-The other sports in the app's pickers come from the configurable `sportsList` setting —
-they appear whether or not a single athlete exists behind them, which is why the roster
-can look fuller than it is. This is the largest remaining gap between the app and the
-program.
+| sport | athletes |
+|---|---|
+| Football | 51 |
+| Baseball | 33 |
+| WSOC | 25 |
+| Volleyball | 23 |
+| WBB | 20 |
+| MBB | 18 |
+| Softball | 11 |
+| Cheer & Dance | 1 |
 
-Roster upload **works now** (that's what item 1 unblocked). To load the rest:
-Settings → Cloud Data Management → **Template** → fill per team → **Upload CSV**.
-Columns: `Athlete, Sport, Team, Grade, Position`.
+Nobody typed a roster CSV to get there. The Plyomat export (§15) named 181 people and
+carried each one's team in its "Athlete Groups" column, so importing the jump data
+created the missing athletes with their sport attached. The lesson worth keeping: **the
+roster gap was never a data-entry problem, it was a data-source problem** — the roster
+already existed, in a device nobody had connected to the app yet.
 
-**All 53 existing athletes have a blank Grade** (confirmed against the live database),
-because the column was added after they were loaded. The Grade filter therefore has
-nothing to offer and stays empty. Re-uploading those athletes by CSV with the Grade
-column filled is the fix; it is not automatic, and nothing else will populate it.
+Grade is still mostly blank. The Plyomat groups carry a graduating class only for the
+WSOC athletes (`Junior / WSOC`), so 5 athletes have one and the rest do not. Filling the
+others still needs a CSV pass: Settings → Cloud Data Management → **Template** → fill per
+team → **Upload CSV**. Columns: `Athlete, Sport, Team, Grade, Position`.
+
+Also still true: `sportsList` in settings drives the sport pickers, so a sport appears
+there whether or not anyone is on it.
 
 ---
 
@@ -487,6 +505,39 @@ different people) **and** `Clark McDonnel` ~ `CONNOR CLARK` (0.71, unrelated). A
 that auto-resolved that band would have filed one athlete's jumps under another's name.
 Anything left undecided does not import: a missing row beats a row on the wrong athlete.
 
+### The first real import (done, 2026-09-03)
+
+The September export was imported to the live database. Final state: **182 athletes,
+558 Plyomat results, 558 distinct session ids, 0 orphan rows, 0 duplicate names.** The
+22 pre-existing manual results were untouched.
+
+Four roster names were corrected in Supabase first, because Plyomat had them right and
+the roster had them wrong: `Brooklyn`→`Brooklynn Henry`, `Charlorte`→`Charlotte
+Velazquez`, `Ealla Kate`→`EllaKate Coleman`, `Oliva`→`Olivia Wilson`. All four had zero
+weigh-ins, so nothing was at risk. **That fix alone took the import from 546 to 549 rows
+and dropped the fuzzy-matched rows from 8 to 0** — worth doing before any future import,
+because a name the roster spells wrong is a name every import has to guess at.
+
+The four ambiguous names were resolved by the coach, and the answers are the reason that
+review band exists — they did not go the same way:
+
+| Plyomat name | decision | outcome |
+|---|---|---|
+| `Tibbs Abbygail` | same person as `Abby Tibbs` | 2 jumps merged onto her record |
+| `Rylee Bodenstein` | different (Softball) | new athlete, 4 jumps |
+| `Katy Bodenstein` | different (WBB) | new athlete, 2 jumps |
+| `Clark McDonnel` | different (Baseball) | new athlete, 1 jump |
+
+Three of the four were **not** the person they resembled. Note the sports: Jake
+Bodenstein is Football, Rylee is Softball, Katy is WBB — the group column was the tell
+that these were siblings rather than one athlete. An auto-merge on surname similarity
+would have filed three people's jumps under one name.
+
+`Schisler Hailey` was created with her name transposed, since Plyomat exported it that
+way and there was no roster entry to flip it against. Corrected to `Hailey Schisler`
+afterwards. Her sister Eden appears in the same file with the surname in the right
+field, which is the signal a future version could use to catch this automatically.
+
 ### Known limits
 
 - `athletes.sport` is single-valued, so a multi-sport group takes the **first** sport
@@ -506,24 +557,35 @@ Anything left undecided does not import: a missing row beats a row on the wrong 
      rarely-rotated credential. Last outstanding item from the security audit.
    - Add a **"Forgot password"** link to the login screen. Today a lockout takes out
      every coach and the kiosk at once, and only the project owner can undo it.
-2. **Load the remaining teams** (§4). Everything else is built and waiting on data —
-   the per-sport dashboard panels will show one Football card until then.
-3. **Use Session RPE with a real team** and see whether the defaults hold: the
+2. **Use Session RPE with a real team** and see whether the defaults hold: the
    hard-session threshold (8), the load-spike A:C ratio (1.3), and the 4-week chronic
-   window are all standard starting points, not tuned to this program.
-4. **Populate Grade for the existing 53 athletes** (§4). The column exists and the
-   filter is wired, but every athlete predates it, so the filter is permanently empty
-   until they are re-uploaded with Grade filled. Worth folding into the same CSV pass
-   that loads the other teams (#2).
+   window are all standard starting points, not tuned to this program. Now more
+   worthwhile than it was — there are 8 teams on the roster to try it with, not 1.
+3. **Populate Grade for the 177 athletes still missing it** (§4). The column exists and
+   the filter is wired; the Plyomat groups only carried a graduating class for 5 WSOC
+   athletes, so the rest needs a CSV pass.
+4. **Weigh-ins have not caught up with the roster.** 182 athletes now have jump results,
+   but the 1,538 weigh-ins belong to just 53 of them — 1,498 Football, plus one MBB and
+   one Baseball athlete. Every weight-based screen (hydration alerts, mass-cut
+   leaderboards, the compliance tracker) will read as empty for the new teams until they
+   start logging. Expected, not a defect, but it is the first thing a coach will notice
+   now that the roster is full: the Speed & Power boards are busy and the weight boards
+   are not.
 5. **Find whatever editor corrupted `EntryScreen.jsx`** (§6). It wrote the file back
    through a CP437 round-trip and mangled every emoji into garbage that shipped to the
    kiosk. `tests/rpe-settings.js` will now catch a repeat, but only after the fact —
    the tool itself is still in the loop and unidentified.
-6. **Send a sample Plyomat CSV export** (§9). The only thing left blocking that
-   importer - charts, Speed & Power manual entry, and the `performance_tests` table are
-   all built and live. Guessing the export's columns risks the exact silent
-   whole-row rejection in §1, so this one genuinely needs the file rather than a best
-   guess.
+6. **Consider PPS and RSI test types** (§15). The September export carried 7 rows of
+   peak power (ft·lb) and reactive strength (unitless) that have no home in
+   `performance_tests` and were reported as unsupported. All 7 belonged to one person
+   and look like device testing, so this is only worth building if the program starts
+   running those protocols for real.
 
 ~~Confirm on the actual iPad whether the kiosk still feels slow~~ — **closed, §10.**
 The coach confirmed it works well on the physical device after v4.12.6.
+
+~~Load the remaining teams~~ — **closed, §4.** All 8 teams are in; the Plyomat import
+created them.
+
+~~Send a sample Plyomat CSV export~~ — **closed, §15.** Sent, and the importer is built
+and has run against the real file.
