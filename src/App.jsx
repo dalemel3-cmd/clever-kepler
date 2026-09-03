@@ -6,6 +6,7 @@ import { Confetti } from './components/Confetti';
 import { KioskNumpad } from './components/KioskNumpad';
 const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
 import { useAlertStatus } from './features/alerts/useAlertStatus';
+import { usePerformanceTests } from './features/analytics/usePerformanceTests';
 const GroupsScreen = lazy(() => import('./features/groups/GroupsScreen'));
 const TeamStatusScreen = lazy(() => import('./features/team-status/TeamStatusScreen'));
 const RosterScreen = lazy(() => import('./features/roster/RosterScreen'));
@@ -468,6 +469,11 @@ export default function App() {
   
   // Alerts State
   const { statusMap: alertStatusMap, statusFor: alertStatusFor, acknowledgeAlert, resolveAlert, reopenAlert } = useAlertStatus();
+
+  // Speed & Power test results - lifted here (rather than fetched inside
+  // SpeedPowerPanel itself) so Profiles can also read best-test data without opening a
+  // second realtime subscription to the same table.
+  const { performanceTests, addTest: addPerformanceTest } = usePerformanceTests();
 
   // Settings & PWA State
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
@@ -3177,6 +3183,7 @@ export default function App() {
                 showToast={showToast}
                 teamStatusSport={teamStatusSport}
                 setTeamStatusSport={setTeamStatusSport}
+                settings={settings}
               />
             )}
 
@@ -3189,6 +3196,8 @@ export default function App() {
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}
                 setProfileEntryScreen={setProfileEntryScreen}
+                performanceTests={performanceTests}
+                addPerformanceTest={addPerformanceTest}
               />
             )}
             {screen === 'team-status' && (
@@ -3305,6 +3314,7 @@ export default function App() {
                 handleDeleteWeighIn={handleDeleteWeighIn}
                 setConfirmModal={setConfirmModal}
                 handleBackFromProfile={handleBackFromProfile}
+                performanceTests={performanceTests}
               />
             )}
 

@@ -1,4 +1,5 @@
-import { CheckCircle, Zap, Activity, Target, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle, Zap, Activity, Target, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { getCentralDateString, getCentralTimeString, isRpeLog } from '../../utils/athleteData';
 
 export default function DashboardScreen({
@@ -20,6 +21,11 @@ export default function DashboardScreen({
   dailyAlerts,
   alertStatusFor
 }) {
+  // Collapsed by default - this card is a full-width per-sport breakdown that ate a
+  // lot of dashboard real estate for something a coach mostly glances at once (the
+  // "N of M checked in" badge already answers the question 90% of the time). One tap
+  // opens it back up for the sport-by-sport detail.
+  const [accountabilityOpen, setAccountabilityOpen] = useState(false);
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
@@ -492,15 +498,23 @@ export default function DashboardScreen({
         })()}
 
         {/* 4. Full-Width Gamified Compliance Hub: WEIGH-INS REMAINING */}
-        <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <CheckCircle size={14} /> SESSION ACCOUNTABILITY TRACKER
-              </span>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: '4px 0 0 0', letterSpacing: '0.03em' }}>
-                WEIGH-INS REMAINING BY SPORT
-              </h3>
+        <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: accountabilityOpen ? '20px' : 0, marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
+          <div
+            onClick={() => setAccountabilityOpen(o => !o)}
+            role="button"
+            aria-expanded={accountabilityOpen}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {accountabilityOpen ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />}
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle size={14} /> SESSION ACCOUNTABILITY TRACKER
+                </span>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: '4px 0 0 0', letterSpacing: '0.03em' }}>
+                  WEIGH-INS REMAINING BY SPORT
+                </h3>
+              </div>
             </div>
             {(() => {
               const totalAthletes = athletes.length;
@@ -524,7 +538,7 @@ export default function DashboardScreen({
             })()}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {accountabilityOpen && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {(() => {
               const allSports = Array.from(new Set(athletes.map(a => a.sport || 'General')));
               if (allSports.length === 0) return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>;
@@ -587,7 +601,7 @@ export default function DashboardScreen({
                 );
               });
             })()}
-          </div>
+          </div>}
         </div>
       </div>
     </div>

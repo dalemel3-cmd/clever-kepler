@@ -351,7 +351,56 @@ one caller's shape" fix) if anything else gets reused across screens.
 
 ---
 
-## 13. Things that are already handled
+## 13. 📱 Screen metric changes from coach feedback (v4.15.0)
+
+Three changes, all requested directly by the coach after using v4.14.x:
+
+- **Dashboard — Session Accountability Tracker is now collapsible**, closed by default.
+  It was a full-width per-sport grid permanently occupying the bottom of the dashboard;
+  the "N of M ROSTER CHECKED IN" badge in its header already answers the question most
+  of the time, so the sport-by-sport detail is one click away instead of always on.
+- **Profiles — roster cards now show four metrics** instead of "Current Mass" and
+  "Total Records": Current Weight (with lbs up/down vs the previous weigh-in), Best
+  Vertical, Best Fly 10 (with a % trend), and Best Broad Jump. Session count was
+  dropped; it was the least actionable number on the card.
+- **Teams & Rosters — Avg RPE and Avg Sleep added** next to Athletes and Avg Lb. This
+  was the coach's own reasoning: some teams don't track body weight at all, and those
+  cards previously showed a permanent `--` with nothing else to look at. Avg RPE only
+  renders when `settings.enableRpe` is on, matching how RPE is gated everywhere else.
+
+**Fly 10's trend compares the two most recent attempts, not the two best.** The tile
+shows the personal best, but the arrow next to it answers "is this athlete getting
+faster right now" — the same framing as the weight tile above it. A "best vs previous
+best" reading would only ever move when a PB is broken, which is not what a coach
+scanning a roster is asking.
+
+### The bug this shipped with, and the lesson
+
+`usePerformanceTests` was originally called *inside* `SpeedPowerPanel`. Profiles needed
+the same rows, so the hook was lifted to `App.jsx` and threaded down as props — which
+avoids two realtime subscriptions to one table, and matches how `useAlertStatus` has
+always been wired.
+
+The lift was done in three places and **the App.jsx → AnalyticsScreen call site was
+missed.** `performanceTests` arrived `undefined`, `for (const t of performanceTests)`
+threw inside the boards reduce, and the error boundary blanked *the entire Analytics
+screen* — every chart, every leaderboard — over one side panel's missing prop. It built
+clean and linted clean; only `tests/select-visibility.js` and `tests/speed-power.js`
+caught it, both by failing to find any `<option>` on a screen that no longer rendered.
+
+Two things came out of it, both in the code now:
+
+1. `SpeedPowerPanel` defaults `performanceTests = []`. A side panel missing a prop
+   should degrade to an empty board, never take the screen down with it.
+2. **When lifting a hook out of a component, the prop has to be added at every call
+   site on the path, and adding it to the receiving component's signature is the half
+   that looks finished.** The signature change is what makes it *compile*; the call
+   site is what makes it *work*. Grep the JSX for the component name, not just the
+   prop.
+
+---
+
+## 14. Things that are already handled
 
 Recorded so they don't get re-litigated:
 
@@ -361,9 +410,13 @@ Recorded so they don't get re-litigated:
 - **Version bumping** — rules in `VERSIONING.md`. Small push = patch (`4.12.6`),
   large push = minor (`4.13.0`). Two files must match: `APP_VERSION` in
   `src/utils/athleteData.js` and `version` in `package.json`.
-- **Tests** — `tests/` + `tests/README.md`. Ten suites: `stress`, `data-integrity`,
-  `offline-recovery`, `sync-and-ux`, `settings-live`, `auth`, `rpe`, `rpe-settings`,
-  `rpe-dashboard`, `entry-perf`. They intercept all Supabase traffic, so they never touch the real
+- **Tests** — `tests/` + `tests/README.md`. Sixteen suites: `analytics`, `auth`,
+  `dashboard-profile-team`, `data-integrity`, `edit-log`, `entry-perf`,
+  `offline-recovery`, `rpe`, `rpe-dashboard`, `rpe-settings`, `select-visibility`,
+  `settings-live`, `speed-power`, `stress`, `sync-and-ux`, `tooltip-units`. A full pass
+  takes ~10 minutes, almost all of it deliberate waiting — the offline-queue and
+  heartbeat probes only catch what they catch after real elapsed time.
+  They intercept all Supabase traffic, so they never touch the real
   database — which is also why they cannot catch the class of defect in §3. Run them
   before pushing anything non-trivial.
 - **Settings** — nothing is hardcoded; thresholds, windows, program identity, the
@@ -375,7 +428,7 @@ Recorded so they don't get re-litigated:
 
 ---
 
-## 14. Next up
+## 15. Next up
 
 1. **Close the account-recovery gap** (§11). Two parts, both small:
    - Turn on **leaked-password protection** — Supabase dashboard → Authentication →

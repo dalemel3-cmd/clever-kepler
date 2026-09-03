@@ -1,6 +1,5 @@
 import React from 'react';
 import { Zap, Plus, ChevronDown, ChevronUp } from 'lucide-react';
-import { usePerformanceTests } from './usePerformanceTests';
 
 // Test types this panel knows about today. `source: 'plyomat'` rows (once that importer
 // exists) can carry a test_type not listed here - the leaderboard groups on whatever
@@ -10,18 +9,27 @@ import { usePerformanceTests } from './usePerformanceTests';
 // `better` says which direction counts as a personal best: 'asc' for a sprint time
 // (lower is faster), 'desc' for a jump (higher is farther/taller). Getting this backwards
 // would rank an athlete's worst jump as their best.
-const TEST_TYPES = [
+//
+// Exported so Profiles (which shows "Best Fly 10", "Best Vertical", "Best Broad Jump"
+// per athlete) can reduce the same performance_tests rows the same way, rather than
+// re-deriving the better:'asc'|'desc' rule and risking the two screens disagreeing on
+// what counts as a personal best.
+export const TEST_TYPES = [
   { key: '10yd_fly', label: '10yd Fly', unit: 'sec', better: 'asc', placeholder: 'e.g. 1.62' },
   { key: 'vertical_jump', label: 'Vertical Jump', unit: 'in', better: 'desc', placeholder: 'e.g. 24.5' },
   { key: 'board_jump', label: 'Board Jump', unit: 'in', better: 'desc', placeholder: 'e.g. 96' },
 ];
-const TEST_TYPE_BY_KEY = Object.fromEntries(TEST_TYPES.map(t => [t.key, t]));
+export const TEST_TYPE_BY_KEY = Object.fromEntries(TEST_TYPES.map(t => [t.key, t]));
 const PAGE_SIZE = 8;
 
-const formatMetric = (value, unit) => `${Number(value).toFixed(unit === 'sec' ? 2 : 1)} ${unit}`;
+export const formatMetric = (value, unit) => `${Number(value).toFixed(unit === 'sec' ? 2 : 1)} ${unit}`;
 
-export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, card, h3, eyebrow, grid: gridColor }) {
-  const { performanceTests, addTest } = usePerformanceTests();
+// `performanceTests` defaults to [] rather than being assumed present. These rows are now
+// fetched once in App.jsx and threaded down, and a missing prop anywhere on that path threw
+// inside the boards reduce - which the error boundary turned into a blank *entire Analytics
+// screen*, every chart with it, over one absent side panel. An empty board is the right
+// failure mode for this card.
+export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, card, h3, eyebrow, grid: gridColor, performanceTests = [], addTest }) {
   const [athleteId, setAthleteId] = React.useState('');
   const [testType, setTestType] = React.useState(TEST_TYPES[0].key);
   const [value, setValue] = React.useState('');

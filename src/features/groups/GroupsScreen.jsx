@@ -1,5 +1,5 @@
 import { TrendingUp, CheckCircle, ClipboardList } from 'lucide-react';
-import { getAthleteBaseline } from '../../utils/athleteData';
+import { getAthleteBaseline, isRpeLog, hasSleep } from '../../utils/athleteData';
 
 export default function GroupsScreen({
   sportsList,
@@ -15,7 +15,8 @@ export default function GroupsScreen({
   setSelectedSportFilter,
   setScreen,
   showToast,
-  setTeamStatusSport
+  setTeamStatusSport,
+  settings
 }) {
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -159,6 +160,15 @@ export default function GroupsScreen({
           });
           const avgW = countW > 0 ? Math.round(totalW / countW) : 0;
 
+          // RPE and Sleep alongside body weight - a team that doesn't track weight
+          // (or hasn't yet) still gets a live readout here instead of a permanent "--".
+          const sportAthleteIds = new Set(sportAthletes.map(a => a.id));
+          const sportLogs = reportData.filter(r => sportAthleteIds.has(r.athlete_id));
+          const rpeLogs = sportLogs.filter(isRpeLog);
+          const avgRpe = rpeLogs.length > 0 ? (rpeLogs.reduce((s, r) => s + (r.rpe || 0), 0) / rpeLogs.length) : 0;
+          const sleepLogs = sportLogs.filter(hasSleep);
+          const avgSleep = sleepLogs.length > 0 ? (sleepLogs.reduce((s, r) => s + Number(r.sleep_hrs), 0) / sleepLogs.length) : 0;
+
           return (
             <div
               key={sport}
@@ -180,7 +190,7 @@ export default function GroupsScreen({
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--white)' }}>
                 {sport}
               </div>
-              <div style={{ display: 'flex', gap: '48px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: 'var(--white)' }}>
                     {sportAthletes.length}
@@ -195,6 +205,24 @@ export default function GroupsScreen({
                   </span>
                   <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     AVG LB
+                  </span>
+                </div>
+                {settings.enableRpe && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: avgRpe > 0 ? '#f97316' : 'var(--color-text-muted)' }}>
+                      {avgRpe > 0 ? avgRpe.toFixed(1) : '--'}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      AVG RPE
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: avgSleep > 0 ? '#60a5fa' : 'var(--color-text-muted)' }}>
+                    {avgSleep > 0 ? avgSleep.toFixed(1) : '--'}
+                  </span>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    AVG SLEEP
                   </span>
                 </div>
               </div>

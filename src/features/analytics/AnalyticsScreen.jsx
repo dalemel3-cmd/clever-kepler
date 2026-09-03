@@ -31,6 +31,8 @@ export default function AnalyticsScreen({
   fetchProfileData,
   setScreen,
   setProfileEntryScreen,
+  performanceTests,
+  addPerformanceTest,
 }) {
   const [rangeDays, setRangeDays] = React.useState(30);
   const [sportFilter, setSportFilter] = React.useState('ALL');
@@ -414,6 +416,8 @@ export default function AnalyticsScreen({
           h3={h3}
           eyebrow={eyebrow}
           grid={grid}
+          performanceTests={performanceTests}
+          addTest={addPerformanceTest}
         />
       ) : (
         <div className="card-glass" style={{ ...card, border: '1px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.015)' }}>

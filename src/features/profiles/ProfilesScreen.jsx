@@ -1,7 +1,23 @@
-import { User, Search, X, ArrowUpRight, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
+import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
 import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, hasWeight, isRpeLog } from '../../utils/athleteData';
+import { TEST_TYPE_BY_KEY, formatMetric } from '../analytics/SpeedPowerPanel';
+
+// Best (per better:'asc'|'desc') result for one athlete/test_type out of their logged
+// performance_tests rows. Mirrors the reduction SpeedPowerPanel uses for its
+// leaderboards, so a roster card's "Best Vertical" always agrees with what Analytics
+// shows for the same athlete.
+const bestTestFor = (tests, athleteId, testKey) => {
+  const tt = TEST_TYPE_BY_KEY[testKey];
+  const rows = tests.filter(t => t.athlete_id === athleteId && t.test_type === testKey);
+  if (rows.length === 0) return null;
+  return rows.reduce((best, r) => {
+    if (!best) return r;
+    const better = tt ? tt.better : 'asc';
+    return (better === 'desc' ? Number(r.metric) > Number(best.metric) : Number(r.metric) < Number(best.metric)) ? r : best;
+  }, null);
+};
 
 export default function ProfilesScreen({
   settings,
@@ -24,7 +40,8 @@ export default function ProfilesScreen({
   handleMakeDateBaselineMarker,
   handleDeleteWeighIn,
   setConfirmModal,
-  handleBackFromProfile
+  handleBackFromProfile,
+  performanceTests
 }) {
   // Every threshold below comes from Settings - no magic numbers in the UI.
   const sleepDeficitBelow = settings.sleepThreshold;
@@ -109,6 +126,32 @@ export default function ProfilesScreen({
             const aLogs = reportData.filter(r => r.athlete_id === a.id).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
             const latestLog = aLogs[0];
 
+            // Current weight + trend vs the weigh-in before it (weight-only rows -
+            // RPE/sleep-only logs don't carry a weight to trend against).
+            const weightLogs = aLogs.filter(hasWeight);
+            const currentWeight = weightLogs[0];
+            const previousWeight = weightLogs[1];
+            const weightDeltaLbs = currentWeight && previousWeight
+              ? Number(currentWeight.weight_lbs) - Number(previousWeight.weight_lbs)
+              : null;
+
+            // Best-result Speed & Power tiles. Vertical/Board Jump show the PB only;
+            // Fly 10 also gets a trend, comparing the two most recent attempts (not the
+            // two best) so it reads as "is this athlete getting faster right now",
+            // matching the "up or down" framing used for weight above.
+            const tests = performanceTests || [];
+            const bestVertical = bestTestFor(tests, a.id, 'vertical_jump');
+            const bestBoard = bestTestFor(tests, a.id, 'board_jump');
+            const bestFly = bestTestFor(tests, a.id, '10yd_fly');
+            const flyAttempts = tests
+              .filter(t => t.athlete_id === a.id && t.test_type === '10yd_fly')
+              .sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+            const latestFly = flyAttempts[0];
+            const prevFly = flyAttempts[1];
+            const flyTrendPct = latestFly && prevFly && Number(prevFly.metric) > 0
+              ? ((Number(latestFly.metric) - Number(prevFly.metric)) / Number(prevFly.metric)) * 100
+              : null;
+
             return (
               <div
                 key={a.id}
@@ -145,18 +188,42 @@ export default function ProfilesScreen({
                   </div>
                 </div>
 
-                {/* KPI mini row */}
+                {/* KPI mini grid: current weight + trend, and best Speed & Power results */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div>
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Current Mass</span>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>
-                      {latestLog && latestLog.weight_lbs && Number(latestLog.weight_lbs) > 0 ? `${latestLog.weight_lbs} lb` : (latestLog ? '😴 Sleep Only' : 'No logs')}
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Current Weight</span>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {currentWeight ? `${currentWeight.weight_lbs} lb` : (latestLog ? '😴 Sleep Only' : 'No logs')}
+                      {weightDeltaLbs !== null && Math.abs(weightDeltaLbs) >= 0.1 && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: 800, color: weightDeltaLbs < 0 ? '#f87171' : '#34d399' }}>
+                          {weightDeltaLbs < 0 ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                          {Math.abs(weightDeltaLbs).toFixed(1)}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div>
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Total Records</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Vertical</span>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px' }}>
-                      {aLogs.length} session{aLogs.length !== 1 ? 's' : ''}
+                      {bestVertical ? formatMetric(bestVertical.metric, bestVertical.unit) : '--'}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Fly 10</span>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {bestFly ? formatMetric(bestFly.metric, bestFly.unit) : '--'}
+                      {flyTrendPct !== null && Math.abs(flyTrendPct) >= 0.5 && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: 800, color: flyTrendPct < 0 ? '#34d399' : '#f87171' }}>
+                          {flyTrendPct < 0 ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                          {Math.abs(flyTrendPct).toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Broad Jump</span>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px' }}>
+                      {bestBoard ? formatMetric(bestBoard.metric, bestBoard.unit) : '--'}
                     </div>
                   </div>
                 </div>
