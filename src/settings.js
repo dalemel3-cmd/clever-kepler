@@ -87,7 +87,7 @@ export const DEFAULT_SETTINGS = {
   rpeLoadSpikeRatio: 1.3,
   rpeChronicWeeks: 4,
 
-  // --- Speed & Power testing (10yd fly, laser time; Plyomat import comes later) ---
+  // --- Speed & Power testing (10yd fly, vertical jump, board jump; Plyomat import comes later) ---
   enableSpeedPower: false,
 };
 

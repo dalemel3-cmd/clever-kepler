@@ -2,7 +2,7 @@
 // Requires a preview server on http://127.0.0.1:4173 and Playwright.
 // All Supabase traffic is intercepted - never touches the real database.
 //
-// Speed & Power: manual entry for 10yd fly and laser time, feature-flagged like RPE.
+// Speed & Power: manual entry for 10yd fly, vertical jump, and board jump, feature-flagged like RPE.
 import { chromium } from 'playwright';
 import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
@@ -42,7 +42,7 @@ const newPage = async (browser, opts = {}) => {
     if (url.includes('/realtime/')) return route.abort();
     if (isAuthRoute(url)) return fulfillAuth(route, url, hdrs);
     if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ approved: true }]) });
-    if (url.includes('/rest/v1/athletes') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(athletes) });
+    if (url.includes('/rest/v1/athletes') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(opts.athletes !== undefined ? opts.athletes : athletes) });
     if (url.includes('/rest/v1/weigh_ins') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: '[]' });
     if (url.includes('/rest/v1/performance_tests')) {
       if (method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(opts.perfTests !== undefined ? opts.perfTests : perfTests) });
@@ -56,6 +56,16 @@ const newPage = async (browser, opts = {}) => {
   });
   return page;
 };
+
+// The Athlete dropdown lists every roster name too, so a raw body.innerText() search
+// for an athlete's name can match the <select> instead of the leaderboard - giving a
+// false pass/fail regardless of what the leaderboard actually shows. Strip <select>
+// elements out first so these checks only see the boards.
+const leaderboardText = async (page) => page.evaluate(() => {
+  const clone = document.body.cloneNode(true);
+  clone.querySelectorAll('select').forEach(s => s.remove());
+  return clone.innerText;
+});
 
 (async () => {
   const browser = await chromium.launch(LAUNCH_OPTS);
@@ -88,21 +98,68 @@ const newPage = async (browser, opts = {}) => {
     const page = await newPage(browser, { perfTests: [] });
     await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2200);
     await page.getByLabel('Athlete').selectOption(uuid(1));
-    await page.getByLabel('Test', { exact: true }).selectOption('laser_time');
-    await page.getByLabel('Test time in seconds').fill('1.58');
+    await page.getByLabel('Test', { exact: true }).selectOption('vertical_jump');
+    await page.getByLabel('Test result in inches').fill('24.5');
     await page.getByRole('button', { name: /LOG TEST/i }).click();
     await page.waitForTimeout(1200);
     check('a write reached performance_tests', page.writes.length > 0, `writes=${page.writes.length}`);
     if (page.writes.length) {
       const w = page.writes[0].body;
       check('correct athlete_id', w.athlete_id === uuid(1), w.athlete_id);
-      check('correct test_type', w.test_type === 'laser_time', w.test_type);
-      check('metric is a number, not a string artifact', w.metric === 1.58, w.metric);
+      check('correct test_type', w.test_type === 'vertical_jump', w.test_type);
+      check('metric is a number, not a string artifact', w.metric === 24.5, w.metric);
       check('source is manual', w.source === 'manual', w.source);
     }
     const body = await page.locator('body').innerText();
-    check('confirmation message shown', /Saved 1\.58s/.test(body), body.match(/Saved.{0,40}/)?.[0] || '');
+    check('confirmation message shown', /Saved 24\.5 in/.test(body), body.match(/Saved.{0,40}/)?.[0] || '');
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[C2] Laser Time removed from the Test picker; jump types present');
+  {
+    const page = await newPage(browser, { perfTests: [] });
+    await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2200);
+    const opts = await page.getByLabel('Test', { exact: true }).locator('option').allTextContents();
+    check('no Laser Time option', !opts.some(o => /laser/i.test(o)), opts.join(','));
+    check('Vertical Jump option present', opts.some(o => /Vertical Jump/i.test(o)), opts.join(','));
+    check('Board Jump option present', opts.some(o => /Board Jump/i.test(o)), opts.join(','));
+  }
+
+  console.log('\n[F] Jump leaderboard ranks the higher value as the best (not the lower)');
+  {
+    const page = await newPage(browser, {
+      perfTests: [
+        { id: uuid(93), athlete_id: uuid(1), athlete_name: 'Fast Athlete', sport: 'Football', test_type: 'vertical_jump', metric: 22.0, unit: 'in', source: 'manual', created_at: new Date().toISOString() },
+        { id: uuid(94), athlete_id: uuid(2), athlete_name: 'Slower Athlete', sport: 'Football', test_type: 'vertical_jump', metric: 30.0, unit: 'in', source: 'manual', created_at: new Date().toISOString() },
+      ],
+    });
+    await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2200);
+    const body = await leaderboardText(page);
+    const fastIdx = body.indexOf('Fast Athlete');
+    const slowIdx = body.indexOf('Slower Athlete');
+    check('higher jump (30in) ranks above lower jump (22in)', slowIdx > -1 && fastIdx > -1 && slowIdx < fastIdx,
+      `fast(22in)@${fastIdx} slow(30in)@${slowIdx}`);
+  }
+
+  console.log('\n[G] "Show all" reveals athletes beyond the first 8 on a board');
+  {
+    const manyAthletes = Array.from({ length: 10 }, (_, i) => ({
+      id: uuid(200 + i), name: `Roster Athlete ${i}`, sport: 'Football', team: 'Varsity', grade: '11th', position: 'WR',
+    }));
+    const manyTests = manyAthletes.map((a, i) => ({
+      id: uuid(300 + i), athlete_id: a.id, athlete_name: a.name, sport: 'Football', test_type: '10yd_fly',
+      metric: 1.40 + i * 0.02, unit: 'sec', source: 'manual', created_at: new Date().toISOString(),
+    }));
+    const page = await newPage(browser, { athletes: manyAthletes, perfTests: manyTests });
+    await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2200);
+    let body = await leaderboardText(page);
+    check('9th athlete hidden before expanding', !/Roster Athlete 8/.test(body), body.slice(0, 50));
+    check('"Show all" button offers the hidden count', /Show all 10 \(2 more\)/.test(body), body.match(/Show all.{0,20}/)?.[0] || '');
+    await page.getByRole('button', { name: /Show all 10/i }).click();
+    await page.waitForTimeout(300);
+    body = await leaderboardText(page);
+    check('all 10 athletes visible after expanding', manyAthletes.every(a => body.includes(a.name)));
+    check('toggle now offers "Show fewer"', /Show fewer/i.test(body));
   }
 
   console.log('\n[D] Empty board reads as "no results yet", not broken');

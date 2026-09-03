@@ -203,19 +203,35 @@ Practical consequences:
 
 ---
 
-## 9. 📊 Analytics / reporting layer — charts and Speed & Power done (v4.14.0)
+## 9. 📊 Analytics / reporting layer — charts and Speed & Power done (v4.14.2)
 
 `src/features/analytics/AnalyticsScreen.jsx`, in the sidebar between Profiles and
-Reports. Both shipped on the `feature/units-and-speed-power` branch (v4.13.0's chart
-work, plus v4.14.0's tooltip fix and Speed & Power):
+Reports. Shipped across `feature/units-and-speed-power` (v4.13.0's chart work, plus
+v4.14.0's tooltip fix and Speed & Power) and `feature/speed-power-adjustments`
+(v4.14.2 - see below):
 
 - Average body weight over 30/60/90 days, filterable by sport
 - Daily logging compliance, and average sleep against the configured target
 - Daily session load (RPE × minutes), shown only when RPE is enabled
 - Leaderboards: weight gain and loss vs baseline, and highest training load
-- **Speed & Power** (new in v4.14.0): manual entry of 10yd fly and laser times, best-time
-  leaderboards. Off by default behind `settings.enableSpeedPower`, same pattern as RPE -
-  toggle it at Settings → Program Configuration → SPEED & POWER.
+- **Speed & Power**: manual entry of 10yd fly, vertical jump, and board jump results,
+  with best-result leaderboards per test type. Off by default behind
+  `settings.enableSpeedPower`, same pattern as RPE - toggle it at Settings → Program
+  Configuration → SPEED & POWER.
+
+**v4.14.2 changes to Speed & Power, from live coach feedback:**
+- **Removed "Laser Time"** as a test type - not a test this program actually runs.
+- **Added Vertical Jump and Board Jump** (unit: inches). Each test type now carries a
+  `better: 'asc' | 'desc'` direction - lower is best for a sprint time, higher is best
+  for a jump. The leaderboard reduction respects this per type; getting it backwards
+  would rank an athlete's worst jump as their personal best, so this is covered by a
+  dedicated Playwright probe (`tests/speed-power.js`, probe `[F]`) rather than trusted
+  by inspection.
+- **Leaderboards show everyone, not just the top 8.** Each board still opens collapsed
+  to the top 8 (avoids a wall of rows for a full roster on first glance), with a "Show
+  all N (M more)" toggle per board. Covered by probe `[G]`, which fixtures 10 athletes
+  and asserts the 9th is hidden until expanded.
+- 10yd Fly is unchanged.
 
 **Still blocked: CSV import from Plyomat.** Needs a sample export first — its column
 names cannot be guessed, and guessing wrong is precisely the silent failure in §1.
@@ -243,18 +259,20 @@ immediately.
 
 ---
 
-## 10. ⚠️ The iPad perf fixes went to `main`, not a branch
+## 10. ✅ The iPad perf fixes are confirmed working on the actual device
+
+**Closed out.** The coach confirmed on the physical iPad that the kiosk works well
+after v4.12.6. The open verification item this section used to track is done - no
+further blur removal or windowing work is needed unless new choppiness is reported.
+
+### History (kept for context)
 
 The three fixes in §7 came from a diagnosis that explicitly recommended pushing them to
-a branch for an iPad preview first. They were pushed straight to `main` and are
-therefore already in production as v4.12.5.
+a branch for an iPad preview first. They were pushed straight to `main` instead, landing
+in production as v4.12.5 — nothing was harmed (all suites passed, the changes only
+removed work) but the intended verify-on-device-first step was skipped at the time.
 
-Nothing appears to be harmed — all ten suites pass and the changes only remove work —
-but the intended verify-on-device-first step was skipped. If the iPad still feels
-choppy, the fixes are already live, so there is nothing to deploy; go straight to
-profiling on the device.
-
-**The rest of that diagnosis is done in v4.12.6, awaiting on-device verification.** It
+**The rest of that diagnosis shipped in v4.12.6** and is now confirmed working, above. It
 counted eleven `backdrop-filter` surfaces: two in EntryScreen (removed in v4.12.5) and
 nine in App.jsx. Six of those nine cover the viewport and are now removed too — the
 recovery modal, the More / analytics modal, the install modal, the confirm dialog, the
@@ -370,26 +388,19 @@ Recorded so they don't get re-litigated:
 3. **Use Session RPE with a real team** and see whether the defaults hold: the
    hard-session threshold (8), the load-spike A:C ratio (1.3), and the 4-week chronic
    window are all standard starting points, not tuned to this program.
-4. **Confirm on the actual iPad whether the kiosk still feels slow** (§7). The v4.12.5
-   work removed real per-render cost but could not be shown to help on desktop
-   Chromium, and it is already in production (§10), so there is nothing to deploy —
-   just open it on the iPad. If it is still sluggish, profile on the device rather than
-   guessing at more React memoization.
-5. **If it is still choppy, take the nine remaining `backdrop-filter` surfaces in
-   App.jsx** (§10), starting with the manual-entry modal — it repaints per keystroke,
-   exactly like the two already fixed. After that the suspects are the 70vh scrolling
-   roster grid and the sheer number of tiles in the DOM, which no amount of memoizing
-   addresses; that needs windowing, not memoization.
-6. **Populate Grade for the existing 53 athletes** (§4). The column exists and the
+4. **Populate Grade for the existing 53 athletes** (§4). The column exists and the
    filter is wired, but every athlete predates it, so the filter is permanently empty
    until they are re-uploaded with Grade filled. Worth folding into the same CSV pass
    that loads the other teams (#2).
-7. **Find whatever editor corrupted `EntryScreen.jsx`** (§6). It wrote the file back
+5. **Find whatever editor corrupted `EntryScreen.jsx`** (§6). It wrote the file back
    through a CP437 round-trip and mangled every emoji into garbage that shipped to the
    kiosk. `tests/rpe-settings.js` will now catch a repeat, but only after the fact —
    the tool itself is still in the loop and unidentified.
-8. **Send a sample Plyomat CSV export** (§9). The only thing left blocking that
+6. **Send a sample Plyomat CSV export** (§9). The only thing left blocking that
    importer - charts, Speed & Power manual entry, and the `performance_tests` table are
-   all built and live on the branch. Guessing the export's columns risks the exact
-   silent whole-row rejection in §1, so this one genuinely needs the file rather than a
-   best guess.
+   all built and live. Guessing the export's columns risks the exact silent
+   whole-row rejection in §1, so this one genuinely needs the file rather than a best
+   guess.
+
+~~Confirm on the actual iPad whether the kiosk still feels slow~~ — **closed, §10.**
+The coach confirmed it works well on the physical device after v4.12.6.
