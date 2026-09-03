@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
 import SpeedPowerPanel from './SpeedPowerPanel';
+import PlyomatImportPanel from './PlyomatImportPanel';
 import {
   getCentralDateString, getAthleteBaseline,
   isRpeLog, hasWeight, hasSleep, isPostPracticeLog,
@@ -33,6 +34,7 @@ export default function AnalyticsScreen({
   setProfileEntryScreen,
   performanceTests,
   addPerformanceTest,
+  onPlyomatImport,
 }) {
   const [rangeDays, setRangeDays] = React.useState(30);
   const [sportFilter, setSportFilter] = React.useState('ALL');
@@ -408,17 +410,28 @@ export default function AnalyticsScreen({
           switched it on, don't imply the feature is missing - point at where to turn it
           on instead of rendering an empty board. */}
       {settings.enableSpeedPower ? (
-        <SpeedPowerPanel
-          athletes={athletes}
-          sportFilter={sportFilter}
-          openProfile={openProfile}
-          card={card}
-          h3={h3}
-          eyebrow={eyebrow}
-          grid={grid}
-          performanceTests={performanceTests}
-          addTest={addPerformanceTest}
-        />
+        <>
+          <SpeedPowerPanel
+            athletes={athletes}
+            sportFilter={sportFilter}
+            openProfile={openProfile}
+            card={card}
+            h3={h3}
+            eyebrow={eyebrow}
+            grid={grid}
+            performanceTests={performanceTests}
+            addTest={addPerformanceTest}
+          />
+          <PlyomatImportPanel
+            athletes={athletes}
+            existingTests={performanceTests}
+            onImport={onPlyomatImport}
+            card={card}
+            h3={h3}
+            eyebrow={eyebrow}
+            grid={grid}
+          />
+        </>
       ) : (
         <div className="card-glass" style={{ ...card, border: '1px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.015)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

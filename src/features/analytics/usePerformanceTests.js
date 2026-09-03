@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
+import { normalizeName as normKey } from './plyomatImport';
 
 const CACHE_KEY = 'shiloh_performance_tests';
 
@@ -91,5 +92,71 @@ export function usePerformanceTests() {
     }
   }, [mergeRows]);
 
-  return { performanceTests: rows, addTest };
+  // Writes an import plan from plyomatImport.buildImportPlan.
+  //
+  // Athletes first, then results, because a result row needs its athlete's id. If the
+  // athlete insert fails the whole import stops rather than writing orphan results
+  // under a null athlete_id - a half-imported file is harder to reason about than one
+  // that plainly failed. `decisions` maps a CSV name to 'link' or 'create' for the
+  // ambiguous names buildImportPlan held back; anything undecided stays out.
+  const importPlan = useCallback(async (plan, decisions = {}, onAthletesChanged) => {
+    if (!plan) return { ok: false, error: 'Nothing to import.' };
+
+    const tests = [...plan.tests];
+    const toCreate = [...plan.newAthletes];
+
+    for (const r of plan.needsReview) {
+      const d = decisions[r.csvName];
+      if (d === 'link') {
+        for (const row of r.rows || []) {
+          tests.push({ ...row, athlete_id: r.candidate.id, athlete_name: r.candidate.name, pendingAthleteKey: null });
+        }
+      } else if (d === 'create') {
+        toCreate.push({ name: r.csvName, sport: r.suggestedSport, grade: r.suggestedGrade });
+        for (const row of r.rows || []) {
+          tests.push({ ...row, athlete_id: null, pendingAthleteKey: normKey(r.csvName), athlete_name: r.csvName });
+        }
+      }
+    }
+
+    if (tests.length === 0) return { ok: false, error: 'Nothing selected to import.' };
+
+    try {
+      let athletesCreated = 0;
+      const idByKey = new Map();
+
+      if (toCreate.length) {
+        const { data, error } = await supabase.from('athletes').insert(
+          toCreate.map(a => ({ name: a.name, sport: a.sport || '', grade: a.grade || '' }))
+        ).select();
+        if (error) throw error;
+        (data || []).forEach(a => idByKey.set(normKey(a.name), a.id));
+        athletesCreated = (data || []).length;
+      }
+
+      const payload = tests.map(t => {
+        const { pendingAthleteKey, matchConfidence, ...rest } = t;
+        return { ...rest, athlete_id: t.athlete_id || idByKey.get(pendingAthleteKey) || null };
+      }).filter(t => t.athlete_id);
+
+      // PostgREST rejects an over-large body outright, and this file runs to hundreds of
+      // rows, so the insert is chunked rather than sent as one statement.
+      const CHUNK = 200;
+      const written = [];
+      for (let i = 0; i < payload.length; i += CHUNK) {
+        const { data, error } = await supabase.from('performance_tests').insert(payload.slice(i, i + CHUNK)).select();
+        if (error) throw error;
+        if (data) written.push(...data);
+      }
+
+      if (written.length) mergeRows(written);
+      if (athletesCreated && typeof onAthletesChanged === 'function') await onAthletesChanged();
+
+      return { ok: true, testsWritten: written.length, athletesCreated };
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) };
+    }
+  }, [mergeRows]);
+
+  return { performanceTests: rows, addTest, importPlan };
 }

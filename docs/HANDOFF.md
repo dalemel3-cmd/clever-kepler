@@ -233,10 +233,10 @@ v4.14.0's tooltip fix and Speed & Power) and `feature/speed-power-adjustments`
   and asserts the 9th is hidden until expanded.
 - 10yd Fly is unchanged.
 
-**Still blocked: CSV import from Plyomat.** Needs a sample export first — its column
-names cannot be guessed, and guessing wrong is precisely the silent failure in §1.
-`performance_tests.source` already distinguishes `'manual'` from `'plyomat'` rows, so the
-importer slots into the existing table and UI without a redesign once a sample arrives.
+**✅ Plyomat CSV import is built (v4.16.0).** The sample export arrived and unblocked it —
+see §15 for what the real file turned out to contain, which was considerably messier than
+"a CSV of jump heights". `performance_tests.source` distinguishes `'manual'` from
+`'plyomat'` rows as designed.
 
 Schema decision made and applied: test results live in `public.performance_tests`
 (`db/006_performance_tests.sql`), not more columns on `weigh_ins`. Test results are a
@@ -428,7 +428,77 @@ Recorded so they don't get re-litigated:
 
 ---
 
-## 15. Next up
+## 15. 📥 Plyomat CSV import — built, and what the real export actually contained
+
+`src/features/analytics/plyomatImport.js` (pure logic, unit-tested by
+`tests/plyomat-import.js`) and `PlyomatImportPanel.jsx` (the UI, browser-tested by
+`tests/plyomat-ui.js`). It sits under Speed & Power on Analytics, behind the same
+`enableSpeedPower` flag.
+
+**It works in two steps on purpose: pick a file to get a PLAN, confirm to write.** The
+first sample export was 569 rows, of which only 273 matched the roster. An importer that
+just wrote what matched would have reported success while discarding over half the file —
+§1's silent-rejection failure, at scale. So the preview states, before anything is saved:
+how many rows will import, which athletes will be created, which rows will not import and
+why.
+
+### What the sample file taught us (all of it handled, all of it tested)
+
+- **UTF-8 BOM** on the first header, and the local timestamp is quoted with a comma
+  inside it (`"9/1/26, 3:25 PM"`). A `split(',')` corrupts every row from that column on,
+  so the module carries a real (small) CSV reader.
+- **Values have their units glued on**: `25.31 in`, `127.7 ft·lb`, bare `2.34` for RSI.
+- **Names are split First/Last and are not reliably in that order** — "Copp Sarah",
+  "Dodson Alexia" are transposed. Matching tries reversed before giving up.
+- **Casing is inconsistent by team**: Football is ALL CAPS, everyone else Title Case.
+  All matching is case-insensitive.
+- **"Athlete Groups" mixes sport, graduating class and org buckets**, slash-separated:
+  `Football SH`, `Junior / WSOC`, `Freshmen / Volleyball SH / WSOC`, `Coaches`. It is
+  parsed into sport + grade, which is a bonus: it populates the `grade` column that §4
+  wanted filled and that was empty for all 76 athletes.
+- **Not every row is an athlete.** `Coaches` rows are excluded.
+- **Not every metric has a home here.** Only `Jump Height` maps to a test type
+  (`vertical_jump`). `PPS` (ft·lb) and `RSI` (unitless) are reported as unsupported
+  rather than coerced onto an inches leaderboard where they would be nonsense.
+- **`Session ID` is a per-capture UUID**, stored as `notes = "plyomat:<id>"`. Re-importing
+  the same export is therefore a no-op rather than doubling everyone's results — which
+  matters, because the obvious way to use this is to re-upload a file that grew.
+
+### The name-matching bug, and why the middle band exists
+
+Fuzzy matching started as a greedy longest-common-subsequence ratio. It scored the
+roster's `Charlorte Velazquez` against Plyomat's `Charlotte Velazquez` — one transposed
+pair — **below 0.8**, so the importer would have created a second athlete record for
+somebody already on the roster. Levenshtein scores it 0.95. A duplicate athlete is not
+cosmetic: their history splits across two ids and neither is right afterwards.
+
+Three bands, and the middle one is the point:
+
+| similarity | behaviour |
+|---|---|
+| ≥ 0.90 | auto-linked — only spelling slips live here (`Oliva`/`Olivia`, `Brooklyn`/`Brooklynn`) |
+| 0.70–0.90 | **held for a human decision**, imported under neither reading |
+| < 0.70 | treated as a new person |
+
+That middle band is not indecision, it is the only honest answer. In the real file it
+caught `EllaKate Coleman` ~ `Ealla Kate Coleman` (0.89, the same person) **and**
+`Rylee Bodenstein` / `Katy Bodenstein` ~ `JAKE BODENSTEIN` (0.75/0.80, siblings — three
+different people) **and** `Clark McDonnel` ~ `CONNOR CLARK` (0.71, unrelated). Any rule
+that auto-resolved that band would have filed one athlete's jumps under another's name.
+Anything left undecided does not import: a missing row beats a row on the wrong athlete.
+
+### Known limits
+
+- `athletes.sport` is single-valued, so a multi-sport group takes the **first** sport
+  listed. The preview shows the full original group string so the collapse is visible.
+- Matching is by name. There is no stable athlete id shared between Plyomat and this app,
+  so a renamed athlete looks like a new one.
+- Body weight (`Body Weight at Capture`) was populated on only 5 of 569 rows and is not
+  imported; weigh-ins have their own pipeline and their own null-row hazards (§5).
+
+---
+
+## 16. Next up
 
 1. **Close the account-recovery gap** (§11). Two parts, both small:
    - Turn on **leaked-password protection** — Supabase dashboard → Authentication →

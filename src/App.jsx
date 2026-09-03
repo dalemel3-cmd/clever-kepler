@@ -473,7 +473,7 @@ export default function App() {
   // Speed & Power test results - lifted here (rather than fetched inside
   // SpeedPowerPanel itself) so Profiles can also read best-test data without opening a
   // second realtime subscription to the same table.
-  const { performanceTests, addTest: addPerformanceTest } = usePerformanceTests();
+  const { performanceTests, addTest: addPerformanceTest, importPlan: importPlyomatPlan } = usePerformanceTests();
 
   // Settings & PWA State
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
@@ -3198,6 +3198,7 @@ export default function App() {
                 setProfileEntryScreen={setProfileEntryScreen}
                 performanceTests={performanceTests}
                 addPerformanceTest={addPerformanceTest}
+                onPlyomatImport={(plan, decisions) => importPlyomatPlan(plan, decisions, fetchAthletes)}
               />
             )}
             {screen === 'team-status' && (
