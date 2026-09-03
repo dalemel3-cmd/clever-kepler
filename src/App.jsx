@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database, Target } from 'lucide-react';
+import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database, Target, BarChart3 } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import './styles.css';
 import { Confetti } from './components/Confetti';
@@ -12,6 +12,7 @@ const RosterScreen = lazy(() => import('./features/roster/RosterScreen'));
 const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
 const DashboardScreen = lazy(() => import('./features/dashboard/DashboardScreen'));
 const ReportsScreen = lazy(() => import('./features/reports/ReportsScreen'));
+const AnalyticsScreen = lazy(() => import('./features/analytics/AnalyticsScreen'));
 const ProfilesScreen = lazy(() => import('./features/profiles/ProfilesScreen'));
 const SettingsScreen = lazy(() => import('./features/settings/SettingsScreen'));
 
@@ -2937,6 +2938,7 @@ export default function App() {
             {renderSidebarItem('groups', <Shield size={18} />, 'TEAMS & ROSTERS')}
             {renderSidebarItem('profiles', <User size={18} />, 'PROFILES')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (unresolvedDailyAlertsCount > 0 ? ` (${unresolvedDailyAlertsCount})` : ''))}
+            {renderSidebarItem('analytics', <BarChart3 size={18} />, 'ANALYTICS')}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
             {renderSidebarItem('settings', <Settings size={18} />, 'SETTINGS')}
           </div>
@@ -3178,6 +3180,17 @@ export default function App() {
               />
             )}
 
+            {screen === 'analytics' && (
+              <AnalyticsScreen
+                settings={settings}
+                athletes={athletes}
+                reportData={reportData}
+                setSelectedProfileId={setSelectedProfileId}
+                fetchProfileData={fetchProfileData}
+                setScreen={setScreen}
+                setProfileEntryScreen={setProfileEntryScreen}
+              />
+            )}
             {screen === 'team-status' && (
               <TeamStatusScreen
                 sport={teamStatusSport}
