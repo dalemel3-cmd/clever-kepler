@@ -1,5 +1,21 @@
 # RLS Rollout Runbook
 
+> ## ✅ ALREADY DONE — do not run this again against the live project
+>
+> RLS was enabled on the production database on 2026-08-10 and is enforcing. `athletes`,
+> `weigh_ins`, `coaches` and `alert_status` all have policies requiring an approved
+> coach; `anon` and signed-in-but-unapproved accounts read zero rows from every table
+> and cannot write. Verified per role — see `docs/HANDOFF.md` §2 for the results table.
+>
+> **Everything below is written in the future tense because it was a plan.** It is kept
+> as the procedure for rebuilding the database from scratch, and as the record of why
+> the steps are in this order. Read it as history, not as a to-do list.
+>
+> The one thing here still worth acting on is the verification checklist near the end —
+> useful any time the policies are changed.
+
+---
+
 Locks the database down so the public anon key can no longer read or modify athlete
 data. Do this in a window when nobody is using the app.
 

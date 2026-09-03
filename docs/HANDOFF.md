@@ -6,16 +6,19 @@ living in a chat log.
 
 ---
 
-## 1. ⚠️ A database change is NOT in this repo
+## 1. ✅ The hand-applied athlete columns now have a migration file
 
-Two columns were added to `public.athletes` directly against the live Supabase
-project. They are applied and working, but there is **no migration file** — if the
-database is ever rebuilt from scratch, this has to be redone:
+Two columns were added to `public.athletes` directly against the live Supabase project
+and existed nowhere in this repo, so a rebuilt database would have silently
+reintroduced the worst bug this app has had. They are now captured in
+**`db/005_athletes_grade_created_at.sql`**, verified to match the live schema:
 
 ```sql
 alter table public.athletes add column if not exists grade text;
 alter table public.athletes add column if not exists created_at timestamptz default now();
 ```
+
+Both statements are idempotent, so the file is a no-op against the live project.
 
 **Why it mattered:** the app writes `grade` on every athlete create/update and
 `created_at` on CSV roster import, but neither column existed. Postgres rejects the
@@ -56,6 +59,11 @@ for, *given* RLS. If RLS is ever rolled back, the key becomes a full read/write
 credential again.
 
 Rollbacks: `db/002_rollback_rls.sql` (for 001/003), `db/004_rollback.sql` (for 004).
+
+`docs/RLS-RUNBOOK.md` is written in the future tense because it was a plan. It now
+carries a banner saying so — it is kept as the rebuild procedure and as the record of
+why the steps are ordered that way, not as a to-do list. Its verification checklist is
+still worth running any time the policies change.
 
 ---
 
@@ -102,8 +110,10 @@ Roster upload **works now** (that's what item 1 unblocked). To load the rest:
 Settings → Cloud Data Management → **Template** → fill per team → **Upload CSV**.
 Columns: `Athlete, Sport, Team, Grade, Position`.
 
-The existing 53 athletes have a blank Grade — the column is new — so the Grade filter
-stays empty until it's populated.
+**All 53 existing athletes have a blank Grade** (confirmed against the live database),
+because the column was added after they were loaded. The Grade filter therefore has
+nothing to offer and stays empty. Re-uploading those athletes by CSV with the Grade
+column filled is the fix; it is not automatic, and nothing else will populate it.
 
 ---
 
@@ -281,7 +291,15 @@ Recorded so they don't get re-litigated:
    exactly like the two already fixed. After that the suspects are the 70vh scrolling
    roster grid and the sheer number of tiles in the DOM, which no amount of memoizing
    addresses; that needs windowing, not memoization.
-6. **Start the analytics / reporting layer** (§9) — charts, richer profiles,
+6. **Populate Grade for the existing 53 athletes** (§4). The column exists and the
+   filter is wired, but every athlete predates it, so the filter is permanently empty
+   until they are re-uploaded with Grade filled. Worth folding into the same CSV pass
+   that loads the other teams (#2).
+7. **Find whatever editor corrupted `EntryScreen.jsx`** (§6). It wrote the file back
+   through a CP437 round-trip and mangled every emoji into garbage that shipped to the
+   kiosk. `tests/rpe-settings.js` will now catch a repeat, but only after the fact —
+   the tool itself is still in the loop and unidentified.
+8. **Start the analytics / reporting layer** (§9) — charts, richer profiles,
    leaderboards, Plyomat CSV import, and manual 10yd fly / laser times. Build it on a
    **branch preview**, not `main`. The new time fields need a migration written and
    applied *before* the code that writes them ships (§1).
