@@ -1,6 +1,6 @@
 # Handoff — open items
 
-Written 2026-08-07, last updated 2026-08-10 (v4.12.6, branch). Everything below was established
+Written 2026-08-07, last updated 2026-08-10 (v4.12.6). Everything below was established
 during working sessions and exists nowhere else, so it's recorded here rather than
 living in a chat log.
 
@@ -250,12 +250,17 @@ Three surfaces keep their blur deliberately — the two toast chips and the
 pull-to-refresh pill. Blur cost scales with the area being blurred, these are a few
 hundred pixels each, they are on screen briefly, and none sits behind a text input.
 
-**v4.12.6 is on the `perf/app-backdrop-blur` branch, not `main`** — this time following
-the diagnosis's own advice rather than repeating the mistake above. Vercel serves it at
-`hpd-app-git-perf-app-backdrop-blur-dalemel3-cmds-projects.vercel.app`. Open that on the
-iPad, compare against production, and merge only if it is actually better. If it is not,
-the honest outcome is to close the branch: blur was a hypothesis, and three rounds of
-removing it without a measured win means the bottleneck is elsewhere.
+v4.12.6 was built on the `perf/app-backdrop-blur` branch and previewed there before
+being merged to `main`, which is the workflow this section exists to argue for.
+
+**It is now in production.** Eight of the original eleven blur surfaces are gone; the
+three that remain (two toast chips, the pull-to-refresh pill) are kept on purpose.
+
+If the iPad still feels choppy after this, stop removing blur. It was a hypothesis, and
+having taken every surface that plausibly mattered without a measured win, the
+bottleneck is somewhere else — most likely the number of tiles the 70vh roster grid
+holds in the DOM at once, which needs windowing rather than memoization or paint
+tweaks. Profile on the device before writing more code.
 
 ---
 
