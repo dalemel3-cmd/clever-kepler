@@ -1485,7 +1485,9 @@ export default function App() {
     setProfileEntryScreen(null);
   };
 
-  const handleSelectAthleteForEntry = (athleteId) => {
+  // useCallback so the memoized roster cards actually stay memoized - a fresh function
+  // identity here would change every card's props on every render and defeat React.memo.
+  const handleSelectAthleteForEntry = React.useCallback((athleteId) => {
     setEntryAthleteId(athleteId);
     setScreen('entry');
     // Start the weight EMPTY - pre-filling the last weight meant one accidental
@@ -1498,7 +1500,7 @@ export default function App() {
     setRpeDurationInput('');
     setRpeLabelInput('');
     setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : (kioskTrackMode === 'rpe' ? 'rpe' : 'weight'));
-  };
+  }, [kioskTrackMode]);
 
   const handleSave = async (isBaselineOverride = false, skipOverrideConfirm = false) => {
     if (!selectedAthlete) return;

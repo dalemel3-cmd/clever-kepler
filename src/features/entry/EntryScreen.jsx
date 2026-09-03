@@ -1,6 +1,8 @@
+import React from 'react';
 import { Search, X, Plus, Minus, CheckCircle, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
 import { parseAthleteMeta, getBaselinesMap } from '../../utils/athleteData';
+import AthleteCard from './AthleteCard';
 
 export default function EntryScreen({
   settings,
@@ -60,12 +62,24 @@ export default function EntryScreen({
   // Last recorded weight for the open athlete - shown as a ghost placeholder and used
   // to seed the +/- steppers, but never pre-filled into the input (a pre-filled value
   // let one accidental double-tap record yesterday's weight as today's).
-  const lastLoggedWeight = selectedAthlete ? (() => {
-    const rec = reportData
-      .filter(r => r.athlete_id === selectedAthlete.id && Number(r.weight_lbs) > 0)
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-    return rec ? parseFloat(rec.weight_lbs) : null;
-  })() : null;
+  //
+  // Memoized: this filtered the entire weigh-in table and sorted the matches on every
+  // render, including every keystroke on the weight and sleep inputs. At 1,340 rows that
+  // is a full scan plus a Date-parsing sort per character typed, which is what made the
+  // kiosk modal feel sticky on an iPad. Only the open athlete and the data itself can
+  // change the answer.
+  const selectedAthleteId = selectedAthlete ? selectedAthlete.id : null;
+  const lastLoggedWeight = React.useMemo(() => {
+    if (!selectedAthleteId) return null;
+    // A single reduce beats filter+sort: one pass, and it parses a Date only for rows
+    // that are actually candidates rather than for every row in the table.
+    let best = null;
+    for (const r of reportData) {
+      if (r.athlete_id !== selectedAthleteId || !(Number(r.weight_lbs) > 0)) continue;
+      if (!best || new Date(r.created_at) > new Date(best.created_at)) best = r;
+    }
+    return best ? parseFloat(best.weight_lbs) : null;
+  }, [selectedAthleteId, reportData]);
 
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -381,63 +395,26 @@ export default function EntryScreen({
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '12px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px', paddingBottom: '90px' }}>
           {(unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes).map(a => {
-            const isSelected = entryAthleteId === a.id;
-            const isDoneToday = athletesRecordedToday.has(a.id);
             // Defensive: rosters cached before name normalization can still hold null names
             const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
-            const initials = nameSortOrder === 'last'
-              ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
-              : safeName.split(' ').map(n=>n[0]).join('');
-
-            const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
-            let hash = 0;
-            for (let i = 0; i < safeName.length; i++) hash = safeName.charCodeAt(i) + ((hash << 5) - hash);
-            const avatarBg = avatarColors[Math.abs(hash) % avatarColors.length];
-
+            // Derive the display strings here rather than inside the card, so the card's
+            // props stay primitives and its memo comparison is a cheap shallow check.
             return (
-              <div
+              <AthleteCard
                 key={a.id}
-                onClick={() => handleSelectAthleteForEntry(a.id)}
-                className="card-glass"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  padding: '14px 16px',
-                  cursor: 'pointer',
-                  borderRadius: '16px',
-                  border: isDoneToday ? '1px solid rgba(34, 197, 94, 0.45)' : (isSelected ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.08)'),
-                  background: isDoneToday ? 'rgba(34, 197, 94, 0.08)' : (isSelected ? 'rgba(194, 164, 80, 0.12)' : 'rgba(255,255,255,0.02)'),
-                  boxShadow: isDoneToday ? '0 4px 20px rgba(34, 197, 94, 0.12)' : 'none',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
-                  <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 700, fontSize: '15px', flexShrink: 0 }}>
-                    {initials}
-                  </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <span style={{ fontSize: '15px', fontWeight: 700, color: isDoneToday ? 'var(--status-success)' : (isSelected ? 'var(--color-accent)' : 'var(--white)'), textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
-                    </span>
-                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {a.sport}{a.position ? ` · ${a.position}` : (a.team ? ` · ${a.team}` : '')}
-                    </span>
-                  </div>
-                </div>
-
-                {isDoneToday ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(34, 197, 94, 0.18)', border: '1px solid rgba(34, 197, 94, 0.5)', padding: '5px 10px', borderRadius: '20px', flexShrink: 0 }}>
-                    <CheckCircle size={15} style={{ color: 'var(--status-success)' }} />
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-success)', letterSpacing: '0.05em' }}>DONE</span>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: '16px', flexShrink: 0 }}>
-                    TAP TO LOG
-                  </div>
-                )}
-              </div>
+                athleteId={a.id}
+                name={safeName}
+                sport={a.sport}
+                position={a.position}
+                team={a.team}
+                displayName={nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
+                initials={nameSortOrder === 'last'
+                  ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
+                  : safeName.split(' ').map(n => n[0]).join('')}
+                isSelected={entryAthleteId === a.id}
+                isDoneToday={athletesRecordedToday.has(a.id)}
+                onSelect={handleSelectAthleteForEntry}
+              />
             );
           })}
           {filteredAthletes.length === 0 && (
@@ -469,8 +446,13 @@ export default function EntryScreen({
             position: 'fixed',
             inset: 0,
             zIndex: 10000,
-            background: 'rgba(3, 8, 20, 0.82)',
-            backdropFilter: 'blur(12px)',
+            // No backdrop-filter here. A full-viewport blur makes the compositor re-blur
+            // everything behind the overlay on every repaint, and this modal repaints on
+            // every keystroke of the weight/sleep/RPE inputs - so it was re-blurring the
+            // whole roster grid per character typed. That was the main source of the
+            // kiosk's input lag on an iPad. A more opaque scrim separates the modal just
+            // as well and costs nothing.
+            background: 'rgba(3, 8, 20, 0.94)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -849,8 +831,8 @@ export default function EntryScreen({
             position: 'fixed',
             inset: 0,
             zIndex: 10001,
-            background: 'rgba(3, 8, 20, 0.85)',
-            backdropFilter: 'blur(14px)',
+            // Same reasoning as the weigh-in modal above: opaque scrim, no live blur.
+            background: 'rgba(3, 8, 20, 0.95)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
