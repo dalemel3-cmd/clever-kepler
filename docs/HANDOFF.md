@@ -1,6 +1,6 @@
 # Handoff — open items
 
-Written 2026-08-07, last updated 2026-08-10 (v4.12.6). Everything below was established
+Written 2026-08-07, last updated 2026-08-10 (v4.13.0, branch). Everything below was established
 during working sessions and exists nowhere else, so it's recorded here rather than
 living in a chat log.
 
@@ -203,21 +203,37 @@ Practical consequences:
 
 ---
 
-## 9. 📊 Analytics / reporting layer — planned, not started
+## 9. 📊 Analytics / reporting layer — half built (v4.13.0)
 
-The next substantial feature. Nothing has been built; this records the intent so it
-does not live only in a chat log.
+**Done and on the `feature/analytics-charts` branch**, built against data that already
+exists — `src/features/analytics/AnalyticsScreen.jsx`, in the sidebar between Profiles
+and Reports:
 
-Scope as described:
+- Average body weight over 30/60/90 days, filterable by sport
+- Daily logging compliance, and average sleep against the configured target
+- Daily session load (RPE × minutes), shown only when RPE is enabled
+- Leaderboards: weight gain and loss vs baseline, and highest training load
+- A Speed & Power card that says plainly it has no data, rather than drawing an empty
+  chart that reads as broken
 
-- Custom charts and reporting on top of the existing weigh-in / sleep / RPE data
-- Richer athlete profiles
-- Leaderboards
-- **CSV import from Plyomat**
-- **Manual entry of 10yd fly and laser times** — this is new measurement data the schema
-  does not hold yet, so expect a migration. Re-read §1 before writing the code: Postgres
-  rejects the *entire row* when a payload names a column that does not exist, and that
-  failure is silent in the UI.
+Preview: `hpd-app-git-feature-analytics-charts-dalemel3-cmds-projects.vercel.app`
+
+**Still blocked, and why:**
+
+- **CSV import from Plyomat** — needs a sample export first. Its column names cannot be
+  guessed, and guessing wrong is precisely the silent failure in §1.
+- **Manual entry of 10yd fly and laser times** — needs a table that does not exist.
+
+**When that half is built, put it in a new `performance_tests` table, not more columns
+on `weigh_ins`.** Test results are a different shape: sparse, tied to test days rather
+than daily, and several metrics per session. Bolting them onto `weigh_ins` would create
+a second null-heavy row class, and §5 is a complete account of the damage the first one
+did. A separate table also means `isRpeLog`/`hasWeight` stay sufficient for every
+existing consumer rather than needing another predicate.
+
+Whatever creates that table **must write its RLS policy in the same migration** — see
+§3. A new table in `public` is locked by default, and the last one sat silently broken
+for four releases.
 
 **Build it on a Vercel branch preview, not production.** Push the work to a branch;
 Vercel gives that branch its own preview URL, which can be opened on the iPad and shown
@@ -352,7 +368,8 @@ Recorded so they don't get re-litigated:
    through a CP437 round-trip and mangled every emoji into garbage that shipped to the
    kiosk. `tests/rpe-settings.js` will now catch a repeat, but only after the fact —
    the tool itself is still in the loop and unidentified.
-8. **Start the analytics / reporting layer** (§9) — charts, richer profiles,
-   leaderboards, Plyomat CSV import, and manual 10yd fly / laser times. Build it on a
-   **branch preview**, not `main`. The new time fields need a migration written and
-   applied *before* the code that writes them ships (§1).
+8. **Finish the analytics layer** (§9). The charts on existing data are built and
+   waiting on the branch preview. What remains needs input: a **sample Plyomat CSV
+   export** so the importer can be written against real columns rather than guessed
+   ones, and a decision to create the `performance_tests` table (with its RLS policy in
+   the same migration) before any code writes 10yd fly or laser times.
