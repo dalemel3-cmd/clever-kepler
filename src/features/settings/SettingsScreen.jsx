@@ -254,6 +254,13 @@ export default function SettingsScreen({
               ]
             },
             {
+              title: 'SPEED & POWER',
+              hint: 'Sprint and jump test results, tracked separately from daily weigh-ins. Turn this on to add a Speed & Power tab to Analytics with manual entry for 10yd fly and laser times.',
+              fields: [
+                { key: 'enableSpeedPower', label: 'Speed & Power Testing', type: 'toggle', help: 'Off by default. Plyomat CSV import is planned but not built yet - see docs/HANDOFF.md.' },
+              ]
+            },
+            {
               title: 'ENTRY VALIDATION',
               hint: 'Bounds the kiosk and manual entry accept before saving a record.',
               fields: [

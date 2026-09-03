@@ -86,6 +86,9 @@ export const DEFAULT_SETTINGS = {
   rpeSessionLabels: ['Lift', 'Run', 'Combined'],
   rpeLoadSpikeRatio: 1.3,
   rpeChronicWeeks: 4,
+
+  // --- Speed & Power testing (10yd fly, laser time; Plyomat import comes later) ---
+  enableSpeedPower: false,
 };
 
 // Numeric fields get coerced and range-checked so a corrupt localStorage entry

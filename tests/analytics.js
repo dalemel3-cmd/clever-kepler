@@ -109,7 +109,7 @@ const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHigh
   check('training load board totals 690', /690/.test(body), (body.match(/HIGHEST TRAINING LOAD[\s\S]{0,200}/) || [''])[0].replace(/\n/g, ' | '));
 
   console.log('\n[E] Speed & power is honestly marked as empty');
-  check('speed & power shown as awaiting data', /NO TEST DATA YET/i.test(body));
+  check('speed & power shown as not enabled (feature-flagged like RPE)', /NOT ENABLED/i.test(body));
 
   console.log('\n[F] Controls work');
   await page.getByRole('button', { name: '90 Days' }).click();

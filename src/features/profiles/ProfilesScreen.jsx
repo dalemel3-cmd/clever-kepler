@@ -445,7 +445,7 @@ export default function ProfilesScreen({
                     </defs>
                     <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
                     <YAxis domain={[Math.floor(minW - 4), Math.ceil(maxW + 4)]} hide />
-                    <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                    <RechartsTooltip content={<CustomTooltip units={{ Weight: 'lbs' }} />} cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }} />
                     {baselineWeight && (
                       <ReferenceLine y={baselineWeight} stroke="#10b981" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `Baseline: ${baselineWeight} lbs`, position: 'insideTopLeft', fill: '#10b981', fontSize: 11, fontWeight: 'bold' }} />
                     )}
@@ -511,7 +511,7 @@ export default function ProfilesScreen({
                   <BarChart data={sleepData} margin={{ top: 15, right: 30, left: 10, bottom: 0 }}>
                     <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
                     <YAxis domain={[0, 12]} hide />
-                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                    <RechartsTooltip content={<CustomTooltip units={{ Sleep: 'hrs' }} />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
                     <ReferenceLine y={sleepChartTarget} stroke="rgba(184, 156, 91, 0.7)" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: `${Number(sleepChartTarget).toFixed(1)}h Target`, position: 'insideTopLeft', fill: 'var(--color-accent)', fontSize: 11, fontWeight: 'bold' }} />
                     <Bar dataKey="Sleep" fill="#60a5fa" radius={[6, 6, 0, 0]} fillOpacity={0.9} />
                   </BarChart>
@@ -553,7 +553,7 @@ export default function ProfilesScreen({
                     <BarChart data={rpeData} margin={{ top: 15, right: 30, left: 10, bottom: 0 }}>
                       <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={11} tickMargin={10} minTickGap={20} />
                       <YAxis domain={[0, settings.rpeScaleMax]} hide />
-                      <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                      <RechartsTooltip content={<CustomTooltip units={{ RPE: '' }} />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                       <ReferenceLine y={settings.rpeHighThreshold} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} label={{ value: 'HIGH RPE', position: 'insideTopLeft', fill: '#ef4444', fontSize: 10, fontWeight: 'bold' }} />
                       <Bar dataKey="RPE" radius={[4, 4, 0, 0]}>
                         {rpeData.map((entry, index) => (

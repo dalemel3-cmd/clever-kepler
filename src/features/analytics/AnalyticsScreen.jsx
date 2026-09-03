@@ -5,6 +5,7 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
+import SpeedPowerPanel from './SpeedPowerPanel';
 import {
   getCentralDateString, getAthleteBaseline,
   isRpeLog, hasWeight, hasSleep, isPostPracticeLog,
@@ -262,7 +263,7 @@ export default function AnalyticsScreen({
                 <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
                 <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
                 <YAxis tick={axis} tickLine={false} axisLine={false} domain={['dataMin - 3', 'dataMax + 3']} width={48} />
-                <RechartsTooltip content={<CustomTooltip />} />
+                <RechartsTooltip content={<CustomTooltip units={{ 'Avg Weight': 'lbs' }} />} />
                 <Area type="monotone" dataKey="Avg Weight" connectNulls stroke="var(--color-accent)" strokeWidth={3} fill="url(#analyticsWeight)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -283,7 +284,7 @@ export default function AnalyticsScreen({
                 <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
                 <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
                 <YAxis tick={axis} tickLine={false} axisLine={false} domain={[0, 100]} width={40} unit="%" />
-                <RechartsTooltip content={<CustomTooltip />} />
+                <RechartsTooltip content={<CustomTooltip units={{ Compliance: '%' }} />} />
                 <Bar dataKey="Compliance" fill="#34d399" radius={[5, 5, 0, 0]} fillOpacity={0.85} />
               </BarChart>
             </ResponsiveContainer>
@@ -302,7 +303,7 @@ export default function AnalyticsScreen({
                   <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
                   <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
                   <YAxis tick={axis} tickLine={false} axisLine={false} domain={[0, 12]} width={40} unit="h" />
-                  <RechartsTooltip content={<CustomTooltip />} />
+                  <RechartsTooltip content={<CustomTooltip units={{ 'Avg Sleep': 'hrs' }} />} />
                   <ReferenceLine
                     y={settings.sleepChartTargetHours}
                     stroke="rgba(184, 156, 91, 0.8)" strokeDasharray="4 4" strokeWidth={1.5}
@@ -339,7 +340,7 @@ export default function AnalyticsScreen({
                   <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
                   <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
                   <YAxis tick={axis} tickLine={false} axisLine={false} width={52} />
-                  <RechartsTooltip content={<CustomTooltip />} />
+                  <RechartsTooltip content={<CustomTooltip units={{ 'Session Load': '' }} />} />
                   <Area type="monotone" dataKey="Session Load" connectNulls stroke="#a78bfa" strokeWidth={3} fill="url(#analyticsLoad)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -397,23 +398,37 @@ export default function AnalyticsScreen({
         />
       )}
 
-      {/* Speed & power - the board this screen is shaped around, waiting on data */}
-      <div className="card-glass" style={{ ...card, border: '1px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.015)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', flexShrink: 0 }}>
-            <Lock size={20} />
-          </div>
-          <div>
-            <span style={eyebrow('var(--color-text-muted)')}>SPEED &amp; POWER</span>
-            <h3 style={{ ...h3, color: 'var(--color-text-muted)' }}>NO TEST DATA YET</h3>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.5, maxWidth: '62ch' }}>
-              10yd fly, laser times and Plyomat jump numbers will rank here. The database has
-              no table for test results yet — that migration has to land before any code
-              writes them, or PostgREST rejects the whole row and the failure is silent.
+      {/* Speed & Power: opt-in, same as RPE. When off, or when the coach has never
+          switched it on, don't imply the feature is missing - point at where to turn it
+          on instead of rendering an empty board. */}
+      {settings.enableSpeedPower ? (
+        <SpeedPowerPanel
+          athletes={athletes}
+          sportFilter={sportFilter}
+          openProfile={openProfile}
+          card={card}
+          h3={h3}
+          eyebrow={eyebrow}
+          grid={grid}
+        />
+      ) : (
+        <div className="card-glass" style={{ ...card, border: '1px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.015)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', flexShrink: 0 }}>
+              <Lock size={20} />
+            </div>
+            <div>
+              <span style={eyebrow('var(--color-text-muted)')}>SPEED &amp; POWER</span>
+              <h3 style={{ ...h3, color: 'var(--color-text-muted)' }}>NOT ENABLED</h3>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.5, maxWidth: '62ch' }}>
+                10yd fly and laser time testing, manually entered. Turn it on at
+                Settings → Program Configuration → SPEED &amp; POWER. Plyomat CSV import is
+                planned but not built yet.
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
