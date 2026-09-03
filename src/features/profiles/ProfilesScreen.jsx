@@ -867,6 +867,35 @@ export default function ProfilesScreen({
                               </button>
                             )
                           ) : null}
+                          {/* Correcting a mis-typed weight used to be possible only on
+                              post-practice sweat checks, so a fat-fingered morning
+                              weigh-in (169.9 for 160.9) could only be deleted and
+                              re-entered - which loses the original timestamp and, if it
+                              was the baseline, silently moves the marker. */}
+                          <button
+                            onClick={() => {
+                              const d = new Date(log.created_at);
+                              setManualEntryForm(p => ({
+                                ...p,
+                                athleteId: athlete.id,
+                                weight: currentW != null ? String(currentW) : '',
+                                date: getCentralDateString(d),
+                                time: getCentralTimeString(d),
+                                // Preserve what this row already is. Sending
+                                // 'post_practice' for a morning weigh-in would reclassify
+                                // it as a sweat check and drop it out of every weight
+                                // trend and baseline calculation.
+                                sessionType: isPostPracticeLog(log) ? 'post_practice' : 'morning',
+                                successMsg: '',
+                                editingLogId: log.id
+                              }));
+                              setShowManualEntryModal(true);
+                            }}
+                            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--white)', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                            title="Correct a mis-entered date, time, or weight on this log"
+                          >
+                            <Pencil size={14} /> EDIT
+                          </button>
                           <button
                             onClick={() => {
                               setConfirmModal({

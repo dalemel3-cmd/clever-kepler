@@ -1740,33 +1740,50 @@ export default function App() {
   // Corrects an existing log's date/time/weight/session type in place, rather than
   // creating a new row - used by the "Edit" action on post-practice log entries.
   const handleUpdateManualLog = async (logId, updatedRec) => {
+    // The edit modal only collects weight, date and time, but it used to send
+    // sleep_hrs: 0 along with them - which silently zeroed the sleep value on any row it
+    // touched. That was invisible while editing was only offered on post-practice sweat
+    // checks (those carry no sleep), and became destructive the moment morning weigh-ins
+    // became editable. Anything the editor does not actually collect is carried over
+    // from the row being edited rather than assumed.
+    const existing = reportData.find(r => r.id === logId) || {};
+    const merged = {
+      ...updatedRec,
+      sleep_hrs: updatedRec.sleep_hrs != null && updatedRec.sleep_hrs !== 0
+        ? updatedRec.sleep_hrs
+        : (existing.sleep_hrs ?? 0),
+    };
+
     // 1. Optimistic UI update on the existing row
-    setReportData(prev => prev.map(r => r.id === logId ? { ...r, ...updatedRec } : r));
+    setReportData(prev => prev.map(r => r.id === logId ? { ...r, ...merged } : r));
 
     // 2. Persist to local hardware vault as backup
     try {
       const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
-      vault.unshift({ saved_at: new Date().toISOString(), record: { ...updatedRec, id: logId }, is_edit: true });
+      vault.unshift({ saved_at: new Date().toISOString(), record: { ...merged, id: logId }, is_edit: true });
       localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
     } catch (e) {}
 
     // 3. Sync the correction to the live Supabase row
     try {
+      // Named columns only. is_baseline, rpe, session_minutes and session_label are
+      // deliberately absent: PATCH leaves unnamed columns untouched, so a correction to
+      // a baseline row keeps its marker and an RPE row keeps its rating.
       const cloudPayload = {
-        athlete_id: updatedRec.athlete_id,
-        athlete_name: updatedRec.athlete_name || 'Unknown',
-        sport: updatedRec.sport || '',
-        weight_lbs: updatedRec.weight_lbs,
-        sleep_hrs: updatedRec.sleep_hrs || 0,
-        created_at: updatedRec.created_at,
-        session_type: updatedRec.session_type || null
+        athlete_id: merged.athlete_id,
+        athlete_name: merged.athlete_name || 'Unknown',
+        sport: merged.sport || '',
+        weight_lbs: merged.weight_lbs,
+        sleep_hrs: merged.sleep_hrs || 0,
+        created_at: merged.created_at,
+        session_type: merged.session_type === 'post_practice' ? 'post_practice' : (existing.session_type ?? null)
       };
 
       const { error } = await supabase.from('weigh_ins').update(cloudPayload).eq('id', logId);
       if (error) throw error;
 
-      if (updatedRec.session_type === 'post_practice') {
-        markLogAsPostPractice({ id: logId, ...updatedRec });
+      if (merged.session_type === 'post_practice') {
+        markLogAsPostPractice({ id: logId, ...merged });
       }
 
       fetchReportData(true);
