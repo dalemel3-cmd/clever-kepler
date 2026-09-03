@@ -130,6 +130,34 @@ for (const a of athletes) {
   await page.keyboard.press('Escape').catch(() => {});
   await page.waitForTimeout(400);
 
+  console.log('\n[F] Coach manual-entry modal: no live backdrop blur');
+  // This is the one full-screen overlay left in App.jsx that holds text inputs, so it
+  // is the one that repaints per keystroke the way the two entry modals did.
+  await page.reload();
+  await page.waitForTimeout(2000);
+  await page.goto(`${APP}/#dashboard`);
+  await page.waitForTimeout(1600);
+  const manualBtn = page.getByRole('button', { name: /Post-Practice|Manual Log/i }).first();
+  if (await manualBtn.count()) {
+    await manualBtn.click();
+    await page.waitForTimeout(900);
+    const blurs3 = await page.evaluate(() => [...document.querySelectorAll('*')].filter(el => {
+      const cs = getComputedStyle(el);
+      const bf = cs.backdropFilter || cs.webkitBackdropFilter || 'none';
+      if (!bf || bf === 'none') return false;
+      const r = el.getBoundingClientRect();
+      // Threshold on HEIGHT only. Width is unreliable: these overlays are
+      // `position: fixed` but size to the nearest transformed ancestor, so a
+      // full-screen scrim measured 582px wide behind the sidebar layout and slipped
+      // under a 600px width test. Overlays are ~820px tall; the toast chips and
+      // pull-to-refresh pill, which keep their blur on purpose, are under 60px.
+      return r.height > 300;
+    }).length);
+    check('no large backdrop-filter surface behind the manual-entry modal', blurs3 === 0, `${blurs3} blurred surface(s)`);
+  } else {
+    check('manual-entry modal reachable from the dashboard', false, 'button not found');
+  }
+
   console.log('\n[E] No render errors under load');
   const errs = [];
   page.on('pageerror', e => errs.push(String(e).slice(0, 160)));
