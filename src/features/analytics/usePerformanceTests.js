@@ -92,6 +92,44 @@ export function usePerformanceTests() {
     }
   }, [mergeRows]);
 
+  // Corrects a mis-entered result in place - a fat-fingered value or the wrong test
+  // date should not require deleting the row and losing the rest of its history (source,
+  // notes/Plyomat session id) the way a delete-and-re-add would.
+  const updateTest = useCallback(async (id, patch) => {
+    setRows(prev => {
+      const next = prev.map(r => (r.id === id ? { ...r, ...patch } : r)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      writeCache(next);
+      return next;
+    });
+    try {
+      const { error } = await supabase.from('performance_tests').update(patch).eq('id', id);
+      if (error) throw error;
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e };
+    }
+  }, []);
+
+  const deleteTest = useCallback(async (id) => {
+    let removed = null;
+    setRows(prev => {
+      removed = prev.find(r => r.id === id) || null;
+      const next = prev.filter(r => r.id !== id);
+      writeCache(next);
+      return next;
+    });
+    try {
+      const { error } = await supabase.from('performance_tests').delete().eq('id', id);
+      if (error) throw error;
+      return { ok: true };
+    } catch (e) {
+      // Put the optimistically-removed row back rather than leaving the UI showing a
+      // delete that didn't actually happen.
+      if (removed) mergeRows([removed]);
+      return { ok: false, error: e };
+    }
+  }, [mergeRows]);
+
   // Writes an import plan from plyomatImport.buildImportPlan.
   //
   // Athletes first, then results, because a result row needs its athlete's id. If the
@@ -158,5 +196,5 @@ export function usePerformanceTests() {
     }
   }, [mergeRows]);
 
-  return { performanceTests: rows, addTest, importPlan };
+  return { performanceTests: rows, addTest, updateTest, deleteTest, importPlan };
 }

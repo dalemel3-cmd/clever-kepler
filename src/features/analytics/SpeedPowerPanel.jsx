@@ -1,5 +1,6 @@
 import React from 'react';
 import { Zap, Plus, ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react';
+import { getCentralDateString, centralWallTimeToISO } from '../../utils/athleteData';
 
 // Test types this panel knows about today. `source: 'plyomat'` rows (once that importer
 // exists) can carry a test_type not listed here - the leaderboard groups on whatever
@@ -33,6 +34,12 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
   const [athleteId, setAthleteId] = React.useState('');
   const [testType, setTestType] = React.useState(TEST_TYPES[0].key);
   const [value, setValue] = React.useState('');
+  // Defaults to today but is editable, so a result from a test day that already
+  // happened (a Plyomat session logged late, a fly time jotted on paper two weeks ago)
+  // lands on the day it was actually run rather than the day someone got around to
+  // typing it in - which matters for the trend badges and the comparison chart, both
+  // of which read the timeline.
+  const [testDate, setTestDate] = React.useState(() => getCentralDateString());
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
   // Which boards are expanded past the first page. A coach with a full roster needs to
@@ -118,10 +125,14 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       test_type: testType,
       metric: v,
       unit: activeTest.unit,
+      // Noon on the chosen day, same convention EntryScreen uses for a date-only log -
+      // there's no real time-of-day for a test session, so an arbitrary time inside
+      // that day avoids a timezone rollover pushing it onto the wrong calendar date.
+      created_at: centralWallTimeToISO(testDate, '12:00'),
     });
     setSaving(false);
     setMessage(result.ok
-      ? `Saved ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'}.`
+      ? `Saved ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'} on ${testDate}.`
       : 'Saved locally — will sync once back online.');
     setValue('');
     setTimeout(() => setMessage(''), 3500);
@@ -133,7 +144,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
         <span style={eyebrow('#fbbf24')}><Zap size={14} /> SPEED &amp; POWER</span>
         <h3 style={h3}>SPRINT & JUMP TESTING</h3>
         <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-          Manual entry today. Plyomat CSV import is planned but not built — see docs/HANDOFF.md §9.
+          Log a result for any past test date — not just today.
         </div>
       </div>
 
@@ -155,6 +166,19 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
           <select id="sp-type" className="input-glass" value={testType} onChange={e => setTestType(e.target.value)} style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }}>
             {TEST_TYPES.map(tt => <option key={tt.key} value={tt.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{tt.label}</option>)}
           </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label htmlFor="sp-date" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Test Date</label>
+          <input
+            id="sp-date"
+            type="date"
+            className="input-glass"
+            value={testDate}
+            max={getCentralDateString()}
+            onChange={e => e.target.value && setTestDate(e.target.value)}
+            style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }}
+            required
+          />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <label htmlFor="sp-value" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Result ({activeTest.unit})</label>

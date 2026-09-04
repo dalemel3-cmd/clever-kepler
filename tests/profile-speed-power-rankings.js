@@ -53,6 +53,7 @@ const newPage = async (browser, opts = {}) => {
   const errors = [];
   page.on('pageerror', e => errors.push(String(e).slice(0, 180)));
   page.errors = errors;
+  page.writes = []; // { method: 'PATCH'|'DELETE', url, body }
   await stubAuth(page);
   await page.addInitScript((s) => localStorage.setItem('hpd_settings', JSON.stringify(s)), { enableSpeedPower: opts.enabled !== false });
   await page.route(SUPA, async (route) => {
@@ -63,8 +64,16 @@ const newPage = async (browser, opts = {}) => {
     if (isAuthRoute(url)) return fulfillAuth(route, url, hdrs);
     if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ approved: true }]) });
     if (url.includes('/rest/v1/athletes') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(athletes) });
-    if (url.includes('/rest/v1/weigh_ins') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: '[]' });
-    if (url.includes('/rest/v1/performance_tests') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(opts.perfTests !== undefined ? opts.perfTests : perfTests) });
+    if (url.includes('/rest/v1/weigh_ins') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(opts.weighIns || []) });
+    if (url.includes('/rest/v1/performance_tests')) {
+      if (method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(opts.perfTests !== undefined ? opts.perfTests : perfTests) });
+      if (method === 'PATCH' || method === 'DELETE') {
+        let body = null;
+        try { body = req.postDataJSON(); } catch (e) {}
+        page.writes.push({ method, url, body });
+        return route.fulfill({ status: 204, headers: hdrs, body: '' });
+      }
+    }
     return route.fulfill({ status: 200, headers: hdrs, body: '[]' });
   });
   return page;
@@ -132,6 +141,92 @@ const openProfile = async (page, name) => {
     const body = await page.locator('body').innerText();
     check('empty-state message names the athlete', /No Speed & Power results logged for Other Sport Athlete/i.test(body), body.slice(0, 300));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[F] History list: every attempt is visible, not just the PB, and the newest is marked');
+  {
+    // Target Athlete's vertical jump: two attempts, two weeks apart, improving.
+    const withHistory = [
+      ...perfTests,
+      { id: uuid(101), athlete_id: uuid(1), athlete_name: 'Target Athlete', sport: 'Football', test_type: 'vertical_jump', metric: 23.0, unit: 'in', source: 'manual', created_at: new Date(Date.now() - 14 * 864e5).toISOString() },
+    ];
+    const page = await newPage(browser, { perfTests: withHistory });
+    await openProfile(page, 'Target Athlete');
+    let body = await page.locator('body').innerText();
+    check('history is collapsed by default', !/23\.0 in/.test(body), body.slice(0, 50));
+    await page.getByRole('button', { name: /History \(2\)/i }).click();
+    await page.waitForTimeout(300);
+    body = await page.locator('body').innerText();
+    check('both attempts visible once expanded', /25\.0 in/.test(body) && /23\.0 in/.test(body));
+    check('the PB attempt is starred', /★/.test(body));
+    // (25.0 - 23.0) / 23.0 ~= +8.7%, and higher is better for a jump -> improving/green/down? no, up-arrow since value rose.
+    check('trend badge reflects the two most recent attempts, not best-vs-best', /8\.7%/.test(body), body.match(/Vertical Jump[\s\S]{0,80}/)?.[0] || '');
+  }
+
+  console.log('\n[G] Editing an attempt sends a PATCH and updates what\'s shown');
+  {
+    const page = await newPage(browser, { perfTests: [perfTests[2]] }); // Target Athlete's one vertical_jump row, id uuid(92)
+    await openProfile(page, 'Target Athlete');
+    await page.getByRole('button', { name: /History \(1\)/i }).click();
+    await page.waitForTimeout(300);
+    await page.getByLabel('Edit result').first().click();
+    await page.waitForTimeout(200);
+    const valueInput = page.locator('input[type="text"]').last();
+    await valueInput.fill('28');
+    await page.getByRole('button', { name: /^SAVE$/i }).click();
+    await page.waitForTimeout(500);
+    check('a PATCH reached performance_tests', page.writes.some(w => w.method === 'PATCH'), JSON.stringify(page.writes));
+    const patch = page.writes.find(w => w.method === 'PATCH');
+    check('the PATCH carries the corrected value', patch && Number(patch.body.metric) === 28, JSON.stringify(patch));
+    const body = await page.locator('body').innerText();
+    check('the corrected value is reflected on screen', /28\.0 in/.test(body), body.match(/2[0-9]\.0 in/g)?.join(',') || '');
+  }
+
+  console.log('\n[H] Deleting an attempt asks for confirmation, then sends a DELETE');
+  {
+    const page = await newPage(browser, { perfTests: [perfTests[2]] });
+    await openProfile(page, 'Target Athlete');
+    await page.getByRole('button', { name: /History \(1\)/i }).click();
+    await page.waitForTimeout(300);
+    await page.getByLabel('Delete result').first().click();
+    await page.waitForTimeout(300);
+    check('no DELETE fires before confirming', page.writes.length === 0, JSON.stringify(page.writes));
+    await page.getByRole('button', { name: /^Delete$/i }).click();
+    await page.waitForTimeout(500);
+    check('a DELETE reached performance_tests only after confirming', page.writes.some(w => w.method === 'DELETE'), JSON.stringify(page.writes));
+  }
+
+  console.log('\n[I] Speed & Power sits right under the name card, ahead of body weight/sleep');
+  {
+    const page = await newPage(browser);
+    await openProfile(page, 'Target Athlete');
+    const body = await page.locator('body').innerText();
+    const spIdx = body.indexOf('TESTING PROFILE');
+    const weightIdx = body.indexOf('BODY WEIGHT TRENDS');
+    check('Speed & Power heading appears before Body Weight Trends', spIdx > -1 && weightIdx > -1 && spIdx < weightIdx, `sp@${spIdx} weight@${weightIdx}`);
+  }
+
+  console.log('\n[J] Name card is cleaned up: name, sport, org - nothing else');
+  {
+    const page = await newPage(browser);
+    await openProfile(page, 'Target Athlete');
+    const body = await page.locator('body').innerText();
+    check('no "ATHLETE BIOMETRIC DOSSIER" eyebrow', !/ATHLETE BIOMETRIC DOSSIER/i.test(body));
+    check('no tracking-mode badge', !/STANDARD TRACKING/i.test(body) && !/SLEEP ONLY MODE/i.test(body));
+    check('subtitle reads Sport · org name', /Football/.test(body) && /Shiloh Athletics/.test(body));
+    check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[K] Sleep card shows a trend vs the night before, like the weight card');
+  {
+    const weighIns = [
+      { id: uuid(200), athlete_id: uuid(1), athlete_name: 'Target Athlete', sport: 'Football', sleep_hrs: 6.0, created_at: new Date(Date.now() - 864e5).toISOString() },
+      { id: uuid(201), athlete_id: uuid(1), athlete_name: 'Target Athlete', sport: 'Football', sleep_hrs: 7.5, created_at: new Date().toISOString() },
+    ];
+    const page = await newPage(browser, { weighIns });
+    await openProfile(page, 'Target Athlete');
+    const body = await page.locator('body').innerText();
+    check('sleep trend shows +1.5 hr vs the night before', /\+1\.5 hr/.test(body), body.match(/AVERAGE SLEEP[\s\S]{0,150}/i)?.[0] || '');
   }
 
   console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);

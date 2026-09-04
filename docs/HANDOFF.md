@@ -618,7 +618,60 @@ change. Sport ranking ships now; gender ranking is a follow-up if the field gets
 
 ---
 
-## 18. Next up
+## 18. 📝 Backdated entry, per-entry edit/delete, and a Profiles pass (still v4.17.0)
+
+Same release as §16/§17, from a second round of coach feedback before the branch
+merged - the trend/ranking work surfaced two gaps: no way to log a result for a day
+that already happened, and no way to fix a mis-entered one without deleting and
+starting over.
+
+**The Analytics log form now has a Test Date field** (`SpeedPowerPanel.jsx`), defaulting
+to today but editable to any past date, capped at today (`max={getCentralDateString()}`)
+so a result can't accidentally land in the future. Saved with `centralWallTimeToISO(date,
+'12:00')`, the same noon-on-that-day convention EntryScreen uses for a date-only log -
+there's no real time-of-day for a test session, so an arbitrary time inside the chosen
+day avoids a timezone rollover pushing it onto the wrong calendar date.
+
+**Every performance_tests row can now be edited or deleted in place**
+(`usePerformanceTests.updateTest` / `.deleteTest`, both optimistic - a failed delete
+puts the row back rather than leaving the UI showing a delete that didn't happen). The
+RLS policy from `db/006` (`for all`, not just insert/select) already covered UPDATE and
+DELETE, so no migration was needed. The edit/delete controls live on the athlete's
+Profiles page rather than the Analytics leaderboard, next to a new **per-test-type
+history list** - every attempt for that athlete, not just the PB, so "did they go up or
+down" is answered by the real numbers rather than only the current trend arrow. The PB
+attempt is starred so it's clear which row the headline number above the list refers to.
+
+**Profiles page reordering and cleanup**, all from explicit coach direction rather than
+inference:
+- The Speed & Power section now sits directly under the name card, ahead of the body
+  weight and sleep trend charts - it's what gets checked first.
+- The name card itself dropped the "ATHLETE BIOMETRIC DOSSIER" eyebrow and the
+  tracking-mode badge; the subtitle is now just Sport · the program's org name. The KPI
+  mini-grid (current mass, sleep, recovery score, RPE cards) stayed where it was, inside
+  the same card - only the header text was asked to be cleaned up.
+- The Average Sleep KPI card gained a trend line (last night vs. the night before,
+  ▲/▼ in hours), matching the framing the Current Body Mass card already had (vs.
+  baseline). The ask was "be sure we're showing increases or decreases on all metrics" -
+  weight already had one, sleep didn't.
+
+`tests/profile-speed-power-rankings.js` grew to 29 probes covering the history list,
+edit (asserts the actual PATCH body), delete (asserts nothing fires before the confirm
+modal is answered), section order, the cleaned-up name card, and the sleep trend.
+`tests/speed-power.js` gained a backdated-entry probe. **Both suites correctly failed
+against the pre-fix build** - notably by timing out waiting for `getByLabel('Test
+Date')` and `getByRole('button', { name: /History/i })`, which don't exist without this
+change, not by producing a wrong answer. One real bug caught this way, worth recording:
+the new `AthleteSpeedPowerCard` component used `React.useState` without `React` ever
+being imported in `ProfilesScreen.jsx` (the file only imports named icons, no default
+React import) - it built and linted clean, then threw `ReferenceError: React is not
+defined` on the client and put the athlete's entire profile behind the app's error
+boundary. Fixed by importing `useState` from `'react'` directly instead of reaching
+through a `React` namespace that was never in scope.
+
+---
+
+## 19. Next up
 
 1. **Close the account-recovery gap** (§11). Two parts, both small:
    - Turn on **leaked-password protection** — Supabase dashboard → Authentication →

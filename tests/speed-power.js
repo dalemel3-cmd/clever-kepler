@@ -115,6 +115,28 @@ const leaderboardText = async (page) => page.evaluate(() => {
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
+  console.log('\n[C3] Backdated entry: a result from a real test day, not just today');
+  {
+    const page = await newPage(browser, { perfTests: [] });
+    await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2200);
+    await page.getByLabel('Athlete').selectOption(uuid(1));
+    await page.getByLabel('Test', { exact: true }).selectOption('10yd_fly');
+    // Two weeks ago, well before "today".
+    const twoWeeksAgo = new Date(Date.now() - 14 * 864e5);
+    const iso = twoWeeksAgo.toISOString().slice(0, 10);
+    await page.getByLabel('Test Date').fill(iso);
+    await page.getByLabel('Test result in seconds').fill('1.58');
+    await page.getByRole('button', { name: /LOG TEST/i }).click();
+    await page.waitForTimeout(1200);
+    check('a write reached performance_tests', page.writes.length > 0, `writes=${page.writes.length}`);
+    if (page.writes.length) {
+      const w = page.writes[0].body;
+      check('the saved date matches the chosen test day, not today', String(w.created_at).startsWith(iso), `wrote ${w.created_at}, expected ${iso}`);
+    }
+    const body = await page.locator('body').innerText();
+    check('confirmation names the test date', body.includes(iso), body.match(/Saved.{0,60}/)?.[0] || '');
+  }
+
   console.log('\n[C2] Laser Time removed from the Test picker; jump types present');
   {
     const page = await newPage(browser, { perfTests: [] });

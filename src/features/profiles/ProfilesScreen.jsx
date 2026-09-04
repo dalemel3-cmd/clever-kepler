@@ -1,7 +1,8 @@
-import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
+import { useState } from 'react';
+import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, ChevronDown, ChevronUp, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
-import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, hasWeight, isRpeLog } from '../../utils/athleteData';
+import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, centralWallTimeToISO, hasWeight, isRpeLog } from '../../utils/athleteData';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, formatMetric } from '../analytics/SpeedPowerPanel';
 
 // Best (per better:'asc'|'desc') result for one athlete/test_type out of their logged
@@ -68,7 +69,9 @@ export default function ProfilesScreen({
   handleDeleteWeighIn,
   setConfirmModal,
   handleBackFromProfile,
-  performanceTests
+  performanceTests,
+  updatePerformanceTest,
+  deletePerformanceTest
 }) {
   // Every threshold below comes from Settings - no magic numbers in the UI.
   const sleepDeficitBelow = settings.sleepThreshold;
@@ -304,6 +307,12 @@ export default function ProfilesScreen({
   const maxSleep = sleepLogs.length > 0 ? Math.max(...sleepLogs.map(l => Number(l.sleep_hrs))) : '--';
   const deficitNights = sleepLogs.filter(l => Number(l.sleep_hrs) < sleepDeficitBelow).length;
   const recoveryScore = sleepLogs.length > 0 ? Math.round((sleepLogs.filter(l => Number(l.sleep_hrs) >= sleepRecoveryAt).length / sleepLogs.length) * 100) : null;
+  // Night-to-night trend, same up/down-vs-previous framing as the weight card above -
+  // "did last night improve" is a different question from "what's the average", and a
+  // coach glancing at the card wants both.
+  const latestSleep = sleepLogs.length > 0 ? Number(sleepLogs[sleepLogs.length - 1].sleep_hrs) : null;
+  const prevSleep = sleepLogs.length > 1 ? Number(sleepLogs[sleepLogs.length - 2].sleep_hrs) : null;
+  const sleepDelta = (latestSleep != null && prevSleep != null) ? Number((latestSleep - prevSleep).toFixed(1)) : null;
 
   const todayMs = new Date().getTime();
   const daysMs = (days) => days * 24 * 60 * 60 * 1000;
@@ -364,15 +373,9 @@ export default function ProfilesScreen({
             {athlete.name.split(' ').map(n=>n[0]).join('')}
           </div>
           <div style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>ATHLETE BIOMETRIC DOSSIER</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, background: weightLogs.length > 0 ? 'rgba(59, 130, 246, 0.2)' : 'rgba(139, 92, 246, 0.2)', color: weightLogs.length > 0 ? '#60a5fa' : '#c084fc', padding: '3px 10px', borderRadius: '12px', border: `1px solid ${weightLogs.length > 0 ? 'rgba(59, 130, 246, 0.4)' : 'rgba(139, 92, 246, 0.4)'}`, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                {weightLogs.length > 0 ? '⚖️ STANDARD TRACKING' : '😴 SLEEP ONLY MODE'}
-              </span>
-            </div>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: '34px', fontWeight: 800, textTransform: 'uppercase', lineHeight: 1, color: '#fff', letterSpacing: '0.02em' }}>{athlete.name}</span>
-            <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-              <strong style={{ color: '#fff' }}>{athlete.sport || 'Athletics'}</strong> &middot; {athlete.team || settings.organizationName}{athlete.grade ? ` · Class of ${athlete.grade}` : ''} &middot; {athlete.position || 'General Athlete'}
+            <span style={{ fontSize: '15px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+              <strong style={{ color: '#fff' }}>{athlete.sport || 'Athletics'}</strong> &middot; {settings.organizationName}
             </span>
           </div>
 
@@ -416,6 +419,11 @@ export default function ProfilesScreen({
             <span style={{ fontSize: '12px', fontWeight: 700, color: avgSleep !== '--' && sleepBand(Number(avgSleep)) === 'optimal' ? 'var(--status-success)' : avgSleep !== '--' && sleepBand(Number(avgSleep)) === 'adequate' ? '#f59e0b' : 'var(--status-error)' }}>
               {avgSleep !== '--' ? (sleepBand(Number(avgSleep)) === 'optimal' ? '🟢 Optimal Rest Standard' : sleepBand(Number(avgSleep)) === 'adequate' ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning') : 'No sleep data'}
             </span>
+            {sleepDelta != null && Math.abs(sleepDelta) >= 0.1 && (
+              <span style={{ fontSize: '12px', fontWeight: 700, color: sleepDelta > 0 ? 'var(--status-success)' : 'var(--status-error)' }}>
+                {sleepDelta > 0 ? `▲ +${sleepDelta} hr` : `▼ ${sleepDelta} hr`} vs the night before
+              </span>
+            )}
           </div>
 
           <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -473,6 +481,19 @@ export default function ProfilesScreen({
 
         </div>
       </div>
+
+      {/* Speed & Power sits right under the name card, ahead of body weight/sleep -
+          the coach reads it first when checking on an athlete. */}
+      {settings.enableSpeedPower && (
+        <AthleteSpeedPowerCard
+          athlete={athlete}
+          athletes={athletes}
+          performanceTests={performanceTests}
+          updatePerformanceTest={updatePerformanceTest}
+          deletePerformanceTest={deletePerformanceTest}
+          setConfirmModal={setConfirmModal}
+        />
+      )}
 
       {/* Trend Analytics Section (2 Columns) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
@@ -671,83 +692,6 @@ export default function ProfilesScreen({
         )}
 
       </div>
-
-      {/* Speed & Power athlete profile: best marker per test, ranked against the whole
-          roster and within this athlete's own sport, plus an explicit "where to
-          improve" callout. Gated the same as everywhere else Speed & Power appears. */}
-      {settings.enableSpeedPower && (() => {
-        const tests = performanceTests || [];
-        const rankings = TEST_TYPES.map(tt => ({
-          ...tt,
-          best: bestTestFor(tests, athlete.id, tt.key),
-          rank: rankAthleteForTest(tests, athletes, athlete, tt.key),
-        }));
-        const attempted = rankings.filter(r => r.rank);
-        // "Where they can improve" = the attempted test with the lowest percentile,
-        // i.e. the one furthest from the top of the roster - not the lowest raw number,
-        // since a 15in vertical and a 1.4s fly time aren't comparable on their own terms.
-        const focusArea = attempted.length
-          ? attempted.reduce((worst, r) => (r.rank.percentile < worst.rank.percentile ? r : worst))
-          : null;
-
-        return (
-          <div className="card-glass glow-card" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: '20px' }}>
-            <div>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Zap size={15} /> SPEED &amp; POWER
-              </span>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, margin: '4px 0 0', color: '#fff', textTransform: 'uppercase' }}>
-                TESTING PROFILE &amp; RANKINGS
-              </h3>
-            </div>
-
-            {attempted.length === 0 ? (
-              <div style={{ padding: '18px 12px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                No Speed &amp; Power results logged for {athlete.name} yet.
-              </div>
-            ) : (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
-                  {rankings.map(r => (
-                    <div key={r.key} style={{ padding: '16px 18px', borderRadius: '14px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{r.label}</span>
-                      {r.best ? (
-                        <>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, color: '#fbbf24' }}>
-                            {formatMetric(r.best.metric, r.best.unit)}
-                          </span>
-                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                            #{r.rank.overallRank} of {r.rank.overallTotal} overall
-                          </span>
-                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                            #{r.rank.sportRank} of {r.rank.sportTotal} in {athlete.sport || 'General'}
-                          </span>
-                          <div style={{ width: '100%', height: '6px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginTop: '2px' }}>
-                            <div style={{ height: '100%', width: `${r.rank.percentile}%`, borderRadius: '3px', background: r.rank.percentile >= 66 ? '#34d399' : r.rank.percentile >= 33 ? '#fbbf24' : '#f87171' }} />
-                          </div>
-                        </>
-                      ) : (
-                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Not tested yet</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {focusArea && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderRadius: '12px', background: focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.08)' : 'rgba(52,211,153,0.08)', border: `1px solid ${focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}` }}>
-                    <Target size={20} style={{ color: focusArea.rank.percentile < 50 ? '#f87171' : '#34d399', flexShrink: 0 }} />
-                    <div style={{ fontSize: '13px', color: 'var(--color-text)', lineHeight: 1.5 }}>
-                      <strong>{focusArea.rank.percentile < 50 ? 'Focus area' : 'Strongest area'}: {focusArea.label}.</strong>{' '}
-                      {athlete.name} ranks #{focusArea.rank.sportRank} of {focusArea.rank.sportTotal} in {athlete.sport || 'General'}
-                      {' '}({focusArea.rank.percentile}th percentile overall){focusArea.rank.percentile < 50 ? ' — the biggest room for improvement among tested markers.' : ' — their best-ranked marker.'}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        );
-      })()}
 
       {/* Post-Practice Sweat & Acute Weight Drop Tracker */}
       <div className="card-glass glow-card" style={{ padding: '32px', borderRadius: '24px', border: '1px solid rgba(59, 130, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.7) 100%)', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
@@ -1101,6 +1045,204 @@ export default function ProfilesScreen({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// One athlete's Speed & Power section: PB + rankings per test type (as before), plus
+// this session's additions - a per-test attempt HISTORY (so "did they go up or down"
+// is answered by real numbers, not just the current trend arrow) and inline edit/delete
+// on every row, so a mis-entered value or date gets corrected in place rather than
+// requiring a delete-and-re-upload.
+function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerformanceTest, deletePerformanceTest, setConfirmModal }) {
+  const tests = performanceTests || [];
+  // Which test types have their history expanded. Best/rank shows by default; the full
+  // list of attempts is a click away so the card isn't a wall of rows for an athlete
+  // tested a dozen times.
+  const [openHistory, setOpenHistory] = useState({});
+  // { [testId]: { metric, date } } while a row is being edited.
+  const [editing, setEditing] = useState({});
+  const [savingId, setSavingId] = useState(null);
+
+  const rankings = TEST_TYPES.map(tt => ({
+    ...tt,
+    best: bestTestFor(tests, athlete.id, tt.key),
+    rank: rankAthleteForTest(tests, athletes, athlete, tt.key),
+    attempts: tests
+      .filter(t => t.athlete_id === athlete.id && t.test_type === tt.key)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+  }));
+  const attempted = rankings.filter(r => r.rank);
+  // "Where they can improve" = the attempted test with the lowest percentile, i.e. the
+  // one furthest from the top of the roster - not the lowest raw number, since a 15in
+  // vertical and a 1.4s fly time aren't comparable on their own terms.
+  const focusArea = attempted.length
+    ? attempted.reduce((worst, r) => (r.rank.percentile < worst.rank.percentile ? r : worst))
+    : null;
+
+  const startEdit = (t) => setEditing(prev => ({ ...prev, [t.id]: { metric: String(t.metric), date: String(t.created_at).slice(0, 10) } }));
+  const cancelEdit = (id) => setEditing(prev => { const next = { ...prev }; delete next[id]; return next; });
+
+  const saveEdit = async (t) => {
+    const draft = editing[t.id];
+    if (!draft) return;
+    const v = parseFloat(draft.metric);
+    if (!isFinite(v) || v <= 0 || !draft.date) return;
+    setSavingId(t.id);
+    await updatePerformanceTest(t.id, {
+      metric: v,
+      created_at: centralWallTimeToISO(draft.date, '12:00'),
+    });
+    setSavingId(null);
+    cancelEdit(t.id);
+  };
+
+  const confirmDelete = (t) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Test Result',
+      message: `Delete this ${TEST_TYPE_BY_KEY[t.test_type]?.label || t.test_type} result (${formatMetric(t.metric, t.unit)} on ${String(t.created_at).slice(0, 10)})?`,
+      isDanger: true,
+      actionText: 'Delete',
+      onConfirm: async () => { await deletePerformanceTest(t.id); },
+    });
+  };
+
+  return (
+    <div className="card-glass glow-card" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: '20px' }}>
+      <div>
+        <span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Zap size={15} /> SPEED &amp; POWER
+        </span>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, margin: '4px 0 0', color: '#fff', textTransform: 'uppercase' }}>
+          TESTING PROFILE &amp; RANKINGS
+        </h3>
+      </div>
+
+      {attempted.length === 0 ? (
+        <div style={{ padding: '18px 12px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+          No Speed &amp; Power results logged for {athlete.name} yet.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+            {rankings.map(r => {
+              // Latest-vs-previous-attempt trend, same framing as the leaderboard badge -
+              // moves every session, not just on a new PB.
+              const trend = r.attempts.length >= 2
+                ? (() => {
+                    const delta = Number(r.attempts[0].metric) - Number(r.attempts[1].metric);
+                    const improving = r.better === 'desc' ? delta > 0 : delta < 0;
+                    const pct = r.attempts[1].metric ? (delta / Number(r.attempts[1].metric)) * 100 : 0;
+                    return { delta, improving, pct };
+                  })()
+                : null;
+              const isOpen = !!openHistory[r.key];
+
+              return (
+                <div key={r.key} style={{ padding: '16px 18px', borderRadius: '14px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{r.label}</span>
+                  {r.best ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, color: '#fbbf24' }}>
+                          {formatMetric(r.best.metric, r.best.unit)}
+                        </span>
+                        {trend && Math.abs(trend.pct) >= 0.1 && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px', fontSize: '11px', fontWeight: 800, color: trend.improving ? '#34d399' : '#f87171' }}>
+                            {trend.delta < 0 ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
+                            {Math.abs(trend.pct).toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                        #{r.rank.overallRank} of {r.rank.overallTotal} overall
+                      </span>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                        #{r.rank.sportRank} of {r.rank.sportTotal} in {athlete.sport || 'General'}
+                      </span>
+                      <div style={{ width: '100%', height: '6px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginTop: '2px' }}>
+                        <div style={{ height: '100%', width: `${r.rank.percentile}%`, borderRadius: '3px', background: r.rank.percentile >= 66 ? '#34d399' : r.rank.percentile >= 33 ? '#fbbf24' : '#f87171' }} />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setOpenHistory(prev => ({ ...prev, [r.key]: !prev[r.key] }))}
+                        style={{ marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px', borderRadius: '8px', background: 'transparent', border: '1px dashed rgba(255,255,255,0.15)', color: 'var(--color-text-muted)', fontSize: '10px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                      >
+                        {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        {isOpen ? 'Hide history' : `History (${r.attempts.length})`}
+                      </button>
+
+                      {isOpen && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px' }}>
+                          {r.attempts.map(t => {
+                            const draft = editing[t.id];
+                            const isBest = r.best && t.id === r.best.id;
+                            return (
+                              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                {draft ? (
+                                  <>
+                                    <input
+                                      type="date"
+                                      value={draft.date}
+                                      max={getCentralDateString()}
+                                      onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], date: e.target.value } }))}
+                                      style={{ flex: '1 1 auto', minWidth: 0, fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+                                    />
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={draft.metric}
+                                      onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], metric: e.target.value.replace(/[^0-9.]/g, '') } }))}
+                                      style={{ width: '60px', fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center' }}
+                                    />
+                                    <button type="button" disabled={savingId === t.id} onClick={() => saveEdit(t)} style={{ fontSize: '10px', fontWeight: 800, color: '#34d399', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                                      {savingId === t.id ? '…' : 'SAVE'}
+                                    </button>
+                                    <button type="button" onClick={() => cancelEdit(t.id)} style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                                      CANCEL
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', flex: '1 1 auto' }}>{String(t.created_at).slice(0, 10)}</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 700, color: isBest ? '#fbbf24' : 'var(--white)' }}>{formatMetric(t.metric, t.unit)}</span>
+                                    {isBest && <span title="Personal best" style={{ fontSize: '10px', color: '#fbbf24' }}>★</span>}
+                                    <button type="button" onClick={() => startEdit(t)} aria-label="Edit result" style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', padding: '2px' }}>
+                                      <Pencil size={12} />
+                                    </button>
+                                    <button type="button" onClick={() => confirmDelete(t)} aria-label="Delete result" style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex', padding: '2px' }}>
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Not tested yet</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {focusArea && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderRadius: '12px', background: focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.08)' : 'rgba(52,211,153,0.08)', border: `1px solid ${focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}` }}>
+              <Target size={20} style={{ color: focusArea.rank.percentile < 50 ? '#f87171' : '#34d399', flexShrink: 0 }} />
+              <div style={{ fontSize: '13px', color: 'var(--color-text)', lineHeight: 1.5 }}>
+                <strong>{focusArea.rank.percentile < 50 ? 'Focus area' : 'Strongest area'}: {focusArea.label}.</strong>{' '}
+                {athlete.name} ranks #{focusArea.rank.sportRank} of {focusArea.rank.sportTotal} in {athlete.sport || 'General'}
+                {' '}({focusArea.rank.percentile}th percentile overall){focusArea.rank.percentile < 50 ? ' — the biggest room for improvement among tested markers.' : ' — their best-ranked marker.'}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
