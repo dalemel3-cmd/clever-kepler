@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Zap, Plus, ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react';
 
 // Test types this panel knows about today. `source: 'plyomat'` rows (once that importer
 // exists) can carry a test_type not listed here - the leaderboard groups on whatever
@@ -51,8 +51,14 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
   // Best result per athlete per test type. A sprint/jump result is a personal best in a
   // way a weigh-in never is - unlike weight, there's no "current" reading, just the best
   // one recorded, so the leaderboard ranks bests rather than latest values.
-  const boards = React.useMemo(() => {
+  //
+  // Separately, the two-most-recent-attempts trend (not best-vs-best) - the leaderboard
+  // ranks on PBs, but a coach scanning it also wants "is this person trending up right
+  // now", same framing as Profiles' weight/Fly-10 trends. A PB-only board would only
+  // ever show green on the day a record falls; this shows it every session.
+  const { boards, trendByTypeAthlete } = React.useMemo(() => {
     const bestByTypeAthlete = new Map(); // testType -> athleteId -> row
+    const attemptsByTypeAthlete = new Map(); // testType -> athleteId -> [{metric, created_at}]
     for (const t of performanceTests) {
       if (!t.athlete_id || !rosterIds.has(t.athlete_id)) continue;
       const tt = TEST_TYPE_BY_KEY[t.test_type];
@@ -64,8 +70,29 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
         ? Number(t.metric) > Number(existing.metric)
         : Number(t.metric) < Number(existing.metric));
       if (isBetter) byAthlete.set(t.athlete_id, t);
+
+      if (!attemptsByTypeAthlete.has(t.test_type)) attemptsByTypeAthlete.set(t.test_type, new Map());
+      const attempts = attemptsByTypeAthlete.get(t.test_type);
+      if (!attempts.has(t.athlete_id)) attempts.set(t.athlete_id, []);
+      attempts.get(t.athlete_id).push(t);
     }
-    return TEST_TYPES.map(tt => {
+
+    const trend = new Map(); // `${testType}:${athleteId}` -> { delta, improving }
+    for (const [key, byAthlete] of attemptsByTypeAthlete) {
+      const tt = TEST_TYPE_BY_KEY[key];
+      for (const [athleteId, list] of byAthlete) {
+        if (list.length < 2) continue;
+        const sorted = [...list].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const latest = Number(sorted[sorted.length - 1].metric);
+        const prev = Number(sorted[sorted.length - 2].metric);
+        const delta = latest - prev;
+        const better = tt ? tt.better : 'asc';
+        const improving = better === 'desc' ? delta > 0 : delta < 0;
+        trend.set(`${key}:${athleteId}`, { delta, improving, latest, prev });
+      }
+    }
+
+    const boards = TEST_TYPES.map(tt => {
       const byAthlete = bestByTypeAthlete.get(tt.key);
       const all = byAthlete
         ? [...byAthlete.values()].sort((a, b) => tt.better === 'desc'
@@ -74,6 +101,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
         : [];
       return { ...tt, all };
     });
+    return { boards, trendByTypeAthlete: trend };
   }, [performanceTests, rosterIds]);
 
   const handleSave = async (e) => {
@@ -175,17 +203,34 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {visible.map((r, i) => (
-                    <div
-                      key={r.athlete_id}
-                      onClick={() => openProfile(r.athlete_id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', cursor: 'pointer' }}
-                    >
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: 800, color: 'var(--color-text-muted)', width: '22px', flexShrink: 0 }}>{i + 1}</span>
-                      <span style={{ flex: 1, fontSize: '13px', fontWeight: 700, color: 'var(--white)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{r.athlete_name}</span>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 700, color: '#fbbf24' }}>{formatMetric(r.metric, b.unit)}</span>
-                    </div>
-                  ))}
+                  {visible.map((r, i) => {
+                    const trend = trendByTypeAthlete.get(`${b.key}:${r.athlete_id}`);
+                    // % change between this athlete's two most recent attempts - not
+                    // best-vs-best (the number shown is still their PB), so the badge
+                    // moves every session instead of only on a new record.
+                    const pct = trend && trend.prev ? (trend.delta / trend.prev) * 100 : null;
+                    return (
+                      <div
+                        key={r.athlete_id}
+                        onClick={() => openProfile(r.athlete_id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', cursor: 'pointer' }}
+                      >
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: 800, color: 'var(--color-text-muted)', width: '22px', flexShrink: 0 }}>{i + 1}</span>
+                        <span style={{ flex: 1, fontSize: '13px', fontWeight: 700, color: 'var(--white)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{r.athlete_name}</span>
+                        {pct != null && isFinite(pct) && Math.abs(pct) >= 0.1 && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px', fontSize: '11px', fontWeight: 800, color: trend.improving ? '#34d399' : '#f87171' }}>
+                            {/* Arrow reflects the raw number's direction (time/inches up
+                                or down); color reflects whether that direction is good -
+                                a faster (lower) fly time is an ArrowDown colored green,
+                                a shorter (lower) jump is an ArrowDown colored red. */}
+                            {trend.delta < 0 ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
+                            {Math.abs(pct).toFixed(1)}%
+                          </span>
+                        )}
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 700, color: '#fbbf24' }}>{formatMetric(r.metric, b.unit)}</span>
+                      </div>
+                    );
+                  })}
                   {b.all.length > PAGE_SIZE && (
                     <button
                       type="button"

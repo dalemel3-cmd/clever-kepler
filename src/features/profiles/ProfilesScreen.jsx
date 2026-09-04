@@ -2,7 +2,7 @@ import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, Refresh
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
 import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, hasWeight, isRpeLog } from '../../utils/athleteData';
-import { TEST_TYPE_BY_KEY, formatMetric } from '../analytics/SpeedPowerPanel';
+import { TEST_TYPES, TEST_TYPE_BY_KEY, formatMetric } from '../analytics/SpeedPowerPanel';
 
 // Best (per better:'asc'|'desc') result for one athlete/test_type out of their logged
 // performance_tests rows. Mirrors the reduction SpeedPowerPanel uses for its
@@ -17,6 +17,33 @@ const bestTestFor = (tests, athleteId, testKey) => {
     const better = tt ? tt.better : 'asc';
     return (better === 'desc' ? Number(r.metric) > Number(best.metric) : Number(r.metric) < Number(best.metric)) ? r : best;
   }, null);
+};
+
+// Where an athlete's PB for one test type stands against the rest of the roster - both
+// program-wide and within their own sport. Ranked on the same best-result reduction the
+// leaderboards use, so "#4 overall" here always agrees with where they'd land on the
+// Analytics board for the same test.
+const rankAthleteForTest = (tests, roster, athlete, testKey) => {
+  const bests = [];
+  for (const a of roster) {
+    const b = bestTestFor(tests, a.id, testKey);
+    if (b) bests.push({ athleteId: a.id, value: Number(b.metric) });
+  }
+  if (bests.length === 0) return null;
+  const tt = TEST_TYPE_BY_KEY[testKey];
+  const sorted = bests.sort((a, b) => tt.better === 'desc' ? b.value - a.value : a.value - b.value);
+  const overallRank = sorted.findIndex(x => x.athleteId === athlete.id) + 1;
+  if (overallRank === 0) return null; // this athlete has no result for this test
+
+  const sportIds = new Set(roster.filter(a => (a.sport || 'General') === (athlete.sport || 'General')).map(a => a.id));
+  const sportSorted = sorted.filter(x => sportIds.has(x.athleteId));
+  const sportRank = sportSorted.findIndex(x => x.athleteId === athlete.id) + 1;
+
+  // Percentile where 100% = best on the roster, so "improve" always means "raise this
+  // number" regardless of which test type is being looked at.
+  const percentile = Math.round((1 - (overallRank - 1) / sorted.length) * 100);
+
+  return { overallRank, overallTotal: sorted.length, sportRank, sportTotal: sportSorted.length, percentile };
 };
 
 export default function ProfilesScreen({
@@ -644,6 +671,83 @@ export default function ProfilesScreen({
         )}
 
       </div>
+
+      {/* Speed & Power athlete profile: best marker per test, ranked against the whole
+          roster and within this athlete's own sport, plus an explicit "where to
+          improve" callout. Gated the same as everywhere else Speed & Power appears. */}
+      {settings.enableSpeedPower && (() => {
+        const tests = performanceTests || [];
+        const rankings = TEST_TYPES.map(tt => ({
+          ...tt,
+          best: bestTestFor(tests, athlete.id, tt.key),
+          rank: rankAthleteForTest(tests, athletes, athlete, tt.key),
+        }));
+        const attempted = rankings.filter(r => r.rank);
+        // "Where they can improve" = the attempted test with the lowest percentile,
+        // i.e. the one furthest from the top of the roster - not the lowest raw number,
+        // since a 15in vertical and a 1.4s fly time aren't comparable on their own terms.
+        const focusArea = attempted.length
+          ? attempted.reduce((worst, r) => (r.rank.percentile < worst.rank.percentile ? r : worst))
+          : null;
+
+        return (
+          <div className="card-glass glow-card" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: '20px' }}>
+            <div>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Zap size={15} /> SPEED &amp; POWER
+              </span>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, margin: '4px 0 0', color: '#fff', textTransform: 'uppercase' }}>
+                TESTING PROFILE &amp; RANKINGS
+              </h3>
+            </div>
+
+            {attempted.length === 0 ? (
+              <div style={{ padding: '18px 12px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                No Speed &amp; Power results logged for {athlete.name} yet.
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
+                  {rankings.map(r => (
+                    <div key={r.key} style={{ padding: '16px 18px', borderRadius: '14px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{r.label}</span>
+                      {r.best ? (
+                        <>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, color: '#fbbf24' }}>
+                            {formatMetric(r.best.metric, r.best.unit)}
+                          </span>
+                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                            #{r.rank.overallRank} of {r.rank.overallTotal} overall
+                          </span>
+                          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                            #{r.rank.sportRank} of {r.rank.sportTotal} in {athlete.sport || 'General'}
+                          </span>
+                          <div style={{ width: '100%', height: '6px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginTop: '2px' }}>
+                            <div style={{ height: '100%', width: `${r.rank.percentile}%`, borderRadius: '3px', background: r.rank.percentile >= 66 ? '#34d399' : r.rank.percentile >= 33 ? '#fbbf24' : '#f87171' }} />
+                          </div>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Not tested yet</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {focusArea && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderRadius: '12px', background: focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.08)' : 'rgba(52,211,153,0.08)', border: `1px solid ${focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}` }}>
+                    <Target size={20} style={{ color: focusArea.rank.percentile < 50 ? '#f87171' : '#34d399', flexShrink: 0 }} />
+                    <div style={{ fontSize: '13px', color: 'var(--color-text)', lineHeight: 1.5 }}>
+                      <strong>{focusArea.rank.percentile < 50 ? 'Focus area' : 'Strongest area'}: {focusArea.label}.</strong>{' '}
+                      {athlete.name} ranks #{focusArea.rank.sportRank} of {focusArea.rank.sportTotal} in {athlete.sport || 'General'}
+                      {' '}({focusArea.rank.percentile}th percentile overall){focusArea.rank.percentile < 50 ? ' — the biggest room for improvement among tested markers.' : ' — their best-ranked marker.'}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Post-Practice Sweat & Acute Weight Drop Tracker */}
       <div className="card-glass glow-card" style={{ padding: '32px', borderRadius: '24px', border: '1px solid rgba(59, 130, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.7) 100%)', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>

@@ -141,6 +141,28 @@ const leaderboardText = async (page) => page.evaluate(() => {
       `fast(22in)@${fastIdx} slow(30in)@${slowIdx}`);
   }
 
+  console.log('\n[F2] Leaderboard shows a red/green % trend from the two most recent attempts');
+  {
+    const page = await newPage(browser, {
+      perfTests: [
+        // Fast Athlete: fly time improving (1.70 -> 1.55, faster). Trend should be
+        // green and point down (the number went down), NOT green pointing up.
+        { id: uuid(95), athlete_id: uuid(1), athlete_name: 'Fast Athlete', sport: 'Football', test_type: '10yd_fly', metric: 1.70, unit: 'sec', source: 'manual', created_at: new Date(Date.now() - 14 * 864e5).toISOString() },
+        { id: uuid(96), athlete_id: uuid(1), athlete_name: 'Fast Athlete', sport: 'Football', test_type: '10yd_fly', metric: 1.55, unit: 'sec', source: 'manual', created_at: new Date().toISOString() },
+        // Slower Athlete: fly time declining (1.80 -> 1.85, slower). Trend should be
+        // red and point up.
+        { id: uuid(97), athlete_id: uuid(2), athlete_name: 'Slower Athlete', sport: 'Football', test_type: '10yd_fly', metric: 1.80, unit: 'sec', source: 'manual', created_at: new Date(Date.now() - 14 * 864e5).toISOString() },
+        { id: uuid(98), athlete_id: uuid(2), athlete_name: 'Slower Athlete', sport: 'Football', test_type: '10yd_fly', metric: 1.85, unit: 'sec', source: 'manual', created_at: new Date().toISOString() },
+      ],
+    });
+    await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2200);
+    const body = await leaderboardText(page);
+    // (1.55 - 1.70) / 1.70 = -8.8%
+    check('improving athlete shows a ~8.8% trend badge', /8\.8%/.test(body), body.match(/Fast Athlete[\s\S]{0,60}/)?.[0] || '');
+    // (1.85 - 1.80) / 1.80 = +2.8%
+    check('declining athlete shows a ~2.8% trend badge', /2\.8%/.test(body), body.match(/Slower Athlete[\s\S]{0,60}/)?.[0] || '');
+  }
+
   console.log('\n[G] "Show all" reveals athletes beyond the first 8 on a board');
   {
     const manyAthletes = Array.from({ length: 10 }, (_, i) => ({

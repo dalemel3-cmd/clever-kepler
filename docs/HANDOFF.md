@@ -428,12 +428,14 @@ Recorded so they don't get re-litigated:
 - **Version bumping** — rules in `VERSIONING.md`. Small push = patch (`4.12.6`),
   large push = minor (`4.13.0`). Two files must match: `APP_VERSION` in
   `src/utils/athleteData.js` and `version` in `package.json`.
-- **Tests** — `tests/` + `tests/README.md`. Sixteen suites: `analytics`, `auth`,
-  `dashboard-profile-team`, `data-integrity`, `edit-log`, `entry-perf`,
-  `offline-recovery`, `rpe`, `rpe-dashboard`, `rpe-settings`, `select-visibility`,
-  `settings-live`, `speed-power`, `stress`, `sync-and-ux`, `tooltip-units`. A full pass
-  takes ~10 minutes, almost all of it deliberate waiting — the offline-queue and
-  heartbeat probes only catch what they catch after real elapsed time.
+- **Tests** — `tests/` + `tests/README.md`. Twenty suites: `analytics`,
+  `athlete-comparison`, `auth`, `dashboard-profile-team`, `data-integrity`, `edit-log`,
+  `entry-perf`, `offline-recovery`, `plyomat-import`, `plyomat-ui`,
+  `profile-speed-power-rankings`, `rpe`, `rpe-dashboard`, `rpe-settings`,
+  `select-visibility`, `settings-live`, `speed-power`, `stress`, `sync-and-ux`,
+  `tooltip-units`. A full pass takes ~10 minutes, almost all of it deliberate waiting —
+  the offline-queue and heartbeat probes only catch what they catch after real elapsed
+  time.
   They intercept all Supabase traffic, so they never touch the real
   database — which is also why they cannot catch the class of defect in §3. Run them
   before pushing anything non-trivial.
@@ -549,7 +551,74 @@ field, which is the signal a future version could use to catch this automaticall
 
 ---
 
-## 16. Next up
+## 16. 📈 Athlete comparison — plot Speed & Power results over time (v4.17.0)
+
+`src/features/analytics/AthleteComparisonPanel.jsx`, reached via a **Compare** toggle
+next to **Overview** at the top of Analytics (`AnalyticsScreen.jsx`'s `view` state).
+Behind `settings.enableSpeedPower`, same gating as the rest of Speed & Power - off shows
+the same "NOT ENABLED, here's where to turn it on" card the leaderboards use, not a
+blank screen.
+
+Pick a test type (10yd Fly / Vertical Jump / Board Jump) and up to 6 athletes; every
+logged attempt for each is plotted on one line chart, plus a best/latest/trend summary
+card per athlete underneath. Two decisions worth recording:
+
+- **Every real attempt is plotted, not a bucketed average.** The dashboard's weight
+  trend buckets by calendar day because weigh-ins are roughly daily; Speed & Power tests
+  have no fixed cadence; averaging them into day-buckets would either sit mostly empty
+  or blend two unrelated test sessions together. Two athletes tested on the same day do
+  share one chart point (so the tooltip reads as "this day, these results"); the same
+  athlete's attempts on different days never merge.
+- **Capped at 6 athletes**, enforced in the selection state itself (not just the
+  disabled checkbox) - a chart with more than 6 lines stops answering "who's ahead" and
+  starts being decoration. `tests/athlete-comparison.js` proves the cap holds even when
+  every roster row is clicked.
+
+The trend arrow on each summary card compares an athlete's **two most recent attempts**,
+not their two personal bests - same reasoning as Profiles' Fly 10 trend (§13): it
+answers "is this person trending up right now," which only moves on a broken record if
+scored the other way.
+
+`TEST_TYPES` / `TEST_TYPE_BY_KEY` / `formatMetric` are imported from `SpeedPowerPanel.jsx`
+rather than redefined, so a comparison always agrees with the leaderboard on units and
+which direction counts as "better" for a given test.
+
+---
+
+## 17. 🏆 Leaderboard trend badges + per-athlete rankings on Profiles (v4.17.0)
+
+Two more Speed & Power additions, both from the same coach feedback pass as §16.
+
+**Leaderboard rows now show a red/green % trend badge** next to the PB
+(`SpeedPowerPanel.jsx`). Same principle as the comparison panel's trend: it compares an
+athlete's **two most recent attempts**, not two personal bests, so the badge moves every
+testing session instead of only on a new record. The number displayed is still the PB -
+only the badge is session-to-session. Arrow direction follows the raw number (down =
+the value went down); color follows whether that direction is actually an improvement -
+a faster (lower) fly time is a green down-arrow, a shorter (lower) jump is a red
+down-arrow. Getting the color right independent of the arrow direction is the same
+`better: 'asc'|'desc'` rule the leaderboard sort already uses.
+
+**An athlete's profile page now has its own Speed & Power section**
+(`ProfilesScreen.jsx`, gated on `settings.enableSpeedPower`), showing their PB per test
+type plus two rankings: overall (against every athlete on the roster who has a result
+for that test) and within their own sport. A percentile bar visualizes the overall
+ranking, and a callout names the **weakest-ranked** attempted test as the focus area -
+not the lowest raw number, since a 15in vertical and a 1.4s fly time aren't comparable on
+their own terms, only their percentile standing is.
+
+Both rankings and the leaderboards share `bestTestFor` (Profiles) and the boards reducer
+(SpeedPowerPanel) - same reduction, so a rank surfaced on a profile always agrees with
+where that athlete would land on the Analytics leaderboard for the same test.
+
+Gender-based ranking was scoped out for this pass: `athletes` has no gender column
+today, and adding one is a small migration best done deliberately (with the same
+same-migration-as-the-table-write RLS discipline as §3) rather than folded into a UI
+change. Sport ranking ships now; gender ranking is a follow-up if the field gets added.
+
+---
+
+## 18. Next up
 
 1. **Close the account-recovery gap** (§11). Two parts, both small:
    - Turn on **leaked-password protection** — Supabase dashboard → Authentication →

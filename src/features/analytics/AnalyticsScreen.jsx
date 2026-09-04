@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, Activity, Target, Award, Zap, Lock } from 'lucide-react';
+import { TrendingUp, Activity, Target, Award, Zap, Lock, GitCompare } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
@@ -7,6 +7,7 @@ import {
 import { CustomTooltip } from '../../components/CustomTooltip';
 import SpeedPowerPanel from './SpeedPowerPanel';
 import PlyomatImportPanel from './PlyomatImportPanel';
+import AthleteComparisonPanel from './AthleteComparisonPanel';
 import {
   getCentralDateString, getAthleteBaseline,
   isRpeLog, hasWeight, hasSleep, isPostPracticeLog,
@@ -38,6 +39,7 @@ export default function AnalyticsScreen({
 }) {
   const [rangeDays, setRangeDays] = React.useState(30);
   const [sportFilter, setSportFilter] = React.useState('ALL');
+  const [view, setView] = React.useState('overview');
 
   const sports = React.useMemo(
     () => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(),
@@ -200,6 +202,26 @@ export default function AnalyticsScreen({
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.35)', padding: '3px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            {[
+              { key: 'overview', label: 'Overview' },
+              { key: 'compare', label: 'Compare', icon: <GitCompare size={13} /> },
+            ].map(v => (
+              <button
+                key={v.key}
+                type="button"
+                onClick={() => setView(v.key)}
+                style={{
+                  padding: '7px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                  fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
+                  background: view === v.key ? 'var(--color-accent)' : 'transparent',
+                  color: view === v.key ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                }}
+              >
+                {v.icon}{v.label}
+              </button>
+            ))}
+          </div>
           <select
             aria-label="Sport filter"
             value={sportFilter}
@@ -214,26 +236,58 @@ export default function AnalyticsScreen({
             <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Sports</option>
             {sports.map(s => <option key={s} value={s} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{s}</option>)}
           </select>
-          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.35)', padding: '3px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            {RANGES.map(r => (
-              <button
-                key={r.key}
-                type="button"
-                onClick={() => setRangeDays(r.key)}
-                style={{
-                  padding: '7px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                  fontWeight: 800, fontSize: '12px',
-                  background: rangeDays === r.key ? 'var(--color-accent)' : 'transparent',
-                  color: rangeDays === r.key ? 'var(--navy-950)' : 'var(--color-text-muted)',
-                }}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+          {view === 'overview' && (
+            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.35)', padding: '3px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              {RANGES.map(r => (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => setRangeDays(r.key)}
+                  style={{
+                    padding: '7px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                    fontWeight: 800, fontSize: '12px',
+                    background: rangeDays === r.key ? 'var(--color-accent)' : 'transparent',
+                    color: rangeDays === r.key ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                  }}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
+      {view === 'compare' ? (
+        settings.enableSpeedPower ? (
+          <AthleteComparisonPanel
+            athletes={athletes}
+            performanceTests={performanceTests}
+            sportFilter={sportFilter}
+            card={card}
+            h3={h3}
+            eyebrow={eyebrow}
+            grid={grid}
+          />
+        ) : (
+          <div className="card-glass" style={{ ...card, border: '1px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.015)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', flexShrink: 0 }}>
+                <Lock size={20} />
+              </div>
+              <div>
+                <span style={eyebrow('var(--color-text-muted)')}>ATHLETE COMPARISON</span>
+                <h3 style={{ ...h3, color: 'var(--color-text-muted)' }}>NOT ENABLED</h3>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.5, maxWidth: '62ch' }}>
+                  Comparing athletes over time needs Speed &amp; Power results to compare. Turn it on at
+                  Settings → Program Configuration → SPEED &amp; POWER.
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      ) : (
+      <>
       {/* Headline numbers */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         {[
@@ -449,6 +503,8 @@ export default function AnalyticsScreen({
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
