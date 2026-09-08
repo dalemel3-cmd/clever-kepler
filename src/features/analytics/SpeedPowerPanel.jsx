@@ -1,29 +1,16 @@
 import React from 'react';
 import { Zap, Plus, ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react';
 import { getCentralDateString, centralWallTimeToISO } from '../../utils/athleteData';
+// Test type/variant definitions live in a plain-data module (no React) so the Plyomat
+// importer can share them without pulling a component file into its pure-logic layer.
+// Re-exported here so existing `from './SpeedPowerPanel'` imports elsewhere keep working.
+import {
+  TEST_TYPES, TEST_TYPE_BY_KEY, JUMP_VARIANTS, FLY_VARIANTS,
+  VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, TEAM_VARIANT_DEFAULTS, formatMetric,
+} from './testVariants';
+export { TEST_TYPES, TEST_TYPE_BY_KEY, JUMP_VARIANTS, FLY_VARIANTS, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, TEAM_VARIANT_DEFAULTS, formatMetric };
 
-// Test types this panel knows about today. `source: 'plyomat'` rows (once that importer
-// exists) can carry a test_type not listed here - the leaderboard groups on whatever
-// values actually show up in the data, not on this list, so a new type just appears
-// rather than needing a code change.
-//
-// `better` says which direction counts as a personal best: 'asc' for a sprint time
-// (lower is faster), 'desc' for a jump (higher is farther/taller). Getting this backwards
-// would rank an athlete's worst jump as their best.
-//
-// Exported so Profiles (which shows "Best Fly 10", "Best Vertical", "Best Broad Jump"
-// per athlete) can reduce the same performance_tests rows the same way, rather than
-// re-deriving the better:'asc'|'desc' rule and risking the two screens disagreeing on
-// what counts as a personal best.
-export const TEST_TYPES = [
-  { key: '10yd_fly', label: '10yd Fly', unit: 'sec', better: 'asc', placeholder: 'e.g. 1.62' },
-  { key: 'vertical_jump', label: 'Vertical Jump', unit: 'in', better: 'desc', placeholder: 'e.g. 24.5' },
-  { key: 'board_jump', label: 'Board Jump', unit: 'in', better: 'desc', placeholder: 'e.g. 96' },
-];
-export const TEST_TYPE_BY_KEY = Object.fromEntries(TEST_TYPES.map(t => [t.key, t]));
 const PAGE_SIZE = 8;
-
-export const formatMetric = (value, unit) => `${Number(value).toFixed(unit === 'sec' ? 2 : 1)} ${unit}`;
 
 // `performanceTests` defaults to [] rather than being assumed present. These rows are now
 // fetched once in App.jsx and threaded down, and a missing prop anywhere on that path threw
@@ -33,6 +20,10 @@ export const formatMetric = (value, unit) => `${Number(value).toFixed(unit === '
 export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, card, h3, eyebrow, grid: gridColor, performanceTests = [], addTest }) {
   const [athleteId, setAthleteId] = React.useState('');
   const [testType, setTestType] = React.useState(TEST_TYPES[0].key);
+  // Which protocol/technique this result was measured under (see TEST_TYPES.variants).
+  // A test type with only one variant never shows a picker - the value is set silently
+  // so old and new rows still carry the tag once a second protocol shows up.
+  const [variant, setVariant] = React.useState(TEST_TYPES[0].variants[0]?.key || '');
   const [value, setValue] = React.useState('');
   // Defaults to today but is editable, so a result from a test day that already
   // happened (a Plyomat session logged late, a fly time jotted on paper two weeks ago)
@@ -47,6 +38,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
   // today", not "log one athlete, re-pick the type and date, log the next one" 20+ times.
   const [entryMode, setEntryMode] = React.useState('single');
   const [teamValues, setTeamValues] = React.useState({}); // { [athleteId]: string }
+  const [teamVariant, setTeamVariant] = React.useState('');
   const [teamSaving, setTeamSaving] = React.useState(false);
   const [teamMessage, setTeamMessage] = React.useState('');
   // Which boards are expanded past the first page. A coach with a full roster needs to
@@ -55,6 +47,27 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
   const [expanded, setExpanded] = React.useState({});
 
   const activeTest = TEST_TYPE_BY_KEY[testType] || TEST_TYPES[0];
+  const needsVariantPicker = activeTest.variants.length > 1;
+
+  // Switching test type resets the variant: a single-variant type (Fly 10 today)
+  // silently takes its one value; a multi-variant type (jump) defaults from the already-
+  // selected athlete's team (if picking the athlete happened first, as it usually does)
+  // or clears to blank otherwise - either way, a wrong technique never carries over from
+  // whatever was picked last.
+  React.useEffect(() => {
+    if (activeTest.variants.length === 1) { setVariant(activeTest.variants[0].key); return; }
+    const a = athletes.find(x => x.id === athleteId);
+    setVariant((a && TEAM_VARIANT_DEFAULTS[a.sport]) || '');
+  }, [testType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Team Entry applies one technique to the whole batch, so it defaults from the sport
+  // filter (a single sport's team default) rather than per-athlete - a coach batch-tests
+  // one team at a time in practice. Blank when the filter is ALL sports or the sport has
+  // no default on file, requiring an explicit pick rather than guessing across teams.
+  React.useEffect(() => {
+    if (activeTest.variants.length === 1) { setTeamVariant(activeTest.variants[0].key); return; }
+    setTeamVariant(TEAM_VARIANT_DEFAULTS[sportFilter] || '');
+  }, [testType, sportFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const roster = React.useMemo(
     () => (sportFilter === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === sportFilter)),
@@ -62,22 +75,33 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
   );
   const rosterIds = React.useMemo(() => new Set(roster.map(a => a.id)), [roster]);
 
-  // Best result per athlete per test type. A sprint/jump result is a personal best in a
-  // way a weigh-in never is - unlike weight, there's no "current" reading, just the best
-  // one recorded, so the leaderboard ranks bests rather than latest values.
+  // Best result per athlete per test type *and variant*. Hands-on-hips and arm-swing
+  // jumps aren't the same test - mixing them into one board would rank a technique
+  // difference as an athletic one, so every group below is keyed on test_type + variant,
+  // not test_type alone. A test type with only one variant (Fly 10 today) still groups
+  // by it, which costs nothing since there's only one group to find.
   //
   // Separately, the two-most-recent-attempts trend (not best-vs-best) - the leaderboard
   // ranks on PBs, but a coach scanning it also wants "is this person trending up right
   // now", same framing as Profiles' weight/Fly-10 trends. A PB-only board would only
-  // ever show green on the day a record falls; this shows it every session.
+  // ever show green on the day a record falls; this shows it every session. Trend is
+  // computed within a variant group too - a switch in technique between two attempts
+  // would otherwise register as an athlete suddenly jumping 4 inches higher or lower.
+  const groupKey = (testType, variantKey) => `${testType}::${variantKey}`;
   const { boards, trendByTypeAthlete } = React.useMemo(() => {
-    const bestByTypeAthlete = new Map(); // testType -> athleteId -> row
-    const attemptsByTypeAthlete = new Map(); // testType -> athleteId -> [{metric, created_at}]
+    const bestByGroupAthlete = new Map(); // groupKey -> athleteId -> row
+    const attemptsByGroupAthlete = new Map(); // groupKey -> athleteId -> [rows]
     for (const t of performanceTests) {
       if (!t.athlete_id || !rosterIds.has(t.athlete_id)) continue;
       const tt = TEST_TYPE_BY_KEY[t.test_type];
-      if (!bestByTypeAthlete.has(t.test_type)) bestByTypeAthlete.set(t.test_type, new Map());
-      const byAthlete = bestByTypeAthlete.get(t.test_type);
+      // A single-variant type (Fly 10 today) never splits by variant, regardless of
+      // whether this particular row happens to carry the tag - an older row saved
+      // before variants existed still belongs to the one protocol that type has.
+      // Only a genuinely multi-variant type (jump) groups on the row's actual tag.
+      const vk = (tt && tt.variants.length > 1) ? (t.test_variant || 'untagged') : ((tt && tt.variants[0]?.key) || 'untagged');
+      const gk = groupKey(t.test_type, vk);
+      if (!bestByGroupAthlete.has(gk)) bestByGroupAthlete.set(gk, new Map());
+      const byAthlete = bestByGroupAthlete.get(gk);
       const existing = byAthlete.get(t.athlete_id);
       const better = tt ? tt.better : 'asc';
       const isBetter = !existing || (better === 'desc'
@@ -85,15 +109,15 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
         : Number(t.metric) < Number(existing.metric));
       if (isBetter) byAthlete.set(t.athlete_id, t);
 
-      if (!attemptsByTypeAthlete.has(t.test_type)) attemptsByTypeAthlete.set(t.test_type, new Map());
-      const attempts = attemptsByTypeAthlete.get(t.test_type);
+      if (!attemptsByGroupAthlete.has(gk)) attemptsByGroupAthlete.set(gk, new Map());
+      const attempts = attemptsByGroupAthlete.get(gk);
       if (!attempts.has(t.athlete_id)) attempts.set(t.athlete_id, []);
       attempts.get(t.athlete_id).push(t);
     }
 
-    const trend = new Map(); // `${testType}:${athleteId}` -> { delta, improving }
-    for (const [key, byAthlete] of attemptsByTypeAthlete) {
-      const tt = TEST_TYPE_BY_KEY[key];
+    const trend = new Map(); // `${groupKey}:${athleteId}` -> { delta, improving }
+    for (const [gk, byAthlete] of attemptsByGroupAthlete) {
+      const tt = TEST_TYPE_BY_KEY[gk.split('::')[0]];
       for (const [athleteId, list] of byAthlete) {
         if (list.length < 2) continue;
         const sorted = [...list].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -102,26 +126,48 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
         const delta = latest - prev;
         const better = tt ? tt.better : 'asc';
         const improving = better === 'desc' ? delta > 0 : delta < 0;
-        trend.set(`${key}:${athleteId}`, { delta, improving, latest, prev });
+        trend.set(`${gk}:${athleteId}`, { delta, improving, latest, prev });
       }
     }
 
-    const boards = TEST_TYPES.map(tt => {
-      const byAthlete = bestByTypeAthlete.get(tt.key);
-      const all = byAthlete
-        ? [...byAthlete.values()].sort((a, b) => tt.better === 'desc'
-            ? Number(b.metric) - Number(a.metric)
-            : Number(a.metric) - Number(b.metric))
-        : [];
-      return { ...tt, all };
-    });
+    const boards = [];
+    for (const tt of TEST_TYPES) {
+      const variantKeys = tt.variants.length > 1
+        ? [...tt.variants.map(v => v.key), 'untagged']
+        : [tt.variants[0]?.key || 'untagged'];
+      const withData = variantKeys.filter(vk => {
+        const byAthlete = bestByGroupAthlete.get(groupKey(tt.key, vk));
+        return byAthlete && byAthlete.size > 0;
+      });
+      // A test type with zero results anywhere still gets one board, so "no results
+      // logged yet" has somewhere to render - only an empty *variant* (one technique
+      // with no data while another has some) is skipped as noise.
+      const keysToRender = withData.length > 0 ? withData : [variantKeys[0]];
+      for (const vk of keysToRender) {
+        const gk = groupKey(tt.key, vk);
+        const byAthlete = bestByGroupAthlete.get(gk);
+        const all = byAthlete
+          ? [...byAthlete.values()].sort((a, b) => tt.better === 'desc'
+              ? Number(b.metric) - Number(a.metric)
+              : Number(a.metric) - Number(b.metric))
+          : [];
+        const variantLabel = vk === 'untagged' ? UNTAGGED_VARIANT_LABEL : VARIANT_LABEL[vk];
+        boards.push({
+          ...tt,
+          key: gk,
+          variantKey: vk,
+          label: (tt.variants.length > 1 && all.length > 0) ? `${tt.label} — ${variantLabel}` : tt.label,
+          all,
+        });
+      }
+    }
     return { boards, trendByTypeAthlete: trend };
   }, [performanceTests, rosterIds]);
 
   const handleSave = async (e) => {
     e.preventDefault();
     const v = parseFloat(value);
-    if (!athleteId || !isFinite(v) || v <= 0) return;
+    if (!athleteId || !isFinite(v) || v <= 0 || (needsVariantPicker && !variant)) return;
     const athlete = athletes.find(a => a.id === athleteId);
     setSaving(true);
     setMessage('');
@@ -130,6 +176,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       athlete_name: athlete ? athlete.name : 'Unknown',
       sport: athlete ? athlete.sport : '',
       test_type: testType,
+      test_variant: variant || null,
       metric: v,
       unit: activeTest.unit,
       // Noon on the chosen day, same convention EntryScreen uses for a date-only log -
@@ -147,6 +194,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
 
   const handleTeamSave = async (e) => {
     e.preventDefault();
+    if (needsVariantPicker && !teamVariant) return;
     const entries = roster
       .map(a => ({ athlete: a, raw: teamValues[a.id] }))
       .filter(({ raw }) => raw != null && raw !== '' && isFinite(parseFloat(raw)) && parseFloat(raw) > 0);
@@ -159,6 +207,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       athlete_name: athlete.name,
       sport: athlete.sport,
       test_type: testType,
+      test_variant: teamVariant || null,
       metric: parseFloat(raw),
       unit: activeTest.unit,
       created_at,
@@ -203,6 +252,15 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
                 {TEST_TYPES.map(tt => <option key={tt.key} value={tt.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{tt.label}</option>)}
               </select>
             </div>
+            {needsVariantPicker && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label htmlFor="sp-team-variant" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Technique</label>
+                <select id="sp-team-variant" className="input-glass" value={teamVariant} onChange={e => setTeamVariant(e.target.value)} style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }} required>
+                  <option value="" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>Select…</option>
+                  {activeTest.variants.map(v => <option key={v.key} value={v.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{v.label}</option>)}
+                </select>
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label htmlFor="sp-team-date" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Test Date</label>
               <input
@@ -218,11 +276,11 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
             </div>
             <button
               type="submit"
-              disabled={teamSaving || roster.every(a => !teamValues[a.id])}
+              disabled={teamSaving || roster.every(a => !teamValues[a.id]) || (needsVariantPicker && !teamVariant)}
               style={{
                 height: '40px', padding: '0 18px', borderRadius: '10px', border: 'none',
-                background: roster.every(a => !teamValues[a.id]) ? 'rgba(251, 191, 36, 0.25)' : 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)',
-                color: '#1a1305', fontWeight: 800, fontSize: '13px', cursor: roster.every(a => !teamValues[a.id]) ? 'not-allowed' : 'pointer',
+                background: (roster.every(a => !teamValues[a.id]) || (needsVariantPicker && !teamVariant)) ? 'rgba(251, 191, 36, 0.25)' : 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)',
+                color: '#1a1305', fontWeight: 800, fontSize: '13px', cursor: (roster.every(a => !teamValues[a.id]) || (needsVariantPicker && !teamVariant)) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: '6px',
               }}
             >
@@ -230,6 +288,11 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
             </button>
             {teamMessage && <span style={{ fontSize: '12px', color: '#34d399', fontWeight: 600, alignSelf: 'center' }}>{teamMessage}</span>}
           </div>
+          {needsVariantPicker && !teamVariant && (
+            <div style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 600 }}>
+              Filter to a single sport, or pick a technique above, before saving jump results as a batch.
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', maxHeight: '360px', overflowY: 'auto', padding: '4px', border: `1px solid ${gridColor}`, borderRadius: '10px' }}>
             {roster.length === 0 ? (
@@ -263,7 +326,24 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
               --color-text on that light background was invisible until the browser's
               hover highlight happened to add contrast. Same fix EntryScreen's roster
               filters already use: color every option explicitly. */}
-          <select id="sp-athlete" className="input-glass" value={athleteId} onChange={e => setAthleteId(e.target.value)} style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }} required>
+          <select
+            id="sp-athlete"
+            className="input-glass"
+            value={athleteId}
+            onChange={e => {
+              const id = e.target.value;
+              setAthleteId(id);
+              // Default the variant from this athlete's team, if this test type has more
+              // than one and nothing's been picked yet - still overridable below.
+              if (needsVariantPicker && !variant) {
+                const a = roster.find(x => x.id === id);
+                const def = a && TEAM_VARIANT_DEFAULTS[a.sport];
+                if (def) setVariant(def);
+              }
+            }}
+            style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }}
+            required
+          >
             <option value="" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>Select athlete…</option>
             {roster.map(a => <option key={a.id} value={a.id} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{a.name}</option>)}
           </select>
@@ -274,6 +354,15 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
             {TEST_TYPES.map(tt => <option key={tt.key} value={tt.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{tt.label}</option>)}
           </select>
         </div>
+        {needsVariantPicker && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label htmlFor="sp-variant" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Technique</label>
+            <select id="sp-variant" className="input-glass" value={variant} onChange={e => setVariant(e.target.value)} style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }} required>
+              <option value="" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>Select…</option>
+              {activeTest.variants.map(v => <option key={v.key} value={v.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{v.label}</option>)}
+            </select>
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <label htmlFor="sp-date" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Test Date</label>
           <input
@@ -304,11 +393,11 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
         </div>
         <button
           type="submit"
-          disabled={saving || !athleteId || !value}
+          disabled={saving || !athleteId || !value || (needsVariantPicker && !variant)}
           style={{
             height: '40px', padding: '0 18px', borderRadius: '10px', border: 'none',
-            background: (!athleteId || !value) ? 'rgba(251, 191, 36, 0.25)' : 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)',
-            color: '#1a1305', fontWeight: 800, fontSize: '13px', cursor: (!athleteId || !value) ? 'not-allowed' : 'pointer',
+            background: (!athleteId || !value || (needsVariantPicker && !variant)) ? 'rgba(251, 191, 36, 0.25)' : 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)',
+            color: '#1a1305', fontWeight: 800, fontSize: '13px', cursor: (!athleteId || !value || (needsVariantPicker && !variant)) ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', gap: '6px',
           }}
         >

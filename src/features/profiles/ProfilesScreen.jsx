@@ -3,15 +3,22 @@ import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, Chevron
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
 import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, centralWallTimeToISO, hasWeight, isRpeLog } from '../../utils/athleteData';
-import { TEST_TYPES, TEST_TYPE_BY_KEY, formatMetric } from '../analytics/SpeedPowerPanel';
+import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, formatMetric } from '../analytics/SpeedPowerPanel';
 
 // Best (per better:'asc'|'desc') result for one athlete/test_type out of their logged
 // performance_tests rows. Mirrors the reduction SpeedPowerPanel uses for its
 // leaderboards, so a roster card's "Best Vertical" always agrees with what Analytics
 // shows for the same athlete.
-const bestTestFor = (tests, athleteId, testKey) => {
+//
+// `variantKey` scopes to one protocol (e.g. 'hands_on_hips' vs 'arm_swing') - untagged
+// rows are matched under the key 'untagged'. Pass null (the default) to ignore variant
+// entirely and match any row for the test type, which is what the roster card's quick
+// "Best Vertical" glance still does; every ranking/comparison view below passes a real
+// variant so two different jump techniques never get averaged into one number.
+const bestTestFor = (tests, athleteId, testKey, variantKey = null) => {
   const tt = TEST_TYPE_BY_KEY[testKey];
-  const rows = tests.filter(t => t.athlete_id === athleteId && t.test_type === testKey);
+  const rows = tests.filter(t => t.athlete_id === athleteId && t.test_type === testKey
+    && (variantKey === null || (t.test_variant || 'untagged') === variantKey));
   if (rows.length === 0) return null;
   return rows.reduce((best, r) => {
     if (!best) return r;
@@ -20,14 +27,14 @@ const bestTestFor = (tests, athleteId, testKey) => {
   }, null);
 };
 
-// Where an athlete's PB for one test type stands against the rest of the roster - both
-// program-wide and within their own sport. Ranked on the same best-result reduction the
-// leaderboards use, so "#4 overall" here always agrees with where they'd land on the
-// Analytics board for the same test.
-const rankAthleteForTest = (tests, roster, athlete, testKey) => {
+// Where an athlete's PB for one test type (and variant) stands against the rest of the
+// roster - both program-wide and within their own sport. Ranked on the same best-result
+// reduction the leaderboards use, so "#4 overall" here always agrees with where they'd
+// land on the Analytics board for the same test *and technique*.
+const rankAthleteForTest = (tests, roster, athlete, testKey, variantKey = null) => {
   const bests = [];
   for (const a of roster) {
-    const b = bestTestFor(tests, a.id, testKey);
+    const b = bestTestFor(tests, a.id, testKey, variantKey);
     if (b) bests.push({ athleteId: a.id, value: Number(b.metric) });
   }
   if (bests.length === 0) return null;
@@ -1064,14 +1071,33 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
   const [editing, setEditing] = useState({});
   const [savingId, setSavingId] = useState(null);
 
-  const rankings = TEST_TYPES.map(tt => ({
-    ...tt,
-    best: bestTestFor(tests, athlete.id, tt.key),
-    rank: rankAthleteForTest(tests, athletes, athlete, tt.key),
-    attempts: tests
-      .filter(t => t.athlete_id === athlete.id && t.test_type === tt.key)
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-  }));
+  // One card per test type *and variant this athlete has actually attempted* - hands-on-
+  // hips and arm-swing jumps aren't the same test, so an athlete tested under both shows
+  // two Vertical Jump cards rather than one number that quietly mixes techniques. A test
+  // type with only one variant (Fly 10 today) collapses back to a single card.
+  const rankings = TEST_TYPES.flatMap(tt => {
+    const athleteRows = tests.filter(t => t.athlete_id === athlete.id && t.test_type === tt.key);
+    // A single-variant type (Fly 10 today) never splits by variant, regardless of
+    // whether a given row happens to carry the tag - null tells bestTestFor/
+    // rankAthleteForTest to match any row of that test type rather than one exact tag.
+    const variantKeys = tt.variants.length > 1
+      ? Array.from(new Set(athleteRows.map(t => t.test_variant || 'untagged')))
+      : [null];
+    return variantKeys.map(vk => {
+      const variantLabel = vk === 'untagged' ? UNTAGGED_VARIANT_LABEL : VARIANT_LABEL[vk];
+      return {
+        ...tt,
+        key: `${tt.key}::${vk}`,
+        variantKey: vk,
+        label: tt.variants.length > 1 ? `${tt.label} — ${variantLabel}` : tt.label,
+        best: bestTestFor(tests, athlete.id, tt.key, vk),
+        rank: rankAthleteForTest(tests, athletes, athlete, tt.key, vk),
+        attempts: athleteRows
+          .filter(t => vk === null || (t.test_variant || 'untagged') === vk)
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+      };
+    });
+  });
   const attempted = rankings.filter(r => r.rank);
   // "Where they can improve" = the attempted test with the lowest percentile, i.e. the
   // one furthest from the top of the roster - not the lowest raw number, since a 15in
