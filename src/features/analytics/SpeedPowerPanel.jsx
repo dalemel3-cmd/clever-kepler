@@ -42,6 +42,13 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
   const [testDate, setTestDate] = React.useState(() => getCentralDateString());
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  // Team Entry: one test type + one date shared across the whole roster, one input per
+  // athlete, one submit - built because a real testing day is "everyone ran a fly 10
+  // today", not "log one athlete, re-pick the type and date, log the next one" 20+ times.
+  const [entryMode, setEntryMode] = React.useState('single');
+  const [teamValues, setTeamValues] = React.useState({}); // { [athleteId]: string }
+  const [teamSaving, setTeamSaving] = React.useState(false);
+  const [teamMessage, setTeamMessage] = React.useState('');
   // Which boards are expanded past the first page. A coach with a full roster needs to
   // see everyone eventually, but a wall of 50 rows by default drowns the "who's fastest
   // right now" glance this panel exists for - so start collapsed, let it open per board.
@@ -138,16 +145,116 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
     setTimeout(() => setMessage(''), 3500);
   };
 
+  const handleTeamSave = async (e) => {
+    e.preventDefault();
+    const entries = roster
+      .map(a => ({ athlete: a, raw: teamValues[a.id] }))
+      .filter(({ raw }) => raw != null && raw !== '' && isFinite(parseFloat(raw)) && parseFloat(raw) > 0);
+    if (entries.length === 0) return;
+    setTeamSaving(true);
+    setTeamMessage('');
+    const created_at = centralWallTimeToISO(testDate, '12:00');
+    const results = await Promise.all(entries.map(({ athlete, raw }) => addTest({
+      athlete_id: athlete.id,
+      athlete_name: athlete.name,
+      sport: athlete.sport,
+      test_type: testType,
+      metric: parseFloat(raw),
+      unit: activeTest.unit,
+      created_at,
+    })));
+    setTeamSaving(false);
+    const failed = results.filter(r => !r.ok).length;
+    setTeamMessage(failed === 0
+      ? `Saved ${entries.length} result${entries.length !== 1 ? 's' : ''} for ${testDate}.`
+      : `Saved ${entries.length - failed} of ${entries.length} — the rest are queued to sync.`);
+    // Clear only the rows that were actually submitted, leaving anything left blank
+    // untouched in case the coach comes back to finish the sheet.
+    setTeamValues(prev => {
+      const next = { ...prev };
+      entries.forEach(({ athlete }) => delete next[athlete.id]);
+      return next;
+    });
+    setTimeout(() => setTeamMessage(''), 4000);
+  };
+
   return (
     <div className="card-glass glow-card" style={card}>
-      <div>
-        <span style={eyebrow('#fbbf24')}><Zap size={14} /> SPEED &amp; POWER</span>
-        <h3 style={h3}>SPRINT & JUMP TESTING</h3>
-        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-          Log a result for any past test date — not just today.
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+        <div>
+          <span style={eyebrow('#fbbf24')}><Zap size={14} /> SPEED &amp; POWER</span>
+          <h3 style={h3}>SPRINT & JUMP TESTING</h3>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+            {entryMode === 'single' ? 'Log a result for any past test date — not just today.' : 'Test the whole roster at once: one type and date, one input per athlete.'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <button type="button" onClick={() => setEntryMode('single')} style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: entryMode === 'single' ? '#fbbf24' : 'transparent', color: entryMode === 'single' ? '#1a1305' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}>SINGLE ENTRY</button>
+          <button type="button" onClick={() => setEntryMode('team')} style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: entryMode === 'team' ? '#fbbf24' : 'transparent', color: entryMode === 'team' ? '#1a1305' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}>TEAM ENTRY</button>
         </div>
       </div>
 
+      {entryMode === 'team' ? (
+        <form onSubmit={handleTeamSave} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label htmlFor="sp-team-type" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Test</label>
+              <select id="sp-team-type" className="input-glass" value={testType} onChange={e => setTestType(e.target.value)} style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }}>
+                {TEST_TYPES.map(tt => <option key={tt.key} value={tt.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{tt.label}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label htmlFor="sp-team-date" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Test Date</label>
+              <input
+                id="sp-team-date"
+                type="date"
+                className="input-glass"
+                value={testDate}
+                max={getCentralDateString()}
+                onChange={e => e.target.value && setTestDate(e.target.value)}
+                style={{ height: '40px', padding: '0 10px', fontSize: '13px', borderRadius: '10px' }}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={teamSaving || roster.every(a => !teamValues[a.id])}
+              style={{
+                height: '40px', padding: '0 18px', borderRadius: '10px', border: 'none',
+                background: roster.every(a => !teamValues[a.id]) ? 'rgba(251, 191, 36, 0.25)' : 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)',
+                color: '#1a1305', fontWeight: 800, fontSize: '13px', cursor: roster.every(a => !teamValues[a.id]) ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}
+            >
+              <Plus size={15} /> {teamSaving ? 'SAVING…' : `SAVE ALL (${roster.filter(a => teamValues[a.id]).length})`}
+            </button>
+            {teamMessage && <span style={{ fontSize: '12px', color: '#34d399', fontWeight: 600, alignSelf: 'center' }}>{teamMessage}</span>}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', maxHeight: '360px', overflowY: 'auto', padding: '4px', border: `1px solid ${gridColor}`, borderRadius: '10px' }}>
+            {roster.length === 0 ? (
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '10px' }}>No athletes in this sport filter.</div>
+            ) : roster.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(a => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  aria-label={`${a.name} result in ${activeTest.unit === 'sec' ? 'seconds' : 'inches'}`}
+                  className="input-glass"
+                  value={teamValues[a.id] || ''}
+                  onChange={e => {
+                    const v = e.target.value.replace(/[^0-9.]/g, '');
+                    setTeamValues(prev => ({ ...prev, [a.id]: v }));
+                  }}
+                  placeholder={activeTest.placeholder}
+                  style={{ height: '32px', width: '80px', padding: '0 8px', fontSize: '12px', borderRadius: '8px', textAlign: 'center', flex: '0 0 auto' }}
+                />
+              </div>
+            ))}
+          </div>
+        </form>
+      ) : (
       <form onSubmit={handleSave} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 200px', minWidth: 0 }}>
           <label htmlFor="sp-athlete" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Athlete</label>
@@ -209,6 +316,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
         </button>
         {message && <span style={{ fontSize: '12px', color: '#34d399', fontWeight: 600, alignSelf: 'center' }}>{message}</span>}
       </form>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', borderTop: `1px solid ${gridColor}`, paddingTop: '16px' }}>
         {boards.map(b => {

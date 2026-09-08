@@ -671,7 +671,49 @@ through a `React` namespace that was never in scope.
 
 ---
 
-## 19. Next up
+## 19. Versioning rollover, Analytics/Reports/Profiles polish, Team Entry (v4.18.0)
+
+Six pieces of coach feedback in one release, none touching the data model:
+
+1. **Versioning stops climbing forever.** `VERSIONING.md`'s minor number now rolls
+   over into a major bump at `20` (`4.19.0` → `5.0.0`), a mechanical rule rather than a
+   judgment call, so the second number doesn't run to `47` a year from now.
+2. **Analytics 60/90-day windows now show real history.** `reportData` is normally
+   fetched only `dataWindowDays` back (30 by default) - picking 60 or 90 Days on
+   Analytics used to render trend buckets for days the app never loaded, which read as
+   every athlete's data sliding forward with nothing behind it. `AnalyticsScreen` now
+   calls a new `ensureReportWindow(days)` (`App.jsx`) whenever the range changes; it
+   widens the fetch (`extraReportWindowDays`, `Math.max`'d against the dataWindowDays
+   setting) for the rest of the session rather than changing the setting itself.
+3. **Speed & Power profile cards show best *and* most recent**, not best alone -
+   `AthleteSpeedPowerCard` now prints the PB and, on its own line, the latest attempt
+   (labeled "Also their most recent" when the two are the same row) with the trend
+   arrow next to it.
+4. **Reports labels its time bases.** The dehydration/mass-drop section now says its
+   numbers are measured from each athlete's baseline date, not week-to-week. The
+   weight leaderboard is now *actually* week-to-week rather than season-long - it used
+   to diff an athlete's very first logged weight against their latest, so "Top Weight
+   Gains" on a team that had been logging for months read as their total off-season
+   change, not their most recent week. It now diffs the latest weigh-in against the
+   most recent one 7+ days before it, and the section headers say so.
+5. **Daily Logging Compliance and Average Sleep collapse by default** on Analytics,
+   each with its rolled-up number in the collapsed header (e.g. "DAILY LOGGING
+   COMPLIANCE · 82%") so the summary is still visible without expanding.
+6. **Team Entry mode for Sprint & Jump testing.** `SpeedPowerPanel` now has a
+   SINGLE ENTRY / TEAM ENTRY toggle. Team Entry picks one test type and one date for
+   the whole roster, then shows one small input per athlete and a single "Save All"
+   button - built because a real testing day is "everyone ran a fly 10 today," not
+   re-picking the athlete, type, and date one result at a time. Only rows with a
+   filled-in value submit (via `Promise.all` over `addTest`); on partial failure the
+   failed rows stay filled in so nothing silently vanishes, and successfully-saved
+   rows clear so the sheet shows what's left to finish.
+
+No schema changes. Existing regression suites were re-run against the build; new
+dedicated probes for these six items are still owed (see §20).
+
+---
+
+## 20. Next up
 
 1. **Close the account-recovery gap** (§11). Two parts, both small:
    - Turn on **leaked-password protection** — Supabase dashboard → Authentication →

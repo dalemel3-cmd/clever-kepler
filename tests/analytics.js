@@ -81,6 +81,12 @@ const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHigh
   check('renders the analytics heading', /PERFORMANCE ANALYTICS/i.test(body));
 
   console.log('\n[B] Charts are actually drawn');
+  // Body weight renders open by default. Compliance and Sleep now collapse by default
+  // (v4.18.0) - expand both before counting, or this only ever sees the one chart that
+  // was never hidden.
+  await page.getByText('DAILY LOGGING COMPLIANCE', { exact: false }).click();
+  await page.getByText('AVERAGE SLEEP', { exact: false }).click();
+  await page.waitForTimeout(300);
   const svgs = await page.locator('.recharts-surface').count();
   check('recharts surfaces rendered', svgs >= 3, `found ${svgs}`);
 
