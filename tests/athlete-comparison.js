@@ -138,6 +138,47 @@ const newPage = async (browser, opts = {}) => {
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
+  console.log('\n[E2] A renamed athlete still plots (rows carry a stale athlete_name)');
+  {
+    // performance_tests denormalizes athlete_name at write time. Four real athletes were
+    // renamed on the roster during the Plyomat import (HANDOFF §4), leaving their older
+    // result rows under the OLD name. Keying the chart series on that name dropped those
+    // attempts from the line while the summary card below - keyed on athlete_id - still
+    // counted them, so the chart and the card disagreed about the same athlete.
+    const renamed = [{ id: uuid(1), name: 'Charlotte Velazquez', sport: 'WSOC', team: 'Varsity', grade: '', position: 'MF' }];
+    const staleRows = [
+      { id: uuid(80), athlete_id: uuid(1), athlete_name: 'Charlorte Velazquez', sport: 'WSOC', test_type: '10yd_fly', metric: 1.80, unit: 'sec', source: 'plyomat', created_at: ago(14) },
+      { id: uuid(81), athlete_id: uuid(1), athlete_name: 'Charlorte Velazquez', sport: 'WSOC', test_type: '10yd_fly', metric: 1.62, unit: 'sec', source: 'plyomat', created_at: ago(2) },
+    ];
+    const page = await newPage(browser);
+    await page.route(SUPA, async (route) => {
+      const req = route.request(); const url = req.url(); const method = req.method();
+      const hdrs = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
+      if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
+      if (url.includes('/realtime/')) return route.abort();
+      if (isAuthRoute(url)) return fulfillAuth(route, url, hdrs);
+      if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ approved: true }]) });
+      if (url.includes('/rest/v1/athletes') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(renamed) });
+      if (url.includes('/rest/v1/weigh_ins') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: '[]' });
+      if (url.includes('/rest/v1/performance_tests') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(staleRows) });
+      return route.fulfill({ status: 200, headers: hdrs, body: '[]' });
+    });
+    await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2200);
+    await page.getByRole('button', { name: /Compare/i }).click();
+    await page.waitForTimeout(400);
+    await page.getByText('Charlotte Velazquez', { exact: true }).click();
+    await page.waitForTimeout(500);
+    const body = await page.locator('body').innerText();
+    check('summary card reads the results (keyed by id)', /Best 1\.62 sec/.test(body), body.match(/Best[\s\S]{0,20}/)?.[0] || '');
+    // The chart must agree with the card: two attempts means a drawn line with 2 dots.
+    const lines = await page.locator('.recharts-line').count();
+    const dots = await page.locator('.recharts-line-dot').count();
+    check('the chart draws the line despite the stale name', lines === 1, `lines=${lines}`);
+    check('both attempts are plotted, not silently dropped', dots === 2, `dots=${dots}`);
+    check('legend shows the athlete\'s CURRENT name', /Charlotte Velazquez/.test(body) && !/Charlorte/.test(body), body.slice(0, 400));
+    check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
   console.log('\n[F] A 7th athlete cannot be selected (comparison stays readable)');
   {
     const many = Array.from({ length: 7 }, (_, i) => ({ id: uuid(200 + i), name: `Roster ${i}`, sport: 'Football', team: 'Varsity', grade: '', position: 'WR' }));

@@ -63,7 +63,13 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
   // reads as "this day, these results") - two attempts by the SAME athlete on different
   // days stay as separate points, since collapsing those would hide real improvement.
   const { chartData, perAthleteStats } = React.useMemo(() => {
-    const rows = new Map(); // date -> { date, [athleteName]: value }
+    // Series are keyed by athlete_id, NOT athlete_name. performance_tests carries a
+    // denormalized athlete_name captured when the row was written, so renaming an athlete
+    // on the roster (four were corrected during the Plyomat import - HANDOFF §4) left old
+    // rows under the old name while the <Line dataKey> below uses the current roster name.
+    // Those attempts silently vanished from the chart while still counting in the summary
+    // card underneath it, so the two disagreed about the same athlete.
+    const rows = new Map(); // date -> { date, [athleteId]: value }
     const stats = new Map(); // athleteId -> { attempts: [...], best, latest }
 
     for (const t of performanceTests) {
@@ -72,7 +78,7 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
       const day = String(t.created_at || '').slice(0, 10);
       if (!day) continue;
       if (!rows.has(day)) rows.set(day, { date: day });
-      rows.get(day)[t.athlete_name] = Number(t.metric);
+      rows.get(day)[t.athlete_id] = Number(t.metric);
 
       if (!stats.has(t.athlete_id)) stats.set(t.athlete_id, { attempts: [] });
       stats.get(t.athlete_id).attempts.push({ date: day, value: Number(t.metric) });
@@ -226,7 +232,10 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
                       <Line
                         key={a.id}
                         type="monotone"
-                        dataKey={a.name}
+                        // Keyed on id to survive a roster rename; `name` keeps the legend
+                        // and tooltip reading as the athlete's current name.
+                        dataKey={a.id}
+                        name={a.name}
                         stroke={LINE_COLORS[i % LINE_COLORS.length]}
                         strokeWidth={2.5}
                         dot={{ r: 3 }}

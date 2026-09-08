@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, ChevronDown, ChevronUp, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
-import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, centralWallTimeToISO, hasWeight, isRpeLog } from '../../utils/athleteData';
+import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, centralWallTimeToISO, hasWeight, isRpeLog, computeAcuteChronicLoad } from '../../utils/athleteData';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, formatMetric } from '../analytics/SpeedPowerPanel';
 
 // Best (per better:'asc'|'desc') result for one athlete/test_type out of their logged
@@ -313,7 +313,8 @@ export default function ProfilesScreen({
   const avgSleep = sleepLogs.length > 0 ? (sleepLogs.reduce((sum, l) => sum + Number(l.sleep_hrs), 0) / sleepLogs.length).toFixed(1) : '--';
   const maxSleep = sleepLogs.length > 0 ? Math.max(...sleepLogs.map(l => Number(l.sleep_hrs))) : '--';
   const deficitNights = sleepLogs.filter(l => Number(l.sleep_hrs) < sleepDeficitBelow).length;
-  const recoveryScore = sleepLogs.length > 0 ? Math.round((sleepLogs.filter(l => Number(l.sleep_hrs) >= sleepRecoveryAt).length / sleepLogs.length) * 100) : null;
+  const recoveredNights = sleepLogs.filter(l => Number(l.sleep_hrs) >= sleepRecoveryAt).length;
+  const recoveryScore = sleepLogs.length > 0 ? Math.round((recoveredNights / sleepLogs.length) * 100) : null;
   // Night-to-night trend, same up/down-vs-previous framing as the weight card above -
   // "did last night improve" is a different question from "what's the average", and a
   // coach glancing at the card wants both.
@@ -324,12 +325,17 @@ export default function ProfilesScreen({
   const todayMs = new Date().getTime();
   const daysMs = (days) => days * 24 * 60 * 60 * 1000;
   const recentRpe = rpeLogs.filter(l => (todayMs - new Date(l.created_at).getTime()) <= daysMs(7));
-  const chronicRpe = rpeLogs.filter(l => (todayMs - new Date(l.created_at).getTime()) <= daysMs(settings.rpeChronicWeeks * 7));
-  
-  const acuteLoad = recentRpe.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
-  const chronicLoadTotal = chronicRpe.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
-  const chronicAvgWeeklyLoad = settings.rpeChronicWeeks > 0 ? (chronicLoadTotal / settings.rpeChronicWeeks) : 0;
-  const acRatio = chronicAvgWeeklyLoad > 0 ? (acuteLoad / chronicAvgWeeklyLoad).toFixed(2) : '--';
+
+  // Same helper Alerts uses, so this card and the load-spike alert can never disagree
+  // about the same athlete - they used to, by up to the full chronic-window factor.
+  const acLoad = computeAcuteChronicLoad(rpeLogs, {
+    chronicWeeks: settings.rpeChronicWeeks,
+    trackDuration: settings.rpeTrackDuration,
+    now: todayMs,
+  });
+  const acuteLoad = acLoad.acuteLoad;
+  const chronicAvgWeeklyLoad = acLoad.chronicAvgWeeklyLoad;
+  const acRatio = acLoad.ratio != null ? acLoad.ratio.toFixed(2) : '--';
   const avgRpeNum = recentRpe.length > 0 ? (recentRpe.reduce((sum, l) => sum + (l.rpe || 0), 0) / recentRpe.length).toFixed(1) : '--';
   const isDangerSpike = acRatio !== '--' && Number(acRatio) >= settings.rpeLoadSpikeRatio;
 
@@ -441,7 +447,12 @@ export default function ProfilesScreen({
               </span>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-              {recoveryScore != null ? `${sleepLogs.length - deficitNights} / ${sleepLogs.length} sessions optimal` : 'Awaiting sleep check-ins'}
+              {/* Counted with the SAME threshold as the percentage above it. This used to
+                  read `sleepLogs.length - deficitNights`, which counts nights above
+                  settings.sleepThreshold while the percentage counts nights above
+                  settings.sleepRecoveryHours - so the card could say "50%" directly above
+                  "12 / 12 sessions optimal" whenever those two settings differed. */}
+              {recoveryScore != null ? `${recoveredNights} / ${sleepLogs.length} sessions optimal` : 'Awaiting sleep check-ins'}
             </span>
           </div>
 

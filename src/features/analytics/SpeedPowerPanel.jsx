@@ -49,6 +49,23 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
   const activeTest = TEST_TYPE_BY_KEY[testType] || TEST_TYPES[0];
   const needsVariantPicker = activeTest.variants.length > 1;
 
+  // Is this exact result already on file for this athlete, test and date? The v4.20.0
+  // audit found three manually-entered results duplicated this way in the live table,
+  // and nothing on this form gave any hint the value was already there. Deliberately a
+  // WARNING, not a block: an athlete really can hit 24.5in twice in one session, and
+  // refusing a legitimate second attempt would be worse than a duplicate.
+  const duplicateOfExisting = React.useMemo(() => {
+    const v = parseFloat(value);
+    if (!athleteId || !isFinite(v)) return false;
+    return performanceTests.some(t =>
+      t.athlete_id === athleteId &&
+      t.test_type === testType &&
+      String(t.created_at || '').slice(0, 10) === testDate &&
+      Math.abs(Number(t.metric) - v) < 1e-9 &&
+      (!needsVariantPicker || (t.test_variant || null) === (variant || null))
+    );
+  }, [performanceTests, athleteId, testType, testDate, value, variant, needsVariantPicker]);
+
   // Switching test type resets the variant: a single-variant type (Fly 10 today)
   // silently takes its one value; a multi-variant type (jump) defaults from the already-
   // selected athlete's team (if picking the athlete happened first, as it usually does)
@@ -404,6 +421,11 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
           <Plus size={15} /> {saving ? 'SAVING…' : 'LOG TEST'}
         </button>
         {message && <span style={{ fontSize: '12px', color: '#34d399', fontWeight: 600, alignSelf: 'center' }}>{message}</span>}
+        {!message && duplicateOfExisting && (
+          <span style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 600, alignSelf: 'center' }}>
+            Already logged for this athlete on {testDate} — saving adds a second attempt.
+          </span>
+        )}
       </form>
       )}
 

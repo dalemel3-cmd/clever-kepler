@@ -786,7 +786,114 @@ exist yet.
 
 ---
 
-## 21. Next up
+## 21. Math and data-integrity audit (v4.20.0)
+
+A deliberate sweep of every arithmetic site and the live table contents, rather than a
+feature. Seven code defects and three data problems; the two most serious were both
+regressions shipped in the two releases immediately before this one, which is the useful
+lesson here — **both passed their own tests, because the tests asserted the behaviour the
+code already had rather than the behaviour the feature promised.**
+
+### Code
+
+1. **`test_variant` never reached the database on manual entry** (v4.19.0 regression,
+   live in production). `usePerformanceTests.addTest` builds its insert by naming columns
+   explicitly, and the new column wasn't added to that list. The optimistic local row got
+   the technique (it spreads `rec`), so the UI showed the entry saved correctly and it
+   came back **untagged after any reload** — the whole v4.19.0 feature was half-working
+   for every hand-logged jump. The Plyomat importer was unaffected: it spreads the row, so
+   it never lost the field. `tests/speed-power.js` now asserts the value on the wire; the
+   pre-fix build reports `test_variant=undefined` in the POST body.
+2. **The change-probe counted a narrower window than the fetch** (v4.18.0 regression,
+   live). `ensureReportWindow` widened `fetchReportData` to 60/90 days but
+   `probeCloudForChanges` still counted `dataWindowDays`, so once a coach opened a 60- or
+   90-day range the probe's count could never match the fingerprint from the last full
+   fetch. Result: a **full table pull on every heartbeat for the rest of the session**,
+   with `pollIdleStreak` never backing off — silently undoing the adaptive-sync egress
+   work. Both now go through one `effectiveWindowDays()`.
+3. **The acute:chronic ratio existed twice and the copies disagreed.** Alerts and the
+   athlete profile card each had their own implementation. The profile's (a) always
+   multiplied by `session_minutes`, so with `rpeTrackDuration` off every load came out 0
+   and the card showed `--` while Alerts reported a real spike; and (b) divided by the
+   full 4-week window instead of the weeks the athlete had actually trained — the exact
+   "first week looks like a 4x spike" bug Alerts had already fixed. An athlete two weeks
+   into the season read up to **2x higher on their profile than on Alerts**. Now one
+   `computeAcuteChronicLoad` in `athleteData.js`, used by both.
+4. **The A:C ratio was inflated ~10% for everyone** — found by writing the unit test, not
+   by reading the code. The acute window used an inclusive `<= 7 days` boundary, so a
+   once-daily athlete had *eight* sessions in a "7-day" numerator while the denominator
+   was still whole weeks. Perfectly steady training read **1.10 instead of 1.00**, which
+   moved the effective spike threshold from the configured 1.3 down to about 1.18. Fixed
+   to a half-open window plus an inclusive day count for `weeksOfHistory`.
+   `tests/acwr-math.js` (20 probes) pins this down as pure arithmetic — no browser.
+5. **The comparison chart silently dropped renamed athletes.** `AthleteComparisonPanel`
+   keyed its chart series on `performance_tests.athlete_name` (denormalized at write
+   time) while the `<Line>` used the current roster name. The four athletes renamed during
+   the Plyomat import (§4) therefore had their attempts **vanish from the chart while
+   still counting in the summary card directly underneath it** — no error, just two
+   readouts disagreeing. Series are keyed on `athlete_id` now, with `name` supplying the
+   legend label. The pre-fix build draws zero lines and zero dots for that fixture.
+6. **The Recovery Index card contradicted itself.** The percentage counted nights above
+   `sleepRecoveryHours` (7.0) while its own subtitle counted nights above `sleepThreshold`
+   (6.5), so the card could read "50%" directly above "12 / 12 sessions optimal". Both now
+   use one threshold. Latent with today's settings, not with a different pair.
+7. **Dead code removed.** A "Hydration & Mass Stability Watch" list was computed on every
+   dashboard render and never rendered anywhere — an O(todayLogs × allLogs) scan for
+   nothing, and it compared raw weights without excluding post-practice sweat checks, so
+   it would have re-introduced the §5 bug class the moment anyone displayed it.
+   `ensureReportWindow` is also memoised now; a fresh identity each render was re-running
+   the Analytics effect continuously.
+
+### Data (`db/008`, applied)
+
+Referential integrity was already clean: **0** orphan rows in either table, 0 implausible
+weights or sleep values, 0 future-dated rows, 0 duplicate athlete names, and every one of
+the 53 athletes with weigh-ins had exactly one baseline. What was wrong:
+
+- **141 duplicate weigh-ins — 8.9% of the table.** Every group was exactly two rows
+  agreeing on athlete, timestamp, weight, sleep *and* session type. They fall on precisely
+  three days (2026-07-07, 07-14, 07-21) at midnight Central, ~46-49 athletes each: a
+  historical seed script run twice, not coach double-taps. They inflated every row-counted
+  average — Analytics' daily mean weight, Groups' avg sleep/RPE, Reports' alert tallies.
+- **3 duplicate `performance_tests`**, all hand-entered. Nothing on the entry form hinted
+  the value was already there, so the form now warns ("Already logged for this athlete on
+  <date>") without blocking — an athlete genuinely can hit the same number twice.
+- **4 stale `athlete_name` values** left behind by the roster renames, the data half of
+  finding 5.
+
+Deleted rows were copied to `weigh_ins_dupe_backup_20260908` /
+`performance_tests_dupe_backup_20260908` first, so this is reversible with one
+`INSERT ... SELECT`; drop those tables once the numbers look right in the app. After:
+1,448 weigh-ins, 647 tests, 0 duplicates, 53 baselines intact, 0 name mismatches.
+
+### Reviewed and found correct
+
+Compliance and participation percentages (athlete-set based, so duplicates never affected
+them), the dehydration/mass-drop baseline comparisons, the week-to-week weight leaderboard,
+percentile and ranking maths, the variant-scoped leaderboards and profile cards, timezone
+handling in `centralWallTimeToISO`/`getCentralDateString`, and the offline queue's
+merge/dedup rules.
+
+### Known, deliberately not changed
+
+- `getAthleteBaseline`'s last-resort fallback (step 5) returns the athlete's *second-to-last*
+  weigh-in when no explicit baseline, season-start log, or stored baseline exists. For
+  those athletes "drop vs baseline" is really "drop since last weigh-in". It affects nobody
+  today — all 53 athletes with weigh-ins have an explicit baseline — but it is a surprise
+  waiting for the first new team that starts logging.
+- Analytics' average weight is a mean of daily means, so a day with one weigh-in counts as
+  much as a day with fifty.
+- `getAthleteBaseline` step 3 matches the season-start day with a raw substring test
+  against a UTC ISO string, so an evening weigh-in on season-start day is missed. Every
+  other date comparison in the app goes through the program timezone.
+- Vertical jumps of 7-11 inches exist in the Plyomat data (Evelyn Fryer, Reese Wakefield,
+  Maya Hey and others), consistently across multiple sessions per athlete rather than as
+  one-off spikes. They look like real submaximal reps rather than corrupt readings, so
+  they were left alone — worth a coach's eye, not a script's.
+
+---
+
+## 22. Next up
 
 1. **Confirm jump technique for MBB, Softball, and Cheer & Dance** (§20). 78 historical
    `vertical_jump` rows are sitting as `test_variant = null` ("Untagged (pre-tracking)")

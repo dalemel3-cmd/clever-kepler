@@ -55,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.20.0` | Math + data-integrity audit: manual entry now actually persists `test_variant`; the change-probe no longer full-fetches on every heartbeat after viewing 60/90 days; one shared acute:chronic helper (was two disagreeing copies) with a ~10% inflation bias removed; comparison chart keyed on athlete_id so renamed athletes still plot; Recovery Index card self-consistent; 141 duplicate weigh-ins + 3 duplicate tests removed (`db/008`) |
 | `4.19.0` | `test_variant` on performance_tests: tags which protocol/technique a jump or Fly 10 result was measured under (hands-on-hips vs. arm-swing jump technique; Fly 10's 10yd-build+10yd-fly protocol, versioned ahead of a future distance change), so two protocols never get silently averaged into one ranking |
 | `4.18.0` | Versioning rollover rule (this doc); Analytics 60/90-day windows now fetch real history instead of padding with empty days; Speed & Power profile cards show best *and* most recent; Reports labels dehydration as baseline-dated and the weight leaderboard as true week-to-week; Analytics compliance/sleep cards collapse by default; Team Entry mode for Sprint & Jump testing |
 | `4.9.0` | Coach sign-up with approval gating: creating an account grants nothing until an approved coach approves it (`db/003_coach_approval.sql`) |
