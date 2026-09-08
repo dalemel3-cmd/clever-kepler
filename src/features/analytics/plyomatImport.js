@@ -9,6 +9,19 @@
 // which only 273 matched the roster - an importer that quietly kept 47% and said
 // "done" would have been worse than no importer at all.
 
+import { TEAM_VARIANT_DEFAULTS } from './testVariants.js';
+
+// A Plyomat-imported jump row needs the same technique tag a manually-logged one gets
+// (see db/007 and testVariants.js) - otherwise every future import would land as
+// permanently untagged/pre-tracking data. Fly 10 always tags to today's one protocol;
+// a jump tags from the team's default if known, else null (flagged, not guessed at -
+// same discipline as the coach-review queue this file already has for name matches).
+const defaultVariantFor = (testType, sport) => {
+  if (testType === '10yd_fly') return 'build10_fly10';
+  if (testType === 'vertical_jump' || testType === 'board_jump') return TEAM_VARIANT_DEFAULTS[sport] || null;
+  return null;
+};
+
 // --- CSV -------------------------------------------------------------------------
 
 // Plyomat exports a UTF-8 BOM and quotes any field containing a comma - the local
@@ -309,6 +322,7 @@ export const buildImportPlan = (csvText, roster = [], options = {}) => {
         athlete_name: name,
         sport: groups.sport || match.athlete.sport || '',
         test_type: tt.testType,
+        test_variant: defaultVariantFor(tt.testType, groups.sport || match.athlete.sport || ''),
         metric: parsed.value,
         unit: parsed.unit || tt.unit,
         source: 'plyomat',
@@ -348,6 +362,7 @@ export const buildImportPlan = (csvText, roster = [], options = {}) => {
       athlete_name: athleteName,
       sport: sport || '',
       test_type: tt.testType,
+      test_variant: defaultVariantFor(tt.testType, sport || ''),
       metric: parsed.value,
       unit: parsed.unit || tt.unit,
       source: 'plyomat',

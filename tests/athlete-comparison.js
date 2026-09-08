@@ -116,6 +116,11 @@ const newPage = async (browser, opts = {}) => {
     check('Fly 10 (default) shows a result for Fast Athlete', /Best 1\.55 sec/.test(body));
     await page.getByRole('button', { name: 'Vertical Jump' }).click();
     await page.waitForTimeout(400);
+    // Vertical Jump has more than one technique (v4.19.0) - the seeded row carries no
+    // test_variant, so it's untagged and requires picking that technique explicitly
+    // rather than defaulting to "all techniques" (which would be a real bug elsewhere).
+    await page.getByRole('button', { name: /Untagged/i }).click();
+    await page.waitForTimeout(400);
     body = await page.locator('body').innerText();
     check('Vertical Jump shows the seeded 24.0in result', /Best 24\.0 in/.test(body), body.match(/Best[\s\S]{0,20}/)?.[0] || '');
   }

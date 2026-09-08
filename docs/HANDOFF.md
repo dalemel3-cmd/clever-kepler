@@ -713,9 +713,86 @@ dedicated probes for these six items are still owed (see §20).
 
 ---
 
-## 20. Next up
+## 20. Test protocol/technique tracking - test_variant (v4.19.0)
 
-1. **Close the account-recovery gap** (§11). Two parts, both small:
+Raised before the roster grew further: some teams run vertical/board jump hands-on-hips,
+others with a full arm swing, and the two aren't the same test - the arm swing adds real
+height/distance on its own. Fly 10 is "10yd build + 10yd fly" today but is expected to
+change distances later. Both needed a way to tag *which protocol* a result was measured
+under, so two protocols never get silently averaged into one leaderboard, one PB, or one
+athlete's trend line.
+
+**Schema** (`db/007_performance_tests_variant.sql`): a nullable `test_variant` text
+column on `performance_tests`, same "text, not an enum" reasoning as `test_type` in
+db/006 - a new protocol should be a data value, not a migration. Backfilled against the
+real table:
+- Every existing `10yd_fly` row → `build10_fly10` (today's only protocol, tagged now so
+  a future distance change becomes a new variant rather than a silent redefinition).
+- `vertical_jump`/`board_jump` rows for **Football** and **Volleyball** →
+  `hands_on_hips`; for **WSOC**, **WBB**, and **Baseball** → `arm_swing` (the coach's
+  team assignments as of 2026-09-08).
+- **78 rows** for MBB, Softball, and Cheer & Dance were **not** covered by that
+  instruction and were deliberately left `null` rather than guessed at - same review-
+  don't-guess discipline as the Plyomat name-matching queue (§4). These need the coach to
+  say what technique those teams actually used; until then they render as "Untagged
+  (pre-tracking)" everywhere rather than silently joining either technique's numbers.
+
+**Where the variant lives in code**: pulled out of `SpeedPowerPanel.jsx` into a new pure-
+data module, `src/features/analytics/testVariants.js` (`TEST_TYPES`, `JUMP_VARIANTS`,
+`FLY_VARIANTS`, `VARIANT_LABEL`, `UNTAGGED_VARIANT_LABEL`, `TEAM_VARIANT_DEFAULTS`,
+`formatMetric`) - `plyomatImport.js` is deliberately React-free (its own header says so),
+so it imports these directly rather than reaching into a component file.
+`SpeedPowerPanel.jsx` re-exports them so every existing `from './SpeedPowerPanel'` import
+elsewhere kept working untouched.
+
+**Everywhere a jump/Fly-10 result is ranked, compared, or displayed now scopes by
+`test_type` + `test_variant`** (untagged rows bucket under the key `'untagged'`, never
+silently merged into a real variant):
+- **SpeedPowerPanel leaderboards**: one board per test type *per variant actually present
+  in the data* - e.g. "Vertical Jump — Hands on Hips" and "Vertical Jump — Arm Swing" as
+  separate boards, each with its own ranking and latest-vs-previous trend. A variant with
+  no data doesn't render an empty board.
+- **Profiles' `AthleteSpeedPowerCard`**: one card per test type *per variant that
+  athlete has actually attempted* - an athlete tested under both techniques (a technique
+  change mid-season) gets two Vertical Jump cards, not one number mixing both.
+- **AthleteComparisonPanel**: a technique picker appears next to the test-type picker for
+  any test type with more than one variant; the chart and the empty state require a pick
+  before plotting anything, rather than defaulting to "all techniques."
+- **Entry forms** (`SpeedPowerPanel`, both Single and Team Entry): a Technique field
+  appears for jump types only (Fly 10 tags its one value silently, no picker shown).
+  Defaults from `TEAM_VARIANT_DEFAULTS[athlete.sport]` once an athlete/sport is known -
+  still overridable, and required (submit is disabled) when it can't be defaulted, e.g.
+  Team Entry filtered to "ALL" sports at once, which have no single team default.
+- **Plyomat importer**: every imported jump/Fly-10 row is tagged the same way a manual
+  entry would be, via the same `TEAM_VARIANT_DEFAULTS` lookup.
+
+Roster-card "Best Vertical / Best Fly 10 / Best Board Jump" quick-glance stats
+(`ProfilesScreen`'s list view, not the detail page) were deliberately left unscoped by
+variant - they're a single number per athlete already, and threading a technique picker
+into a compact roster row wasn't worth it for what is explicitly a "quick glance," not a
+cross-athlete comparison. `bestTestFor`/`rankAthleteForTest` both take an optional
+`variantKey` (default `null` = no filtering) so that one remaining unscoped call site is
+an explicit choice, not an oversight.
+
+**Fixing a jump's technique after the fact**: the per-entry edit control on an athlete's
+Profiles page (§18) now includes a Technique field for any jump result, alongside the
+existing date/value fields - a coach can correct a mis-tagged or untagged attempt without
+deleting and re-entering it. Same "don't guess" rule as new entry: SAVE stays disabled
+until a technique is picked for a multi-variant test type. `tests/profile-speed-power-
+rankings.js` grew two probes for this (§G now also asserts the PATCH carries
+`test_variant`; new §G2 covers the disabled-until-picked state) - both correctly failed
+against the pre-fix build, timing out waiting for `getByLabel('Technique')`, which didn't
+exist yet.
+
+---
+
+## 21. Next up
+
+1. **Confirm jump technique for MBB, Softball, and Cheer & Dance** (§20). 78 historical
+   `vertical_jump` rows are sitting as `test_variant = null` ("Untagged (pre-tracking)")
+   because the coach's technique assignment only named 5 teams. Once confirmed, a one-line
+   SQL backfill (same shape as db/007's) closes the gap - no code change needed.
+2. **Close the account-recovery gap** (§11). Two parts, both small:
    - Turn on **leaked-password protection** — Supabase dashboard → Authentication →
      Policies. Checks against HaveIBeenPwned; worth more than usual for a shared,
      rarely-rotated credential. Last outstanding item from the security audit.

@@ -173,13 +173,35 @@ const openProfile = async (page, name) => {
     await page.waitForTimeout(200);
     const valueInput = page.locator('input[type="text"]').last();
     await valueInput.fill('28');
+    // Vertical Jump has more than one technique (v4.19.0) - the seeded row is untagged,
+    // so SAVE stays disabled until one is picked (same "don't guess" rule as new entry).
+    await page.getByLabel('Technique').selectOption('hands_on_hips');
     await page.getByRole('button', { name: /^SAVE$/i }).click();
     await page.waitForTimeout(500);
     check('a PATCH reached performance_tests', page.writes.some(w => w.method === 'PATCH'), JSON.stringify(page.writes));
     const patch = page.writes.find(w => w.method === 'PATCH');
     check('the PATCH carries the corrected value', patch && Number(patch.body.metric) === 28, JSON.stringify(patch));
+    check('the PATCH carries the corrected technique', patch && patch.body.test_variant === 'hands_on_hips', JSON.stringify(patch));
     const body = await page.locator('body').innerText();
     check('the corrected value is reflected on screen', /28\.0 in/.test(body), body.match(/2[0-9]\.0 in/g)?.join(',') || '');
+  }
+
+  console.log('\n[G2] SAVE stays disabled on a jump result until a technique is picked');
+  {
+    const page = await newPage(browser, { perfTests: [perfTests[2]] }); // untagged vertical_jump row
+    await openProfile(page, 'Target Athlete');
+    await page.getByRole('button', { name: /History \(1\)/i }).click();
+    await page.waitForTimeout(300);
+    await page.getByLabel('Edit result').first().click();
+    await page.waitForTimeout(200);
+    check('untagged row shows "Select technique…" not a default', await page.getByLabel('Technique').inputValue() === '');
+    const saveBtn = page.getByRole('button', { name: /^SAVE$/i });
+    check('SAVE is disabled with no technique picked', await saveBtn.isDisabled());
+    await saveBtn.click({ force: true });
+    await page.waitForTimeout(300);
+    check('no PATCH fires while technique is unset', page.writes.length === 0, JSON.stringify(page.writes));
+    await page.getByLabel('Technique').selectOption('arm_swing');
+    check('SAVE enables once a technique is picked', !(await saveBtn.isDisabled()));
   }
 
   console.log('\n[H] Deleting an attempt asks for confirmation, then sends a DELETE');

@@ -4,7 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { TEST_TYPES, TEST_TYPE_BY_KEY, formatMetric } from './SpeedPowerPanel';
+import { TEST_TYPES, TEST_TYPE_BY_KEY, UNTAGGED_VARIANT_LABEL, formatMetric } from './SpeedPowerPanel';
 
 // Distinct enough at a glance, and consistent for a given selection order - the same
 // athlete keeps the same color as long as they stay in the same selection slot.
@@ -21,10 +21,19 @@ const MAX_ATHLETES = 6;
  */
 export default function AthleteComparisonPanel({ athletes, performanceTests, sportFilter, card, h3, eyebrow, grid: gridColor }) {
   const [testType, setTestType] = React.useState(TEST_TYPES[0].key);
+  // Which protocol to compare - a jump technique difference is a different test, so
+  // comparing hands-on-hips and arm-swing results on the same line would show a
+  // technique change as an athletic one. Blank (must pick) for a multi-variant type,
+  // silently the one value for a single-variant type (Fly 10 today).
+  const [variant, setVariant] = React.useState(TEST_TYPES[0].variants.length === 1 ? TEST_TYPES[0].variants[0].key : '');
   const [selectedIds, setSelectedIds] = React.useState([]);
   const [search, setSearch] = React.useState('');
 
   const activeTest = TEST_TYPE_BY_KEY[testType] || TEST_TYPES[0];
+
+  React.useEffect(() => {
+    setVariant(activeTest.variants.length === 1 ? activeTest.variants[0].key : '');
+  }, [testType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const roster = React.useMemo(
     () => (sportFilter === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === sportFilter)),
@@ -59,6 +68,7 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
 
     for (const t of performanceTests) {
       if (t.test_type !== testType || !selectedIds.includes(t.athlete_id)) continue;
+      if (activeTest.variants.length > 1 && (t.test_variant || 'untagged') !== variant) continue;
       const day = String(t.created_at || '').slice(0, 10);
       if (!day) continue;
       if (!rows.has(day)) rows.set(day, { date: day });
@@ -82,7 +92,7 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
       chartData: [...rows.values()].sort((a, b) => a.date.localeCompare(b.date)),
       perAthleteStats: stats,
     };
-  }, [performanceTests, testType, selectedIds, activeTest.better]);
+  }, [performanceTests, testType, variant, selectedIds, activeTest.better, activeTest.variants.length]);
 
   const axis = { stroke: 'var(--color-text-muted)', fontSize: 11 };
 
@@ -115,6 +125,30 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
           </button>
         ))}
       </div>
+
+      {/* Technique picker - only for a test type with more than one protocol. Comparing
+          across techniques on one line would show a technique difference as an athletic
+          one, so this must be picked rather than defaulting to "all". */}
+      {activeTest.variants.length > 1 && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {[...activeTest.variants, { key: 'untagged', label: UNTAGGED_VARIANT_LABEL }].map(v => (
+            <button
+              key={v.key}
+              type="button"
+              onClick={() => setVariant(v.key)}
+              style={{
+                padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 700,
+                textTransform: 'uppercase', letterSpacing: '0.03em', cursor: 'pointer',
+                border: variant === v.key ? '1px solid #60a5fa' : '1px solid rgba(255,255,255,0.12)',
+                background: variant === v.key ? 'rgba(96,165,250,0.15)' : 'transparent',
+                color: variant === v.key ? '#60a5fa' : 'var(--color-text-muted)',
+              }}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) 1fr', gap: '20px', alignItems: 'start' }}>
         {/* Athlete picker */}
@@ -162,7 +196,11 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
 
         {/* Chart + summary */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
-          {selectedAthletes.length === 0 ? (
+          {activeTest.variants.length > 1 && !variant ? (
+            <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, border: `1px dashed ${gridColor}`, borderRadius: '14px' }}>
+              Pick a technique above - {activeTest.label} results differ by protocol.
+            </div>
+          ) : selectedAthletes.length === 0 ? (
             <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, border: `1px dashed ${gridColor}`, borderRadius: '14px' }}>
               Select at least one athlete on the left to see their {activeTest.label} history.
             </div>
