@@ -1106,18 +1106,23 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
     ? attempted.reduce((worst, r) => (r.rank.percentile < worst.rank.percentile ? r : worst))
     : null;
 
-  const startEdit = (t) => setEditing(prev => ({ ...prev, [t.id]: { metric: String(t.metric), date: String(t.created_at).slice(0, 10) } }));
+  const startEdit = (t) => setEditing(prev => ({ ...prev, [t.id]: { metric: String(t.metric), date: String(t.created_at).slice(0, 10), variant: t.test_variant || '' } }));
   const cancelEdit = (id) => setEditing(prev => { const next = { ...prev }; delete next[id]; return next; });
 
   const saveEdit = async (t) => {
     const draft = editing[t.id];
     if (!draft) return;
     const v = parseFloat(draft.metric);
-    if (!isFinite(v) || v <= 0 || !draft.date) return;
+    const tt = TEST_TYPE_BY_KEY[t.test_type];
+    // A multi-variant type (jump) must have a technique picked before saving - same
+    // "don't guess" rule the entry form enforces. A single-variant type (Fly 10) has
+    // no picker at all, so its draft.variant is always whatever it already was.
+    if (!isFinite(v) || v <= 0 || !draft.date || (tt && tt.variants.length > 1 && !draft.variant)) return;
     setSavingId(t.id);
     await updatePerformanceTest(t.id, {
       metric: v,
       created_at: centralWallTimeToISO(draft.date, '12:00'),
+      test_variant: draft.variant || null,
     });
     setSavingId(null);
     cancelEdit(t.id);
@@ -1224,43 +1229,65 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                           {r.attempts.map(t => {
                             const draft = editing[t.id];
                             const isBest = r.best && t.id === r.best.id;
+                            const tt = TEST_TYPE_BY_KEY[t.test_type];
+                            const hasVariants = tt && tt.variants.length > 1;
                             return (
-                              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                {draft ? (
-                                  <>
-                                    <input
-                                      type="date"
-                                      value={draft.date}
-                                      max={getCentralDateString()}
-                                      onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], date: e.target.value } }))}
-                                      style={{ flex: '1 1 auto', minWidth: 0, fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
-                                    />
-                                    <input
-                                      type="text"
-                                      inputMode="decimal"
-                                      value={draft.metric}
-                                      onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], metric: e.target.value.replace(/[^0-9.]/g, '') } }))}
-                                      style={{ width: '60px', fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center' }}
-                                    />
-                                    <button type="button" disabled={savingId === t.id} onClick={() => saveEdit(t)} style={{ fontSize: '10px', fontWeight: 800, color: '#34d399', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
-                                      {savingId === t.id ? '…' : 'SAVE'}
-                                    </button>
-                                    <button type="button" onClick={() => cancelEdit(t.id)} style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
-                                      CANCEL
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', flex: '1 1 auto' }}>{String(t.created_at).slice(0, 10)}</span>
-                                    <span style={{ fontSize: '12px', fontWeight: 700, color: isBest ? '#fbbf24' : 'var(--white)' }}>{formatMetric(t.metric, t.unit)}</span>
-                                    {isBest && <span title="Personal best" style={{ fontSize: '10px', color: '#fbbf24' }}>★</span>}
-                                    <button type="button" onClick={() => startEdit(t)} aria-label="Edit result" style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', padding: '2px' }}>
-                                      <Pencil size={12} />
-                                    </button>
-                                    <button type="button" onClick={() => confirmDelete(t)} aria-label="Delete result" style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex', padding: '2px' }}>
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </>
+                              <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '6px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {draft ? (
+                                    <>
+                                      <input
+                                        type="date"
+                                        value={draft.date}
+                                        max={getCentralDateString()}
+                                        onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], date: e.target.value } }))}
+                                        style={{ flex: '1 1 auto', minWidth: 0, fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+                                      />
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={draft.metric}
+                                        onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], metric: e.target.value.replace(/[^0-9.]/g, '') } }))}
+                                        style={{ width: '60px', fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center' }}
+                                      />
+                                      <button type="button" disabled={savingId === t.id || (hasVariants && !draft.variant)} onClick={() => saveEdit(t)} style={{ fontSize: '10px', fontWeight: 800, color: (hasVariants && !draft.variant) ? 'var(--color-text-muted)' : '#34d399', background: 'transparent', border: 'none', cursor: (hasVariants && !draft.variant) ? 'not-allowed' : 'pointer', padding: '4px' }}>
+                                        {savingId === t.id ? '…' : 'SAVE'}
+                                      </button>
+                                      <button type="button" onClick={() => cancelEdit(t.id)} style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                                        CANCEL
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', flex: '1 1 auto' }}>{String(t.created_at).slice(0, 10)}</span>
+                                      {hasVariants && (
+                                        <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)' }}>
+                                          {t.test_variant ? VARIANT_LABEL[t.test_variant] : UNTAGGED_VARIANT_LABEL}
+                                        </span>
+                                      )}
+                                      <span style={{ fontSize: '12px', fontWeight: 700, color: isBest ? '#fbbf24' : 'var(--white)' }}>{formatMetric(t.metric, t.unit)}</span>
+                                      {isBest && <span title="Personal best" style={{ fontSize: '10px', color: '#fbbf24' }}>★</span>}
+                                      <button type="button" onClick={() => startEdit(t)} aria-label="Edit result" style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', padding: '2px' }}>
+                                        <Pencil size={12} />
+                                      </button>
+                                      <button type="button" onClick={() => confirmDelete(t)} aria-label="Delete result" style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex', padding: '2px' }}>
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                                {/* Technique can only change while a jump result is a jump result - a Fly 10
+                                    row has nothing to pick, so this row is skipped entirely for it. */}
+                                {draft && hasVariants && (
+                                  <select
+                                    aria-label="Technique"
+                                    value={draft.variant}
+                                    onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], variant: e.target.value } }))}
+                                    style={{ fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+                                  >
+                                    <option value="" style={{ background: 'var(--navy-900)', color: '#fff' }}>Select technique…</option>
+                                    {tt.variants.map(v => <option key={v.key} value={v.key} style={{ background: 'var(--navy-900)', color: '#fff' }}>{v.label}</option>)}
+                                  </select>
                                 )}
                               </div>
                             );

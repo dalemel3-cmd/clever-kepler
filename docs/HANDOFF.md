@@ -774,6 +774,16 @@ cross-athlete comparison. `bestTestFor`/`rankAthleteForTest` both take an option
 `variantKey` (default `null` = no filtering) so that one remaining unscoped call site is
 an explicit choice, not an oversight.
 
+**Fixing a jump's technique after the fact**: the per-entry edit control on an athlete's
+Profiles page (§18) now includes a Technique field for any jump result, alongside the
+existing date/value fields - a coach can correct a mis-tagged or untagged attempt without
+deleting and re-entering it. Same "don't guess" rule as new entry: SAVE stays disabled
+until a technique is picked for a multi-variant test type. `tests/profile-speed-power-
+rankings.js` grew two probes for this (§G now also asserts the PATCH carries
+`test_variant`; new §G2 covers the disabled-until-picked state) - both correctly failed
+against the pre-fix build, timing out waiting for `getByLabel('Technique')`, which didn't
+exist yet.
+
 ---
 
 ## 21. Next up
