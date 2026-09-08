@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v4.19.0';
+export const APP_VERSION = 'v4.20.0';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -265,3 +265,63 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
 export const isRpeLog   = (r) => r?.session_type === 'rpe' || (r?.rpe != null && !r?.weight_lbs);
 export const hasWeight  = (r) => r?.weight_lbs != null && Number(r.weight_lbs) > 0;
 export const hasSleep   = (r) => r?.sleep_hrs != null && Number(r.sleep_hrs) > 0;
+
+// Acute:chronic workload ratio, in ONE place.
+//
+// Alerts and the athlete profile each carried their own copy of this and the copies had
+// drifted apart, so the same athlete could read 1.1x on one screen and 4.4x on the other:
+//
+//   - The profile always multiplied RPE by session_minutes. With rpeTrackDuration off,
+//     session_minutes is null, every session load came out 0, and the profile's ratio
+//     showed "--" while Alerts (which falls back to the RPE value alone) reported a real
+//     spike.
+//   - The profile divided the chronic total by the full configured chronic window (4
+//     weeks) instead of the history the athlete actually has. An athlete two weeks into
+//     the season had their chronic average halved, doubling the ratio - the same "every
+//     athlete's first week looks like a spike" bug Alerts had already fixed.
+//
+// `rpeLogs` must already be filtered to RPE rows for one athlete.
+// Returns nulls (not zeros) when there is not enough history to state a ratio, so a
+// caller can tell "no answer yet" apart from "answer is zero".
+export const computeAcuteChronicLoad = (rpeLogs = [], { chronicWeeks = 4, trackDuration = true, now = Date.now() } = {}) => {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const at = (l) => new Date(l.created_at).getTime();
+  const nowMs = now instanceof Date ? now.getTime() : now;
+  // Half-open window: strictly less than N days old. An inclusive `<=` boundary let a
+  // once-daily athlete's 7-day acute window hold EIGHT sessions while the chronic
+  // average was still divided by whole weeks, so perfectly steady training read as ~1.10
+  // instead of 1.00 - a standing ~10% inflation on every ratio, which quietly moved the
+  // effective spike threshold from the configured 1.3 down to about 1.18.
+  const within = (l, days) => {
+    const t = at(l);
+    return !isNaN(t) && (nowMs - t) < days * dayMs && (nowMs - t) >= 0;
+  };
+
+  const recent = rpeLogs.filter(l => within(l, 7));
+  const chronic = rpeLogs.filter(l => within(l, chronicWeeks * 7));
+
+  // RPE x minutes when the program tracks duration; RPE alone when it does not, so the
+  // ratio stays meaningful either way instead of collapsing to 0.
+  const sessionLoad = (l) => (Number(l.rpe) || 0) * (trackDuration ? (Number(l.session_minutes) || 0) : 1);
+  const acuteLoad = recent.reduce((s, l) => s + sessionLoad(l), 0);
+  const chronicLoadTotal = chronic.reduce((s, l) => s + sessionLoad(l), 0);
+
+  // Weeks of history counts calendar days INCLUSIVE of both the oldest session and today
+  // (28 days of sessions is 4 weeks of training, not 27/7 = 3.86), so that the acute
+  // numerator and the weekly denominator are measured on the same footing.
+  const oldest = chronic.length ? Math.min(...chronic.map(at).filter(t => !isNaN(t))) : nowMs;
+  const weeksOfHistory = (Math.floor((nowMs - oldest) / dayMs) + 1) / 7;
+  const effectiveWeeks = Math.min(chronicWeeks, Math.max(weeksOfHistory, 1));
+  const chronicAvgWeeklyLoad = effectiveWeeks > 0 ? chronicLoadTotal / effectiveWeeks : 0;
+
+  // Under two weeks of history the "chronic" load is really just the acute load again,
+  // so there is no baseline to compare against and no honest ratio to report.
+  const hasBaseline = chronicAvgWeeklyLoad > 0 && weeksOfHistory >= 2;
+
+  return {
+    acuteLoad,
+    chronicAvgWeeklyLoad,
+    weeksOfHistory,
+    ratio: hasBaseline ? acuteLoad / chronicAvgWeeklyLoad : null,
+  };
+};

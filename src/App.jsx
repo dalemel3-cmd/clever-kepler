@@ -38,7 +38,8 @@ import {
   invalidateAthleteDataCache,
   configureProgramContext,
   configureWeightBounds,
-  isRpeLog
+  isRpeLog,
+  computeAcuteChronicLoad
 } from './utils/athleteData';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, getAppHost } from './settings';
 
@@ -117,6 +118,15 @@ export default function App() {
   // Once widened for this session it stays widened - re-narrowing on every range click
   // would just re-trigger the same fetch each time the coach flips back to 30 days.
   const extraReportWindowDays = React.useRef(0);
+  // Every query that participates in the change-probe fingerprint MUST use this same
+  // window. The probe compares a row count against the count from the last full fetch;
+  // when the two used different windows the counts could never match, so the probe
+  // full-fetched on every single heartbeat and pollIdleStreak never backed off -
+  // silently undoing the adaptive-sync egress work the moment anyone opened 60/90 days.
+  const effectiveWindowDays = React.useCallback(
+    () => Math.max(settingsRef.current.dataWindowDays, extraReportWindowDays.current),
+    []
+  );
   const syncInFlight = React.useRef(false);
   const manualSaveInFlight = React.useRef(false);
   const kioskSaveInFlight = React.useRef(false);
@@ -375,37 +385,12 @@ export default function App() {
       ? (parseFloat(todayAvgSleep) - parseFloat(yesterdayAvgSleep)).toFixed(1)
       : null;
 
-    // 3. Hydration & Mass Stability Watch (thresholds configurable in Settings)
-    const hydrationFlags = [];
-    todayLogs.forEach(todayRec => {
-      const currentWt = parseFloat(todayRec.weight_lbs);
-      if (!currentWt || isNaN(currentWt)) return;
-      
-      const ath = athletes.find(a => a.id === todayRec.athlete_id) || { name: todayRec.athlete_name || 'Unknown Athlete', sport: 'General' };
-      
-      const previousLogs = allLogs
-        .filter(r => r.athlete_id === todayRec.athlete_id && getCentralDateString(new Date(r.created_at)) < todayCentralStr && r.weight_lbs)
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        
-      if (previousLogs.length > 0) {
-        const prevWt = parseFloat(previousLogs[0].weight_lbs);
-        if (prevWt && !isNaN(prevWt)) {
-          const deltaLbs = currentWt - prevWt;
-          const deltaPct = (deltaLbs / prevWt) * 100;
-          
-          if (deltaLbs <= -settings.acuteDropLbs || deltaLbs <= -settings.dehydrationThreshold) {
-            hydrationFlags.push({
-              athlete: ath,
-              currentWt: currentWt.toFixed(1),
-              prevWt: prevWt.toFixed(1),
-              deltaLbs: deltaLbs.toFixed(1),
-              deltaPct: deltaPct.toFixed(1),
-              date: new Date(previousLogs[0].created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            });
-          }
-        }
-      }
-    });
+    // 3. (removed) A "Hydration & Mass Stability Watch" list was computed here and never
+    // rendered anywhere - dead weight that still cost an O(todayLogs x allLogs) scan on
+    // every dashboard render. It also compared raw weights without excluding
+    // post-practice sweat checks or RPE rows, so had anything ever displayed it, it would
+    // have re-introduced the false-dehydration bug class documented in HANDOFF §5. The
+    // live dehydration alerts (dailyAlerts, below) are the real, correctly-filtered path.
 
     // 4. Sport Group Leaderboard
     const sportStats = {};
@@ -436,7 +421,6 @@ export default function App() {
       todayAvgSleep,
       yesterdayAvgSleep,
       sleepDelta,
-      hydrationFlags,
       leaderboard,
       sportLeaderboard: leaderboard,
       todayCount: todayLogs.length,
@@ -566,7 +550,7 @@ export default function App() {
     const probeCloudForChanges = async () => {
       try {
         const windowStart = new Date();
-        windowStart.setDate(windowStart.getDate() - settingsRef.current.dataWindowDays);
+        windowStart.setDate(windowStart.getDate() - effectiveWindowDays());
         const { data, count, error } = await supabase
           .from('weigh_ins')
           .select('created_at', { count: 'exact' })
@@ -883,7 +867,7 @@ export default function App() {
     try {
       if (!navigator.onLine) throw new Error('Offline');
       const windowStart = new Date();
-      windowStart.setDate(windowStart.getDate() - Math.max(settingsRef.current.dataWindowDays, extraReportWindowDays.current));
+      windowStart.setDate(windowStart.getDate() - effectiveWindowDays());
 
       const { data, error } = await supabase
         .from('weigh_ins')
@@ -978,12 +962,20 @@ export default function App() {
   // Widens the fetch window for the rest of the session and re-fetches once, rather than
   // silently rendering a chart that only has the last dataWindowDays of real data padded
   // with empty buckets - which read as "everything moved forward" with no history behind it.
-  const ensureReportWindow = (days) => {
+  // useCallback, not a plain function: AnalyticsScreen lists this in an effect's
+  // dependency array, and a fresh identity every render re-ran that effect on every
+  // render. The widen-guard below made that harmless rather than a fetch loop, but the
+  // effect should fire when the range changes, not continuously.
+  // Routed through a ref so the callback identity is stable while still invoking the
+  // current fetchReportData, rather than whichever closure the first render captured.
+  const fetchReportDataRef = React.useRef(fetchReportData);
+  fetchReportDataRef.current = fetchReportData;
+  const ensureReportWindow = React.useCallback((days) => {
     if (days > extraReportWindowDays.current) {
       extraReportWindowDays.current = days;
-      fetchReportData(true);
+      fetchReportDataRef.current(true);
     }
-  };
+  }, []);
 
   const syncOfflineCache = async (isInteractive = false) => {
     const isClick = isInteractive === true || typeof isInteractive === 'object';
@@ -2504,29 +2496,16 @@ export default function App() {
         if (!athlete) return;
         
         const athleteLogs = reportData.filter(l => l.athlete_id === athleteId && isRpeLog(l));
-        const daysMs = (days) => days * 24 * 60 * 60 * 1000;
-        const recentRpe = athleteLogs.filter(l => (now - new Date(l.created_at).getTime()) <= daysMs(7));
-        const chronicRpe = athleteLogs.filter(l => (now - new Date(l.created_at).getTime()) <= daysMs(settings.rpeChronicWeeks * 7));
+        // Shared with the athlete profile card - see computeAcuteChronicLoad for why the
+        // two screens must not carry their own copies of this.
+        const { acuteLoad, chronicAvgWeeklyLoad, ratio: acRatio } = computeAcuteChronicLoad(athleteLogs, {
+          chronicWeeks: settings.rpeChronicWeeks,
+          trackDuration: settings.rpeTrackDuration,
+          now,
+        });
 
-        // Session load is RPE x minutes when the program tracks duration. With duration
-        // off, session_minutes is null and every load would come out 0 - so fall back to
-        // the RPE value itself, which keeps the ratio meaningful either way.
-        const sessionLoad = (l) => (l.rpe || 0) * (settings.rpeTrackDuration ? (l.session_minutes || 0) : 1);
-        const acuteLoad = recentRpe.reduce((sum, l) => sum + sessionLoad(l), 0);
-        const chronicLoadTotal = chronicRpe.reduce((sum, l) => sum + sessionLoad(l), 0);
-
-        // Divide by the weeks of history the athlete actually has, not the full configured
-        // window. Dividing a single week of data by 4 made every athlete's very first week
-        // look like a 4x spike and fired a load alert for the whole team on day one.
-        const oldestRpeMs = chronicRpe.length ? Math.min(...chronicRpe.map(l => new Date(l.created_at).getTime())) : now;
-        const weeksOfHistory = (now - oldestRpeMs) / daysMs(7);
-        const effectiveWeeks = Math.min(settings.rpeChronicWeeks, Math.max(weeksOfHistory, 1));
-        const chronicAvgWeeklyLoad = effectiveWeeks > 0 ? (chronicLoadTotal / effectiveWeeks) : 0;
-
-        // An A:C ratio needs a chronic baseline to compare against. Under two weeks of
-        // history the "chronic" load is just the acute load again, so hold the alert.
-        if (chronicAvgWeeklyLoad > 0 && weeksOfHistory >= 2) {
-          const acRatio = (acuteLoad / chronicAvgWeeklyLoad);
+        // A null ratio means there is not enough history for a chronic baseline yet.
+        if (acRatio != null) {
           if (acRatio >= settings.rpeLoadSpikeRatio) {
             const streak = alertStreakLookup(athleteId, 'rpe');
             alerts.push({

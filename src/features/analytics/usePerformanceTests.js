@@ -70,6 +70,12 @@ export function usePerformanceTests() {
         athlete_name: rec.athlete_name || 'Unknown',
         sport: rec.sport || '',
         test_type: rec.test_type,
+        // The protocol/technique this was measured under (db/007). This insert names its
+        // columns explicitly rather than spreading `rec`, so the Technique field added in
+        // v4.19.0 reached the optimistic row but never the database - the entry looked
+        // saved, then came back untagged on the next load. Any column added to this table
+        // from here on has to be added to this list too.
+        test_variant: rec.test_variant || null,
         metric: rec.metric,
         unit: rec.unit || 'sec',
         source: 'manual',

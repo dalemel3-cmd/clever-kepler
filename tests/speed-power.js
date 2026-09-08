@@ -109,6 +109,11 @@ const leaderboardText = async (page) => page.evaluate(() => {
       check('correct test_type', w.test_type === 'vertical_jump', w.test_type);
       check('metric is a number, not a string artifact', w.metric === 24.5, w.metric);
       check('source is manual', w.source === 'manual', w.source);
+      // The insert names its columns explicitly, so a new column has to be added there
+      // too. test_variant was captured in the form and shown on the optimistic row but
+      // never sent, so every manually-logged jump came back untagged after a reload.
+      check('the technique actually reaches the database', w.test_variant === 'hands_on_hips',
+        `test_variant=${JSON.stringify(w.test_variant)} (whole body: ${JSON.stringify(w)})`);
     }
     const body = await page.locator('body').innerText();
     check('confirmation message shown', /Saved 24\.5 in/.test(body), body.match(/Saved.{0,40}/)?.[0] || '');
