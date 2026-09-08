@@ -81,14 +81,15 @@ const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHigh
   check('renders the analytics heading', /PERFORMANCE ANALYTICS/i.test(body));
 
   console.log('\n[B] Charts are actually drawn');
-  // Body weight renders open by default. Compliance and Sleep now collapse by default
-  // (v4.18.0) - expand both before counting, or this only ever sees the one chart that
-  // was never hidden.
-  await page.getByText('DAILY LOGGING COMPLIANCE', { exact: false }).click();
+  // Body weight renders open by default. Sleep collapses by default (v4.18.0) - expand
+  // it before counting, or this only ever sees the one chart that was never hidden.
+  // Daily Logging Compliance was removed outright (v4.21.0), so only two charts exist
+  // in this fixture (Speed & Power is off, so its Team Trend chart isn't rendered).
   await page.getByText('AVERAGE SLEEP', { exact: false }).click();
   await page.waitForTimeout(300);
   const svgs = await page.locator('.recharts-surface').count();
-  check('recharts surfaces rendered', svgs >= 3, `found ${svgs}`);
+  check('recharts surfaces rendered', svgs >= 2, `found ${svgs}`);
+  check('Daily Logging Compliance is gone', !/DAILY LOGGING COMPLIANCE/i.test(await page.locator('body').innerText()));
 
   console.log('\n[C] Null-weight rows do not corrupt the numbers');
   // Gainer +10, Loser -6. If the post-practice row counted, Loser would read -24.

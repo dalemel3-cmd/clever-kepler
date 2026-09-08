@@ -147,20 +147,14 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       }
     }
 
-    const boards = [];
-    for (const tt of TEST_TYPES) {
+    // One board PER TEST TYPE, not per variant - a jump technique picker inside the
+    // board switches which group of athletes it shows, rather than three side-by-side
+    // boards (Hands on Hips / Arm Swing / Untagged) competing for the same row of space.
+    const boards = TEST_TYPES.map(tt => {
       const variantKeys = tt.variants.length > 1
         ? [...tt.variants.map(v => v.key), 'untagged']
         : [tt.variants[0]?.key || 'untagged'];
-      const withData = variantKeys.filter(vk => {
-        const byAthlete = bestByGroupAthlete.get(groupKey(tt.key, vk));
-        return byAthlete && byAthlete.size > 0;
-      });
-      // A test type with zero results anywhere still gets one board, so "no results
-      // logged yet" has somewhere to render - only an empty *variant* (one technique
-      // with no data while another has some) is skipped as noise.
-      const keysToRender = withData.length > 0 ? withData : [variantKeys[0]];
-      for (const vk of keysToRender) {
+      const options = variantKeys.map(vk => {
         const gk = groupKey(tt.key, vk);
         const byAthlete = bestByGroupAthlete.get(gk);
         const all = byAthlete
@@ -168,18 +162,39 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
               ? Number(b.metric) - Number(a.metric)
               : Number(a.metric) - Number(b.metric))
           : [];
-        const variantLabel = vk === 'untagged' ? UNTAGGED_VARIANT_LABEL : VARIANT_LABEL[vk];
-        boards.push({
-          ...tt,
+        return {
           key: gk,
           variantKey: vk,
-          label: (tt.variants.length > 1 && all.length > 0) ? `${tt.label} — ${variantLabel}` : tt.label,
+          label: vk === 'untagged' ? UNTAGGED_VARIANT_LABEL : VARIANT_LABEL[vk],
           all,
-        });
-      }
-    }
+        };
+      });
+      // Only offer a technique the roster has actually logged results under - an empty
+      // dropdown entry is noise, not a real choice. A test type with zero results
+      // anywhere still keeps its first option, so "no results yet" has somewhere to show.
+      const withData = options.filter(o => o.all.length > 0);
+      return { ...tt, needsVariantPicker: tt.variants.length > 1, options: withData.length > 0 ? withData : [options[0]] };
+    });
     return { boards, trendByTypeAthlete: trend };
   }, [performanceTests, rosterIds]);
+
+  // Which technique's option is showing per test type - defaults to whichever option
+  // has the most results, so opening the panel leads with real data rather than
+  // whatever happens to sort first alphabetically.
+  const [boardOption, setBoardOption] = React.useState({});
+  React.useEffect(() => {
+    setBoardOption(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const b of boards) {
+        if (next[b.key] && b.options.some(o => o.key === next[b.key])) continue;
+        const best = [...b.options].sort((a, c) => c.all.length - a.all.length)[0];
+        next[b.key] = best.key;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [boards]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -431,23 +446,42 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', borderTop: `1px solid ${gridColor}`, paddingTop: '16px' }}>
         {boards.map(b => {
-          const isOpen = !!expanded[b.key];
-          const visible = isOpen ? b.all : b.all.slice(0, PAGE_SIZE);
-          const hiddenCount = b.all.length - visible.length;
+          const selectedKey = boardOption[b.key] || b.options[0].key;
+          const opt = b.options.find(o => o.key === selectedKey) || b.options[0];
+          const isOpen = !!expanded[opt.key];
+          const visible = isOpen ? opt.all : opt.all.slice(0, PAGE_SIZE);
+          const hiddenCount = opt.all.length - visible.length;
           return (
             <div key={b.key}>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span>{b.label} — Best {b.unit === 'sec' ? 'Times' : 'Results'}</span>
-                {b.all.length > 0 && <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>{b.all.length}</span>}
-              </span>
-              {b.all.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {b.label} — Best {b.unit === 'sec' ? 'Times' : 'Results'}
+                </span>
+                {opt.all.length > 0 && <span style={{ color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '12px' }}>{opt.all.length}</span>}
+              </div>
+              {b.needsVariantPicker && (
+                <select
+                  aria-label={`${b.label} technique`}
+                  value={selectedKey}
+                  onChange={e => setBoardOption(prev => ({ ...prev, [b.key]: e.target.value }))}
+                  className="input-glass"
+                  style={{ width: '100%', height: '34px', padding: '0 10px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', marginBottom: '10px' }}
+                >
+                  {b.options.map(o => (
+                    <option key={o.key} value={o.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>
+                      {o.label} ({o.all.length})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {opt.all.length === 0 ? (
                 <div style={{ padding: '18px 12px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 600, background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
                   No {b.label.toLowerCase()} results logged yet.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {visible.map((r, i) => {
-                    const trend = trendByTypeAthlete.get(`${b.key}:${r.athlete_id}`);
+                    const trend = trendByTypeAthlete.get(`${opt.key}:${r.athlete_id}`);
                     // % change between this athlete's two most recent attempts - not
                     // best-vs-best (the number shown is still their PB), so the badge
                     // moves every session instead of only on a new record.
@@ -474,14 +508,14 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
                       </div>
                     );
                   })}
-                  {b.all.length > PAGE_SIZE && (
+                  {opt.all.length > PAGE_SIZE && (
                     <button
                       type="button"
-                      onClick={() => setExpanded(prev => ({ ...prev, [b.key]: !prev[b.key] }))}
+                      onClick={() => setExpanded(prev => ({ ...prev, [opt.key]: !prev[opt.key] }))}
                       className="glow-card"
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', borderRadius: '10px', background: 'transparent', border: '1px dashed rgba(255,255,255,0.15)', color: 'var(--color-text-muted)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}
                     >
-                      {isOpen ? <><ChevronUp size={13} /> Show fewer</> : <><ChevronDown size={13} /> Show all {b.all.length} ({hiddenCount} more)</>}
+                      {isOpen ? <><ChevronUp size={13} /> Show fewer</> : <><ChevronDown size={13} /> Show all {opt.all.length} ({hiddenCount} more)</>}
                     </button>
                   )}
                 </div>

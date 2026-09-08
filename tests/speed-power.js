@@ -233,6 +233,51 @@ const leaderboardText = async (page) => page.evaluate(() => {
     check('sport picker has more than just All Sports', opts.length >= 1, opts.join(','));
   }
 
+  console.log('\n[I] A multi-technique jump is one board with a dropdown, not three side-by-side columns');
+  {
+    const page = await newPage(browser, {
+      perfTests: [
+        { id: uuid(93), athlete_id: uuid(1), athlete_name: 'Fast Athlete', sport: 'Football', test_type: 'vertical_jump', test_variant: 'hands_on_hips', metric: 28.0, unit: 'in', source: 'manual', created_at: new Date().toISOString() },
+        { id: uuid(94), athlete_id: uuid(2), athlete_name: 'Slower Athlete', sport: 'Football', test_type: 'vertical_jump', test_variant: 'arm_swing', metric: 30.0, unit: 'in', source: 'manual', created_at: new Date().toISOString() },
+      ],
+    });
+    await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2200);
+    // Both techniques exist in the data, but only ONE "Vertical Jump" heading should
+    // render - three columns (Hands on Hips / Arm Swing / Untagged) would have shown
+    // this heading three times.
+    const headingCount = await page.getByText('Vertical Jump — Best', { exact: false }).count();
+    check('exactly one Vertical Jump board, not one per technique', headingCount === 1, `found ${headingCount}`);
+
+    const picker = page.getByLabel('Vertical Jump technique');
+    check('a technique dropdown exists on the board', await picker.count() === 1);
+
+    // Scoped to the text BETWEEN the two board headings - the raw page body also
+    // contains both names as <option> text in the Athlete <select> above (Chromium's
+    // innerText leaks a closed select's option list), which would make every
+    // Fast/Slower check pass regardless of what the board itself is showing.
+    const boardText = async () => {
+      const full = await page.locator('body').innerText();
+      const start = full.indexOf('VERTICAL JUMP — BEST RESULTS');
+      const end = full.indexOf('BOARD JUMP — BEST RESULTS');
+      return full.slice(start, end === -1 ? undefined : end);
+    };
+
+    let board = await boardText();
+    const firstShows = /Fast Athlete/.test(board) ? 'Fast' : /Slower Athlete/.test(board) ? 'Slower' : null;
+    check('the default technique shows exactly one athlete, not both', /Fast Athlete/.test(board) !== /Slower Athlete/.test(board), board);
+
+    // Switch to whichever technique isn't currently showing, and confirm the OTHER
+    // athlete appears instead - proof the dropdown actually swaps the group, not just
+    // its label.
+    const otherValue = firstShows === 'Fast' ? 'vertical_jump::arm_swing' : 'vertical_jump::hands_on_hips';
+    await picker.selectOption(otherValue);
+    await page.waitForTimeout(300);
+    board = await boardText();
+    const secondShows = /Fast Athlete/.test(board) ? 'Fast' : /Slower Athlete/.test(board) ? 'Slower' : null;
+    check('switching the dropdown swaps which athlete is shown', secondShows !== null && secondShows !== firstShows,
+      `first=${firstShows} second=${secondShows}`);
+  }
+
   console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
   await browser.close();
   process.exit(fail === 0 ? 0 : 1);

@@ -97,18 +97,19 @@ const newPage = async (browser) => {
     check('weight tooltip does NOT say hrs', !/hrs/.test(tip || ''), tip);
   }
 
-  console.log('\n[B] Analytics compliance tooltip reads %, not hrs');
+  console.log('\n[B] Analytics sleep tooltip reads hrs, not lbs (Daily Logging Compliance removed)');
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2500);
-    // Compliance now collapses by default (v4.18.0) - expand it before hovering.
-    await page.getByText('DAILY LOGGING COMPLIANCE', { exact: false }).click();
+    check('Daily Logging Compliance card is gone (v4.21.0)', !/DAILY LOGGING COMPLIANCE/i.test(await page.locator('body').innerText()));
+    // Sleep still collapses by default - expand it before hovering.
+    await page.getByText('AVERAGE SLEEP', { exact: false }).click();
     await page.waitForTimeout(300);
-    // Chart order: 0 = weight trend, 1 = compliance (BarChart).
+    // Chart order with compliance gone: 0 = weight trend, 1 = sleep (BarChart).
     const tip = await hoverBar(page, 1);
     check('tooltip appeared', !!tip && tip.length > 0, `got: ${JSON.stringify(tip)}`);
-    check('compliance tooltip says %', /%/.test(tip || ''), tip);
-    check('compliance tooltip does NOT say hrs', !/hrs/.test(tip || ''), tip);
+    check('sleep tooltip says hrs', /hrs/.test(tip || ''), tip);
+    check('sleep tooltip does NOT say lbs', !/lbs/.test(tip || ''), tip);
   }
 
   console.log('\n[C] ProfilesScreen tooltips unchanged (no regression)');

@@ -8,6 +8,7 @@ import { CustomTooltip } from '../../components/CustomTooltip';
 import SpeedPowerPanel from './SpeedPowerPanel';
 import PlyomatImportPanel from './PlyomatImportPanel';
 import AthleteComparisonPanel from './AthleteComparisonPanel';
+import { TEST_TYPES, TEST_TYPE_BY_KEY, UNTAGGED_VARIANT_LABEL } from './testVariants';
 import {
   getCentralDateString, getAthleteBaseline,
   isRpeLog, hasWeight, hasSleep, isPostPracticeLog,
@@ -50,10 +51,10 @@ export default function AnalyticsScreen({
     if (ensureReportWindow) ensureReportWindow(rangeDays);
   }, [rangeDays, ensureReportWindow]);
 
-  // Compliance and sleep charts default collapsed - they're the two least-checked cards
-  // on this screen day to day, and collapsing them gets the more-used charts higher on
-  // the page without losing either one.
-  const [complianceOpen, setComplianceOpen] = React.useState(false);
+  // The sleep chart defaults collapsed - it's a detail view a coach opens on demand,
+  // while its headline number lives in the KPI tile row up top (Recovery). Daily
+  // Logging Compliance was removed outright, chart and top tile both - it wasn't
+  // something coaches were checking day to day.
   const [sleepOpen, setSleepOpen] = React.useState(false);
 
   const sports = React.useMemo(
@@ -154,6 +155,7 @@ export default function AnalyticsScreen({
       .sort((x, y) => y.load - x.load);
 
     const weighedDays = trend.filter(d => d['Avg Weight'] != null);
+    const sleptDays = trend.filter(d => d['Avg Sleep'] != null);
     return {
       trend,
       gains: [...changes].sort((a, b) => b.delta - a.delta).slice(0, 5),
@@ -161,8 +163,8 @@ export default function AnalyticsScreen({
       loads: loads.slice(0, 8),
       totals: {
         athletes: roster.length,
-        avgCompliance: trend.length ? Math.round(trend.reduce((s, d) => s + d.Compliance, 0) / trend.length) : 0,
         avgWeight: weighedDays.length ? (weighedDays.reduce((s, d) => s + d['Avg Weight'], 0) / weighedDays.length).toFixed(1) : null,
+        avgSleep: sleptDays.length ? (sleptDays.reduce((s, d) => s + d['Avg Sleep'], 0) / sleptDays.length).toFixed(1) : null,
         totalLoad: Math.round(loads.reduce((s, l) => s + l.load, 0)),
       },
     };
@@ -307,8 +309,8 @@ export default function AnalyticsScreen({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         {[
           { label: 'Avg Body Weight', value: model.totals.avgWeight != null ? `${model.totals.avgWeight} lbs` : '—', color: 'var(--color-accent)', icon: <TrendingUp size={14} /> },
-          { label: 'Logging Compliance', value: `${model.totals.avgCompliance}%`, color: '#34d399', icon: <Activity size={14} /> },
-          { label: 'Total Session Load', value: model.totals.totalLoad ? model.totals.totalLoad.toLocaleString() : '—', color: '#60a5fa', icon: <Target size={14} /> },
+          { label: 'Recovery (Avg Sleep)', value: model.totals.avgSleep != null ? `${model.totals.avgSleep} hrs` : '—', color: '#60a5fa', icon: <Activity size={14} /> },
+          { label: 'Total Session Load', value: model.totals.totalLoad ? model.totals.totalLoad.toLocaleString() : '—', color: '#a78bfa', icon: <Target size={14} /> },
           { label: 'Athletes In View', value: String(model.totals.athletes), color: 'var(--white)', icon: <Award size={14} /> },
         ].map(s => (
           <div key={s.label} className="card-glass" style={{ padding: '18px 20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -348,35 +350,26 @@ export default function AnalyticsScreen({
         ) : empty('No weigh-ins in this window.')}
       </div>
 
-      {/* Compliance + sleep - collapsed by default, expand on demand */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
-        <div className="card-glass glow-card" style={card}>
-          <button
-            type="button"
-            onClick={() => setComplianceOpen(o => !o)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
-          >
-            <div>
-              <span style={eyebrow('#34d399')}><Activity size={14} /> ACCOUNTABILITY</span>
-              <h3 style={h3}>DAILY LOGGING COMPLIANCE &middot; {model.totals.avgCompliance}%</h3>
-            </div>
-            {complianceOpen ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)' }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)' }} />}
-          </button>
-          {complianceOpen && (
-            <div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <BarChart data={model.trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
-                  <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
-                  <YAxis tick={axis} tickLine={false} axisLine={false} domain={[0, 100]} width={40} unit="%" />
-                  <RechartsTooltip content={<CustomTooltip units={{ Compliance: '%' }} />} />
-                  <Bar dataKey="Compliance" fill="#34d399" radius={[5, 5, 0, 0]} fillOpacity={0.85} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+      {/* Team Speed & Power trend - same "average across the roster, per day" framing as
+          Average Body Weight above, for whichever test type is picked. Gated behind
+          Speed & Power the same way the leaderboard/comparison views are. */}
+      {settings.enableSpeedPower && (
+        <JumpTrendsPanel
+          performanceTests={performanceTests}
+          roster={roster}
+          rangeDays={rangeDays}
+          card={card}
+          h3={h3}
+          eyebrow={eyebrow}
+          grid={grid}
+          axis={axis}
+          empty={empty}
+        />
+      )}
 
+      {/* Sleep - collapsed by default, its headline number lives in the Recovery tile
+          above. Daily Logging Compliance (chart + top tile) was removed. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
         <div className="card-glass glow-card" style={card}>
           <button
             type="button"
@@ -575,6 +568,122 @@ function Leaderboard({ title, eyebrowText, color, icon, rows, emptyMsg, render, 
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// Team average trend for a Speed & Power test type, day-bucketed the same way the body
+// weight chart above is - one number per test day, averaged across whoever tested that
+// day, rather than per-athlete lines (that's what the Compare tab is for). A jump type
+// with more than one technique (vertical/board jump) needs a technique picked before
+// plotting anything, same "don't silently mix two protocols" rule as the leaderboard and
+// comparison panel - two techniques on one line would show a technique switch as team
+// improvement or decline.
+function JumpTrendsPanel({ performanceTests, roster, rangeDays, card, h3, eyebrow, grid, axis, empty }) {
+  const [testType, setTestType] = React.useState(TEST_TYPES[0].key);
+  const activeTest = TEST_TYPE_BY_KEY[testType] || TEST_TYPES[0];
+  const needsVariantPicker = activeTest.variants.length > 1;
+  const [variant, setVariant] = React.useState(activeTest.variants.length === 1 ? activeTest.variants[0].key : '');
+
+  React.useEffect(() => {
+    const tt = TEST_TYPE_BY_KEY[testType] || TEST_TYPES[0];
+    setVariant(tt.variants.length === 1 ? tt.variants[0].key : '');
+  }, [testType]);
+
+  const rosterIds = React.useMemo(() => new Set(roster.map(a => a.id)), [roster]);
+
+  const trend = React.useMemo(() => {
+    const cutoff = Date.now() - rangeDays * 864e5;
+    const byDay = new Map(); // date label -> [metric values]
+    for (const t of performanceTests) {
+      if (!t.athlete_id || !rosterIds.has(t.athlete_id)) continue;
+      if (t.test_type !== testType) continue;
+      if (needsVariantPicker && (t.test_variant || 'untagged') !== variant) continue;
+      const time = new Date(t.created_at).getTime();
+      if (isNaN(time) || time < cutoff) continue;
+      const dayKey = getCentralDateString(new Date(t.created_at));
+      if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+      byDay.get(dayKey).push(Number(t.metric));
+    }
+    const decimals = activeTest.unit === 'sec' ? 2 : 1;
+    return [...byDay.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([dayKey, values]) => ({
+        date: dayKey.slice(5),
+        Avg: Number((values.reduce((s, v) => s + v, 0) / values.length).toFixed(decimals)),
+        Athletes: values.length,
+      }));
+  }, [performanceTests, rosterIds, testType, variant, needsVariantPicker, rangeDays, activeTest.unit]);
+
+  const hasData = trend.length > 0;
+
+  return (
+    <div className="card-glass glow-card" style={card}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <span style={eyebrow('#fbbf24')}><Zap size={14} /> TEAM TREND</span>
+          <h3 style={h3}>AVERAGE {activeTest.label.toUpperCase()}</h3>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+            Team average on each test day — not a per-athlete line, that's Compare.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {TEST_TYPES.map(tt => (
+            <button
+              key={tt.key}
+              type="button"
+              onClick={() => setTestType(tt.key)}
+              style={{
+                padding: '7px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 800,
+                textTransform: 'uppercase', letterSpacing: '0.03em', cursor: 'pointer',
+                border: testType === tt.key ? '1px solid #fbbf24' : '1px solid rgba(255,255,255,0.12)',
+                background: testType === tt.key ? 'rgba(251,191,36,0.15)' : 'transparent',
+                color: testType === tt.key ? '#fbbf24' : 'var(--color-text-muted)',
+              }}
+            >
+              {tt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {needsVariantPicker && (
+        <select
+          aria-label="Technique"
+          value={variant}
+          onChange={e => setVariant(e.target.value)}
+          className="input-glass"
+          style={{ height: '38px', padding: '0 12px', fontSize: '13px', fontWeight: 700, borderRadius: '10px', maxWidth: '320px' }}
+        >
+          <option value="" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>Select technique…</option>
+          {activeTest.variants.map(v => (
+            <option key={v.key} value={v.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{v.label}</option>
+          ))}
+          <option value="untagged" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{UNTAGGED_VARIANT_LABEL}</option>
+        </select>
+      )}
+
+      {needsVariantPicker && !variant ? (
+        empty(`Pick a technique above — ${activeTest.label} results differ by protocol.`)
+      ) : hasData ? (
+        <div style={{ width: '100%', height: 240 }}>
+          <ResponsiveContainer>
+            <AreaChart data={trend} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="jumpTrendFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.45} />
+                  <stop offset="95%" stopColor="#fbbf24" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
+              <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} domain={['dataMin - 1', 'dataMax + 1']} width={48} unit={activeTest.unit === 'sec' ? 's' : '"'} />
+              <RechartsTooltip content={<CustomTooltip units={{ Avg: activeTest.unit === 'sec' ? 'sec' : 'in' }} />} />
+              <Area type="monotone" dataKey="Avg" connectNulls stroke="#fbbf24" strokeWidth={3} fill="url(#jumpTrendFill)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ) : empty(`No ${activeTest.label} results logged in this window.`)}
     </div>
   );
 }
