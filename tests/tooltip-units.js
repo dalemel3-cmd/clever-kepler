@@ -101,6 +101,9 @@ const newPage = async (browser) => {
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2500);
+    // Compliance now collapses by default (v4.18.0) - expand it before hovering.
+    await page.getByText('DAILY LOGGING COMPLIANCE', { exact: false }).click();
+    await page.waitForTimeout(300);
     // Chart order: 0 = weight trend, 1 = compliance (BarChart).
     const tip = await hoverBar(page, 1);
     check('tooltip appeared', !!tip && tip.length > 0, `got: ${JSON.stringify(tip)}`);
