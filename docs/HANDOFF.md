@@ -942,10 +942,13 @@ dropdown, which the pre-fix build never renders.
 
 ## 23. Next up
 
-1. **Confirm jump technique for MBB, Softball, and Cheer & Dance** (§20). 78 historical
-   `vertical_jump` rows are sitting as `test_variant = null` ("Untagged (pre-tracking)")
-   because the coach's technique assignment only named 5 teams. Once confirmed, a one-line
-   SQL backfill (same shape as db/007's) closes the gap - no code change needed.
+1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
+   arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
+   were backfilled to `test_variant = 'arm_swing'` and `TEAM_VARIANT_DEFAULTS` now
+   defaults both teams to Arm Swing. Cheer & Dance's single row is still sitting as
+   `test_variant = null` ("Untagged (pre-tracking)") - once confirmed, the same one-line
+   SQL backfill (same shape as db/007's) closes the gap, no code change needed beyond
+   adding the team to `TEAM_VARIANT_DEFAULTS`.
 2. **Close the account-recovery gap** (§11). Two parts, both small:
    - Turn on **leaked-password protection** — Supabase dashboard → Authentication →
      Policies. Checks against HaveIBeenPwned; worth more than usual for a shared,
