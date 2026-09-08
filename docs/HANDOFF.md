@@ -893,7 +893,54 @@ merge/dedup rules.
 
 ---
 
-## 22. Next up
+## 22. Analytics polish: Team Trend chart, Recovery tile, one leaderboard per jump (v4.21.0)
+
+Coach feedback on the Overview tab, three changes:
+
+1. **Daily Logging Compliance removed entirely** - chart and top KPI tile both. It
+   wasn't something coaches were checking day to day. The underlying per-day
+   `Compliance`/`Logged` fields stay in `model.trend` (cheap to keep, nothing else reads
+   them today) in case a future screen wants them; only the display is gone.
+2. **Recovery (average sleep) now lives in the top KPI tile row**, replacing the
+   Compliance tile's slot. `model.totals.avgSleep` is a new value alongside the existing
+   `avgWeight` - same "average of the day-bucketed averages" shape. The detailed sleep
+   chart is unchanged and still collapses by default; the top tile is the number a coach
+   actually glances at, the chart is the detail view for whoever wants it.
+3. **A new Team Trend chart** (`JumpTrendsPanel`, defined in `AnalyticsScreen.jsx`)
+   averages Speed & Power results across the roster per test day - the same "one number
+   per day" framing Average Body Weight already uses, extended to Fly 10, Vertical Jump,
+   and Board Jump. Test type is picked via the same tab-button row the leaderboard and
+   comparison panel use; a jump type with more than one technique requires a technique
+   pick before it plots anything (the familiar "don't silently average two protocols"
+   rule from §20), with an explicit "Pick a technique" empty state rather than defaulting
+   to all techniques mixed together. Gated behind `settings.enableSpeedPower`, same as
+   the leaderboard and Plyomat importer below it.
+
+**SpeedPowerPanel's leaderboard also changed**: a jump with more than one technique
+used to render as separate side-by-side boards (Hands on Hips / Arm Swing / Untagged) -
+three columns competing for the same row of space, most of them empty for any given
+roster. It's now ONE board per test type with a technique dropdown inside it
+(`aria-label="<Test Type> technique"`), defaulting to whichever technique has the most
+results so opening the panel leads with real data. Switching the dropdown swaps the
+whole visible group - rank numbers, trend badges, and the expand/collapse state all key
+off the selected technique's group, not the test type alone (an athlete's "Show all"
+state for Hands on Hips doesn't leak into Arm Swing's).
+
+New `tests/analytics-jump-trends.js` (14 probes) covers the Compliance removal, the
+Recovery tile, and the Team Trend chart's default/technique-picker/empty states.
+`tests/speed-power.js` gained probe [I] for the one-board-with-a-dropdown behavior -
+scoped to the text between the two board headings, since Chromium's `innerText` leaks a
+closed `<select>`'s option list into the page body and both athlete names appear there
+regardless of which technique the board is actually showing. Both new suites, plus the
+updated `tests/analytics.js` and `tests/tooltip-units.js` (which no longer expect a
+Compliance card to expand), were verified to fail against the pre-fix build before the
+change: analytics-jump-trends' probes throw immediately (Recovery tile and Team Trend
+chart don't exist yet), and speed-power's [I] times out waiting for the technique
+dropdown, which the pre-fix build never renders.
+
+---
+
+## 23. Next up
 
 1. **Confirm jump technique for MBB, Softball, and Cheer & Dance** (§20). 78 historical
    `vertical_jump` rows are sitting as `test_variant = null` ("Untagged (pre-tracking)")
