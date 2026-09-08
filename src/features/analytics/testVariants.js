@@ -25,17 +25,19 @@ export const FLY_VARIANTS = [
 export const VARIANT_LABEL = Object.fromEntries([...JUMP_VARIANTS, ...FLY_VARIANTS].map(v => [v.key, v.label]));
 export const UNTAGGED_VARIANT_LABEL = 'Untagged (pre-tracking)';
 
-// Which technique each team runs today (2026-09-08), used to default the entry form
-// (and the Plyomat importer) so a coach isn't picking the same value every single time.
-// Still overridable per entry - this is a default, not an enforcement. Teams not listed
-// here (a technique change, a new team) fall through to no default and the coach picks
-// explicitly.
+// Which technique each team runs today (2026-09-08, MBB/Softball confirmed 2026-09-09),
+// used to default the entry form (and the Plyomat importer) so a coach isn't picking the
+// same value every single time. Still overridable per entry - this is a default, not an
+// enforcement. Teams not listed here (a technique change, a new team) fall through to no
+// default and the coach picks explicitly.
 export const TEAM_VARIANT_DEFAULTS = {
   Football: 'hands_on_hips',
   Volleyball: 'hands_on_hips',
   WSOC: 'arm_swing',
   WBB: 'arm_swing',
   Baseball: 'arm_swing',
+  MBB: 'arm_swing',
+  Softball: 'arm_swing',
 };
 
 // Test types this app knows about today. `source: 'plyomat'` rows can carry a test_type
