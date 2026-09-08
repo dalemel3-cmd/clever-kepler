@@ -1148,14 +1148,33 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                         <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, color: '#fbbf24' }}>
                           {formatMetric(r.best.metric, r.best.unit)}
                         </span>
-                        {trend && Math.abs(trend.pct) >= 0.1 && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px', fontSize: '11px', fontWeight: 800, color: trend.improving ? '#34d399' : '#f87171' }}>
-                            {trend.delta < 0 ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
-                            {Math.abs(trend.pct).toFixed(1)}%
-                          </span>
-                        )}
+                        <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Best</span>
                       </div>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                      {r.attempts[0] && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                          {r.attempts[0].id !== r.best.id ? (
+                            <>
+                              <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>
+                                {formatMetric(r.attempts[0].metric, r.attempts[0].unit)}
+                              </span>
+                              <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Most recent &middot; {String(r.attempts[0].created_at).slice(0, 10)}
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              Also their most recent &middot; {String(r.attempts[0].created_at).slice(0, 10)}
+                            </span>
+                          )}
+                          {trend && Math.abs(trend.pct) >= 0.1 && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px', fontSize: '11px', fontWeight: 800, color: trend.improving ? '#34d399' : '#f87171' }}>
+                              {trend.delta < 0 ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
+                              {Math.abs(trend.pct).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600, marginTop: '2px' }}>
                         #{r.rank.overallRank} of {r.rank.overallTotal} overall
                       </span>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>

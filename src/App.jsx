@@ -112,6 +112,11 @@ export default function App() {
   const [athletes, setAthletes] = useState([]);
   const fetchReportRequestId = React.useRef(0);
   const didBackfillLocalOverrides = React.useRef(false);
+  // Analytics can ask for more history than the Dashboard's normal data window (e.g. a
+  // 60/90-day body weight trend) without changing the dataWindowDays setting itself.
+  // Once widened for this session it stays widened - re-narrowing on every range click
+  // would just re-trigger the same fetch each time the coach flips back to 30 days.
+  const extraReportWindowDays = React.useRef(0);
   const syncInFlight = React.useRef(false);
   const manualSaveInFlight = React.useRef(false);
   const kioskSaveInFlight = React.useRef(false);
@@ -878,7 +883,7 @@ export default function App() {
     try {
       if (!navigator.onLine) throw new Error('Offline');
       const windowStart = new Date();
-      windowStart.setDate(windowStart.getDate() - settingsRef.current.dataWindowDays);
+      windowStart.setDate(windowStart.getDate() - Math.max(settingsRef.current.dataWindowDays, extraReportWindowDays.current));
 
       const { data, error } = await supabase
         .from('weigh_ins')
@@ -967,6 +972,17 @@ export default function App() {
       } catch (e) {}
     }
     setReportLoading(false);
+  };
+
+  // Called by Analytics when a coach picks a 60/90-day range wider than dataWindowDays.
+  // Widens the fetch window for the rest of the session and re-fetches once, rather than
+  // silently rendering a chart that only has the last dataWindowDays of real data padded
+  // with empty buckets - which read as "everything moved forward" with no history behind it.
+  const ensureReportWindow = (days) => {
+    if (days > extraReportWindowDays.current) {
+      extraReportWindowDays.current = days;
+      fetchReportData(true);
+    }
   };
 
   const syncOfflineCache = async (isInteractive = false) => {
@@ -3199,6 +3215,7 @@ export default function App() {
                 performanceTests={performanceTests}
                 addPerformanceTest={addPerformanceTest}
                 onPlyomatImport={(plan, decisions) => importPlyomatPlan(plan, decisions, fetchAthletes)}
+                ensureReportWindow={ensureReportWindow}
               />
             )}
             {screen === 'team-status' && (

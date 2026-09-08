@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, Activity, Target, Award, Zap, Lock, GitCompare } from 'lucide-react';
+import { TrendingUp, Activity, Target, Award, Zap, Lock, GitCompare, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
@@ -36,10 +36,25 @@ export default function AnalyticsScreen({
   performanceTests,
   addPerformanceTest,
   onPlyomatImport,
+  ensureReportWindow,
 }) {
   const [rangeDays, setRangeDays] = React.useState(30);
   const [sportFilter, setSportFilter] = React.useState('ALL');
   const [view, setView] = React.useState('overview');
+
+  // reportData is normally only fetched dataWindowDays back (a Settings value, 30 by
+  // default). Picking 60/90 Days here used to render "trend" buckets for days the app
+  // never actually loaded - they showed as gaps, which read as every athlete's history
+  // sliding forward with nothing behind it. Ask App.jsx to widen the fetch instead.
+  React.useEffect(() => {
+    if (ensureReportWindow) ensureReportWindow(rangeDays);
+  }, [rangeDays, ensureReportWindow]);
+
+  // Compliance and sleep charts default collapsed - they're the two least-checked cards
+  // on this screen day to day, and collapsing them gets the more-used charts higher on
+  // the page without losing either one.
+  const [complianceOpen, setComplianceOpen] = React.useState(false);
+  const [sleepOpen, setSleepOpen] = React.useState(false);
 
   const sports = React.useMemo(
     () => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(),
@@ -333,49 +348,67 @@ export default function AnalyticsScreen({
         ) : empty('No weigh-ins in this window.')}
       </div>
 
-      {/* Compliance + sleep */}
+      {/* Compliance + sleep - collapsed by default, expand on demand */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
         <div className="card-glass glow-card" style={card}>
-          <div>
-            <span style={eyebrow('#34d399')}><Activity size={14} /> ACCOUNTABILITY</span>
-            <h3 style={h3}>DAILY LOGGING COMPLIANCE</h3>
-          </div>
-          <div style={{ width: '100%', height: 220 }}>
-            <ResponsiveContainer>
-              <BarChart data={model.trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
-                <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
-                <YAxis tick={axis} tickLine={false} axisLine={false} domain={[0, 100]} width={40} unit="%" />
-                <RechartsTooltip content={<CustomTooltip units={{ Compliance: '%' }} />} />
-                <Bar dataKey="Compliance" fill="#34d399" radius={[5, 5, 0, 0]} fillOpacity={0.85} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="card-glass glow-card" style={card}>
-          <div>
-            <span style={eyebrow('#60a5fa')}><Activity size={14} /> RECOVERY</span>
-            <h3 style={h3}>AVERAGE SLEEP</h3>
-          </div>
-          {hasAnySleep ? (
+          <button
+            type="button"
+            onClick={() => setComplianceOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+          >
+            <div>
+              <span style={eyebrow('#34d399')}><Activity size={14} /> ACCOUNTABILITY</span>
+              <h3 style={h3}>DAILY LOGGING COMPLIANCE &middot; {model.totals.avgCompliance}%</h3>
+            </div>
+            {complianceOpen ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)' }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)' }} />}
+          </button>
+          {complianceOpen && (
             <div style={{ width: '100%', height: 220 }}>
               <ResponsiveContainer>
                 <BarChart data={model.trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
                   <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
-                  <YAxis tick={axis} tickLine={false} axisLine={false} domain={[0, 12]} width={40} unit="h" />
-                  <RechartsTooltip content={<CustomTooltip units={{ 'Avg Sleep': 'hrs' }} />} />
-                  <ReferenceLine
-                    y={settings.sleepChartTargetHours}
-                    stroke="rgba(184, 156, 91, 0.8)" strokeDasharray="4 4" strokeWidth={1.5}
-                    label={{ value: `${Number(settings.sleepChartTargetHours).toFixed(1)}h Target`, position: 'insideTopLeft', fill: 'var(--color-accent)', fontSize: 11, fontWeight: 'bold' }}
-                  />
-                  <Bar dataKey="Avg Sleep" fill="#60a5fa" radius={[5, 5, 0, 0]} fillOpacity={0.85} />
+                  <YAxis tick={axis} tickLine={false} axisLine={false} domain={[0, 100]} width={40} unit="%" />
+                  <RechartsTooltip content={<CustomTooltip units={{ Compliance: '%' }} />} />
+                  <Bar dataKey="Compliance" fill="#34d399" radius={[5, 5, 0, 0]} fillOpacity={0.85} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          ) : empty('No sleep logged in this window.')}
+          )}
+        </div>
+
+        <div className="card-glass glow-card" style={card}>
+          <button
+            type="button"
+            onClick={() => setSleepOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+          >
+            <div>
+              <span style={eyebrow('#60a5fa')}><Activity size={14} /> RECOVERY</span>
+              <h3 style={h3}>AVERAGE SLEEP</h3>
+            </div>
+            {sleepOpen ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)' }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)' }} />}
+          </button>
+          {sleepOpen && (
+            hasAnySleep ? (
+              <div style={{ width: '100%', height: 220 }}>
+                <ResponsiveContainer>
+                  <BarChart data={model.trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
+                    <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
+                    <YAxis tick={axis} tickLine={false} axisLine={false} domain={[0, 12]} width={40} unit="h" />
+                    <RechartsTooltip content={<CustomTooltip units={{ 'Avg Sleep': 'hrs' }} />} />
+                    <ReferenceLine
+                      y={settings.sleepChartTargetHours}
+                      stroke="rgba(184, 156, 91, 0.8)" strokeDasharray="4 4" strokeWidth={1.5}
+                      label={{ value: `${Number(settings.sleepChartTargetHours).toFixed(1)}h Target`, position: 'insideTopLeft', fill: 'var(--color-accent)', fontSize: 11, fontWeight: 'bold' }}
+                    />
+                    <Bar dataKey="Avg Sleep" fill="#60a5fa" radius={[5, 5, 0, 0]} fillOpacity={0.85} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : empty('No sleep logged in this window.')
+          )}
         </div>
       </div>
 

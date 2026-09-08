@@ -12,8 +12,19 @@ that what's deployed is what you just shipped.
 
 A minor bump resets the patch number to `0` (`4.3.7` → `4.4.0`, never `4.4.7`).
 
-The first number (major) only moves for a full rewrite or a release that breaks
-existing data. Don't touch it without deciding to deliberately.
+### The minor number rolls over at 20
+
+The minor number does not climb forever. Once a minor bump would take it to `20`,
+bump the **major** number instead and reset minor and patch to `0`:
+
+`4.19.0` → next feature → `5.0.0` (not `4.20.0`)
+
+This is the only thing that moves the major number in normal operation - it's a
+mechanical rollover, not a judgment call about how big the release is, so it needs no
+extra discussion when it happens. A release that breaks existing data or is a full
+rewrite is the other, rarer reason to bump major; that one *is* a deliberate call.
+
+Either way, a major bump always resets both minor and patch to `0`.
 
 ### Quick test for which one
 Ask: *"Would a coach notice something new or different in how the app works?"*
@@ -44,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.18.0` | Versioning rollover rule (this doc); Analytics 60/90-day windows now fetch real history instead of padding with empty days; Speed & Power profile cards show best *and* most recent; Reports labels dehydration as baseline-dated and the weight leaderboard as true week-to-week; Analytics compliance/sleep cards collapse by default; Team Entry mode for Sprint & Jump testing |
 | `4.9.0` | Coach sign-up with approval gating: creating an account grants nothing until an approved coach approves it (`db/003_coach_approval.sql`) |
 | `4.8.0` | Supabase auth: login screen, kiosk session persistence, sign-out; RLS policies + rollout runbook (see `docs/RLS-RUNBOOK.md`) |
 | `4.4.0` | Removed all hardcoded values; every threshold, window, label, and sports list is now a live setting |

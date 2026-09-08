@@ -146,25 +146,28 @@ export default function ReportsScreen({
     }
   });
 
-  // 5. Weight Fluctuation Leaderboard (weight-carrying logs only - sleep-only logs with
-  // weight 0/null used to register as huge bogus "drops" like 185 -> 0 lbs). Post-practice
-  // sweat checks are excluded too: if the athlete's most recent row is one, the board reads
-  // their normal fluid loss as season-long weight loss.
+  // 5. Weight Fluctuation Leaderboard - week-over-week, not season-long. Latest weigh-in
+  // vs. the most recent weigh-in from 7+ days before it (weight-carrying logs only -
+  // sleep-only logs with weight 0/null used to register as huge bogus "drops" like
+  // 185 -> 0 lbs; post-practice sweat checks are excluded too, or a normal fluid loss
+  // reads as a week of weight loss).
   const gains = [];
   filteredAthletes.forEach(a => {
     const aRecs = reportData.filter(r => r.athlete_id === a.id && r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r) && !isRpeLog(r)).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
-    if (aRecs.length >= 2) {
-      const first = aRecs[0];
-      const latest = aRecs[aRecs.length - 1];
-      const diff = latest.weight_lbs - first.weight_lbs;
-      gains.push({
-        athlete_name: a.name,
-        sport: a.sport,
-        initial_weight: first.weight_lbs,
-        latest_weight: latest.weight_lbs,
-        diff
-      });
-    }
+    if (aRecs.length === 0) return;
+    const latest = aRecs[aRecs.length - 1];
+    const weekAgoCutoff = new Date(latest.created_at).getTime() - 7 * 24 * 60 * 60 * 1000;
+    const priorLogs = aRecs.filter(r => r !== latest && new Date(r.created_at).getTime() <= weekAgoCutoff);
+    if (priorLogs.length === 0) return;
+    const weekAgo = priorLogs[priorLogs.length - 1];
+    const diff = latest.weight_lbs - weekAgo.weight_lbs;
+    gains.push({
+      athlete_name: a.name,
+      sport: a.sport,
+      initial_weight: weekAgo.weight_lbs,
+      latest_weight: latest.weight_lbs,
+      diff
+    });
   });
   const topGains = [...gains].sort((a,b) => b.diff - a.diff).slice(0, 5);
   const topDrops = [...gains].sort((a,b) => a.diff - b.diff).slice(0, 5);
@@ -497,9 +500,14 @@ export default function ReportsScreen({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <AlertTriangle size={20} style={{ color: 'var(--status-error)' }} />
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    DEHYDRATION & MASS DROP RISK (&gt;{dehydrationThreshold} LBS DOWN)
-                  </h3>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      DEHYDRATION & MASS DROP RISK (&gt;{dehydrationThreshold} LBS DOWN)
+                    </h3>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                      Measured from each athlete's baseline date, not week-to-week - see "Baseline Weight (Date)" below.
+                    </div>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div className="no-print" style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -651,9 +659,12 @@ export default function ReportsScreen({
           {showLeaderboard && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
               <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  📈 TOP WEIGHT GAINS (SEASON PROGRESSION)
-                </h3>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    📈 TOP WEIGHT GAINS (WEEK-TO-WEEK)
+                  </h3>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginTop: '2px' }}>Latest weigh-in vs. 7+ days prior</div>
+                </div>
                 {topGains.map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <div>
@@ -666,9 +677,12 @@ export default function ReportsScreen({
               </div>
 
               <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  📉 TOP WEIGHT DROPS (MASS CUTS / LOSSES)
-                </h3>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    📉 TOP WEIGHT DROPS (WEEK-TO-WEEK)
+                  </h3>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginTop: '2px' }}>Latest weigh-in vs. 7+ days prior</div>
+                </div>
                 {topDrops.map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <div>
