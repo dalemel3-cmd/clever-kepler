@@ -21,10 +21,16 @@ const check = (name, ok, detail = '') => {
   else { fail++; console.log(`  FAIL  ${name}${detail ? ` -> ${detail}` : ''}`); }
 };
 
-const athletes = [{ id: uuid(1), name: 'Chart Athlete', sport: 'Football', team: 'Varsity', grade: '11th', position: 'RB' }];
+const athletes = [
+  { id: uuid(1), name: 'Chart Athlete', sport: 'Football', team: 'Varsity', grade: '11th', position: 'RB' },
+  // Only weighs in on the more recent day - so that day's average is built from 2
+  // athletes while the earlier day is built from just 1 (probe [D] below).
+  { id: uuid(2), name: 'Second Athlete', sport: 'Football', team: 'Varsity', grade: '11th', position: 'WR' },
+];
 const logs = [
   { id: uuid(10), athlete_id: uuid(1), athlete_name: 'Chart Athlete', sport: 'Football', weight_lbs: 180, sleep_hrs: 7.5, session_type: null, is_baseline: true, created_at: ago(10) },
   { id: uuid(11), athlete_id: uuid(1), athlete_name: 'Chart Athlete', sport: 'Football', weight_lbs: 178, sleep_hrs: 8, session_type: null, is_baseline: false, created_at: ago(2) },
+  { id: uuid(12), athlete_id: uuid(2), athlete_name: 'Second Athlete', sport: 'Football', weight_lbs: 200, sleep_hrs: 8, session_type: null, is_baseline: true, created_at: ago(2) },
 ];
 
 const newPage = async (browser) => {
@@ -120,6 +126,17 @@ const newPage = async (browser) => {
     // The profile's weight trend is the first chart on the page.
     const tip = await hoverPointOnPath(page, 0, '.recharts-area path.recharts-curve');
     check('profile weight tooltip still says lbs', /lbs/.test(tip || ''), tip);
+  }
+
+  console.log('\n[D] Analytics weight tooltip shows how many athletes fed the average');
+  {
+    const page = await newPage(browser);
+    await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2500);
+    // Chart order on the page: 0 = weight trend (AreaChart). The path's start point
+    // (the M command) is the earliest day plotted - only Chart Athlete weighed in then.
+    const tip = await hoverPointOnPath(page, 0, '.recharts-area path.recharts-curve');
+    check('tooltip names the sample size', /1 athlete/i.test(tip || ''), tip);
+    check('does not overclaim a bigger sample than actually logged', !/2 athletes/i.test(tip || ''), tip);
   }
 
   console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
