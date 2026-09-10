@@ -164,13 +164,20 @@ export default function ProfilesScreen({
             const latestLog = aLogs[0];
 
             // Current weight + trend vs the weigh-in before it (weight-only rows -
-            // RPE/sleep-only logs don't carry a weight to trend against).
+            // RPE/sleep-only logs don't carry a weight to trend against). Shown as a
+            // percent change now that it lives in the compact line under the name,
+            // rather than the absolute-lbs delta the KPI grid tile used to show.
             const weightLogs = aLogs.filter(hasWeight);
             const currentWeight = weightLogs[0];
             const previousWeight = weightLogs[1];
-            const weightDeltaLbs = currentWeight && previousWeight
-              ? Number(currentWeight.weight_lbs) - Number(previousWeight.weight_lbs)
+            const weightDeltaPct = currentWeight && previousWeight && Number(previousWeight.weight_lbs) > 0
+              ? ((Number(currentWeight.weight_lbs) - Number(previousWeight.weight_lbs)) / Number(previousWeight.weight_lbs)) * 100
               : null;
+
+            // Most recent Session RPE, for the "how hard was their last session" glance -
+            // any-time, not scoped to a rolling window, since a card should always be able
+            // to answer "what did they log last" even if it was a while ago.
+            const latestRpe = aLogs.find(isRpeLog);
 
             // Best-result Speed & Power tiles. Vertical/Board Jump show the PB only;
             // Fly 10 also gets a trend, comparing the two most recent attempts (not the
@@ -222,23 +229,22 @@ export default function ProfilesScreen({
                     <div style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 600, marginTop: '2px', textTransform: 'uppercase' }}>
                       {a.sport || 'General'} &middot; {a.position || 'Athlete'}
                     </div>
-                  </div>
-                </div>
-
-                {/* KPI mini grid: current weight + trend, and best Speed & Power results */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div>
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Current Weight</span>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {/* Weight, compact, right under the name - frees a full KPI tile below
+                        for Most Recent RPE. Shown as % change rather than absolute lbs. */}
+                    <div style={{ fontSize: '13px', fontWeight: 700, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--color-text-muted)' }}>
                       {currentWeight ? `${currentWeight.weight_lbs} lb` : (latestLog ? '😴 Sleep Only' : 'No logs')}
-                      {weightDeltaLbs !== null && Math.abs(weightDeltaLbs) >= 0.1 && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: 800, color: weightDeltaLbs < 0 ? '#f87171' : '#34d399' }}>
-                          {weightDeltaLbs < 0 ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                          {Math.abs(weightDeltaLbs).toFixed(1)}
+                      {weightDeltaPct !== null && Math.abs(weightDeltaPct) >= 0.1 && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 800, color: weightDeltaPct < 0 ? '#f87171' : '#34d399' }}>
+                          {weightDeltaPct < 0 ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
+                          {Math.abs(weightDeltaPct).toFixed(1)}%
                         </span>
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* KPI mini grid: best Speed & Power results + most recent Session RPE */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Vertical</span>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px' }}>
@@ -261,6 +267,12 @@ export default function ProfilesScreen({
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Broad Jump</span>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px' }}>
                       {bestBoard ? formatMetric(bestBoard.metric, bestBoard.unit) : '--'}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Most Recent RPE</span>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: latestRpe ? (latestRpe.rpe >= settings.rpeHighThreshold ? '#f87171' : 'var(--color-accent)') : 'var(--color-text-muted)', marginTop: '2px' }}>
+                      {latestRpe ? `${latestRpe.rpe} / ${settings.rpeScaleMax}` : '--'}
                     </div>
                   </div>
                 </div>

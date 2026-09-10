@@ -55,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.22.0` | Dashboard: Internal Load Metrics is now a single team-at-a-time card picked from a dropdown (was one card per sport, all visible at once); clicking it opens that team's roster, same as the accountability tracker's cards. Profiles roster card: weight (+ trend, now a %) moved to a compact line under the athlete's name; the freed KPI tile shows Most Recent RPE alongside Best Vertical/Fly 10/Broad Jump |
 | `4.21.2` | Kiosk in Session RPE mode now checks an athlete off ("DONE") after they log RPE, instead of only after a weigh-in. Dashboard's team-wide daily-compliance board is unchanged (still weigh-ins only) |
 | `4.21.1` | MBB and Softball's jump technique confirmed as Arm Swing: 34 + 43 historical `vertical_jump`/`board_jump` rows backfilled from `test_variant = null`, and `TEAM_VARIANT_DEFAULTS` now defaults both teams' entry form to Arm Swing. Cheer & Dance's 1 row remains unconfirmed |
 | `4.21.0` | Analytics: Daily Logging Compliance removed (chart + top tile); Recovery (avg sleep) replaces it as a top tile; new Team Trend chart averages Speed & Power results across the roster per test day, with a technique picker for jump types. SpeedPowerPanel's leaderboard: a jump with multiple techniques is now one board with a technique dropdown, not three side-by-side boards |

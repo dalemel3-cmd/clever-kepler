@@ -26,6 +26,10 @@ export default function DashboardScreen({
   // "N of M checked in" badge already answers the question 90% of the time). One tap
   // opens it back up for the sport-by-sport detail.
   const [accountabilityOpen, setAccountabilityOpen] = useState(false);
+  // Which team's Internal Load card is showing. Reset happens in the section itself
+  // (falls back to the first team with data) so a sport dropped from the roster never
+  // leaves this pointed at a team that no longer exists.
+  const [loadSport, setLoadSport] = useState('ALL');
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
@@ -407,26 +411,48 @@ export default function DashboardScreen({
                   </div>
                 </div>
               )}
-              {/* Per-sport load, same card shape as WEIGH-INS REMAINING BY SPORT below. */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                {rpeBySport.length === 0 ? (
-                  <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>
-                ) : rpeBySport.map(s => {
-                  const none = s.logCount === 0;
-                  const isHard = s.avg != null && s.avg >= settings.rpeHighThreshold;
-                  return (
-                    <div key={s.sport} data-testid={`rpe-sport-card`} data-sport={s.sport} className="glow-card" style={{
-                      padding: '20px',
-                      borderRadius: '18px',
-                      background: none ? 'rgba(255,255,255,0.02)' : (isHard ? 'rgba(239, 68, 68, 0.04)' : 'rgba(59, 130, 246, 0.04)'),
-                      border: none ? '1px solid rgba(255,255,255,0.08)' : (isHard ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(59, 130, 246, 0.25)'),
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '14px',
-                      transition: 'all 0.2s ease',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}>
+              {/* One team's load at a time, picked from a dropdown - the grid of every
+                  team's card at once (the old layout) was the same "N near-empty boards"
+                  problem the Speed & Power leaderboard had, and got the same fix. */}
+              {rpeBySport.length === 0 ? (
+                <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>
+              ) : (() => {
+                const s = rpeBySport.find(x => x.sport === loadSport) || rpeBySport[0];
+                const none = s.logCount === 0;
+                const isHard = s.avg != null && s.avg >= settings.rpeHighThreshold;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <select
+                      aria-label="Team"
+                      value={s.sport}
+                      onChange={e => setLoadSport(e.target.value)}
+                      className="input-glass"
+                      style={{ height: '38px', padding: '0 12px', fontSize: '13px', fontWeight: 700, borderRadius: '10px', maxWidth: '260px' }}
+                    >
+                      {rpeBySport.map(x => (
+                        <option key={x.sport} value={x.sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{x.sport}</option>
+                      ))}
+                    </select>
+
+                    <div
+                      data-testid="rpe-sport-card"
+                      data-sport={s.sport}
+                      onClick={() => { setSelectedSportFilter(s.sport); setScreen('roster'); }}
+                      className="glow-card"
+                      title={`View ${s.sport} roster`}
+                      style={{
+                        padding: '20px',
+                        borderRadius: '18px',
+                        background: none ? 'rgba(255,255,255,0.02)' : (isHard ? 'rgba(239, 68, 68, 0.04)' : 'rgba(59, 130, 246, 0.04)'),
+                        border: none ? '1px solid rgba(255,255,255,0.08)' : (isHard ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(59, 130, 246, 0.25)'),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                         <div>
                           <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)', display: 'block', letterSpacing: '0.02em' }}>{s.sport}</span>
@@ -484,9 +510,9 @@ export default function DashboardScreen({
                         </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })()}
 
               {todaysRpeLogs.length === 0 && (
                 <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>
