@@ -4,9 +4,10 @@
 //
 // Covers three coach-requested changes in one suite since they share a fixture:
 //  1. Dashboard's Session Accountability Tracker is now collapsible, closed by default.
-//  2. Profiles roster cards show current weight (+ trend) and best Speed & Power
-//     results (Vertical, Fly 10 + trend, Board Jump) instead of "Current Mass" /
-//     "Total Records".
+//  2. Profiles roster cards show current weight (+ trend, as a %) in a compact line
+//     under the athlete's name, and a KPI grid of best Speed & Power results
+//     (Vertical, Fly 10 + trend, Board Jump) plus Most Recent RPE, instead of
+//     "Current Mass" / "Total Records".
 //  3. Teams & Rosters (Sport Groups) cards add Avg RPE and Avg Sleep alongside the
 //     existing Athletes / Avg Lb tiles.
 import { chromium } from 'playwright';
@@ -101,13 +102,20 @@ const newPage = async (browser) => {
     const page = await newPage(browser);
     await page.goto(`${APP}/#profiles`); await page.waitForTimeout(2200);
     const body = await page.locator('body').innerText();
+    // v4.22.0: weight moved to a compact line under the athlete name, shown as a
+    // percent change rather than an absolute-lbs delta, freeing a KPI tile for
+    // Most Recent RPE.
     check('current weight shown', /200 lb/.test(body), body.match(/\d+ lb/)?.[0] || '');
-    check('weight down-trend shown (205 -> 200, a 5lb drop)', /5\.0/.test(body) && /Current Weight/i.test(body));
+    // 205 -> 200 is a 2.4% drop.
+    check('weight down-trend shown as a percent (205 -> 200, a 2.4% drop)', /2\.4%/.test(body));
     check('Best Vertical tile present with value', /Best Vertical/i.test(body) && /26\.5 in/.test(body));
     check('Best Broad Jump tile present with value', /Best Broad Jump/i.test(body) && /90\.0 in/.test(body));
     check('Best Fly 10 tile present with value', /Best Fly 10/i.test(body) && /1\.60 sec/.test(body));
     // Fly times got slower (1.60 -> 1.70): a 6.25% decline should read as an increase.
     check('Fly 10 trend shows a decline (%), not silently omitted', /6%/.test(body), body.match(/Best Fly 10[\s\S]{0,40}/)?.[0] || '');
+    // No Weight Athlete's most recent RPE session is the ago(1) row (rpe 7), not the
+    // older ago(2) row (rpe 9) - proves the tile picks the latest, not just any.
+    check('Most Recent RPE tile present with the latest session\'s value', /Most Recent RPE/i.test(body) && /7 \/ 10/.test(body));
     check('"Current Mass" / "Total Records" labels are gone', !/Current Mass/.test(body) && !/Total Records/.test(body));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
