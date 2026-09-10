@@ -114,6 +114,11 @@ export default function AnalyticsScreen({
     const trend = days.map(d => ({
       date: d.label,
       'Avg Weight': d.weights.length ? Number(avg(d.weights).toFixed(1)) : null,
+      // How many athletes that day's average is actually built from - a recheck of a
+      // handful of flagged athletes on an off-cycle day averages to a real number, but
+      // one built from 2 athletes instead of the usual 40 can look like a spike with no
+      // way to tell it's a small-sample day rather than a real team-wide shift.
+      WeighedCount: d.weights.length,
       'Avg Sleep': d.sleeps.length ? Number(avg(d.sleeps).toFixed(2)) : null,
       'Session Load': d.load || null,
       Logged: d.loggedIds.size,
@@ -327,6 +332,9 @@ export default function AnalyticsScreen({
           <h3 style={h3}>AVERAGE BODY WEIGHT</h3>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
             Morning weigh-ins only — post-practice sweat checks and RPE entries are excluded.
+            Each point averages whoever weighed in that day, so an off-cycle recheck of
+            just a few athletes can look like a spike — hover a point to see how many
+            athletes it's actually built from.
           </div>
         </div>
         {hasAnyWeight ? (
@@ -342,7 +350,7 @@ export default function AnalyticsScreen({
                 <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
                 <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
                 <YAxis tick={axis} tickLine={false} axisLine={false} domain={['dataMin - 3', 'dataMax + 3']} width={48} />
-                <RechartsTooltip content={<CustomTooltip units={{ 'Avg Weight': 'lbs' }} />} />
+                <RechartsTooltip content={<CustomTooltip units={{ 'Avg Weight': 'lbs' }} counts={{ 'Avg Weight': 'WeighedCount' }} />} />
                 <Area type="monotone" dataKey="Avg Weight" connectNulls stroke="var(--color-accent)" strokeWidth={3} fill="url(#analyticsWeight)" />
               </AreaChart>
             </ResponsiveContainer>
