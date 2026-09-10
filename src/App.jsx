@@ -302,17 +302,19 @@ export default function App() {
     setTodaySessions(count);
   }, [reportData]);
 
-  const athletesRecordedToday = React.useMemo(() => {
-    void todaySessions;
+  // Builds a "recorded today" set from reportData + the offline queue, keeping only
+  // rows on the RPE/non-RPE side the caller asks for. Session RPE is a separate,
+  // after-practice workflow from a morning weigh-in/sleep check-in, so a plain
+  // "recorded today" set has to pick one side or it either double-counts (RPE rows
+  // showing the whole team checked in before anyone stepped on a scale) or drops the
+  // other entirely (an RPE-only kiosk session never checking anyone off).
+  const buildRecordedTodaySet = React.useCallback((wantRpe) => {
     const recordedSet = new Set();
     const todayStr = getCentralDateString();
     if (reportData && Array.isArray(reportData)) {
       reportData.forEach(r => {
         if (!r.created_at || !r.athlete_id) return;
-        // "Recorded today" means a weigh-in / sleep check-in. A Session RPE entry is a
-        // separate workflow that happens after practice - counting it here would show the
-        // whole team as checked in each morning before anyone had stepped on a scale.
-        if (isRpeLog(r)) return;
+        if (isRpeLog(r) !== wantRpe) return;
         if (getCentralDateString(new Date(r.created_at)) === todayStr) {
           recordedSet.add(r.athlete_id);
         }
@@ -322,7 +324,7 @@ export default function App() {
       const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
       offline.forEach(item => {
         const rec = item.record || item;
-        if (rec && rec.athlete_id && rec.created_at && !isRpeLog(rec)) {
+        if (rec && rec.athlete_id && rec.created_at && isRpeLog(rec) === wantRpe) {
           if (getCentralDateString(new Date(rec.created_at)) === todayStr) {
             recordedSet.add(rec.athlete_id);
           }
@@ -330,7 +332,24 @@ export default function App() {
       });
     } catch (e) {}
     return recordedSet;
-  }, [reportData, todaySessions]);
+  }, [reportData]);
+
+  // The team-wide "daily compliance" story (Dashboard) is always about the morning
+  // weigh-in/sleep check-in, regardless of what mode this device's kiosk happens to be
+  // in right now.
+  const athletesRecordedToday = React.useMemo(() => {
+    void todaySessions;
+    return buildRecordedTodaySet(false);
+  }, [buildRecordedTodaySet, todaySessions]);
+
+  // The kiosk's own "DONE" checkmark, on the other hand, has to reflect whichever
+  // check-in this kiosk is actually running - a coach running a Session RPE session
+  // needs athletes checked off as they log RPE, not left permanently unchecked because
+  // they haven't also weighed in today.
+  const athletesLoggedTodayForKiosk = React.useMemo(() => {
+    void todaySessions;
+    return buildRecordedTodaySet(kioskTrackMode === 'rpe');
+  }, [buildRecordedTodaySet, todaySessions, kioskTrackMode]);
 
   // Executive Insights & 24h Deltas calculation
   const executiveInsights = React.useMemo(() => {
@@ -3117,7 +3136,7 @@ export default function App() {
                 selectedTeamFilter={selectedTeamFilter}
                 selectedGradeFilter={selectedGradeFilter}
                 selectedPositionFilter={selectedPositionFilter}
-                athletesRecordedToday={athletesRecordedToday}
+                athletesRecordedToday={athletesLoggedTodayForKiosk}
                 search={search}
                 setSearch={setSearch}
                 sportsList={sportsList}

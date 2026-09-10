@@ -55,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.21.2` | Kiosk in Session RPE mode now checks an athlete off ("DONE") after they log RPE, instead of only after a weigh-in. Dashboard's team-wide daily-compliance board is unchanged (still weigh-ins only) |
 | `4.21.1` | MBB and Softball's jump technique confirmed as Arm Swing: 34 + 43 historical `vertical_jump`/`board_jump` rows backfilled from `test_variant = null`, and `TEAM_VARIANT_DEFAULTS` now defaults both teams' entry form to Arm Swing. Cheer & Dance's 1 row remains unconfirmed |
 | `4.21.0` | Analytics: Daily Logging Compliance removed (chart + top tile); Recovery (avg sleep) replaces it as a top tile; new Team Trend chart averages Speed & Power results across the roster per test day, with a technique picker for jump types. SpeedPowerPanel's leaderboard: a jump with multiple techniques is now one board with a technique dropdown, not three side-by-side boards |
 | `4.20.0` | Math + data-integrity audit: manual entry now actually persists `test_variant`; the change-probe no longer full-fetches on every heartbeat after viewing 60/90 days; one shared acute:chronic helper (was two disagreeing copies) with a ~10% inflation bias removed; comparison chart keyed on athlete_id so renamed athletes still plot; Recovery Index card self-consistent; 141 duplicate weigh-ins + 3 duplicate tests removed (`db/008`) |

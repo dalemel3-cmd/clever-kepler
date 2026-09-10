@@ -35,6 +35,8 @@ const athletes = [
   { id: uuid(1), name: 'Mixed Logger', sport: 'Football', team: 'Varsity', grade: '11th', position: 'QB' },
   // Only ever logs RPE. Must not read as compliant, and must show an expired baseline.
   { id: uuid(2), name: 'Rpe Only', sport: 'Football', team: 'Varsity', grade: '11th', position: 'RB' },
+  // Has a baseline from days ago but nothing today - for the kiosk check-off probe below.
+  { id: uuid(3), name: 'Fresh Athlete', sport: 'Football', team: 'Varsity', grade: '11th', position: 'WR' },
 ];
 
 const logs = [
@@ -43,6 +45,9 @@ const logs = [
   { id: uuid(102), athlete_id: uuid(1), athlete_name: 'Mixed Logger', sport: 'Football', weight_lbs: 198, sleep_hrs: 8, rpe: null, session_minutes: null, session_label: null, session_type: null, created_at: ago(0.2), is_baseline: false },
   // RPE row: weight 0, as the cloud payload writes it.
   { id: uuid(103), athlete_id: uuid(1), athlete_name: 'Mixed Logger', sport: 'Football', weight_lbs: 0, sleep_hrs: 0, rpe: 9, session_minutes: 75, session_label: 'Lift', session_type: 'rpe', created_at: ago(0.1), is_baseline: false },
+  // Fresh Athlete: an established baseline from days ago, nothing logged today - so the
+  // kiosk's "requires a baseline pick" flow (a separate, unrelated concern) never engages.
+  { id: uuid(301), athlete_id: uuid(3), athlete_name: 'Fresh Athlete', sport: 'Football', weight_lbs: 175, sleep_hrs: 8, rpe: null, session_minutes: null, session_label: null, session_type: null, created_at: ago(6), is_baseline: true },
 
   // Rpe Only: nothing but RPE, and the most recent one is today.
   { id: uuid(201), athlete_id: uuid(2), athlete_name: 'Rpe Only', sport: 'Football', weight_lbs: 0, sleep_hrs: 0, rpe: 8, session_minutes: 60, session_label: 'Run', session_type: 'rpe', created_at: ago(2), is_baseline: false },
@@ -174,6 +179,41 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
         JSON.stringify(patches[0]?.body || {}).slice(0, 160));
       await ctx.close();
     }
+  }
+
+  // ---- 6: the kiosk's own check-off has to track whichever mode it's running ----
+  console.log('\n[RPE-D] Kiosk in Session RPE mode checks an athlete off after RPE, not just after a weigh-in');
+  {
+    // Fresh Athlete has never logged anything - the "recorded today" set the kiosk was
+    // built from used to exclude RPE rows unconditionally, so a kiosk running nothing
+    // but Session RPE all practice never checked anyone off.
+    const { ctx, page } = await newPage();
+    await page.goto(`${APP}/#entry`); await page.waitForTimeout(1800);
+
+    const rpeBtn = page.getByRole('button', { name: /Session RPE/i }).first();
+    await rpeBtn.click(); await page.waitForTimeout(600);
+
+    const card = page.locator('.card-glass', { hasText: 'Fresh Athlete' }).first();
+    check('not marked DONE before logging anything', !/DONE/.test(await card.innerText()));
+
+    await page.getByText('Fresh Athlete').first().click();
+    await page.waitForTimeout(900);
+    await page.getByLabel('Session RPE').fill('6');
+    await page.getByLabel('Session Duration').fill('45');
+    await page.getByRole('button', { name: 'Run', exact: true }).first().click();
+    await page.getByRole('button', { name: /SAVE RPE/i }).first().click();
+    await page.waitForTimeout(1800);
+
+    check('the RPE save reached the network', page.writes.length > 0,
+      'no weigh_ins write was issued - the probe did not exercise the save path');
+
+    // Close the modal (if still open) so the roster card is visible again.
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(400);
+    const cardAfter = page.locator('.card-glass', { hasText: 'Fresh Athlete' }).first();
+    check('marked DONE after logging RPE (kiosk is in RPE mode)', /DONE/.test(await cardAfter.innerText()),
+      'RPE entries are still excluded from the kiosk\'s own "recorded today" set');
+    await ctx.close();
   }
 
   console.log(`\n${fail === 0 ? 'ALL RPE PROBES PASSED' : 'RPE PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
