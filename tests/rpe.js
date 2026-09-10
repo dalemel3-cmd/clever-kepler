@@ -193,6 +193,10 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
     const rpeBtn = page.getByRole('button', { name: /Session RPE/i }).first();
     await rpeBtn.click(); await page.waitForTimeout(600);
 
+    // v4.22.1: a large, colored banner names the active non-default track mode, so a
+    // coach can tell which mode the kiosk is in without hunting for the small pill.
+    check('a "Session RPE Only" mode banner is shown', /SESSION RPE ONLY/i.test(await page.locator('body').innerText()));
+
     const card = page.locator('.card-glass', { hasText: 'Fresh Athlete' }).first();
     check('not marked DONE before logging anything', !/DONE/.test(await card.innerText()));
 

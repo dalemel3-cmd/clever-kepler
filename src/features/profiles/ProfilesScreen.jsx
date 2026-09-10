@@ -247,14 +247,14 @@ export default function ProfilesScreen({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Vertical</span>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px' }}>
-                      {bestVertical ? formatMetric(bestVertical.metric, bestVertical.unit) : '--'}
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: bestVertical ? '16px' : '12px', fontWeight: 700, color: bestVertical ? 'var(--color-accent)' : 'var(--color-text-muted)', marginTop: '2px' }}>
+                      {bestVertical ? formatMetric(bestVertical.metric, bestVertical.unit) : 'Not Tested'}
                     </div>
                   </div>
                   <div>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Fly 10</span>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {bestFly ? formatMetric(bestFly.metric, bestFly.unit) : '--'}
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: bestFly ? '16px' : '12px', fontWeight: 700, color: bestFly ? 'var(--color-accent)' : 'var(--color-text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {bestFly ? formatMetric(bestFly.metric, bestFly.unit) : 'Not Tested'}
                       {flyTrendPct !== null && Math.abs(flyTrendPct) >= 0.5 && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: 800, color: flyTrendPct < 0 ? '#34d399' : '#f87171' }}>
                           {flyTrendPct < 0 ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
@@ -265,14 +265,14 @@ export default function ProfilesScreen({
                   </div>
                   <div>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Broad Jump</span>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px' }}>
-                      {bestBoard ? formatMetric(bestBoard.metric, bestBoard.unit) : '--'}
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: bestBoard ? '16px' : '12px', fontWeight: 700, color: bestBoard ? 'var(--color-accent)' : 'var(--color-text-muted)', marginTop: '2px' }}>
+                      {bestBoard ? formatMetric(bestBoard.metric, bestBoard.unit) : 'Not Tested'}
                     </div>
                   </div>
                   <div>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Most Recent RPE</span>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, color: latestRpe ? (latestRpe.rpe >= settings.rpeHighThreshold ? '#f87171' : 'var(--color-accent)') : 'var(--color-text-muted)', marginTop: '2px' }}>
-                      {latestRpe ? `${latestRpe.rpe} / ${settings.rpeScaleMax}` : '--'}
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: latestRpe ? '16px' : '12px', fontWeight: 700, color: latestRpe ? (latestRpe.rpe >= settings.rpeHighThreshold ? '#f87171' : 'var(--color-accent)') : 'var(--color-text-muted)', marginTop: '2px' }}>
+                      {latestRpe ? `${latestRpe.rpe} / ${settings.rpeScaleMax}` : 'No RPE Logged'}
                     </div>
                   </div>
                 </div>
