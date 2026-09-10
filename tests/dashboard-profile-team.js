@@ -90,6 +90,13 @@ const newPage = async (browser) => {
     await page.waitForTimeout(400);
     body = await page.locator('body').innerText();
     check('per-sport detail visible after expanding', /Daily Compliance/.test(body));
+    // Wrestling (No Weight Athlete) has RPE logs but has never once logged a real
+    // weigh-in - it should read as "not tracking weigh-ins", not a permanent "1 LEFT"
+    // that never clears (v4.22.1).
+    check('a team with zero weigh-ins ever reads as "not tracking", not a stuck compliance gap',
+      /NOT TRACKING WEIGH-INS/.test(body), body.match(/Wrestling[\s\S]{0,120}/)?.[0] || '');
+    check('a team with real weigh-ins still shows the normal compliance badge',
+      /Football[\s\S]{0,80}(LEFT|DONE)/.test(body), body.match(/Football[\s\S]{0,80}/)?.[0] || '');
     await page.getByText('SESSION ACCOUNTABILITY TRACKER').click();
     await page.waitForTimeout(400);
     body = await page.locator('body').innerText();
@@ -116,6 +123,10 @@ const newPage = async (browser) => {
     // No Weight Athlete's most recent RPE session is the ago(1) row (rpe 7), not the
     // older ago(2) row (rpe 9) - proves the tile picks the latest, not just any.
     check('Most Recent RPE tile present with the latest session\'s value', /Most Recent RPE/i.test(body) && /7 \/ 10/.test(body));
+    // No Weight Athlete has no performance_tests rows at all - their three Speed &
+    // Power tiles should read "Not Tested", not a bare, ambiguous "--" (v4.22.1).
+    check('an athlete with no Speed & Power results reads "Not Tested", not a bare dash',
+      (body.match(/Not Tested/g) || []).length === 3, body.match(/Not Tested/g)?.join(', ') || 'none found');
     check('"Current Mass" / "Total Records" labels are gone', !/Current Mass/.test(body) && !/Total Records/.test(body));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }

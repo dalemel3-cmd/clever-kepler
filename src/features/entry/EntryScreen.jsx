@@ -125,7 +125,11 @@ export default function EntryScreen({
               style={{
                 padding: '6px 14px',
                 borderRadius: '19px',
-                background: kioskTrackMode === 'sleep_only' ? 'var(--color-accent)' : 'transparent',
+                // Each mode gets its own active color (not just the shared gold accent) so
+                // a coach mid-practice can tell which mode is live at a glance, without
+                // reading the small pill text - this is the control that decides which
+                // fields render and who gets checked off.
+                background: kioskTrackMode === 'sleep_only' ? '#60a5fa' : 'transparent',
                 color: kioskTrackMode === 'sleep_only' ? 'var(--navy-950)' : 'var(--color-text-muted)',
                 border: 'none',
                 fontWeight: 700,
@@ -150,7 +154,7 @@ export default function EntryScreen({
                 style={{
                   padding: '6px 14px',
                   borderRadius: '19px',
-                  background: kioskTrackMode === 'rpe' ? 'var(--color-accent)' : 'transparent',
+                  background: kioskTrackMode === 'rpe' ? '#a78bfa' : 'transparent',
                   color: kioskTrackMode === 'rpe' ? 'var(--navy-950)' : 'var(--color-text-muted)',
                   border: 'none',
                   fontWeight: 700,
@@ -226,6 +230,37 @@ export default function EntryScreen({
           </div>
         </div>
       </div>
+
+      {/* Non-default track mode banner - large and colored, matching the mode's own
+          toggle-pill color, so "which mode is this kiosk in" is answerable without
+          hunting for the small pill in the header row. 'both' (Weight + Sleep) is the
+          default/expected state and gets no banner, same as Baseline mode below. */}
+      {kioskTrackMode === 'rpe' && (
+        <div className="card-glass glow-card" style={{ background: 'rgba(167, 139, 250, 0.12)', border: '1px solid rgba(167, 139, 250, 0.45)', padding: '14px 22px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: '0 8px 24px rgba(167, 139, 250, 0.2)' }}>
+          <span style={{ fontSize: '22px' }}>🎯</span>
+          <div>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#a78bfa', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              SESSION RPE ONLY - no weigh-ins will be recorded
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+              Athletes check off here as they log RPE. Switch to "Weight + Sleep" for morning weigh-ins.
+            </span>
+          </div>
+        </div>
+      )}
+      {kioskTrackMode === 'sleep_only' && (
+        <div className="card-glass glow-card" style={{ background: 'rgba(96, 165, 250, 0.12)', border: '1px solid rgba(96, 165, 250, 0.45)', padding: '14px 22px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: '0 8px 24px rgba(96, 165, 250, 0.2)' }}>
+          <span style={{ fontSize: '22px' }}>😴</span>
+          <div>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#60a5fa', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              SLEEP & RECOVERY ONLY - no weight will be recorded
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+              Switch to "Weight + Sleep" for a full morning weigh-in.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Active Baseline Mode Notification Banner */}
       {isBaselineTestingMode && (

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle, Zap, Activity, Target, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import { getCentralDateString, getCentralTimeString, isRpeLog } from '../../utils/athleteData';
+import { getCentralDateString, getCentralTimeString, isRpeLog, hasWeight, isPostPracticeLog } from '../../utils/athleteData';
 
 export default function DashboardScreen({
   settings,
@@ -575,13 +575,21 @@ export default function DashboardScreen({
                 const countLeft = sportAthletes.length - doneCount;
                 const pct = sportAthletes.length > 0 ? Math.round((doneCount / sportAthletes.length) * 100) : 0;
                 const isDone = countLeft === 0 && sportAthletes.length > 0;
+                // A team that has never once logged a real weigh-in (only jump results, or
+                // nothing at all) will show "0 LEFT... forever" if treated the same as a
+                // team that just hasn't checked in yet TODAY. That reads as broken, not as
+                // "this team doesn't do body-weight tracking" - distinguish the two.
+                const sportAthleteIds = new Set(sportAthletes.map(a => a.id));
+                const hasEverWeighed = (reportData || []).some(r =>
+                  r.athlete_id && sportAthleteIds.has(r.athlete_id) && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r));
+                const neverTracked = sportAthletes.length > 0 && !hasEverWeighed;
 
                 return (
                   <div key={sport} onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }} className="glow-card" style={{
                     padding: '20px',
                     borderRadius: '18px',
-                    background: isDone ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255,255,255,0.025)',
-                    border: isDone ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(255,255,255,0.08)',
+                    background: neverTracked ? 'rgba(255,255,255,0.015)' : (isDone ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255,255,255,0.025)'),
+                    border: neverTracked ? '1px dashed rgba(255,255,255,0.12)' : (isDone ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(255,255,255,0.08)'),
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '14px',
@@ -600,29 +608,37 @@ export default function DashboardScreen({
                         fontWeight: 800,
                         padding: '4px 10px',
                         borderRadius: '12px',
-                        background: isDone ? 'rgba(34, 197, 94, 0.15)' : 'rgba(249, 115, 22, 0.15)',
-                        color: isDone ? 'var(--status-success)' : '#f97316',
+                        background: neverTracked ? 'rgba(255,255,255,0.06)' : (isDone ? 'rgba(34, 197, 94, 0.15)' : 'rgba(249, 115, 22, 0.15)'),
+                        color: neverTracked ? 'var(--color-text-muted)' : (isDone ? 'var(--status-success)' : '#f97316'),
                         letterSpacing: '0.04em'
                       }}>
-                        {isDone ? 'DONE ✓' : `${countLeft} LEFT`}
+                        {neverTracked ? 'NOT TRACKING WEIGH-INS' : (isDone ? 'DONE ✓' : `${countLeft} LEFT`)}
                       </span>
                     </div>
 
-                    {/* Progress Bar */}
-                    <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${pct}%`,
-                        borderRadius: '4px',
-                        background: isDone ? 'var(--status-success)' : 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
-                        transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-                      }} />
-                    </div>
+                    {neverTracked ? (
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                        No weigh-ins logged for this team yet - not a compliance gap, just not started.
+                      </div>
+                    ) : (
+                      <>
+                        {/* Progress Bar */}
+                        <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            borderRadius: '4px',
+                            background: isDone ? 'var(--status-success)' : 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
+                            transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                          }} />
+                        </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 700 }}>
-                      <span style={{ color: 'var(--color-text-muted)' }}>Daily Compliance</span>
-                      <span style={{ color: 'var(--white)' }}>{pct}% ({doneCount}/{sportAthletes.length})</span>
-                    </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 700 }}>
+                          <span style={{ color: 'var(--color-text-muted)' }}>Daily Compliance</span>
+                          <span style={{ color: 'var(--white)' }}>{pct}% ({doneCount}/{sportAthletes.length})</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               });
