@@ -103,6 +103,13 @@ export default function App() {
   const [manualEntryForm, setManualEntryForm] = useState({
     athleteId: '',
     weight: '',
+    // RPE correction fields - only used when sessionType === 'rpe'. Added so a
+    // mis-entered RPE, session length, or session label can actually be corrected
+    // rather than only viewed; the edit button previously opened this same modal for
+    // an RPE row but had no fields to show or save one with.
+    rpe: '',
+    rpeDuration: '',
+    rpeLabel: '',
     date: getCentralDateString(),
     time: getCentralTimeString(),
     sessionType: 'post_practice',
@@ -1742,7 +1749,12 @@ export default function App() {
         weight_lbs: newRec.weight_lbs,
         sleep_hrs: newRec.sleep_hrs || 0,
         created_at: newRec.created_at,
-        session_type: newRec.session_type || null
+        session_type: newRec.session_type || null,
+        // Only present on a Session RPE entry from the manual log studio; undefined for
+        // every other kind of row, same as the kiosk's own insert.
+        rpe: newRec.rpe ?? null,
+        session_minutes: newRec.session_minutes ?? null,
+        session_label: newRec.session_label ?? null,
       };
 
       const { data, error } = await supabase.from('weigh_ins').insert([cloudPayload]).select();
@@ -1771,8 +1783,9 @@ export default function App() {
     }
   };
 
-  // Corrects an existing log's date/time/weight/session type in place, rather than
-  // creating a new row - used by the "Edit" action on post-practice log entries.
+  // Corrects an existing log's date/time/weight (or RPE/duration/label) in place,
+  // rather than creating a new row - used by the "Edit" action on a profile's log
+  // history table, for weigh-ins, post-practice sweat checks, and Session RPE rows.
   const handleUpdateManualLog = async (logId, updatedRec) => {
     // The edit modal only collects weight, date and time, but it used to send
     // sleep_hrs: 0 along with them - which silently zeroed the sleep value on any row it
@@ -1800,9 +1813,11 @@ export default function App() {
 
     // 3. Sync the correction to the live Supabase row
     try {
-      // Named columns only. is_baseline, rpe, session_minutes and session_label are
-      // deliberately absent: PATCH leaves unnamed columns untouched, so a correction to
-      // a baseline row keeps its marker and an RPE row keeps its rating.
+      // Named columns only, plus rpe/session_minutes/session_label - but ONLY when this
+      // edit is actually correcting a Session RPE row. is_baseline stays deliberately
+      // absent: PATCH leaves unnamed columns untouched, so a correction to a baseline
+      // row keeps its marker, and a weight-row edit still can't touch an unrelated
+      // RPE rating on the same row.
       const cloudPayload = {
         athlete_id: merged.athlete_id,
         athlete_name: merged.athlete_name || 'Unknown',
@@ -1810,8 +1825,13 @@ export default function App() {
         weight_lbs: merged.weight_lbs,
         sleep_hrs: merged.sleep_hrs || 0,
         created_at: merged.created_at,
-        session_type: merged.session_type === 'post_practice' ? 'post_practice' : (existing.session_type ?? null)
+        session_type: merged.session_type === 'post_practice' ? 'post_practice' : merged.session_type === 'rpe' ? 'rpe' : (existing.session_type ?? null)
       };
+      if (merged.session_type === 'rpe') {
+        cloudPayload.rpe = merged.rpe;
+        cloudPayload.session_minutes = merged.session_minutes ?? null;
+        cloudPayload.session_label = merged.session_label ?? null;
+      }
 
       const { error } = await supabase.from('weigh_ins').update(cloudPayload).eq('id', logId);
       if (error) throw error;
@@ -3709,14 +3729,14 @@ export default function App() {
                     {manualEntryForm.editingLogId ? 'EDIT LOG ENTRY' : 'COACH MANUAL LOG STUDIO'}
                   </h3>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                    {manualEntryForm.editingLogId ? 'Correct the date, time, or weight on this existing log' : "Log acute post-practice weights without altering morning baseline trends"}
+                    {manualEntryForm.editingLogId ? 'Correct the date, time, weight, or Session RPE on this existing log' : "Log acute post-practice weights without altering morning baseline trends"}
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => {
                   setShowManualEntryModal(false);
-                  setManualEntryForm(p => ({ ...p, editingLogId: null, weight: '', successMsg: '' }));
+                  setManualEntryForm(p => ({ ...p, editingLogId: null, weight: '', rpe: '', rpeDuration: '', rpeLabel: '', successMsg: '' }));
                 }}
                 style={{ background: 'transparent', border: 'none', color: 'var(--white)', cursor: 'pointer', padding: '4px' }}
               >
@@ -3779,6 +3799,30 @@ export default function App() {
                 >
                   <span>☀️ Morning / Baseline Correction</span>
                 </button>
+                {settings.enableRpe && (
+                  <button
+                    type="button"
+                    onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'rpe', successMsg: '' }))}
+                    style={{
+                      flex: 1,
+                      padding: '12px 16px',
+                      borderRadius: '14px',
+                      border: manualEntryForm.sessionType === 'rpe' ? '2px solid #a78bfa' : '1px solid rgba(255,255,255,0.1)',
+                      background: manualEntryForm.sessionType === 'rpe' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(255,255,255,0.02)',
+                      color: manualEntryForm.sessionType === 'rpe' ? '#fff' : 'var(--color-text-muted)',
+                      fontWeight: 800,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <span>🎯 Session RPE</span>
+                  </button>
+                )}
               </div>
 
               {/* Athlete Selector */}
@@ -3821,32 +3865,107 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Body Weight with quick tailored incrementers */}
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Body Weight (lbs)</label>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="210.5"
-                    className="input-glass"
-                    value={manualEntryForm.weight}
-                    onChange={e => setManualEntryForm(p => ({ ...p, weight: e.target.value, successMsg: '' }))}
-                    style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(96, 165, 250, 0.4)' }}
-                  />
-                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-1</button>
-                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-.1</button>
-                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+.1</button>
-                  <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+1</button>
+              {manualEntryForm.sessionType === 'rpe' ? (
+                /* Session RPE fields - what the athlete actually entered on the kiosk:
+                   the RPE rating, how long the session ran, and its label, so a coach
+                   can see and correct a mis-entered value rather than only weight. */
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Session RPE (1–{settings.rpeScaleMax})</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      max={settings.rpeScaleMax}
+                      placeholder="7"
+                      className="input-glass"
+                      value={manualEntryForm.rpe}
+                      onChange={e => setManualEntryForm(p => ({ ...p, rpe: e.target.value.replace(/[^0-9]/g, ''), successMsg: '' }))}
+                      style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(167, 139, 250, 0.4)' }}
+                    />
+                  </div>
+                  {settings.rpeTrackDuration && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Session Duration (minutes)</label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        placeholder="60"
+                        className="input-glass"
+                        value={manualEntryForm.rpeDuration}
+                        onChange={e => setManualEntryForm(p => ({ ...p, rpeDuration: e.target.value.replace(/[^0-9]/g, ''), successMsg: '' }))}
+                        style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(167, 139, 250, 0.4)' }}
+                      />
+                    </div>
+                  )}
+                  {(settings.rpeSessionLabels || []).length > 0 && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Session Label</label>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {settings.rpeSessionLabels.map(lbl => (
+                          <button
+                            key={lbl}
+                            type="button"
+                            onClick={() => setManualEntryForm(p => ({ ...p, rpeLabel: lbl, successMsg: '' }))}
+                            style={{
+                              padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                              border: manualEntryForm.rpeLabel === lbl ? '2px solid #a78bfa' : '1px solid rgba(255,255,255,0.15)',
+                              background: manualEntryForm.rpeLabel === lbl ? 'rgba(167, 139, 250, 0.2)' : 'rgba(255,255,255,0.02)',
+                              color: manualEntryForm.rpeLabel === lbl ? '#fff' : 'var(--color-text-muted)',
+                            }}
+                          >
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Body Weight with quick tailored incrementers */
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Body Weight (lbs)</label>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="210.5"
+                      className="input-glass"
+                      value={manualEntryForm.weight}
+                      onChange={e => setManualEntryForm(p => ({ ...p, weight: e.target.value, successMsg: '' }))}
+                      style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(96, 165, 250, 0.4)' }}
+                    />
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-1</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-.1</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+.1</button>
+                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+1</button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Submit Button */}
               <button
                 type="button"
                 onClick={() => {
-                  const weightNum = parseFloat(manualEntryForm.weight);
-                  if (!manualEntryForm.athleteId || !isPlausibleWeight(weightNum)) {
+                  const isRpeTab = manualEntryForm.sessionType === 'rpe';
+                  const rpeNum = parseFloat(manualEntryForm.rpe);
+                  const durationNum = parseInt(manualEntryForm.rpeDuration, 10);
+
+                  if (!manualEntryForm.athleteId) {
+                    showToast('Select an athlete.', 'error');
+                    return;
+                  }
+                  if (isRpeTab) {
+                    if (!(rpeNum > 0 && rpeNum <= settings.rpeScaleMax)) {
+                      showToast(`Enter a valid RPE (1–${settings.rpeScaleMax}).`, 'error');
+                      return;
+                    }
+                    if (settings.rpeTrackDuration && !(durationNum > 0)) {
+                      showToast('Enter a valid session duration in minutes.', 'error');
+                      return;
+                    }
+                  } else if (!isPlausibleWeight(parseFloat(manualEntryForm.weight))) {
                     showToast('Select an athlete and enter a valid body weight (0–1000 lbs).', 'error');
                     return;
                   }
@@ -3859,7 +3978,19 @@ export default function App() {
                     return;
                   }
                   const isEditing = !!manualEntryForm.editingLogId;
-                  const rec = {
+                  const rec = isRpeTab ? {
+                    id: isEditing ? manualEntryForm.editingLogId : 'manual_' + Date.now(),
+                    athlete_id: manualEntryForm.athleteId,
+                    athlete_name: ath ? ath.name : 'Unknown',
+                    sport: ath ? ath.sport : '',
+                    weight_lbs: 0,
+                    sleep_hrs: 0,
+                    created_at: dateTimeStr,
+                    session_type: 'rpe',
+                    rpe: rpeNum,
+                    session_minutes: settings.rpeTrackDuration ? durationNum : null,
+                    session_label: manualEntryForm.rpeLabel || null,
+                  } : {
                     id: isEditing ? manualEntryForm.editingLogId : 'manual_' + Date.now(),
                     athlete_id: manualEntryForm.athleteId,
                     athlete_name: ath ? ath.name : 'Unknown',
@@ -3882,9 +4013,16 @@ export default function App() {
                   setManualEntryForm(p => ({
                     ...p,
                     weight: isEditing ? p.weight : '',
+                    rpe: isEditing ? p.rpe : '',
+                    rpeDuration: isEditing ? p.rpeDuration : '',
+                    rpeLabel: isEditing ? p.rpeLabel : '',
                     successMsg: isEditing
-                      ? `Saved changes to ${rec.athlete_name}'s ${rec.session_type === 'post_practice' ? 'post-practice' : 'morning'} log (${rec.weight_lbs} lbs, ${manualEntryForm.date} ${manualEntryForm.time}).`
-                      : `Successfully recorded ${manualEntryForm.sessionType === 'post_practice' ? 'Post-Practice' : 'Morning'} weight (${rec.weight_lbs} lbs) for ${rec.athlete_name}!`
+                      ? (isRpeTab
+                          ? `Saved changes to ${rec.athlete_name}'s Session RPE log (RPE ${rec.rpe}${rec.session_minutes ? `, ${rec.session_minutes} min` : ''}, ${manualEntryForm.date} ${manualEntryForm.time}).`
+                          : `Saved changes to ${rec.athlete_name}'s ${rec.session_type === 'post_practice' ? 'post-practice' : 'morning'} log (${rec.weight_lbs} lbs, ${manualEntryForm.date} ${manualEntryForm.time}).`)
+                      : (isRpeTab
+                          ? `Successfully recorded Session RPE (${rec.rpe}) for ${rec.athlete_name}!`
+                          : `Successfully recorded ${manualEntryForm.sessionType === 'post_practice' ? 'Post-Practice' : 'Morning'} weight (${rec.weight_lbs} lbs) for ${rec.athlete_name}!`)
                   }));
                 }}
                 style={{
