@@ -89,6 +89,10 @@ export const DEFAULT_SETTINGS = {
 
   // --- Speed & Power testing (10yd fly, vertical jump, board jump; Plyomat import comes later) ---
   enableSpeedPower: false,
+
+  // --- Lift Tracker (Bench, Squat, Deadlift, Hang Clean, Power Clean by default) ---
+  enableLiftTracker: false,
+  liftTypes: ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'],
 };
 
 // Numeric fields get coerced and range-checked so a corrupt localStorage entry
