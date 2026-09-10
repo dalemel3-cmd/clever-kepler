@@ -261,6 +261,14 @@ export default function SettingsScreen({
               ]
             },
             {
+              title: 'LIFT TRACKER',
+              hint: 'Weight-room strength logging (Bench, Squat, Deadlift, etc.), tracked separately from daily weigh-ins. Turn this on to add a Lift Tracker to the sidebar.',
+              fields: [
+                { key: 'enableLiftTracker', label: 'Lift Tracker', type: 'toggle', help: 'Off by default. When on, a Lift Tracker screen is added for logging weight-room lifts.' },
+                { key: 'liftTypes', label: 'Lift Types', type: 'list', help: 'Buttons a coach/athlete picks from when logging a lift, comma separated.' },
+              ]
+            },
+            {
               title: 'ENTRY VALIDATION',
               hint: 'Bounds the kiosk and manual entry accept before saving a record.',
               fields: [

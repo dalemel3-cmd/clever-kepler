@@ -55,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.26.0` | New Lift Tracker (off by default, Settings -> Lift Tracker): select an athlete, log a lift (Bench/Squat/Deadlift/Hang Clean/Power Clean by default, extendable in Settings -> Lift Types), weight + reps. Team leaderboard per lift ranks by estimated 1RM (Epley), not raw weight. New `lift_logs` table (`db/009`) |
 | `4.25.0` | Analytics' Average Body Weight chart now names its sample size — an off-cycle recheck of a few flagged athletes averages honestly instead of reading as an unexplained spike. Caption explains the averaging; the tooltip shows "N athletes weighed in this day" per point (`CustomTooltip`'s new `counts` prop, reusable by any other team-average chart) |
 | `4.24.0` | A profile's log-edit modal can now correct a Session RPE entry (RPE, session duration, and label) — it previously only handled weigh-ins/post-practice sweat checks, so an RPE row's Edit button opened a modal with no RPE fields and any save attempt just failed weight validation |
 | `4.23.0` | UX pass: a team with zero weigh-ins ever (jump-only teams) reads as "not tracking weigh-ins" on the dashboard instead of a permanent, alarming compliance gap; the kiosk's track-mode toggle is color-coded per mode with a large banner naming the active non-default mode (Session RPE / Sleep Only), so it's no longer a small easy-to-miss pill; the profile roster card's Speed & Power / RPE tiles read "Not Tested" / "No RPE Logged" instead of an ambiguous "--" |

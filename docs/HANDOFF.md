@@ -940,7 +940,43 @@ dropdown, which the pre-fix build never renders.
 
 ---
 
-## 23. Next up
+## 24. Lift Tracker (v4.26.0)
+
+Off by default (Settings → Lift Tracker → toggle on). New sidebar item once enabled;
+same "opt-in feature, invisible until turned on" convention as RPE and Speed & Power.
+
+**Flow:** pick an athlete from the roster grid → pick a lift (Bench, Squat, Deadlift,
+Hang Clean, Power Clean by default) → enter weight (lbs) and reps → Log Lift. The
+modal doesn't close after saving - fields reset so a second lift (bench, then squat)
+logs without re-picking the athlete.
+
+**Custom lifts:** Settings → Lift Tracker → Lift Types is a comma-separated list
+(same "type: 'list'" field already used for RPE's Session Labels) - a coach adds
+"Front Squat" once and it shows up as an option for every athlete from then on.
+
+**Leaderboard:** ranks by estimated 1RM (Epley: `weight * (1 + reps/30)`), not raw
+weight - a 225x8 set (est. 285) correctly outranks a 275x1 single (est. 275). The
+actual best set (weight × reps) is still shown alongside the estimate; only the
+ranking uses the formula. Same "one PB per category, not a mix of protocols" instinct
+as Speed & Power's `test_variant`, applied to rep ranges instead of technique.
+
+**Data model:** new `lift_logs` table (`db/009_lift_logs.sql`) - separate from
+`weigh_ins`/`performance_tests`, same reasoning as `performance_tests` itself (§9):
+a lift result is tied to a lift session, several can be logged per visit, and
+`lift_type` is text rather than an enum so a new lift never needs a migration. RLS
+policy written in the same migration that creates the table (the rule `alert_status`
+violated for four releases, §3). Raw `weight_lbs`/`reps` are stored as entered; the
+1RM estimate is computed in the app, never persisted, so it can be re-derived if the
+formula ever changes.
+
+**Not built yet:** profile-card "Best Lift" tiles (Speed & Power has these for
+jumps/sprints; lifts don't yet) and a Lift Tracker kiosk mode - this shipped as its
+own dedicated screen instead, per the coach's request. `tests/lift-tracker.js` covers
+the toggle, entry flow, custom lift types, and the 1RM leaderboard ranking (22 probes).
+
+---
+
+## 25. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

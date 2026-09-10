@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database, Target, BarChart3 } from 'lucide-react';
+import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database, Target, BarChart3, Dumbbell } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import './styles.css';
 import { Confetti } from './components/Confetti';
@@ -7,6 +7,8 @@ import { KioskNumpad } from './components/KioskNumpad';
 const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
 import { useAlertStatus } from './features/alerts/useAlertStatus';
 import { usePerformanceTests } from './features/analytics/usePerformanceTests';
+import { useLiftLogs } from './features/lifts/useLiftLogs';
+const LiftScreen = lazy(() => import('./features/lifts/LiftScreen'));
 const GroupsScreen = lazy(() => import('./features/groups/GroupsScreen'));
 const TeamStatusScreen = lazy(() => import('./features/team-status/TeamStatusScreen'));
 const RosterScreen = lazy(() => import('./features/roster/RosterScreen'));
@@ -489,6 +491,11 @@ export default function App() {
   // SpeedPowerPanel itself) so Profiles can also read best-test data without opening a
   // second realtime subscription to the same table.
   const { performanceTests, addTest: addPerformanceTest, updateTest: updatePerformanceTest, deleteTest: deletePerformanceTest, importPlan: importPlyomatPlan } = usePerformanceTests();
+
+  // Lift Tracker (Bench/Squat/Deadlift/etc.) - same lifted-to-App-level reasoning as
+  // Speed & Power above, so Profiles can eventually read best-lift data without a
+  // second realtime subscription to the same table.
+  const { liftLogs, addLift } = useLiftLogs();
 
   // Settings & PWA State
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
@@ -2977,6 +2984,7 @@ export default function App() {
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('groups', <Shield size={18} />, 'TEAMS & ROSTERS')}
             {renderSidebarItem('profiles', <User size={18} />, 'PROFILES')}
+            {settings.enableLiftTracker && renderSidebarItem('lifts', <Dumbbell size={18} />, 'LIFT TRACKER')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (unresolvedDailyAlertsCount > 0 ? ` (${unresolvedDailyAlertsCount})` : ''))}
             {renderSidebarItem('analytics', <BarChart3 size={18} />, 'ANALYTICS')}
             {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
@@ -3357,6 +3365,19 @@ export default function App() {
               />
             )}
 
+            {screen === 'lifts' && settings.enableLiftTracker && (
+              <LiftScreen
+                settings={settings}
+                athletes={athletes}
+                liftLogs={liftLogs}
+                addLift={addLift}
+                setSelectedProfileId={setSelectedProfileId}
+                fetchProfileData={fetchProfileData}
+                setProfileEntryScreen={setProfileEntryScreen}
+                setScreen={setScreen}
+              />
+            )}
+
             {screen === 'settings' && (
               <SettingsScreen
                 settings={settings}
@@ -3418,9 +3439,9 @@ export default function App() {
             {/* Clean More / Toolbox Button */}
             <div onClick={() => setShowMobileMore(!showMobileMore)} 
                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
-                          color: (showMobileMore || ['groups', 'alerts', 'reports', 'settings'].includes(screen)) ? 'var(--color-accent)' : 'var(--color-text-muted)', transition: 'color 0.2s' }}>
+                          color: (showMobileMore || ['groups', 'alerts', 'reports', 'settings', 'lifts'].includes(screen)) ? 'var(--color-accent)' : 'var(--color-text-muted)', transition: 'color 0.2s' }}>
               <MoreHorizontal size={22} />
-              <span style={{ fontSize: '11px', fontWeight: (showMobileMore || ['groups', 'alerts', 'reports', 'settings'].includes(screen)) ? 700 : 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>More</span>
+              <span style={{ fontSize: '11px', fontWeight: (showMobileMore || ['groups', 'alerts', 'reports', 'settings', 'lifts'].includes(screen)) ? 700 : 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>More</span>
             </div>
           </div>
 
@@ -3448,6 +3469,19 @@ export default function App() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {settings.enableLiftTracker && (
+                    <div onClick={() => { setScreen('lifts'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
+                         className="card-glass glow-card"
+                         style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'lifts' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'lifts' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Dumbbell size={24} style={{ color: 'var(--color-accent)' }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>LIFT TRACKER</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Log Bench, Squat, Deadlift & more</div>
+                      </div>
+                    </div>
+                  )}
                   <div onClick={() => { setScreen('groups'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
                        className="card-glass glow-card"
                        style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'groups' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'groups' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
