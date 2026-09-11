@@ -1139,7 +1139,74 @@ and the Log Lift button stays visible. Confirmed fail-before (reverted just the
 
 ---
 
-## 30. Next up
+## 30. Athletes screen: Roster + Profiles merge (v4.30.0)
+
+Per a design handoff (Shiloh Athletics design system, `roster-profiles-redesign.html`):
+consolidated the standalone Roster grid (`RosterScreen.jsx`, now deleted) and
+Profiles' own athlete-picker mode into one new screen, `src/features/athletes/AthletesScreen.jsx`.
+
+**What's new:**
+- Two-column layout (list `1fr` + profile panel `360px`, stacks under 960px).
+  Left: search + single-select sport pills + a row list (avatar, name/team, a
+  needs-attention badge, and a right-aligned metric - weight delta if flagged,
+  else best vertical/fly 10, matching whatever `ProfilesScreen`'s old picker
+  cards already showed per athlete). Right: a compact profile panel for
+  whichever row is selected - badge, a 2x2 metric grid (current weight,
+  baseline + date, best vertical, most recent RPE), a 3-row recent log
+  history, and Log Entry / View Full Trends / Edit Info buttons.
+- **Default sort is "needs attention"**, not alphabetical: danger (a real
+  weigh-in drop at/past `settings.dehydrationThreshold`) → warning ("Needs
+  baseline" - has logs but never a real weigh-in, e.g. sleep-only) → neutral
+  ("No logs" - nothing logged at all) → success ("Current"). Alphabetical
+  within each group. Selecting a row is local UI state
+  (`selectedAthleteId`) - it does not touch the global `selectedProfileId`
+  Profiles/Alerts/etc. already use, so clicking around this list can't leak
+  into what those other screens show.
+- **"View Full Trends" opens the existing deep-dive `ProfilesScreen`
+  unchanged** (`setSelectedProfileId` + `setScreen('profiles')`) - that huge
+  ~1250-line screen (charts, log editing, Speed & Power rankings) was left
+  completely untouched. Its own picker-grid branch (`!selectedProfileId`) is
+  now dead code, reachable only if something navigates to `'profiles'`
+  without a profile id - harmless, but worth knowing it's an orphaned path.
+  `profileEntryScreen` gained a new `'athletes'` value so the deep-dive's
+  back chevron (`handleBackFromProfile`) returns to Athletes instead of
+  falling through to that orphaned picker.
+- **Nav**: "ATHLETES" replaces "PROFILES" in the sidebar and bottom nav
+  (same slot, same `User` icon). "TEAMS & ROSTERS" (`GroupsScreen`) is
+  untouched - it's a team-level dashboard (bulk baseline tool, per-sport avg
+  cards), a different concept from the athlete list. Its sport-card click,
+  and the Dashboard's own team cards, now navigate to `setScreen('athletes')`
+  (with the sport filter set) instead of the retired `'roster'` screen.
+  `handleEditClick`'s "EDIT INFO" button (still on the deep-dive Profiles
+  screen) and the expired-baselines modal's "Inspect Profile" link were
+  repointed the same way.
+- Reused rather than reinvented: `bestTestFor` (exported from
+  `ProfilesScreen.jsx` for this - it was a private helper before),
+  `formatMetric`/`TEST_TYPE_BY_KEY` (`SpeedPowerPanel.jsx`), and
+  `getAthleteBaseline`/`hasWeight`/`isRpeLog`/`isPostPracticeLog`
+  (`athleteData.js`) - so a badge or metric shown here can never disagree
+  with the same number on the Analytics leaderboard or the deep-dive profile.
+
+**Not built** (not in the design spec): a dedicated per-row edit affordance in
+the list itself - editing goes through the panel's "Edit Info" button, which
+reuses the same inline add/edit form Roster used to have.
+
+New test file `tests/athletes-screen.js` (23 probes) covers the nav change,
+needs-attention sort order (all four badge tones), in-place row selection,
+search/pill filtering, Log Entry pre-selection, and the View Full
+Trends → back-chevron round trip. All pre-existing suites that touch
+Profiles, Groups, or the Dashboard's team-card links were re-run and pass
+unchanged.
+
+**Known pre-existing issue found during this regression pass, not caused by
+this change and not fixed here**: `tests/tooltip-units.js` section [C]
+("ProfilesScreen tooltips unchanged") fails on `main` before this change too
+(confirmed via `git stash`) - the deep-dive profile's weight-trend tooltip
+doesn't say "lbs" in this test's fixture. Worth a look separately.
+
+---
+
+## 31. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

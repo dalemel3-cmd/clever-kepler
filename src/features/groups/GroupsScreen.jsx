@@ -172,7 +172,7 @@ export default function GroupsScreen({
           return (
             <div
               key={sport}
-              onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }}
+              onClick={() => { setSelectedSportFilter(sport); setScreen('athletes'); }}
               className="card-glass glow-card"
               style={{
                 padding: '24px',

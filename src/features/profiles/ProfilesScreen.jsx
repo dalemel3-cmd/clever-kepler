@@ -15,7 +15,7 @@ import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, fo
 // entirely and match any row for the test type, which is what the roster card's quick
 // "Best Vertical" glance still does; every ranking/comparison view below passes a real
 // variant so two different jump techniques never get averaged into one number.
-const bestTestFor = (tests, athleteId, testKey, variantKey = null) => {
+export const bestTestFor = (tests, athleteId, testKey, variantKey = null) => {
   const tt = TEST_TYPE_BY_KEY[testKey];
   const rows = tests.filter(t => t.athlete_id === athleteId && t.test_type === testKey
     && (variantKey === null || (t.test_variant || 'untagged') === variantKey));

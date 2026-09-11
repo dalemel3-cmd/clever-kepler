@@ -447,7 +447,7 @@ export default function DashboardScreen({
                     <div
                       data-testid="rpe-sport-card"
                       data-sport={s.sport}
-                      onClick={() => { setSelectedSportFilter(s.sport); setScreen('roster'); }}
+                      onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }}
                       className="glow-card"
                       title={`View ${s.sport} roster`}
                       style={{
@@ -595,7 +595,7 @@ export default function DashboardScreen({
                 const neverTracked = sportAthletes.length > 0 && !hasEverWeighed;
 
                 return (
-                  <div key={sport} onClick={() => { setSelectedSportFilter(sport); setScreen('roster'); }} className="glow-card" style={{
+                  <div key={sport} onClick={() => { setSelectedSportFilter(sport); setScreen('athletes'); }} className="glow-card" style={{
                     padding: '20px',
                     borderRadius: '18px',
                     background: neverTracked ? 'rgba(255,255,255,0.015)' : (isDone ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255,255,255,0.025)'),
