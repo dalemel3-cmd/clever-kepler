@@ -1040,7 +1040,48 @@ run against a panel that starts collapsed.
 
 ---
 
-## 27. Next up
+## 27. Lift Tracker "Log a Lift" redesign (v4.29.0)
+
+Replaced the alphabetical 183-athlete card grid with a recency-first flow, per a
+design handoff (`docs/uploads` reference: `README.md` + `lift-tracker-redesign.html`,
+Shiloh Athletics design system). All in `LiftScreen.jsx`:
+
+- **"Today's session" recent row** - horizontally-scrolling cards for whoever this
+  coach has already logged a lift for today (any lift type), most-recently-logged
+  first, capped at 8. Tapping one calls `openEntry` directly, same as any other
+  athlete - skips search/filter entirely for the common "log a second lift for
+  someone I just saw" case.
+- **Row list replaces the card grid.** Each row: avatar, name, a meta line
+  (`{weight} lbs · last logged {date}` or `never logged`), a Current/Stale badge,
+  and a "Log Set" button. Clicking anywhere on the row (not just the button) opens
+  the entry modal - kept intentionally, since `tests/lift-tracker.js`'s original
+  probes click the athlete's name text directly and that had to keep working.
+- **Group pills replace the old sport-filter button row** - functionally identical
+  (`sportFilter` state, `'ALL'` default) just restyled as single-select pills
+  (`999px` radius, navy fill when active) per the design tokens.
+- **Stale/Current badge** reuses `settings.baselineExpiryDays` (default 14) - the
+  same "how long since we've seen you" threshold `EntryScreen.jsx` already uses for
+  baseline-testing prompts, rather than inventing a second staleness constant. No
+  lift log ever, or the most recent one further back than that window, reads "Stale"
+  (amber); anything more recent reads "Current" (neutral).
+- **Row weight** comes from `reportData` (now passed into `LiftScreen`, wasn't
+  before) - the athlete's most recent real weigh-in (`hasWeight` +
+  `!isPostPracticeLog` + `!isRpeLog`, same filter chain `getAthleteBaseline` uses),
+  not anything lift-related. An athlete with no weigh-in yet just omits that part of
+  the meta line instead of showing "0 lbs" or a placeholder.
+- The sticky top bar from v4.28.0 (search box pinned while the roster scrolls)
+  carries forward and now also pins the recent-session row and group pills, since
+  they sit above the roster list in the redesign too.
+
+New test file `tests/lift-tracker-redesign.js` (17 probes) covers the recent row,
+the weight/last-logged/badge logic (including the never-logged edge case), group-pill
+filtering, and the row-level "Log Set" button. The original `tests/lift-tracker.js`
+(22 probes, entry modal + leaderboard + logging flow) needed zero changes - the modal,
+leaderboard, and underlying `addLift`/`useLiftLogs.js` flow are untouched.
+
+---
+
+## 28. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

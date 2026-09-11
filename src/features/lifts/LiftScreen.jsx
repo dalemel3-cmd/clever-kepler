@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search, X, Dumbbell, Award, Plus, ChevronLeft } from 'lucide-react';
+import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 // Estimated 1-rep max (Epley formula). Weight and reps are always stored as the raw
 // set an athlete actually did - this is only used to rank/compare sets logged at
@@ -19,10 +20,24 @@ export function bestLiftFor(logs, athleteId, liftType) {
   return best ? { ...best, estimated1RM: Math.round(bestEst) } : null;
 }
 
+const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
+const colorFor = (name) => avatarColors[name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length];
+const initialsOf = (name) => name.split(' ').map(n => n[0]).join('').toUpperCase();
+const shortDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+function Avatar({ name, size = 42 }) {
+  return (
+    <div style={{ width: `${size}px`, height: `${size}px`, borderRadius: '12px', background: colorFor(name), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: `${Math.round(size * 0.36)}px`, flexShrink: 0 }}>
+      {initialsOf(name)}
+    </div>
+  );
+}
+
 export default function LiftScreen({
   settings,
   athletes,
   liftLogs,
+  reportData,
   addLift,
   setSelectedProfileId,
   fetchProfileData,
@@ -43,6 +58,53 @@ export default function LiftScreen({
   const [leaderboardLift, setLeaderboardLift] = React.useState(liftTypes[0] || '');
 
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
+
+  // Most recent lift log per athlete, across every lift type - drives both the
+  // "Today's session" recent row and each roster row's "last logged" / staleness
+  // badge, so a coach can spot who hasn't touched the weight room in a while
+  // without opening Profiles.
+  const lastLiftByAthlete = React.useMemo(() => {
+    const map = new Map();
+    for (const l of liftLogs) {
+      const cur = map.get(l.athlete_id);
+      if (!cur || new Date(l.created_at) > new Date(cur.created_at)) map.set(l.athlete_id, l);
+    }
+    return map;
+  }, [liftLogs]);
+
+  // Most recent real body weight per athlete (weigh-ins only - post-practice sweat
+  // checks and RPE-only rows don't carry a trustworthy weight), for the row's meta
+  // line. Falls back to nothing shown if an athlete has never weighed in.
+  const lastWeightByAthlete = React.useMemo(() => {
+    const map = new Map();
+    for (const r of (reportData || [])) {
+      if (!hasWeight(r) || isPostPracticeLog(r) || isRpeLog(r)) continue;
+      const cur = map.get(r.athlete_id);
+      if (!cur || new Date(r.created_at) > new Date(cur.created_at)) map.set(r.athlete_id, r);
+    }
+    return map;
+  }, [reportData]);
+
+  const todayStr = getCentralDateString();
+  // Today's session: whoever this coach has already logged a lift for today,
+  // most-recently-logged first, capped at 8 - tapping one skips straight to their
+  // entry modal instead of re-finding them in the roster below.
+  const recentAthletes = React.useMemo(() => {
+    const todays = [...liftLogs]
+      .filter(l => l.created_at && getCentralDateString(new Date(l.created_at)) === todayStr)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const seen = new Set();
+    const out = [];
+    for (const l of todays) {
+      if (seen.has(l.athlete_id)) continue;
+      seen.add(l.athlete_id);
+      const athlete = athletes.find(a => a.id === l.athlete_id);
+      if (!athlete) continue;
+      out.push({ athlete, lastLift: l.lift_type });
+      if (out.length >= 8) break;
+    }
+    return out;
+  }, [liftLogs, athletes, todayStr]);
 
   const filteredAthletes = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -143,7 +205,7 @@ export default function LiftScreen({
             <Dumbbell size={26} /> LIFT TRACKER
           </h1>
           <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-            Select an athlete to log a set, or check the team leaderboard for a lift.
+            Recent athletes and today's session surface first. The full roster is one search away, sorted by session frequency instead of A&ndash;Z.
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -154,10 +216,10 @@ export default function LiftScreen({
 
       {view === 'log' && (
         <>
-          {/* Sticky so the search box, sport filters, and tab switcher stay put while the
-              roster grid below scrolls - on an iPad with a full team loaded, a coach was
-              having to scroll all the way back to the top of the screen just to search
-              for the next athlete or switch to the leaderboard. */}
+          {/* Sticky so the search box, "today's session" recents, and group filters stay
+              put while the athlete list below scrolls - on an iPad with a full team
+              loaded, a coach was having to scroll all the way back to the top just to
+              search for the next athlete or switch groups. */}
           <div
             style={{
               position: 'sticky',
@@ -168,72 +230,125 @@ export default function LiftScreen({
               paddingBottom: '14px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '12px',
+              gap: '4px',
             }}
           >
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <div style={{ position: 'relative', flex: '1 1 280px', display: 'flex', alignItems: 'center' }}>
-                <Search size={18} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
-                <input
-                  type="text"
-                  className="input-glass"
-                  placeholder="Search athlete by name..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  style={{ width: '100%', height: '48px', padding: '0 38px 0 44px', fontSize: '14px' }}
-                />
-                {search && (
-                  <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '14px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                    <X size={18} />
-                  </button>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {['ALL', ...sports].map(sport => (
-                  <button
-                    key={sport}
-                    onClick={() => setSportFilter(sport)}
-                    style={{
-                      padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
-                      textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer',
-                      border: sportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
-                      background: sportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
-                      color: sportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
-                    }}
-                  >
-                    {sport}
-                  </button>
-                ))}
-              </div>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Search size={18} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                className="input-glass"
+                placeholder="Search athlete by name..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: '100%', height: '48px', padding: '0 38px 0 44px', fontSize: '14px' }}
+              />
+              {search && (
+                <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '14px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            {recentAthletes.length > 0 && (
+              <>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '14px' }}>
+                  Today's session &middot; {recentAthletes.length} logged
+                </div>
+                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px', marginTop: '8px' }}>
+                  {recentAthletes.map(({ athlete, lastLift }) => (
+                    <button
+                      key={athlete.id}
+                      type="button"
+                      onClick={() => openEntry(athlete.id)}
+                      className="card-glass"
+                      style={{ flex: 'none', width: '128px', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      <Avatar name={athlete.name} size={36} />
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginTop: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{athlete.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{lastLift}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '14px' }}>
+              Filter by group
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+              {['ALL', ...sports].map(sport => (
+                <button
+                  key={sport}
+                  onClick={() => setSportFilter(sport)}
+                  style={{
+                    padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700,
+                    cursor: 'pointer',
+                    border: sportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    background: sportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
+                    color: sportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
+                  }}
+                >
+                  {sport === 'ALL' ? 'All' : sport}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '14px' }}>
-            {filteredAthletes.map(a => {
-              const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
-              const colorIdx = a.name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length;
-              return (
-                <div
-                  key={a.id}
-                  onClick={() => openEntry(a.id)}
-                  className="card-glass glow-card"
-                  style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}
-                >
-                  <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: avatarColors[colorIdx], display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '16px', flexShrink: 0 }}>
-                    {a.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{a.sport || 'General'}</div>
-                  </div>
-                </div>
-              );
-            })}
-            {filteredAthletes.length === 0 && (
-              <div className="card-glass" style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)', gridColumn: '1 / -1' }}>
+          <div className="card-glass" style={{ borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '16px 18px 8px' }}>
+              {sportFilter === 'ALL' ? 'All Athletes' : sportFilter} &middot; {filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? 's' : ''}
+            </div>
+            {filteredAthletes.length === 0 ? (
+              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
                 No athletes match "{search}".
               </div>
+            ) : (
+              <div>
+                {filteredAthletes.map((a, idx) => {
+                  const lastLog = lastLiftByAthlete.get(a.id);
+                  const lastWeightRow = lastWeightByAthlete.get(a.id);
+                  const isStale = !lastLog || (new Date() - new Date(lastLog.created_at)) > settings.baselineExpiryDays * 24 * 60 * 60 * 1000;
+                  return (
+                    <div
+                      key={a.id}
+                      onClick={() => openEntry(a.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 18px', cursor: 'pointer', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}
+                    >
+                      <Avatar name={a.name} size={42} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          {lastWeightRow ? `${Number(lastWeightRow.weight_lbs)} lbs · ` : ''}
+                          {lastLog ? `last logged ${shortDate(lastLog.created_at)}` : 'never logged'}
+                        </div>
+                      </div>
+                      <span style={{
+                        padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap',
+                        background: isStale ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255,255,255,0.06)',
+                        color: isStale ? '#f59e0b' : 'var(--color-text-muted)',
+                        border: isStale ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(255,255,255,0.1)',
+                      }}>
+                        {isStale ? 'Stale' : 'Current'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openEntry(a.id); }}
+                        style={{ padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', border: 'none', background: 'var(--color-accent)', color: 'var(--navy-950)', whiteSpace: 'nowrap' }}
+                      >
+                        Log Set
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             )}
+          </div>
+
+          <div className="card-glass" style={{ padding: '18px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+              Recent/today's session replaces re-scanning the whole roster A&ndash;Z every practice, a single search field replaces name search plus a row of sport pills fighting for space, and each row now states weight and last-logged date so a stale athlete stands out without opening Profiles.
+            </div>
           </div>
         </>
       )}

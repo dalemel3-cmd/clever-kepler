@@ -3370,6 +3370,7 @@ export default function App() {
                 settings={settings}
                 athletes={athletes}
                 liftLogs={liftLogs}
+                reportData={reportData}
                 addLift={addLift}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
