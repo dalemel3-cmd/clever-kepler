@@ -30,6 +30,11 @@ export default function DashboardScreen({
   // (falls back to the first team with data) so a sport dropped from the roster never
   // leaves this pointed at a team that no longer exists.
   const [loadSport, setLoadSport] = useState('ALL');
+  // Internal Load Metrics collapses behind the same chevron pattern as the
+  // Session Accountability Tracker below it - default closed to save vertical
+  // space, since the roll-up pill in its header already answers "did anyone log?"
+  // without opening it.
+  const [loadMetricsOpen, setLoadMetricsOpen] = useState(false);
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
@@ -92,17 +97,14 @@ export default function DashboardScreen({
                 }}>
                   {isComplete ? <CheckCircle size={26} /> : <Zap size={26} />}
                 </div>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: isComplete ? 'var(--status-success)' : 'var(--color-accent)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block' }}>
-                    {isComplete ? '• SESSION COMPLETE' : '• PRE-SESSION MONITORING'}
-                  </span>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', letterSpacing: '0.03em', margin: '4px 0 0 0', lineHeight: 1.1 }}>
-                    {isComplete ? "All Athletes Weighed In Today!" : "Start today's session"}
-                  </h2>
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '4px 0 0 0', fontWeight: 600 }}>
-                    {isComplete ? "100% compliance achieved across all teams today." : `${unrecordedAthletes.length} Athlete${unrecordedAthletes.length !== 1 ? 's' : ''} Not Yet Weighed In`}
-                  </p>
-                </div>
+                {/* The heading + subtext ("Start today's session" / "N athletes not
+                    yet weighed in") used to sit here, ahead of the action buttons. A
+                    coach glances at this banner to tap a button, not to read a status
+                    line the icon already conveys (gold = pending, green = complete) -
+                    dropped so the buttons are the first thing that reads. */}
+                <span style={{ fontSize: '11px', fontWeight: 800, color: isComplete ? 'var(--status-success)' : 'var(--color-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  {isComplete ? '• SESSION COMPLETE' : `• ${unrecordedAthletes.length} NOT YET WEIGHED IN`}
+                </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 {!isComplete && (
@@ -358,15 +360,23 @@ export default function DashboardScreen({
           }).sort((a, b) => a.pct - b.pct);
 
           return (
-            <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Target size={14} /> INTERNAL LOAD METRICS
-                  </span>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: '4px 0 0 0', letterSpacing: '0.03em' }}>
-                    TODAY'S SESSION LOAD
-                  </h3>
+            <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: loadMetricsOpen ? '20px' : 0, marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
+              <div
+                onClick={() => setLoadMetricsOpen(o => !o)}
+                role="button"
+                aria-expanded={loadMetricsOpen}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {loadMetricsOpen ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />}
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Target size={14} /> INTERNAL LOAD METRICS
+                    </span>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: '4px 0 0 0', letterSpacing: '0.03em' }}>
+                      TODAY'S SESSION LOAD
+                    </h3>
+                  </div>
                 </div>
                 {/* The avg/response pair now lives on each team card. What stays up here is
                     a roll-up pill, matching the accountability tracker's summary below. */}
@@ -387,7 +397,7 @@ export default function DashboardScreen({
                 </div>
               </div>
 
-              {outliers.length > 0 && (
+              {loadMetricsOpen && outliers.length > 0 && (
                 <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '16px', padding: '16px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#ef4444', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
                     <AlertTriangle size={14} /> {outliers.length} OUTLIERS (RPE ≥ {settings.rpeHighThreshold})
@@ -414,7 +424,7 @@ export default function DashboardScreen({
               {/* One team's load at a time, picked from a dropdown - the grid of every
                   team's card at once (the old layout) was the same "N near-empty boards"
                   problem the Speed & Power leaderboard had, and got the same fix. */}
-              {rpeBySport.length === 0 ? (
+              {loadMetricsOpen && (rpeBySport.length === 0 ? (
                 <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>
               ) : (() => {
                 const s = rpeBySport.find(x => x.sport === loadSport) || rpeBySport[0];
@@ -512,9 +522,9 @@ export default function DashboardScreen({
                     </div>
                   </div>
                 );
-              })()}
+              })())}
 
-              {todaysRpeLogs.length === 0 && (
+              {loadMetricsOpen && todaysRpeLogs.length === 0 && (
                 <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>
                   No RPE logs recorded yet today.
                 </div>
