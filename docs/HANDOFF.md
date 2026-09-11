@@ -1081,7 +1081,39 @@ leaderboard, and underlying `addLift`/`useLiftLogs.js` flow are untouched.
 
 ---
 
-## 28. Next up
+## 28. Fix: Lift Tracker modal drifting with the roster scroll on iPad (v4.29.1)
+
+Reported right after the v4.29.0 redesign shipped: tapping "Log Set" opened the entry
+modal, but on an iPad it kept sliding along with the roster list underneath instead of
+popping up in place, forcing the coach to chase it.
+
+Root cause: the app's actual scroll container isn't `window`/`body` at all - the
+whole shell (`.app-layout`) is `height: 100vh` + `overflow: hidden`, and every screen
+scrolls inside a single `.scroll-area` div that uses
+`-webkit-overflow-scrolling: touch` for iPad momentum scrolling. Mobile Safari has a
+long-standing bug where a `position: fixed` element nested inside a
+touch-scrolling container doesn't stay pinned to the viewport - it drifts with that
+container's scroll instead. The Lift Tracker's entry modal is rendered from inside
+`LiftScreen`, which is a descendant of `.scroll-area`, so it hit this exactly.
+(App.jsx's own modals - the confirm dialog, the recovery station - never had this bug,
+because they're rendered as siblings of `.scroll-area`, not descendants of it.)
+
+Fix: the entry modal now renders through `createPortal(..., document.body)` instead of
+inline, escaping `.scroll-area` (and its `-webkit-overflow-scrolling: touch`) entirely.
+`position: fixed` on a portaled node is relative to the real viewport with nothing
+between it and `<body>`, so it can't drift.
+
+**Lesson for any future full-screen modal added inside a scrollable screen body**:
+check whether it's a descendant of `.scroll-area` - if so, portal it to `document.body`
+rather than relying on `position: fixed` alone. `tests/lift-tracker-redesign.js`
+section [E] covers this: scrolls `.scroll-area` (not `window.scrollY`, which is always
+0 in this app - a mistake worth flagging since it's an easy trap when writing a
+scroll-behavior test here), opens the modal, and asserts both that it sits at the top
+of the viewport and that it's not a DOM descendant of `.scroll-area`.
+
+---
+
+## 29. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

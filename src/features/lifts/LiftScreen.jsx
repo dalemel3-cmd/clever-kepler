@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Dumbbell, Award, Plus, ChevronLeft } from 'lucide-react';
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
@@ -404,8 +405,16 @@ export default function LiftScreen({
         </div>
       )}
 
-      {/* Entry modal */}
-      {selectedAthlete && (
+      {/* Entry modal - rendered through a portal straight onto <body>, escaping the
+          scrollable roster list underneath. The roster's scroll container uses
+          -webkit-overflow-scrolling: touch for iPad momentum scrolling, and Safari
+          has a long-standing bug where a position: fixed descendant of a
+          touch-scrolling container drifts along with that container's scroll
+          instead of staying pinned to the viewport - so on an iPad, tapping
+          "Log Set" opened the modal but it kept sliding with the roster underneath
+          it instead of popping up in place. Escaping the scroll container via
+          createPortal sidesteps the bug entirely. */}
+      {selectedAthlete && createPortal(
         <div
           className="modal-overlay animate-fade-in"
           style={{ position: 'fixed', inset: 0, zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.9)' }}
@@ -505,7 +514,8 @@ export default function LiftScreen({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
