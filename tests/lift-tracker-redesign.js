@@ -44,14 +44,19 @@ const liftLogs = [
   { id: uuid(52), athlete_id: uuid(3), athlete_name: 'Stale Lifter', sport: 'Football', lift_type: 'Deadlift', weight_lbs: 275, reps: 5, source: 'manual', created_at: ago(30) },
   // Never Logged has no row at all - also "Stale" (never logged reads the same as
   // stale, since a coach needs to know either way that this athlete needs attention).
+  // A full "Recent Lifts" history (8 rows, the modal's own cap) for Current Squatter -
+  // needed to push the modal card taller than a short/mobile viewport for [F] below.
+  ...Array.from({ length: 8 }, (_, i) => ({
+    id: uuid(60 + i), athlete_id: uuid(2), athlete_name: 'Current Squatter', sport: 'Football', lift_type: 'Squat', weight_lbs: 300 + i, reps: 3, source: 'manual', created_at: ago(3 + i),
+  })),
 ];
 
 const weighIns = [
   { id: uuid(80), athlete_id: uuid(1), athlete_name: 'Recent Bencher', sport: 'Football', weight_lbs: 172.5, sleep_hrs: 8, created_at: ago(1), is_baseline: false },
 ];
 
-const newPage = async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const newPage = async (browser, viewport = { width: 1280, height: 900 }) => {
+  const ctx = await browser.newContext({ viewport });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e).slice(0, 200)));
@@ -176,6 +181,27 @@ const newPage = async (browser) => {
     await page.getByText('BACK', { exact: true }).click();
     await page.waitForTimeout(400);
     check('modal closes cleanly with no crash', (await page.locator('.modal-overlay').count()) === 0);
+    check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[F] The entry modal fits a short/mobile viewport instead of clipping (v4.29.2)');
+  {
+    // On a phone-height viewport the card was taller than the screen - the overlay
+    // centered it with no scroll fallback, so the bottom of the card (including the
+    // Log Lift button and the rounded corner) was clipped off-screen and the roster
+    // page showed through underneath it.
+    const page = await newPage(browser, { width: 390, height: 620 });
+    await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
+    // Current Squatter has a full 8-row "Recent Lifts" history in the modal, which is
+    // what actually pushes the card taller than this viewport - a fresh athlete with
+    // no history was too short to reproduce the clipping reliably.
+    await page.getByText('Current Squatter', { exact: true }).locator('..').locator('..').getByRole('button', { name: /Log Set/i }).click();
+    await page.waitForTimeout(500);
+    const viewport = page.viewportSize();
+    const cardBox = await page.locator('.card-glass.glow-card.animate-slide-up').boundingBox();
+    check('the modal card fits within the viewport height', cardBox !== null && cardBox.y >= 0 && (cardBox.y + cardBox.height) <= viewport.height + 1,
+      `viewportHeight=${viewport.height}, card=${JSON.stringify(cardBox)}`);
+    check('the Log Lift button is fully visible, not clipped off the bottom', await page.getByRole('button', { name: /Log Lift/i }).isVisible());
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
