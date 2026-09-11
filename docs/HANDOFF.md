@@ -1009,7 +1009,38 @@ whether the toggle's own click-driven write survived the page's reload.
 
 ---
 
-## 26. Next up
+## 26. Dashboard focus + collapsible load metrics + sticky Lift Tracker entry (v4.28.0)
+
+Three space/scroll fixes, all iPad-driven feedback:
+
+1. **Pre-Session Action Banner** (`DashboardScreen.jsx`) - dropped the "Start today's
+   session" / "All Athletes Weighed In Today!" heading and its subtext line. A coach
+   glances at this banner to tap Start Weigh-Ins / Session RPE / Post-Practice, not to
+   read a status line the icon (gold vs. green) and a small uppercase marker already
+   cover. The three action buttons are now the first thing that reads.
+2. **Internal Load Metrics** now collapses behind a chevron, closed by default -
+   the exact pattern the Session Accountability Tracker below it already used
+   (`accountabilityOpen` state, `ChevronUp`/`ChevronDown`, `role="button"` header). New
+   `loadMetricsOpen` state gates the outliers strip, the team-picker dropdown, and the
+   "no logs yet" message; the roll-up pill in the header (e.g. "2 of 5 REPORTED · 40% ·
+   AVG 6.0") still tells a coach the headline number without opening it.
+3. **Lift Tracker's search bar and sport filter buttons** (`LiftScreen.jsx`) are now
+   `position: sticky; top: 0` in the "Log a Lift" view. Previously, once a full roster
+   was on screen, searching for the next athlete or switching to the Leaderboard tab
+   meant scrolling all the way back to the top - especially painful on an iPad with a
+   whole team's roster grid below it. The controls now stay pinned while the roster
+   scrolls underneath.
+
+New test file `tests/dashboard-focus-and-sticky-lifts.js` covers all three: the removed
+banner copy plus the buttons still being present, the load-metrics chevron opening and
+closing, and (via a `boundingBox()` comparison before/after `page.mouse.wheel`) that the
+Lift Tracker's search box doesn't move on scroll. `tests/rpe-dashboard.js` needed one
+added line - clicking "INTERNAL LOAD METRICS" open before its probes - since those now
+run against a panel that starts collapsed.
+
+---
+
+## 27. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

@@ -154,39 +154,57 @@ export default function LiftScreen({
 
       {view === 'log' && (
         <>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: '1 1 280px', display: 'flex', alignItems: 'center' }}>
-              <Search size={18} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
-              <input
-                type="text"
-                className="input-glass"
-                placeholder="Search athlete by name..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{ width: '100%', height: '48px', padding: '0 38px 0 44px', fontSize: '14px' }}
-              />
-              {search && (
-                <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '14px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                  <X size={18} />
-                </button>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {['ALL', ...sports].map(sport => (
-                <button
-                  key={sport}
-                  onClick={() => setSportFilter(sport)}
-                  style={{
-                    padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
-                    textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer',
-                    border: sportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    background: sportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
-                    color: sportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
-                  }}
-                >
-                  {sport}
-                </button>
-              ))}
+          {/* Sticky so the search box, sport filters, and tab switcher stay put while the
+              roster grid below scrolls - on an iPad with a full team loaded, a coach was
+              having to scroll all the way back to the top of the screen just to search
+              for the next athlete or switch to the leaderboard. */}
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 5,
+              background: 'var(--navy-950)',
+              paddingTop: '4px',
+              paddingBottom: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: '1 1 280px', display: 'flex', alignItems: 'center' }}>
+                <Search size={18} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  className="input-glass"
+                  placeholder="Search athlete by name..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{ width: '100%', height: '48px', padding: '0 38px 0 44px', fontSize: '14px' }}
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '14px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {['ALL', ...sports].map(sport => (
+                  <button
+                    key={sport}
+                    onClick={() => setSportFilter(sport)}
+                    style={{
+                      padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                      textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer',
+                      border: sportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
+                      background: sportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
+                      color: sportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
+                    }}
+                  >
+                    {sport}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
