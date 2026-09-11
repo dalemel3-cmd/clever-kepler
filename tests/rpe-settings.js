@@ -72,13 +72,16 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
 
   console.log('\n[B] enableRpe is reachable from Settings');
   {
-    const { ctx, page } = await newPage();
+    // v4.27.0: RPE now defaults ON for a fresh install, so this probe seeds it OFF
+    // explicitly to exercise the toggle mechanism itself (the toggle still exists for
+    // a program that wants to turn a default-on feature back off).
+    const { ctx, page } = await newPage({ settings: { enableRpe: false } });
     await page.goto(`${APP}/#settings`); await page.waitForTimeout(1600);
     await openRpeSection(page);
     const toggle = page.locator('#setting-enableRpe');
     check('Session RPE toggle exists in Settings', await toggle.count() > 0, 'no way to turn the feature on');
     if (await toggle.count()) {
-      check('toggle starts OFF (RPE is opt-in)', (await toggle.getAttribute('aria-checked')) === 'false');
+      check('toggle reflects the seeded OFF state', (await toggle.getAttribute('aria-checked')) === 'false');
       await toggle.click(); await page.waitForTimeout(300);
       check('toggle flips ON', (await toggle.getAttribute('aria-checked')) === 'true');
       await page.getByRole('button', { name: /SAVE ALL SETTINGS/i }).click(); await page.waitForTimeout(800);
@@ -107,8 +110,20 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
 
   console.log('\n[D] Toggling RPE survives a refresh without pressing Save');
   {
+    // No addInitScript seed here - this probe reloads the page to check what the
+    // click itself persisted, and an addInitScript re-injects on every navigation,
+    // which would silently overwrite the click's own write on that reload and always
+    // "prove" the seeded value survived instead of what's actually being tested.
+    // Force the pre-toggle state to OFF via a real localStorage write + one reload
+    // (v4.27.0 defaults enableRpe true) so the click below is a real on/off transition.
     const { ctx, page } = await newPage();
-    await page.goto(`${APP}/#settings`); await page.waitForTimeout(1600);
+    await page.goto(`${APP}/#settings`); await page.waitForTimeout(1200);
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('hpd_settings') || '{}');
+      s.enableRpe = false;
+      localStorage.setItem('hpd_settings', JSON.stringify(s));
+    });
+    await page.reload(); await page.waitForTimeout(1600);
     await openRpeSection(page);
     await page.locator('#setting-enableRpe').click(); await page.waitForTimeout(400);
     // Deliberately do NOT press "Save All Settings" - a switch reads as already applied.

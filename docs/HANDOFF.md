@@ -976,7 +976,40 @@ the toggle, entry flow, custom lift types, and the 1RM leaderboard ranking (22 p
 
 ---
 
-## 25. Next up
+## 25. Kiosk search pills, and RPE/Speed & Power/Lift Tracker default ON (v4.27.0)
+
+**Kiosk search:** typing a name used to still render every match as a full-size
+`AthleteCard` below the search box. On an iPad's kiosk viewport a single match looked
+like its own oversized floating box, and often pushed the entry modal's action buttons
+below the fold - exactly the "everything fits without scrolling" complaint. A non-empty
+search now renders matches as compact pills (name + sport, tap to open) instead; the
+full card grid is unchanged when the search box is empty. `tests/kiosk-search-pill.js`
+covers both states plus the "no match -> add athlete" fallback while searching.
+
+**Feature flags default ON:** `enableRpe`, `enableSpeedPower`, and `enableLiftTracker`
+all defaulted to `false` in `DEFAULT_SETTINGS`, which meant a fresh device (or adding
+the app to a new iPad) always needed a trip to Settings to turn all three back on
+before the kiosk showed them. They now default to `true` - the toggle in Settings
+still exists for a program that wants one of them off, but a new install ships with
+the full feature set active immediately.
+
+Caveat: this only changes what a **fresh** `localStorage` starts with.
+`normalizeSettings` keeps whatever is already stored (including an explicit `false`
+saved earlier), so an existing coach device that already has these flags off will
+keep them off until toggled - the new defaults only take effect where nothing is
+stored yet.
+
+Three tests relied on the old defaults implicitly (no explicit seed for the flag they
+were checking) and needed an explicit `false` seed to keep testing the disabled state
+on purpose: `tests/analytics.js` (Speed & Power's "not enabled" empty state) and two
+probes in `tests/rpe-settings.js` (the toggle-reachability and survives-a-refresh
+checks). The refresh-survival probe also needed its seed moved off `addInitScript`
+entirely, since that re-injects on every navigation and would have silently masked
+whether the toggle's own click-driven write survived the page's reload.
+
+---
+
+## 26. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

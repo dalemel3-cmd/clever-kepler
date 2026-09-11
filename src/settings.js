@@ -79,7 +79,12 @@ export const DEFAULT_SETTINGS = {
   sportsList: ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'SOCC', 'Softball', 'Tennis', 'Track & Field', 'VBB', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'],
 
   // --- RPE & Training Load ---
-  enableRpe: false,
+  // On by default (v4.27.0) - this and the two flags below used to default off, which
+  // meant a fresh device (or a coach adding the app to a new iPad) always had to
+  // remember to flip all three back on in Settings before the kiosk showed them. The
+  // toggle in Settings still exists for a program that genuinely doesn't want one of
+  // these features, but a new install now ships with the full feature set active.
+  enableRpe: true,
   rpeTrackDuration: true,
   rpeScaleMax: 10,
   rpeHighThreshold: 8,
@@ -88,10 +93,10 @@ export const DEFAULT_SETTINGS = {
   rpeChronicWeeks: 4,
 
   // --- Speed & Power testing (10yd fly, vertical jump, board jump; Plyomat import comes later) ---
-  enableSpeedPower: false,
+  enableSpeedPower: true,
 
   // --- Lift Tracker (Bench, Squat, Deadlift, Hang Clean, Power Clean by default) ---
-  enableLiftTracker: false,
+  enableLiftTracker: true,
   liftTypes: ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'],
 };
 
