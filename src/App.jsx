@@ -11,7 +11,7 @@ import { useLiftLogs } from './features/lifts/useLiftLogs';
 const LiftScreen = lazy(() => import('./features/lifts/LiftScreen'));
 const GroupsScreen = lazy(() => import('./features/groups/GroupsScreen'));
 const TeamStatusScreen = lazy(() => import('./features/team-status/TeamStatusScreen'));
-const RosterScreen = lazy(() => import('./features/roster/RosterScreen'));
+const AthletesScreen = lazy(() => import('./features/athletes/AthletesScreen'));
 const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
 const DashboardScreen = lazy(() => import('./features/dashboard/DashboardScreen'));
 const ReportsScreen = lazy(() => import('./features/reports/ReportsScreen'));
@@ -1529,6 +1529,8 @@ export default function App() {
     setSelectedProfileId(null);
     if (profileEntryScreen === 'team-status' && teamStatusSport) {
       setScreen('team-status');
+    } else if (profileEntryScreen === 'athletes') {
+      setScreen('athletes');
     }
     setProfileEntryScreen(null);
   };
@@ -2140,7 +2142,7 @@ export default function App() {
     setEditingAthleteId(athlete.id);
     setNewAthlete({ name: athlete.name, sport: athlete.sport, team: athlete.team, grade: athlete.grade || '', position: athlete.position });
     setIsAddingAthlete(true);
-    setScreen('roster');
+    setScreen('athletes');
   };
 
   const fetchProfileData = async (id) => {
@@ -2802,9 +2804,9 @@ export default function App() {
   }, [athletes, reportData, baselineExpiryDays]);
 
   const renderSidebarItem = (key, icon, label) => {
-    const active = screen === key || (key === 'groups' && screen === 'roster');
+    const active = screen === key;
     return (
-      <div onClick={() => { setScreen(key); setSaved(false); if (key !== 'profiles') { setSelectedProfileId(null); setProfileEntryScreen(null); } setIsAddingAthlete(false); }}
+      <div onClick={() => { setScreen(key); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
            style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', cursor: 'pointer',
                     background: active ? 'rgba(255,255,255,0.02)' : 'transparent',
                     borderLeft: active ? '4px solid var(--color-accent)' : '4px solid transparent',
@@ -2816,9 +2818,9 @@ export default function App() {
   };
 
   const navItem = (key, icon, label) => {
-    const active = (screen === key || (key === 'groups' && screen === 'roster')) && !showMobileMore;
+    const active = screen === key && !showMobileMore;
     return (
-      <div onClick={() => { setScreen(key); setShowMobileMore(false); setSaved(false); if (key !== 'profiles') { setSelectedProfileId(null); setProfileEntryScreen(null); } setIsAddingAthlete(false); }}
+      <div onClick={() => { setScreen(key); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
                     color: active ? 'var(--color-accent)' : 'var(--color-text-muted)', transition: 'color 0.2s, transform 0.15s' }}>
         {icon}
@@ -2983,7 +2985,7 @@ export default function App() {
             {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
             {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
             {renderSidebarItem('groups', <Shield size={18} />, 'TEAMS & ROSTERS')}
-            {renderSidebarItem('profiles', <User size={18} />, 'PROFILES')}
+            {renderSidebarItem('athletes', <User size={18} />, 'ATHLETES')}
             {settings.enableLiftTracker && renderSidebarItem('lifts', <Dumbbell size={18} />, 'LIFT TRACKER')}
             {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (unresolvedDailyAlertsCount > 0 ? ` (${unresolvedDailyAlertsCount})` : ''))}
             {renderSidebarItem('analytics', <BarChart3 size={18} />, 'ANALYTICS')}
@@ -3308,10 +3310,16 @@ export default function App() {
               />
             )}
 
-            {screen === 'roster' && (
-              <RosterScreen
+            {/* ATHLETES: merges the old standalone Roster grid and the Profiles
+                picker into one searchable list + drill-in panel (v4.30.0). The
+                deep-dive Profiles screen below is unchanged and still reachable
+                via "View Full Trends". */}
+            {screen === 'athletes' && (
+              <AthletesScreen
+                settings={settings}
                 isAddingAthlete={isAddingAthlete}
                 filteredAthletes={filteredAthletes}
+                athletes={athletes}
                 search={search}
                 setSearch={setSearch}
                 sportsList={sportsList}
@@ -3322,6 +3330,7 @@ export default function App() {
                 newAthlete={newAthlete}
                 setNewAthlete={setNewAthlete}
                 reportData={reportData}
+                performanceTests={performanceTests}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}
@@ -3331,6 +3340,7 @@ export default function App() {
                 handleCreateAthlete={handleCreateAthlete}
                 saving={saving}
                 handleDeleteAthlete={handleDeleteAthlete}
+                handleSelectAthleteForEntry={handleSelectAthleteForEntry}
               />
             )}
 
@@ -3434,7 +3444,7 @@ export default function App() {
           <div className="bottom-nav">
             {navItem('dashboard', <Users size={22} />, 'Home')}
             {navItem('entry', <Plus size={22} />, 'Log')}
-            {navItem('profiles', <User size={22} />, 'Profiles')}
+            {navItem('athletes', <User size={22} />, 'Athletes')}
             {navItem('groups', <Shield size={22} />, 'Teams')}
             
             {/* Clean More / Toolbox Button */}
@@ -3728,7 +3738,7 @@ export default function App() {
                         onClick={() => {
                           setShowExpiredBaselinesModal(false);
                           setSearch(a.athlete_name);
-                          setScreen('roster');
+                          setScreen('athletes');
                         }}
                         style={{ padding: '8px 14px', background: 'rgba(184, 156, 91, 0.15)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
                       >
