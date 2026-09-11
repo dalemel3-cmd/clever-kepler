@@ -49,7 +49,10 @@ const logs = [
   { id: uuid(++li), athlete_id: uuid(3), athlete_name: 'Rpe Only', sport: 'Volleyball', weight_lbs: 0, sleep_hrs: 0, rpe: 7, session_minutes: 30, session_label: 'Run', session_type: 'rpe', is_baseline: false, created_at: ago(2) },
 ];
 
-const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHighThreshold: 8, sleepChartTargetHours: 8 };
+// enableSpeedPower explicitly off (v4.27.0 defaults it on) - probe [E] below tests the
+// honest "not enabled" empty state, which needs the feature actually disabled to mean
+// anything.
+const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHighThreshold: 8, sleepChartTargetHours: 8, enableSpeedPower: false };
 
 (async () => {
   const browser = await chromium.launch(LAUNCH_OPTS);

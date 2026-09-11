@@ -428,50 +428,104 @@ export default function EntryScreen({
             </button>
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '12px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px', paddingBottom: '90px' }}>
-          {(unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes).map(a => {
-            // Defensive: rosters cached before name normalization can still hold null names
-            const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
-            // Derive the display strings here rather than inside the card, so the card's
-            // props stay primitives and its memo comparison is a cheap shallow check.
-            return (
-              <AthleteCard
-                key={a.id}
-                athleteId={a.id}
-                name={safeName}
-                sport={a.sport}
-                position={a.position}
-                team={a.team}
-                displayName={nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
-                initials={nameSortOrder === 'last'
-                  ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
-                  : safeName.split(' ').map(n => n[0]).join('')}
-                isSelected={entryAthleteId === a.id}
-                isDoneToday={athletesRecordedToday.has(a.id)}
-                onSelect={handleSelectAthleteForEntry}
-              />
-            );
-          })}
-          {filteredAthletes.length === 0 && (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '44px 20px', color: 'var(--color-text-muted)', fontSize: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-              <div>
-                <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--white)', display: 'block', marginBottom: '6px' }}>Athlete Not Found in Roster?</span>
-                No athletes matched your search or filters. If you are new to the program, you can quickly create your profile right now!
+        {search.trim() ? (
+          // Typing a name narrows straight to compact pills instead of the full card
+          // grid below - a search match used to render as one more full-size card,
+          // which on an iPad's kiosk viewport looked like its own oversized floating
+          // box and often pushed the "Log" action below the fold. A pill is tappable
+          // the same way, just without the card's avatar/sport/position chrome that a
+          // narrowed-down search doesn't need to show.
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '50vh', overflowY: 'auto', paddingBottom: '8px' }}>
+            {(unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes).map(a => {
+              const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
+              const isDone = athletesRecordedToday.has(a.id);
+              const isSelected = entryAthleteId === a.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => handleSelectAthleteForEntry(a.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '10px 18px', borderRadius: '999px', cursor: 'pointer',
+                    fontSize: '14px', fontWeight: 700, whiteSpace: 'nowrap',
+                    border: isSelected ? '2px solid var(--color-accent)' : (isDone ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(255,255,255,0.15)'),
+                    background: isSelected ? 'rgba(194, 164, 80, 0.18)' : (isDone ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255,255,255,0.03)'),
+                    color: isDone ? 'var(--status-success)' : 'var(--white)',
+                  }}
+                >
+                  {isDone && <CheckCircle size={14} />}
+                  {safeName}
+                  <span style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>&middot; {a.sport || 'General'}</span>
+                </button>
+              );
+            })}
+            {filteredAthletes.length === 0 && (
+              <div style={{ width: '100%', textAlign: 'center', padding: '32px 20px', color: 'var(--color-text-muted)', fontSize: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                <div>
+                  <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--white)', display: 'block', marginBottom: '4px' }}>Athlete Not Found in Roster?</span>
+                  No athletes matched "{search}". If they're new to the program, you can quickly create their profile right now!
+                </div>
+                <button
+                  onClick={() => {
+                    setIsAddingAthlete(true);
+                    setEditingAthleteId(null);
+                    setNewAthlete({ name: search || '', sport: selectedSportFilter !== 'ALL' ? selectedSportFilter : '', team: selectedTeamFilter !== 'ALL' ? selectedTeamFilter : '', grade: selectedGradeFilter !== 'ALL' ? selectedGradeFilter : '', position: selectedPositionFilter !== 'ALL' ? selectedPositionFilter : '' });
+                  }}
+                  className="btn-primary glow-card"
+                  style={{ height: '44px', padding: '0 22px', fontSize: '14px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(194, 164, 80, 0.3)' }}
+                >
+                  <Plus size={16} strokeWidth={2.5} /> Add "{search}" & Log Weight
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setIsAddingAthlete(true);
-                  setEditingAthleteId(null);
-                  setNewAthlete({ name: search || '', sport: selectedSportFilter !== 'ALL' ? selectedSportFilter : '', team: selectedTeamFilter !== 'ALL' ? selectedTeamFilter : '', grade: selectedGradeFilter !== 'ALL' ? selectedGradeFilter : '', position: selectedPositionFilter !== 'ALL' ? selectedPositionFilter : '' });
-                }}
-                className="btn-primary glow-card"
-                style={{ height: '48px', padding: '0 24px', fontSize: '15px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(194, 164, 80, 0.3)' }}
-              >
-                <Plus size={18} strokeWidth={2.5} /> Add {search ? `"${search}"` : 'New Athlete'} & Log Weight
-              </button>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '12px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px', paddingBottom: '90px' }}>
+            {(unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes).map(a => {
+              // Defensive: rosters cached before name normalization can still hold null names
+              const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
+              // Derive the display strings here rather than inside the card, so the card's
+              // props stay primitives and its memo comparison is a cheap shallow check.
+              return (
+                <AthleteCard
+                  key={a.id}
+                  athleteId={a.id}
+                  name={safeName}
+                  sport={a.sport}
+                  position={a.position}
+                  team={a.team}
+                  displayName={nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
+                  initials={nameSortOrder === 'last'
+                    ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
+                    : safeName.split(' ').map(n => n[0]).join('')}
+                  isSelected={entryAthleteId === a.id}
+                  isDoneToday={athletesRecordedToday.has(a.id)}
+                  onSelect={handleSelectAthleteForEntry}
+                />
+              );
+            })}
+            {filteredAthletes.length === 0 && (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '44px 20px', color: 'var(--color-text-muted)', fontSize: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--white)', display: 'block', marginBottom: '6px' }}>Athlete Not Found in Roster?</span>
+                  No athletes matched your search or filters. If you are new to the program, you can quickly create your profile right now!
+                </div>
+                <button
+                  onClick={() => {
+                    setIsAddingAthlete(true);
+                    setEditingAthleteId(null);
+                    setNewAthlete({ name: search || '', sport: selectedSportFilter !== 'ALL' ? selectedSportFilter : '', team: selectedTeamFilter !== 'ALL' ? selectedTeamFilter : '', grade: selectedGradeFilter !== 'ALL' ? selectedGradeFilter : '', position: selectedPositionFilter !== 'ALL' ? selectedPositionFilter : '' });
+                  }}
+                  className="btn-primary glow-card"
+                  style={{ height: '48px', padding: '0 24px', fontSize: '15px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(194, 164, 80, 0.3)' }}
+                >
+                  <Plus size={18} strokeWidth={2.5} /> Add {search ? `"${search}"` : 'New Athlete'} & Log Weight
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Pop-up Weigh-in Modal Overlay */}
