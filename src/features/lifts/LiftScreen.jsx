@@ -417,10 +417,14 @@ export default function LiftScreen({
       {selectedAthlete && createPortal(
         <div
           className="modal-overlay animate-fade-in"
-          style={{ position: 'fixed', inset: 0, zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.9)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.9)', overflowY: 'auto' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeEntry(); }}
         >
-          <div className="card-glass glow-card animate-slide-up" style={{ width: '100%', maxWidth: '480px', borderRadius: '24px', border: '1px solid rgba(184, 156, 91, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* maxHeight + its own scroll: on a short/mobile viewport (or once the
+              keyboard is up for the weight/reps inputs) the card was taller than the
+              visible screen, so its bottom - including the Log Lift button and the
+              rounded corner - got clipped, with the roster peeking in underneath. */}
+          <div className="card-glass glow-card animate-slide-up" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid rgba(184, 156, 91, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div onClick={closeEntry} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-accent)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginBottom: '8px' }}>

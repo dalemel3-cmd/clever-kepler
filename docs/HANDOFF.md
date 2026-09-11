@@ -1113,7 +1113,33 @@ of the viewport and that it's not a DOM descendant of `.scroll-area`.
 
 ---
 
-## 29. Next up
+## 29. Fix: Lift Tracker modal clipped on short/mobile viewports (v4.29.2)
+
+Screenshot from a coach right after v4.29.1 shipped: the entry modal's bottom edge -
+including the Log Lift button and the card's rounded corner - was cut off the bottom
+of the screen, with the roster page visible underneath through the gap.
+
+Cause: the modal card had no `maxHeight`, and the overlay centered it with
+`alignItems: 'center'` and no scroll fallback. On a short viewport (a phone, or an
+iPad once the keyboard opens for the weight/reps inputs and shrinks the visible
+area), a card with a full 8-row "Recent Lifts" history is taller than the screen -
+the flex-centered card simply overflowed above and below the viewport with nothing
+to scroll it back into view.
+
+Fix: the card now has `maxHeight: '90vh'` and `overflowY: 'auto'` (Log Lift button
+included in the scrollable area, so it's always reachable), and the overlay itself
+got `overflowY: 'auto'` as a second line of defense.
+
+`tests/lift-tracker-redesign.js` section [F] covers it: gives one athlete a full
+8-row lift history (needed to reliably push the card past a 620px-tall viewport -
+a fresh athlete with no history wasn't tall enough to reproduce it), opens the modal
+at that viewport size, and asserts the card's bounding box fits inside the viewport
+and the Log Lift button stays visible. Confirmed fail-before (reverted just the
+`maxHeight`/`overflowY` addition - card height 629 in a 620 viewport) / pass-after.
+
+---
+
+## 30. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
