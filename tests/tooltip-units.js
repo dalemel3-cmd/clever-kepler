@@ -64,6 +64,11 @@ const newPage = async (browser) => {
   // does not match the path's real hit area for a nearly-flat short segment.
   const hoverPointOnPath = async (page, chartIndex, pathSelector) => {
     const wrapper = page.locator('.recharts-wrapper').nth(chartIndex);
+    // The chart must actually be in the viewport for a page-coordinate mouse.move to
+    // land on it - a chart further down a growing page (e.g. the profile dossier
+    // picking up more content above its charts over time) silently misses every
+    // point on the curve otherwise, since the target y ends up below the window.
+    await wrapper.scrollIntoViewIfNeeded();
     const surface = wrapper.locator('.recharts-surface');
     const surfaceBox = await surface.boundingBox();
     const path = wrapper.locator(pathSelector).first();
