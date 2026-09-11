@@ -27,6 +27,12 @@ const athletes = [
   { id: uuid(3), name: 'Stale Lifter', sport: 'Football', team: 'Varsity', grade: '10th', position: 'WR' },
   { id: uuid(4), name: 'Never Logged', sport: 'Football', team: 'Varsity', grade: '9th', position: 'RB' },
   { id: uuid(5), name: 'Volley Athlete', sport: 'Volleyball', team: 'Varsity', grade: '11th', position: 'OH' },
+  // Filler roster (own sport, so it never interferes with the Football/Volleyball
+  // filter probes) - just needs to make the row list taller than the viewport so
+  // there's something to scroll past before opening the modal from off-screen.
+  ...Array.from({ length: 30 }, (_, i) => ({
+    id: uuid(100 + i), name: `Filler Athlete ${i + 1}`, sport: 'Baseball', team: 'Varsity', grade: '11th', position: '1B',
+  })),
 ];
 
 const liftLogs = [
@@ -133,6 +139,43 @@ const newPage = async (browser) => {
     await page.waitForTimeout(600);
     const body = await page.locator('body').innerText();
     check('the modal opened for the row\'s athlete', /Stale Lifter/.test(body) && (await page.getByRole('button', { name: 'Deadlift', exact: true }).count()) > 0, body.slice(0, 200));
+    check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[E] Log Set from a scrolled roster pops the modal up in place, not off-screen (v4.29.1)');
+  {
+    // The app's real scroll container is .scroll-area (window/body never scroll -
+    // .app-layout is height:100vh + overflow:hidden), and it uses
+    // -webkit-overflow-scrolling: touch for iPad momentum scrolling. Mobile Safari
+    // has a long-standing bug where a position: fixed descendant of a
+    // touch-scrolling container drifts along with that container instead of
+    // staying pinned to the viewport - so the entry modal is now rendered through
+    // a portal onto <body>, outside .scroll-area entirely, to sidestep it.
+    const page = await newPage(browser);
+    await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
+    const scrollBefore = await page.evaluate(() => document.querySelector('.scroll-area')?.scrollTop ?? -1);
+    await page.evaluate(() => { const el = document.querySelector('.scroll-area'); if (el) el.scrollTop = 1400; });
+    await page.waitForTimeout(300);
+    const scrolledTo = await page.evaluate(() => document.querySelector('.scroll-area')?.scrollTop ?? -1);
+    check('the roster container actually scrolled before opening the modal', scrolledTo > 200, `scrollTop=${scrolledTo}`);
+
+    await page.getByRole('button', { name: /Log Set/i }).first().click();
+    await page.waitForTimeout(500);
+    const modalBox = await page.locator('.modal-overlay').boundingBox();
+    check('the modal overlay covers the top of the current viewport', modalBox !== null && modalBox.y <= 1, `modalBox=${JSON.stringify(modalBox)}`);
+    check('the modal is rendered outside the scrolling roster container (portal escaped it)',
+      await page.evaluate(() => !document.querySelector('.scroll-area')?.contains(document.querySelector('.modal-overlay'))));
+    const weightInput = page.getByPlaceholder('245');
+    check('the weight input is visible without any further scrolling', await weightInput.isVisible());
+
+    // Close it - not asserting the exact scroll position afterward, since the
+    // browser's own focus-restoration (returning focus to the "Log Set" button
+    // that opened the modal) can scroll that button back into view, which is
+    // normal/desirable keyboard-navigation behavior, not something this fix
+    // touches. "BACK" is a plain clickable div in the modal, not a <button>.
+    await page.getByText('BACK', { exact: true }).click();
+    await page.waitForTimeout(400);
+    check('modal closes cleanly with no crash', (await page.locator('.modal-overlay').count()) === 0);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
