@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X, Dumbbell, Award, Plus, ChevronLeft } from 'lucide-react';
+import { Search, X, Dumbbell, Award, Plus, ChevronLeft, Pencil, Trash2, Check } from 'lucide-react';
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 // Estimated 1-rep max (Epley formula). Weight and reps are always stored as the raw
@@ -40,6 +40,9 @@ export default function LiftScreen({
   liftLogs,
   reportData,
   addLift,
+  updateLift,
+  deleteLift,
+  setConfirmModal,
   setSelectedProfileId,
   fetchProfileData,
   setProfileEntryScreen,
@@ -57,6 +60,14 @@ export default function LiftScreen({
   const [successMsg, setSuccessMsg] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [leaderboardLift, setLeaderboardLift] = React.useState(liftTypes[0] || '');
+  // Editing a previously-logged set (wrong weight/reps, or logged under the wrong
+  // exercise entirely) - a separate small form inline in the Recent Lifts list,
+  // rather than deleting and re-adding.
+  const [editingLiftId, setEditingLiftId] = React.useState(null);
+  const [editLiftType, setEditLiftType] = React.useState('');
+  const [editWeight, setEditWeight] = React.useState('');
+  const [editReps, setEditReps] = React.useState('');
+  const [editSaving, setEditSaving] = React.useState(false);
 
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
 
@@ -123,14 +134,55 @@ export default function LiftScreen({
     setWeight('');
     setReps('');
     setSuccessMsg('');
+    setEditingLiftId(null);
   };
 
   const closeEntry = () => {
     setEntryAthleteId(null);
     setSuccessMsg('');
+    setEditingLiftId(null);
   };
 
   const disableSave = saving || !liftType || !(parseFloat(weight) > 0) || !(parseInt(reps, 10) > 0);
+
+  const startEditLift = (l) => {
+    setEditingLiftId(l.id);
+    setEditLiftType(l.lift_type);
+    setEditWeight(String(l.weight_lbs));
+    setEditReps(String(l.reps));
+  };
+
+  const cancelEditLift = () => setEditingLiftId(null);
+
+  const disableEditSave = editSaving || !editLiftType || !(parseFloat(editWeight) > 0) || !(parseInt(editReps, 10) > 0);
+
+  const handleSaveEditLift = async () => {
+    if (disableEditSave) return;
+    setEditSaving(true);
+    await updateLift(editingLiftId, {
+      lift_type: editLiftType,
+      weight_lbs: parseFloat(editWeight),
+      reps: parseInt(editReps, 10),
+    });
+    setEditSaving(false);
+    setEditingLiftId(null);
+  };
+
+  const handleDeleteLift = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Lift Entry',
+      message: 'Are you sure you want to permanently delete this logged set?',
+      isDanger: true,
+      actionText: 'Delete Entry',
+      onConfirm: async () => {
+        setEditSaving(true);
+        await deleteLift(id);
+        setEditSaving(false);
+        setEditingLiftId(null);
+      },
+    });
+  };
 
   const handleSave = async () => {
     if (disableSave || !selectedAthlete) return;
@@ -465,8 +517,13 @@ export default function LiftScreen({
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
+              {/* minWidth: 0 on both the grid item and the input itself - a number
+                  input's intrinsic content width doesn't shrink below its min-content
+                  size by default inside a grid track, so on a narrow screen the two
+                  boxes were overflowing their 1fr columns and overlapping each other
+                  instead of shrinking to fit. */}
+              <div style={{ minWidth: 0 }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Weight (lbs)</label>
                 <input
                   type="number"
@@ -475,10 +532,10 @@ export default function LiftScreen({
                   className="input-glass"
                   value={weight}
                   onChange={e => setWeight(e.target.value)}
-                  style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)' }}
+                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)' }}
                 />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Reps</label>
                 <input
                   type="number"
@@ -488,7 +545,7 @@ export default function LiftScreen({
                   className="input-glass"
                   value={reps}
                   onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ''))}
-                  style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)' }}
+                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)' }}
                 />
               </div>
             </div>
@@ -506,13 +563,92 @@ export default function LiftScreen({
             {athleteRecentLifts.length > 0 && (
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Recent Lifts</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: editingLiftId ? 'none' : '180px', overflowY: editingLiftId ? 'visible' : 'auto' }}>
                   {athleteRecentLifts.map(l => (
-                    <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
-                      <span style={{ color: 'var(--color-text-muted)' }}>{l.lift_type}</span>
-                      <span style={{ color: '#fff', fontWeight: 700 }}>{l.weight_lbs} lbs &times; {l.reps}</span>
-                      <span style={{ color: 'var(--color-text-muted)' }}>{new Date(l.created_at).toLocaleDateString()}</span>
-                    </div>
+                    editingLiftId === l.id ? (
+                      // Inline edit: correct the weight/reps, or move this set to a
+                      // different exercise entirely if it was logged under the wrong one.
+                      <div key={l.id} style={{ padding: '12px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.08)', border: '1px solid rgba(184, 156, 91, 0.35)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {liftTypes.map(lt => (
+                            <button
+                              key={lt}
+                              type="button"
+                              onClick={() => setEditLiftType(lt)}
+                              style={{
+                                padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                                border: editLiftType === lt ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.15)',
+                                background: editLiftType === lt ? 'rgba(184, 156, 91, 0.18)' : 'rgba(255,255,255,0.02)',
+                                color: editLiftType === lt ? '#fff' : 'var(--color-text-muted)',
+                              }}
+                            >
+                              {lt}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '10px' }}>
+                          <input
+                            type="number"
+                            step="5"
+                            aria-label="Edit weight"
+                            className="input-glass"
+                            value={editWeight}
+                            onChange={e => setEditWeight(e.target.value)}
+                            style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '42px', padding: '0 12px', borderRadius: '8px', background: 'var(--navy-900)', color: '#fff', fontSize: '15px', fontWeight: 700, border: '1px solid rgba(184, 156, 91, 0.4)' }}
+                          />
+                          <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            aria-label="Edit reps"
+                            className="input-glass"
+                            value={editReps}
+                            onChange={e => setEditReps(e.target.value.replace(/[^0-9]/g, ''))}
+                            style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '42px', padding: '0 12px', borderRadius: '8px', background: 'var(--navy-900)', color: '#fff', fontSize: '15px', fontWeight: 700, border: '1px solid rgba(184, 156, 91, 0.4)' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={handleSaveEditLift}
+                            disabled={disableEditSave}
+                            style={{ flex: 1, height: '36px', borderRadius: '8px', fontSize: '12px', fontWeight: 800, cursor: disableEditSave ? 'not-allowed' : 'pointer', border: 'none', background: disableEditSave ? 'rgba(184, 156, 91, 0.3)' : 'var(--color-accent)', color: 'var(--navy-950)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                          >
+                            <Check size={14} /> {editSaving ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditLift}
+                            disabled={editSaving}
+                            style={{ height: '36px', padding: '0 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'var(--color-text-muted)' }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteLift(l.id)}
+                            disabled={editSaving}
+                            style={{ height: '36px', padding: '0 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '13px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
+                        <span style={{ color: 'var(--color-text-muted)', flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.lift_type}</span>
+                        <span style={{ color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>{l.weight_lbs} lbs &times; {l.reps}</span>
+                        <span style={{ color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{new Date(l.created_at).toLocaleDateString()}</span>
+                        <button
+                          type="button"
+                          onClick={() => startEditLift(l)}
+                          title="Edit this entry"
+                          style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', flexShrink: 0 }}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    )
                   ))}
                 </div>
               </div>

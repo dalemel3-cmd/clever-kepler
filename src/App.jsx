@@ -495,7 +495,7 @@ export default function App() {
   // Lift Tracker (Bench/Squat/Deadlift/etc.) - same lifted-to-App-level reasoning as
   // Speed & Power above, so Profiles can eventually read best-lift data without a
   // second realtime subscription to the same table.
-  const { liftLogs, addLift } = useLiftLogs();
+  const { liftLogs, addLift, updateLift, deleteLift } = useLiftLogs();
 
   // Settings & PWA State
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
@@ -3382,6 +3382,9 @@ export default function App() {
                 liftLogs={liftLogs}
                 reportData={reportData}
                 addLift={addLift}
+                updateLift={updateLift}
+                deleteLift={deleteLift}
+                setConfirmModal={setConfirmModal}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setProfileEntryScreen={setProfileEntryScreen}

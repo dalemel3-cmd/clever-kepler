@@ -1,7 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Check, Smartphone, CheckCircle, Download, Sliders, Minus, Plus, Database, Upload, Wifi, Zap, Users, Activity, RefreshCw, Trash2, Shield, Lock, AlertTriangle, RotateCcw, ChevronDown } from 'lucide-react';
 import { getAppHost } from '../../settings';
 import CoachAccessCard from './CoachAccessCard';
+
+// A comma-separated list field (Lift Types, Session Labels, etc.) needs its own text
+// buffer, separate from the parsed array in settings. Deriving the input's `value`
+// straight from `settings[key].join(', ')` on every keystroke fought the coach typing
+// a comma: split-by-comma immediately produces a trailing empty entry
+// (`"Bench,".split(',') -> ["Bench", ""]`), that empty entry gets filtered out before
+// it's ever stored, and the input value re-renders from the filtered array - so the
+// comma the coach just typed visibly disappears and a second item can never be
+// started. Typing freely into local state and only committing the cleaned array on
+// blur/Enter fixes it, while everything reading `settings[key]` elsewhere still gets
+// a normal string array.
+function ListField({ id, value, onCommit }) {
+  const [text, setText] = useState((value || []).join(', '));
+  useEffect(() => { setText((value || []).join(', ')); }, [value]);
+  const commit = () => onCommit(text.split(',').map(s => s.trim()).filter(Boolean));
+  return (
+    <input
+      id={id}
+      type="text"
+      className="input-glass"
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') { commit(); e.currentTarget.blur(); } }}
+      style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px' }}
+    />
+  );
+}
 
 export default function SettingsScreen({
   settings,
@@ -251,6 +279,7 @@ export default function SettingsScreen({
                 { key: 'rpeLoadSpikeRatio', label: 'Load Spike Alert At', unit: 'A:C', step: 0.1, min: 0.1, max: 10, help: 'Acute:chronic workload ratio that fires a spike alert. 1.3 is the common injury-risk cutoff.' },
                 { key: 'rpeChronicWeeks', label: 'Chronic Load Window', unit: 'weeks', step: 1, min: 1, max: 52, help: 'How far back the "normal" training load is averaged.' },
                 { key: 'rpeSessionLabels', label: 'Session Labels', type: 'list', help: 'Buttons the athlete picks from, comma separated.' },
+                { key: 'rpeDurationQuickPicks', label: 'Duration Tiles (Minutes)', type: 'list', help: 'Only shown when "Also Ask For Duration" is on. Tap-to-select tiles, comma separated.' },
               ]
             },
             {
@@ -322,13 +351,10 @@ export default function SettingsScreen({
                         </span>
                       </button>
                     ) : f.type === 'list' ? (
-                      <input
+                      <ListField
                         id={`setting-${f.key}`}
-                        type="text"
-                        className="input-glass"
-                        value={(settings[f.key] || []).join(', ')}
-                        onChange={e => updateSetting(f.key, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                        style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px' }}
+                        value={settings[f.key]}
+                        onCommit={next => updateSetting(f.key, next)}
                       />
                     ) : f.type === 'text' || f.type === 'date' ? (
                       <input
