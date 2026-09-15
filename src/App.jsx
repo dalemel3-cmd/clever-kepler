@@ -3331,6 +3331,7 @@ export default function App() {
                 setNewAthlete={setNewAthlete}
                 reportData={reportData}
                 performanceTests={performanceTests}
+                liftLogs={liftLogs}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}

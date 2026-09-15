@@ -1302,7 +1302,34 @@ and not on whatever a naive full-string compare would produce.
 
 ---
 
-## 34. Next up
+## 34. Lift Tracker leaderboard sport filter + est. 1RM on the Athletes profile (v4.33.0)
+
+Two small additions:
+
+1. **Leaderboard sport filter.** New `leaderboardSportFilter` state (default `'ALL'`),
+   rendered as the same pill row the roster list already uses. `leaderboardRows` now
+   scopes its roster-id set to the selected sport before ranking, so "All" behaves
+   exactly as before and picking a sport narrows the board to just that team. Empty
+   state names the sport too ("No Bench results logged yet for Football").
+2. **"Best est. 1RM" on the Athletes profile panel.** `AthletesScreen.jsx` now takes
+   a `liftLogs` prop (passed from `App.jsx`, same array `LiftScreen` already
+   consumes) and imports `estimate1RM` from `LiftScreen.jsx`. For the selected
+   athlete, it reduces every one of their lift logs to whichever single set produced
+   the highest Epley estimate, across all exercises - not scoped to one lift type -
+   and shows it as a sixth tile in the biometric/performance grid, labeled with
+   which lift it came from (e.g. "Best est. 1RM (Squat)"). Reuses the exact
+   `estimate1RM` function the leaderboard ranks on, so this number can never
+   disagree with that board. An athlete with no lift logs reads "No lifts logged"
+   rather than a blank tile.
+
+New test files: `tests/lift-leaderboard-sport-filter.js` (9 probes),
+`tests/athletes-est-1rm.js` (5 probes, including the "raw heaviest single loses to a
+higher-rep estimate" case already established for the leaderboard itself). Full Lift
+Tracker + Athletes regression suites re-run and pass unchanged.
+
+---
+
+## 35. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
