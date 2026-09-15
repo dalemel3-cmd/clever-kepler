@@ -569,21 +569,11 @@ export default function ProfilesScreen({
               const validW = trendData.map(d=>d.Weight).filter(w => w > 0);
               const minW = validW.length > 0 ? Math.min(...validW) : 100;
               const maxW = validW.length > 0 ? Math.max(...validW) : 200;
-              const latestBaseline = [...weightLogs].reverse().find(d => d.is_baseline);
-              let baselineWeight = latestBaseline ? Number(latestBaseline.weight_lbs) : null;
-              if (!baselineWeight) {
-                try {
-                  const customMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-                  if (customMap[athlete.id] && customMap[athlete.id].weight_lbs) {
-                    baselineWeight = Number(customMap[athlete.id].weight_lbs);
-                  } else if (athlete?.baseline_weight) {
-                    baselineWeight = Number(athlete.baseline_weight);
-                  }
-                } catch(e) {}
-              }
-              if (!baselineWeight && weightLogs.length > 0) {
-                baselineWeight = Number(weightLogs[0].weight_lbs);
-              }
+              // Uses the same `baselineWeight` the stat tiles above compute via
+              // getAthleteBaseline(), rather than re-deriving it - a hand-rolled
+              // is_baseline-flag-first check here used to disagree with the override
+              // map that "Make Baseline Marker" writes, so the chart's reference line
+              // and the tiles above it could silently show two different baselines.
 
               return (
                 <ResponsiveContainer width="100%" height="100%">
