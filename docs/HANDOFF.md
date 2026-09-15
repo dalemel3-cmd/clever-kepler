@@ -1329,7 +1329,43 @@ Tracker + Athletes regression suites re-run and pass unchanged.
 
 ---
 
-## 35. Next up
+## 35. Collapsible Post-Practice Sweat Loss & Historical Log Ledger cards (v4.34.0)
+
+The athlete profile's two longest cards - the Post-Practice Sweat Loss & Hydration
+Tracker and the Historical Log Ledger (full chronological attribute timeline) - now
+collapse behind a chevron, closed by default, same pattern the dashboard's Session
+Accountability Tracker and Internal Load Metrics cards already use. A coach opening a
+profile lands on a much shorter page and expands either card only when they actually
+need it.
+
+Two new `useState` toggles (`postPracticeOpen`, `logLedgerOpen`) live on
+`ProfilesScreen`, declared above its early "no athlete selected" return to satisfy the
+rules of hooks. Each card's outer flex `gap` drops to `0` while collapsed so no dead
+space is left behind, and the body content is gated behind the open flag.
+
+The two headers use different click targets, matching what's inside each:
+- **Post-Practice** keeps its "Log Post-Practice Weight" button as an independent
+  sibling action, so only the icon+title block toggles the collapse - clicking it never
+  opens the manual-entry modal.
+- **Historical Log Ledger** has no header action button, so the whole header row
+  (chevron, title, and the static "Chronological Order" pill) is the click target.
+
+`tests/edit-log.js` clicks row-level Edit buttons inside the now-collapsed ledger, so
+it now expands the ledger once, right after opening the athlete, before looking for
+those buttons - the collapse state lives on `ProfilesScreen` itself, so it stays open
+across that test's mid-run athlete switch with no second click needed.
+
+New test file `tests/profile-collapsible-sections.js` (10 probes): both cards collapsed
+by default with headers still visible, the Historical Log Ledger expands and
+re-collapses on repeated clicks, and the Post-Practice header expands without
+triggering the manual-entry modal. Full regression sweep re-run across
+`tests/edit-log.js`, `tests/dashboard-profile-team.js`, `tests/data-integrity.js`,
+`tests/rpe.js`, `tests/tooltip-units.js`, `tests/profile-speed-power-rankings.js`, and
+`tests/settings-live.js` - all pass unchanged.
+
+---
+
+## 36. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

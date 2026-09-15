@@ -86,6 +86,12 @@ export default function ProfilesScreen({
   const sleepOptimalAt = settings.sleepTargetHours;
   const sleepChartTarget = settings.sleepChartTargetHours;
   const sleepBand = (h) => (h >= sleepOptimalAt ? 'optimal' : h >= sleepDeficitBelow ? 'adequate' : 'deficit');
+  // Post-Practice Sweat Loss and the Historical Log Ledger are two of the longest
+  // cards on the page - collapsed behind a chevron by default, same pattern the
+  // dashboard's Session Accountability Tracker already uses, so a coach lands on a
+  // shorter page and opens either one only when they actually need it.
+  const [postPracticeOpen, setPostPracticeOpen] = useState(false);
+  const [logLedgerOpen, setLogLedgerOpen] = useState(false);
   if (!selectedProfileId) {
     return (
       <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -724,10 +730,16 @@ export default function ProfilesScreen({
       </div>
 
       {/* Post-Practice Sweat & Acute Weight Drop Tracker */}
-      <div className="card-glass glow-card" style={{ padding: '32px', borderRadius: '24px', border: '1px solid rgba(59, 130, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.7) 100%)', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+      <div className="card-glass glow-card" style={{ padding: '32px', borderRadius: '24px', border: '1px solid rgba(59, 130, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.7) 100%)', display: 'flex', flexDirection: 'column', gap: postPracticeOpen ? '20px' : 0, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '52px', height: '52px', borderRadius: '16px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa' }}>
+          <div
+            onClick={() => setPostPracticeOpen(o => !o)}
+            role="button"
+            aria-expanded={postPracticeOpen}
+            style={{ display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' }}
+          >
+            {postPracticeOpen ? <ChevronUp size={20} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} /> : <ChevronDown size={20} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />}
+            <div style={{ width: '52px', height: '52px', borderRadius: '16px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa', flexShrink: 0 }}>
               <Zap size={28} />
             </div>
             <div>
@@ -776,7 +788,7 @@ export default function ProfilesScreen({
           </button>
         </div>
 
-        {postPracticeLogs.length === 0 ? (
+        {postPracticeOpen && (postPracticeLogs.length === 0 ? (
           <div style={{ padding: '24px', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.15)', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '14px' }}>
             No post-practice weight entries recorded yet. Use the button above to log acute weigh-ins after practice sessions!
           </div>
@@ -868,21 +880,29 @@ export default function ProfilesScreen({
               );
             })}
           </div>
-        )}
+        ))}
       </div>
 
       {/* All Attributes Over Time - Full Chronological Ledger */}
-      <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-              <Activity size={14} /> COMPLETE ATTRIBUTE TIMELINE
-            </span>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, margin: 0, color: '#fff', textTransform: 'uppercase' }}>
-              HISTORICAL LOG LEDGER ({sortedLogs.length})
-            </h3>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-              Comprehensive log of every check-in session showing body weight deltas, sleep duration, and recovery classifications over time.
+      <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: logLedgerOpen ? '20px' : 0, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+        <div
+          onClick={() => setLogLedgerOpen(o => !o)}
+          role="button"
+          aria-expanded={logLedgerOpen}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', cursor: 'pointer' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {logLedgerOpen ? <ChevronUp size={20} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} /> : <ChevronDown size={20} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />}
+            <div>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                <Activity size={14} /> COMPLETE ATTRIBUTE TIMELINE
+              </span>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, margin: 0, color: '#fff', textTransform: 'uppercase' }}>
+                HISTORICAL LOG LEDGER ({sortedLogs.length})
+              </h3>
+              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                Comprehensive log of every check-in session showing body weight deltas, sleep duration, and recovery classifications over time.
+              </div>
             </div>
           </div>
           <span style={{ fontSize: '12px', color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.12)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.25)', fontWeight: 700, textTransform: 'uppercase' }}>
@@ -890,7 +910,7 @@ export default function ProfilesScreen({
           </span>
         </div>
 
-        {sortedLogs.length > 0 ? (
+        {logLedgerOpen && (sortedLogs.length > 0 ? (
           <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '680px' }}>
               <thead>
@@ -1081,7 +1101,7 @@ export default function ProfilesScreen({
             <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📋</span>
             No check-in session logs recorded for this athlete yet. Click "+ LOG DATA" above or enter via Kiosk Mode.
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
