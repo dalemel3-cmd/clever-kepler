@@ -1291,7 +1291,18 @@ correct filename, header row, both fixture lifts, and a computed (not raw) 1RM v
 
 ---
 
-## 33. Next up
+## 33. Lift Tracker CSV export sorts by last name (v4.32.1)
+
+Follow-up to §32: the export was newest-first; changed to sort by athlete last name
+(`athlete_name`'s last whitespace-separated word), then first name, then newest-first
+within one athlete's own sets. `tests/lift-csv-export.js` section [C] added: two
+fixture athletes ("Adam Zed" and "Zach Adams") deliberately chosen so a first-name or
+date sort would misorder them, confirming the export actually sorts on the last name
+and not on whatever a naive full-string compare would produce.
+
+---
+
+## 34. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

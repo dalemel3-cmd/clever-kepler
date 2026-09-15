@@ -24,9 +24,14 @@ const check = (name, ok, detail = '') => {
 const athletes = [
   { id: uuid(1), name: 'Export Athlete', sport: 'Football', team: 'Varsity', grade: '11th', position: 'OL' },
 ];
+// Deliberately out of last-name order, and deliberately mixed first names so a
+// naive full-name sort ("Adam Zed" before "Zach Adams") would land in the wrong
+// place if the export sorted on anything but the last name.
 const liftLogs = [
   { id: uuid(50), athlete_id: uuid(1), athlete_name: 'Export Athlete', sport: 'Football', lift_type: 'Squat', weight_lbs: 225, reps: 8, source: 'manual', created_at: ago(1) },
   { id: uuid(51), athlete_id: uuid(1), athlete_name: 'Export Athlete', sport: 'Football', lift_type: 'Bench', weight_lbs: 185, reps: 5, source: 'manual', created_at: ago(0) },
+  { id: uuid(52), athlete_id: uuid(2), athlete_name: 'Adam Zed', sport: 'Football', lift_type: 'Bench', weight_lbs: 200, reps: 5, source: 'manual', created_at: ago(2) },
+  { id: uuid(53), athlete_id: uuid(3), athlete_name: 'Zach Adams', sport: 'Football', lift_type: 'Squat', weight_lbs: 300, reps: 3, source: 'manual', created_at: ago(2) },
 ];
 
 const newPage = async (browser) => {
@@ -82,6 +87,28 @@ const newPage = async (browser) => {
     check('header row matches expected columns', content.startsWith('"Date","Athlete","Sport","Lift","Weight (lbs)","Reps","Est. 1RM"'), content.split('\n')[0]);
     check('both logged sets are present', content.includes('Squat') && content.includes('Bench'), content);
     check('estimated 1RM is computed, not just raw weight (225x8 -> 285, not 225)', content.includes('285'), content);
+    check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[C] Rows are sorted by last name, not first name or date logged');
+  {
+    const page = await newPage(browser);
+    await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByLabel('Export all lift logs to CSV').click(),
+    ]);
+    const path = await download.path();
+    const fs = await import('fs');
+    const content = fs.readFileSync(path, 'utf-8');
+    // Expected last-name order: Adams (Zach), Athlete (Export), Zed (Adam) - a
+    // first-name or date sort would put "Zach Adams" last, not first.
+    const idxAdams = content.indexOf('Zach Adams');
+    const idxExport = content.indexOf('Export Athlete');
+    const idxZed = content.indexOf('Adam Zed');
+    check('all three athletes are present', idxAdams >= 0 && idxExport >= 0 && idxZed >= 0, content);
+    check('sorted by last name (Adams, Athlete, Zed) - not first name or date', idxAdams < idxExport && idxExport < idxZed,
+      `Adams@${idxAdams}, Athlete@${idxExport}, Zed@${idxZed}`);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
