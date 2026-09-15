@@ -1268,7 +1268,30 @@ calls now click the equivalent duration tile.
 
 ---
 
-## 32. Next up
+## 32. Lift Tracker CSV export (v4.32.0)
+
+Added a coach-only export of every logged set to `LiftScreen.jsx`'s header, next to
+the Log a Lift / Leaderboard tabs. Deliberately icon-only (`Download`, no text label,
+muted/outline styling, separated from the tabs by a 1px divider) per explicit request -
+those two tabs are large labeled buttons an athlete taps through on the kiosk, and a
+third labeled button in the same row risked being tapped the same way. A bare icon
+with no caption doesn't read as part of that flow.
+
+`handleExportCSV` exports every row in `liftLogs` (not just the currently-filtered
+roster), newest first: Date, Athlete, Sport, Lift, Weight (lbs), Reps, Est. 1RM - the
+Epley estimate (`estimate1RM`, already exported from this file for the leaderboard),
+not just the raw weight, so the export answers "how strong is this lift really" the
+same way the leaderboard does. `csvCell`/`downloadCSV` are a local copy of the same
+helpers `ReportsScreen.jsx` already uses for its own exports (no shared module exists
+for these yet - every screen with an export duplicates this small pair).
+
+New test file `tests/lift-csv-export.js` (9 probes): confirms the button has no visible
+text and isn't styled as an accent CTA, and that clicking it downloads a CSV with the
+correct filename, header row, both fixture lifts, and a computed (not raw) 1RM value.
+
+---
+
+## 33. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

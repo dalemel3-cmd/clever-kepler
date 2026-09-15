@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X, Dumbbell, Award, Plus, ChevronLeft, Pencil, Trash2, Check } from 'lucide-react';
+import { Search, X, Dumbbell, Award, Plus, ChevronLeft, Pencil, Trash2, Check, Download } from 'lucide-react';
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 // Estimated 1-rep max (Epley formula). Weight and reps are always stored as the raw
@@ -25,6 +25,21 @@ const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3
 const colorFor = (name) => avatarColors[name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length];
 const initialsOf = (name) => name.split(' ').map(n => n[0]).join('').toUpperCase();
 const shortDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+// Same escape/download convention ReportsScreen.jsx uses for its exports.
+const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+const downloadCSV = (filename, headers, rows) => {
+  const csvContent = [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 
 function Avatar({ name, size = 42 }) {
   return (
@@ -184,6 +199,27 @@ export default function LiftScreen({
     });
   };
 
+  // Every logged set, newest first - a coach-only export (kept icon-only, no label, so
+  // an athlete tapping through the kiosk doesn't mistake it for part of the log-a-lift
+  // flow and trigger a download).
+  const handleExportCSV = () => {
+    const sorted = [...liftLogs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const rows = sorted.map(l => [
+      new Date(l.created_at).toLocaleDateString(),
+      l.athlete_name || '',
+      l.sport || '',
+      l.lift_type,
+      l.weight_lbs,
+      l.reps,
+      Math.round(estimate1RM(Number(l.weight_lbs), Number(l.reps))),
+    ]);
+    downloadCSV(
+      `Shiloh_LiftLogs_${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Date', 'Athlete', 'Sport', 'Lift', 'Weight (lbs)', 'Reps', 'Est. 1RM'],
+      rows
+    );
+  };
+
   const handleSave = async () => {
     if (disableSave || !selectedAthlete) return;
     setSaving(true);
@@ -261,9 +297,26 @@ export default function LiftScreen({
             Recent athletes and today's session surface first. The full roster is one search away, sorted by session frequency instead of A&ndash;Z.
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {tabBtn('log', 'Log a Lift', <Dumbbell size={15} />)}
           {tabBtn('leaderboard', 'Leaderboard', <Award size={15} />)}
+          {/* Icon-only, no label, and set apart from the tabs above by a divider -
+              a coach reaching for this knows what it does; an athlete tapping through
+              the kiosk has no reason to read a bare icon as part of logging a lift. */}
+          <div style={{ width: '1px', height: '24px', background: 'var(--color-border)', margin: '0 2px' }} />
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            title="Export all lift logs to CSV"
+            aria-label="Export all lift logs to CSV"
+            style={{
+              width: '38px', height: '38px', borderRadius: '10px', cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.12)', background: 'transparent',
+              color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Download size={16} />
+          </button>
         </div>
       </div>
 
