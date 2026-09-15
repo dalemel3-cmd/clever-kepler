@@ -75,6 +75,11 @@ export default function LiftScreen({
   const [successMsg, setSuccessMsg] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [leaderboardLift, setLeaderboardLift] = React.useState(liftTypes[0] || '');
+  // Same "All / one sport" filter convention as the roster's own group pills - a
+  // leaderboard mixing every sport together buried a team's own numbers under
+  // whichever sport logs the most, so a coach checking their own team's PRs had to
+  // scan past everyone else's.
+  const [leaderboardSportFilter, setLeaderboardSportFilter] = React.useState('ALL');
   // Editing a previously-logged set (wrong weight/reps, or logged under the wrong
   // exercise entirely) - a separate small form inline in the Recent Lifts list,
   // rather than deleting and re-adding.
@@ -261,7 +266,8 @@ export default function LiftScreen({
   }, [liftLogs, selectedAthlete]);
 
   const leaderboardRows = React.useMemo(() => {
-    const rosterIds = new Set(athletes.map(a => a.id));
+    const roster = leaderboardSportFilter === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === leaderboardSportFilter);
+    const rosterIds = new Set(roster.map(a => a.id));
     const byAthlete = new Map();
     for (const l of liftLogs) {
       if (l.lift_type !== leaderboardLift || !rosterIds.has(l.athlete_id)) continue;
@@ -270,7 +276,7 @@ export default function LiftScreen({
       if (!cur || est > cur.est) byAthlete.set(l.athlete_id, { ...l, est: Math.round(est) });
     }
     return [...byAthlete.values()].sort((a, b) => b.est - a.est);
-  }, [liftLogs, leaderboardLift, athletes]);
+  }, [liftLogs, leaderboardLift, leaderboardSportFilter, athletes]);
 
   const openProfile = (id) => {
     setSelectedProfileId(id);
@@ -472,21 +478,40 @@ export default function LiftScreen({
 
       {view === 'leaderboard' && (
         <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <select
-            aria-label="Lift"
-            value={leaderboardLift}
-            onChange={e => setLeaderboardLift(e.target.value)}
-            className="input-glass"
-            style={{ height: '42px', padding: '0 14px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', maxWidth: '280px' }}
-          >
-            {liftTypes.map(lt => (
-              <option key={lt} value={lt} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{lt}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select
+              aria-label="Lift"
+              value={leaderboardLift}
+              onChange={e => setLeaderboardLift(e.target.value)}
+              className="input-glass"
+              style={{ height: '42px', padding: '0 14px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', maxWidth: '280px' }}
+            >
+              {liftTypes.map(lt => (
+                <option key={lt} value={lt} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{lt}</option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {['ALL', ...sports].map(sport => (
+                <button
+                  key={sport}
+                  type="button"
+                  onClick={() => setLeaderboardSportFilter(sport)}
+                  style={{
+                    padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                    border: leaderboardSportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    background: leaderboardSportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
+                    color: leaderboardSportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
+                  }}
+                >
+                  {sport === 'ALL' ? 'All' : sport}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {leaderboardRows.length === 0 ? (
             <div style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '20px 0', textAlign: 'center' }}>
-              No {leaderboardLift} results logged yet.
+              No {leaderboardLift} results logged yet{leaderboardSportFilter !== 'ALL' ? ` for ${leaderboardSportFilter}` : ''}.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

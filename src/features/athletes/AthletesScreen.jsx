@@ -3,6 +3,7 @@ import { Search, X, Plus, ChevronLeft } from 'lucide-react';
 import { isPostPracticeLog, hasWeight, isRpeLog, getAthleteBaseline } from '../../utils/athleteData';
 import { bestTestFor } from '../profiles/ProfilesScreen';
 import { formatMetric } from '../analytics/SpeedPowerPanel';
+import { estimate1RM } from '../lifts/LiftScreen';
 
 const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
 const colorFor = (name) => avatarColors[name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length];
@@ -68,6 +69,7 @@ export default function AthletesScreen({
   setNewAthlete,
   reportData,
   performanceTests,
+  liftLogs,
   setSelectedProfileId,
   fetchProfileData,
   setScreen,
@@ -306,6 +308,13 @@ export default function AthletesScreen({
           const baseInfo = getAthleteBaseline(a, logs);
           const bestVertical = bestTestFor(performanceTests || [], a.id, 'vertical_jump');
           const latestRpe = logs.find(isRpeLog);
+          // Best estimated 1RM across every lift this athlete has logged, whichever
+          // exercise it happened to be - same Epley estimate the Lift Tracker
+          // leaderboard ranks on, so this number can never disagree with that board.
+          const bestLift = (liftLogs || []).filter(l => l.athlete_id === a.id).reduce((best, l) => {
+            const est = estimate1RM(Number(l.weight_lbs), Number(l.reps));
+            return (!best || est > best.est) ? { est: Math.round(est), liftType: l.lift_type } : best;
+          }, null);
           const lastActive = logs[0]?.created_at ? new Date(logs[0].created_at).toLocaleDateString() : null;
 
           const historyLabel = (l) => {
@@ -355,6 +364,12 @@ export default function AthletesScreen({
                     {latestRpe ? `${latestRpe.rpe} / ${settings.rpeScaleMax}` : 'No RPE logged'}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Most recent RPE</div>
+                </div>
+                <div style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: bestLift ? '18px' : '13px', fontWeight: 700, color: bestLift ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+                    {bestLift ? `${bestLift.est} lb` : 'No lifts logged'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{bestLift ? `Best est. 1RM (${bestLift.liftType})` : 'Best est. 1RM'}</div>
                 </div>
               </div>
 
