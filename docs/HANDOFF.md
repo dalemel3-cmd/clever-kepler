@@ -1365,7 +1365,50 @@ triggering the manual-entry modal. Full regression sweep re-run across
 
 ---
 
-## 36. Next up
+## 36. Full audit: dropped stale backup tables, documented an intentional SECURITY DEFINER, fixed a baseline-chart disagreement (v4.34.1)
+
+A full audit (regression sweep + Supabase/Vercel production health + a manual code-quality
+pass) turned up three real, actionable items. All three are done:
+
+1. **Dropped `performance_tests_dupe_backup_20260908` (3 rows) and
+   `weigh_ins_dupe_backup_20260908` (141 rows).** These were the RLS-enabled-but-no-policy
+   backup copies from the v4.20.0 duplicate cleanup (db/008), over a month old. Row counts
+   were confirmed against that changelog entry before dropping. Clears both
+   `rls_enabled_no_policy` advisories.
+2. **Documented `is_approved_coach()`'s `SECURITY DEFINER` as intentional**, not an
+   oversight, via `comment on function`. It has to run as definer because the `coaches`
+   table's own RLS policies call it - running it as invoker would re-trigger those same
+   policies on its internal query and recurse infinitely. `search_path` is already pinned
+   to `public` (the real mitigation for the classic SECURITY DEFINER exploit), it takes no
+   arguments and only ever evaluates `auth.uid()` for the calling session (no cross-user
+   data exposure), and `anon` has no EXECUTE grant on it. The security advisor will likely
+   keep flagging this - it's a generic lint, not comment-aware - but the reasoning is now on
+   the function itself for the next person who checks it.
+3. **Fixed `ProfilesScreen.jsx`'s weight-trend chart disagreeing with its own stat tiles
+   on an athlete's baseline.** The chart's reference line re-derived the baseline by hand
+   (`is_baseline` flag first, override map second) instead of calling the same
+   `getAthleteBaseline()` the tiles above it use (override map first, flag second). A coach
+   correcting a baseline via "Make Baseline Marker" after an older log was already flagged
+   `is_baseline` would see the tiles show the correction while the chart kept plotting the
+   stale flagged value as "Baseline: X lbs" a few hundred pixels below. New test
+   `tests/profile-baseline-chart-agreement.js` reproduces the exact scenario (a flagged
+   190 lb log vs. a 170 lb override) and was confirmed to fail against the pre-fix build
+   before passing against the fix. Full regression sweep (all 35 files) re-run and passes.
+
+A manual RLS review across every athlete-data table (`athletes`, `weigh_ins`,
+`performance_tests`, `lift_logs`, `alert_status`) turned up nothing else - each has exactly
+one `is_approved_coach()`-gated policy restricted to `authenticated`, no `anon` access
+anywhere. Vercel production had zero runtime errors in the trailing 7 days.
+
+Two items from the audit were deliberately left alone: the bulk-baseline-set's one-`UPDATE`-
+per-athlete pattern (`App.jsx`) is inefficient but not a correctness bug at current roster
+sizes, and the various dead-code/unused-import findings are cosmetic. Leaked-password
+protection (§35's carryover, and the original security audit's) is still open - it's a
+Supabase dashboard toggle, not something this session's tooling can flip.
+
+---
+
+## 37. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
