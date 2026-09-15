@@ -202,8 +202,19 @@ export default function LiftScreen({
   // Every logged set, newest first - a coach-only export (kept icon-only, no label, so
   // an athlete tapping through the kiosk doesn't mistake it for part of the log-a-lift
   // flow and trigger a download).
+  // Last name first, then first name, then newest-first within one athlete's own sets -
+  // "athlete_name" is stored as one string ("Trent Butler"), so the sort key is just
+  // its last whitespace-separated word.
+  const lastNameOf = (fullName) => (fullName || '').trim().split(/\s+/).pop().toLowerCase();
+
   const handleExportCSV = () => {
-    const sorted = [...liftLogs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const sorted = [...liftLogs].sort((a, b) => {
+      const lastCmp = lastNameOf(a.athlete_name).localeCompare(lastNameOf(b.athlete_name));
+      if (lastCmp !== 0) return lastCmp;
+      const nameCmp = (a.athlete_name || '').localeCompare(b.athlete_name || '');
+      if (nameCmp !== 0) return nameCmp;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
     const rows = sorted.map(l => [
       new Date(l.created_at).toLocaleDateString(),
       l.athlete_name || '',
