@@ -1206,7 +1206,69 @@ doesn't say "lbs" in this test's fixture. Worth a look separately.
 
 ---
 
-## 31. Next up
+## 31. RPE, Lift Tracker, and Settings fixes (v4.31.0)
+
+Five coach-reported items, all in one pass:
+
+1. **RPE no longer prompts for a baseline.** `EntryScreen.jsx`'s `requiresBaseline`
+   gate only counted weight-bearing logs to decide "is this athlete's first entry",
+   so an athlete who had only ever logged RPE (no weight logs at all) read as
+   `isFirstEntry` regardless of track mode, and got "🎯 This is my baseline" /
+   "Save as regular entry" on an RPE-only save that carries no weight to baseline in
+   the first place. Added `kioskTrackMode !== 'rpe'` to the gate, and to the separate
+   Baseline Testing Mode banner/button styling a few lines down (same bug, different
+   trigger - a program running its whole-station "Baseline Testing Mode" toggle while
+   in RPE mode hit the same nonsensical prompt).
+2. **Session Duration is tiles, not a number pad.** New setting
+   `rpeDurationQuickPicks` (default `[15,20,25,30,35,40,45,50,60,75,90]`, exposed in
+   Settings → Session RPE as a `type: 'list'` field like Session Labels). The
+   duration field in `EntryScreen.jsx` now renders these as tap buttons, same
+   pattern as the sleep quick-picks already used. RPE itself keeps its manual
+   number-pad entry - only duration changed, per the request that RPE stay the one
+   typed field.
+3. **Lift Tracker Weight/Reps overlap fix.** The two-column grid used bare `1fr 1fr`
+   tracks; a `type="number"` input's intrinsic min-content width doesn't shrink
+   below itself inside a grid track by default, so on a narrow screen both boxes
+   could overflow their column and overlap. Fixed with `minmax(0, 1fr)` tracks plus
+   `minWidth: 0` + `boxSizing: 'border-box'` on both inputs - the standard CSS Grid
+   "min-width: auto" trap fix. (Note: could not reproduce the overlap in headless
+   Chromium at any viewport tested to confirm a fail-before/pass-after on this one
+   specifically - the fix is still correct and worth keeping, but if the overlap
+   persists on a real device it may be a different/additional cause, e.g.
+   browser-native number-input spinner rendering outside the box model on iOS
+   Safari specifically.)
+4. **Lift entries can be edited, including moving them to the right exercise.**
+   `useLiftLogs.js` already had `updateLift`/`deleteLift` fully implemented but
+   wired into nothing - added a pencil icon per row in "Recent Lifts" (the entry
+   modal) that opens an inline edit form: the same lift-type button row as the main
+   entry form (so a set logged as Squat can be moved to Bench), plus weight/reps
+   inputs, Save and Delete. Delete goes through the app's existing custom confirm
+   modal (`setConfirmModal`), not a native `window.confirm`, to match every other
+   delete flow in the app.
+5. **Settings comma-separated list fields couldn't have a new item typed in.**
+   `Lift Types`/`Session Labels`/the new `Duration Tiles` field derived their input's
+   `value` straight from `settings[key].join(', ')` on every keystroke. Typing a
+   comma to start a second item produces a trailing empty array entry
+   (`"Bench,".split(',') -> ["Bench", ""]`) that gets filtered out before the next
+   render - so the comma (and anything typed after it) visibly disappeared
+   immediately, and a coach could never actually add a new exercise. Fixed with a
+   new `ListField` component holding its own local text buffer, only committing the
+   parsed/cleaned array to `settings` on blur or Enter - typing itself is now
+   completely free-form.
+
+New test files: `tests/rpe-fixes.js` (10 probes - no-baseline-prompt +
+duration tiles), `tests/lift-edit.js` (13 probes - overlap check + edit/delete),
+`tests/settings-list-field.js` (8 probes - types character-by-character via
+`pressSequentially`, the only way to actually exercise the bug, since `.fill()`
+sets the value in one shot and never round-trips through the buggy per-keystroke
+`onChange`). Confirmed fail-before/pass-after on 1, 2, and 5; could not reproduce 3
+in headless Chromium (see above); 4 is new functionality with no prior behavior to
+compare against. `tests/rpe.js` updated - its two `getByLabel('Session Duration').fill(...)`
+calls now click the equivalent duration tile.
+
+---
+
+## 32. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

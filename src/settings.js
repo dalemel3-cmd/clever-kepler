@@ -89,6 +89,11 @@ export const DEFAULT_SETTINGS = {
   rpeScaleMax: 10,
   rpeHighThreshold: 8,
   rpeSessionLabels: ['Lift', 'Run', 'Combined'],
+  // Session Duration used to be free-text numeric entry - an athlete tapping through
+  // a kiosk had to hunt-and-peck a number pad for a value that's almost always one of
+  // a handful of round numbers anyway. Tiles are quicker to tap and keep the RPE
+  // number itself as the only field that still needs manual entry.
+  rpeDurationQuickPicks: [15, 20, 25, 30, 35, 40, 45, 50, 60, 75, 90],
   rpeLoadSpikeRatio: 1.3,
   rpeChronicWeeks: 4,
 

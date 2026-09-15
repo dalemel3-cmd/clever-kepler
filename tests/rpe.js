@@ -159,7 +159,8 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
       await page.waitForTimeout(900);
 
       await page.getByLabel('Session RPE').fill('7');
-      await page.getByLabel('Session Duration').fill('60');
+      // Duration is now a tap-to-select tile, not a text field (v4.31.0).
+      await page.getByRole('button', { name: '60 MIN', exact: true }).click();
       // Session labels are driven by settings.rpeSessionLabels, seeded above.
       await page.getByRole('button', { name: 'Lift', exact: true }).first().click();
       await page.getByRole('button', { name: /SAVE RPE/i }).first().click();
@@ -203,7 +204,7 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
     await page.getByText('Fresh Athlete').first().click();
     await page.waitForTimeout(900);
     await page.getByLabel('Session RPE').fill('6');
-    await page.getByLabel('Session Duration').fill('45');
+    await page.getByRole('button', { name: '45 MIN', exact: true }).click();
     await page.getByRole('button', { name: 'Run', exact: true }).first().click();
     await page.getByRole('button', { name: /SAVE RPE/i }).first().click();
     await page.waitForTimeout(1800);

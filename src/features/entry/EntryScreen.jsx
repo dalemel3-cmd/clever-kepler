@@ -720,21 +720,32 @@ export default function EntryScreen({
                     />
                     
                     {/* Duration is optional per program - when rpeTrackDuration is off the
-                        field is hidden, and the save no longer requires it. */}
+                        field is hidden, and the save no longer requires it. Tap-to-select
+                        tiles instead of a number pad - duration is almost always one of a
+                        handful of round numbers, and RPE stays the only field here that
+                        needs actual manual entry. */}
                     {settings.rpeTrackDuration && (<>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                       <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>Duration (Minutes)</span>
                     </div>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      aria-label="Session Duration"
-                      placeholder="e.g. 90"
-                      value={rpeDurationInput || ''}
-                      onFocus={() => setFocusedField('rpe_duration')}
-                      onChange={(e) => setRpeDurationInput(e.target.value.replace(/[^0-9]/g, ''))}
-                      style={{ flex: 1, width: '100%', height: '56px', background: focusedField === 'rpe_duration' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.2)', border: focusedField === 'rpe_duration' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: focusedField === 'rpe_duration' ? 'var(--color-accent)' : 'var(--white)', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, outline: 'none', transition: 'all 0.2s', padding: '0 10px' }}
-                    />
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {(settings.rpeDurationQuickPicks || []).map(v => String(v)).map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => { setRpeDurationInput(val); setFocusedField('rpe_duration'); }}
+                          style={{
+                            flex: '1 1 64px', minWidth: '64px', height: '48px',
+                            background: rpeDurationInput === val ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
+                            color: rpeDurationInput === val ? 'var(--navy-950)' : 'var(--color-text)',
+                            border: '1px solid var(--color-border)', borderRadius: '8px',
+                            fontSize: '14px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                          }}
+                        >
+                          {val} MIN
+                        </button>
+                      ))}
+                    </div>
                     </>)}
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
@@ -858,7 +869,11 @@ export default function EntryScreen({
               const athleteRecords = reportData.filter(r => r.athlete_id === selectedAthlete.id && r.weight_lbs && Number(r.weight_lbs) > 0).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
               const isFirstEntry = athleteRecords.length === 0;
               const hasLongGap = athleteRecords.length > 0 && (new Date() - new Date(athleteRecords[athleteRecords.length - 1].created_at)) > settings.baselineExpiryDays * 24 * 60 * 60 * 1000;
-              const requiresBaseline = kioskTrackMode !== 'sleep_only' && (isFirstEntry || hasLongGap);
+              // RPE-only entries carry no weight at all, so there's nothing to baseline -
+              // an athlete who has only ever logged RPE was still hitting "isFirstEntry"
+              // (athleteRecords only counts weight-bearing logs) and getting asked to set
+              // a baseline off a session that has no weight in it.
+              const requiresBaseline = kioskTrackMode !== 'sleep_only' && kioskTrackMode !== 'rpe' && (isFirstEntry || hasLongGap);
 
               // Numeric check: the old string comparison let "0" (typed via numpad) through
               // as a junk zero-weight record; also reject implausible giant values.
@@ -892,17 +907,17 @@ export default function EntryScreen({
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', marginTop: '4px' }}>
-                  {isBaselineTestingMode && kioskTrackMode !== 'sleep_only' && (
+                  {isBaselineTestingMode && kioskTrackMode === 'both' && (
                     <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.45)', padding: '10px 16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '13px', fontWeight: 700 }}>
                       <span style={{ fontSize: '16px' }}>🎯</span> This entry will establish a NEW OFFICIAL BASELINE target for {selectedAthlete.name}.
                     </div>
                   )}
                   <button
                     type="button"
-                    onClick={() => handleSave(isBaselineTestingMode)}
+                    onClick={() => handleSave(isBaselineTestingMode && kioskTrackMode === 'both')}
                     disabled={disableSubmit}
                     className="btn-primary glow-card"
-                    style={{ height: '58px', fontSize: '18px', width: '100%', background: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#10b981' : 'var(--color-accent)', color: isBaselineTestingMode && kioskTrackMode !== 'sleep_only' ? '#000' : 'var(--navy-950)', fontWeight: 800 }}
+                    style={{ height: '58px', fontSize: '18px', width: '100%', background: isBaselineTestingMode && kioskTrackMode === 'both' ? '#10b981' : 'var(--color-accent)', color: isBaselineTestingMode && kioskTrackMode === 'both' ? '#000' : 'var(--navy-950)', fontWeight: 800 }}
                   >
                     {saving ? 'Saving...' : (isBaselineTestingMode && kioskTrackMode === 'both' ? `🎯 Save as Athlete Baseline${weightInput ? ` (${weightInput} lbs)` : ''}` : (kioskTrackMode === 'sleep_only' ? 'Save Recovery Log & Complete' : (kioskTrackMode === 'rpe' ? 'Save RPE & Complete' : 'Save Record & Complete')))}
                   </button>
