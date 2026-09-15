@@ -78,6 +78,12 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
   // Exact match: "Typo Athlete" is also a substring of "Rpe Typo Athlete" (added below
   // for probe [C]), and that card can sort ahead of this one alphabetically.
   await page.getByText('Typo Athlete', { exact: true }).first().click(); await page.waitForTimeout(1800);
+  // Historical Log Ledger collapses behind a chevron by default (v4.34.0) - expand it
+  // before looking for row-level Edit buttons. The collapse state lives on the
+  // ProfilesScreen component itself, so it stays open across the athlete-switch in
+  // probe [C] below without needing a second click.
+  await page.getByText('HISTORICAL LOG LEDGER', { exact: false }).click();
+  await page.waitForTimeout(400);
   const editButtons = page.getByRole('button', { name: /^EDIT$/i });
   const n = await editButtons.count();
   check('edit buttons present in the log ledger', n >= 2, `found ${n}`);

@@ -55,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.34.0` | Athlete profile's Post-Practice Sweat Loss & Hydration Tracker and Historical Log Ledger now collapse behind a chevron by default, same pattern the dashboard's Session Accountability Tracker uses, so a coach lands on a shorter profile page and opens either card only when they need it |
 | `4.33.0` | Lift Tracker leaderboard gained a sport filter (All + one team at a time), same pill pattern as the roster list, so a coach checking one team's PRs isn't scanning past every other sport's lifters first. The Athletes screen's profile panel gained a "Best est. 1RM" tile - the same Epley estimate the leaderboard ranks on, reduced across every lift the athlete has logged, labeled with whichever exercise it came from |
 | `4.32.1` | Lift Tracker's CSV export now sorts by athlete last name instead of newest-first |
 | `4.32.0` | Lift Tracker gained a CSV export of every logged set (date, athlete, sport, lift, weight, reps, est. 1RM) - icon-only download button, no text label, set apart from the Log a Lift / Leaderboard tabs by a divider so it doesn't read as part of the kiosk flow an athlete taps through |
