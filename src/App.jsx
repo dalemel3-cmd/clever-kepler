@@ -3083,19 +3083,16 @@ export default function App() {
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <button 
+                {/* A separate "LOG ENTRY" button used to sit here, but it just navigated
+                    to the same #entry screen the sidebar's own LOG ENTRY nav item already
+                    reaches - a redundant third way (with EXIT KIOSK below) to get to a
+                    place already one click away. */}
+                <button
                   onClick={() => { setIsKioskMode(true); setScreen('entry'); }}
                   className="btn-primary no-print"
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px' }}
                 >
                   <Lock size={14} /> <span className="kiosk-btn-text">ACTIVATE KIOSK MODE</span>
-                </button>
-                <button 
-                  onClick={() => { setIsKioskMode(false); setScreen('entry'); }}
-                  className="no-print"
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px', background: screen === 'entry' ? 'rgba(184, 156, 91, 0.25)' : 'rgba(255, 255, 255, 0.05)', color: screen === 'entry' ? 'var(--color-accent)' : 'var(--white)', border: screen === 'entry' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
-                >
-                  <Plus size={14} style={{ color: 'var(--color-accent)' }} /> <span className="kiosk-btn-text">LOG ENTRY</span>
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
