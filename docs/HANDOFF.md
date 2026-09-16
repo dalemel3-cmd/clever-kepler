@@ -1540,9 +1540,37 @@ this sandbox - no network access to install Deno. Before this ships: run that te
 at least one manual end-to-end sync against Plyomat's real API (or a sandbox key if they offer
 one) to confirm real pagination envelopes and rate-limit behavior match what the tests assume.
 
+**Verified 2026-09-16**: deployed to production, ran a real sync against Plyomat's live API.
+Confirmed working as designed - 752 previously CSV-imported rows correctly recognized as
+duplicates (validating that the CSV export's Session ID and the API's `set.id` really are the
+same identifier), unsupported test types (`drop_jump`, `pps`) correctly flagged rather than
+imported wrong, new athletes created with sport left blank rather than guessed, and one
+"(unknown) - athlete not found in Plyomat response" row correctly held out rather than crashing
+(an archived/deleted Plyomat athlete referenced by an old set). Import confirmed and written
+successfully.
+
 ---
 
-## 39. Next up
+## 39. Fixed: "Sports Offered" couldn't have a new sport typed into it (v4.36.1)
+
+The exact bug `tests/settings-list-field.js` documents fixing for Lift Types/Session Labels in
+v4.31.0 was still present on Settings' "Sports Offered" field - it was never migrated to the
+shared `ListField` component the other comma-separated list fields already use. Its `<textarea>`
+derived `value` straight from `settings.sportsList.join(', ')` on every keystroke, so typing a
+comma to start a second sport produced a trailing empty entry that got filtered out before the
+next render - the comma (and anything typed after it) visibly vanished immediately, making it
+impossible to add a new sport by hand.
+
+Fixed by extending `ListField` with a `multiline` option (it now renders a `<textarea>` when
+asked, using the exact same local-text-buffer-until-blur pattern) and routing "Sports Offered"
+through it, matching Lift Types/Session Labels exactly. New `tests/settings-sports-list.js`
+confirmed the bug against the pre-fix build (couldn't even find `#setting-sportsList` - the field
+had no id at all before this) and passes against the fix. Full regression sweep re-run and
+passes.
+
+---
+
+## 40. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

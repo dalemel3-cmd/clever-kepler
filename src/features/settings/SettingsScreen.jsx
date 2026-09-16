@@ -13,13 +13,28 @@ import CoachAccessCard from './CoachAccessCard';
 // started. Typing freely into local state and only committing the cleaned array on
 // blur/Enter fixes it, while everything reading `settings[key]` elsewhere still gets
 // a normal string array.
-function ListField({ id, value, onCommit }) {
+function ListField({ id, value, onCommit, multiline, ariaLabel, rows }) {
   const [text, setText] = useState((value || []).join(', '));
   useEffect(() => { setText((value || []).join(', ')); }, [value]);
   const commit = () => onCommit(text.split(',').map(s => s.trim()).filter(Boolean));
+  if (multiline) {
+    return (
+      <textarea
+        id={id}
+        aria-label={ariaLabel}
+        className="input-glass"
+        rows={rows || 2}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onBlur={commit}
+        style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', resize: 'vertical', lineHeight: 1.6 }}
+      />
+    );
+  }
   return (
     <input
       id={id}
+      aria-label={ariaLabel}
       type="text"
       className="input-glass"
       value={text}
@@ -415,13 +430,12 @@ export default function SettingsScreen({
               Suggestions shown in sport pickers, comma separated. Sports already on the roster are always included automatically.
             </div>
           </div>
-          <textarea
-            aria-label="Sports offered, comma separated"
-            className="input-glass"
-            rows={2}
-            value={(settings.sportsList || []).join(', ')}
-            onChange={e => updateSetting('sportsList', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-            style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', resize: 'vertical', lineHeight: 1.6 }}
+          <ListField
+            id="setting-sportsList"
+            ariaLabel="Sports offered, comma separated"
+            multiline
+            value={settings.sportsList}
+            onCommit={next => updateSetting('sportsList', next)}
           />
         </div>
 
