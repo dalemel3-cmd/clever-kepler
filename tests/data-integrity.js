@@ -110,6 +110,7 @@ const logs = [
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
       return route.abort('connectionfailed');
     });
+    await page.locator('[title="Search athletes"]').click(); await page.waitForTimeout(200);
     await page.getByPlaceholder('Search athletes by name...').fill('Meta');
     await page.waitForTimeout(400);
     await page.locator('text=Meta Baseline').first().click(); await page.waitForTimeout(600);

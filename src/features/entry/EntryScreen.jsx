@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search, X, Plus, Minus, CheckCircle, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
-import { parseAthleteMeta, getBaselinesMap } from '../../utils/athleteData';
+import { parseAthleteMeta, getBaselinesMap, getSportColor } from '../../utils/athleteData';
 import AthleteCard from './AthleteCard';
 
 export default function EntryScreen({
@@ -13,22 +13,11 @@ export default function EntryScreen({
   setIsAddingAthlete,
   setEditingAthleteId,
   setNewAthlete,
-  selectedSportFilter,
-  selectedTeamFilter,
-  selectedGradeFilter,
-  selectedPositionFilter,
   athletesRecordedToday,
   search,
   setSearch,
   sportsList,
-  gradesList,
-  teamsList,
-  positionsList,
   filteredAthletes,
-  setSelectedSportFilter,
-  setSelectedGradeFilter,
-  setSelectedTeamFilter,
-  setSelectedPositionFilter,
   nameSortOrder,
   setNameSortOrder,
   unweighedOnlyFilter,
@@ -80,6 +69,35 @@ export default function EntryScreen({
     }
     return best ? parseFloat(best.weight_lbs) : null;
   }, [selectedAthleteId, reportData]);
+
+  // Kiosk-local UI state: the search box lives behind an icon until tapped open, and the
+  // sport-pill row filters this screen only - it deliberately does NOT touch the shared
+  // selectedSportFilter that AthletesScreen/ProfilesScreen read, so switching sports on
+  // Quick Entry never surprises a coach who left another screen filtered differently.
+  const [searchOverlayOpen, setSearchOverlayOpen] = React.useState(false);
+  const [localSportFilter, setLocalSportFilter] = React.useState('All');
+
+  const closeSearchOverlay = () => {
+    setSearch('');
+    setSearchOverlayOpen(false);
+  };
+
+  // Groups the roster into one section per sport, in sportsList's canonical order (not
+  // Map insertion order) so sections don't reshuffle as async data resolves. Applies the
+  // unweighed-only filter and the local sport-pill filter once, here, instead of the old
+  // code's two separate copies of the same .filter() call (one per rendering branch).
+  const groupedAthletes = React.useMemo(() => {
+    const base = unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes;
+    const bySport = new Map();
+    for (const a of base) {
+      const key = a.sport || 'General';
+      if (localSportFilter !== 'All' && key !== localSportFilter) continue;
+      if (!bySport.has(key)) bySport.set(key, []);
+      bySport.get(key).push(a);
+    }
+    return sportsList.filter(s => bySport.has(s)).map(s => ({ sport: s, athletes: bySport.get(s) }));
+  }, [filteredAthletes, unweighedOnlyFilter, athletesRecordedToday, localSportFilter, sportsList]);
+  const totalVisibleCount = groupedAthletes.reduce((sum, g) => sum + g.athletes.length, 0);
 
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -199,15 +217,41 @@ export default function EntryScreen({
           </button>
 
           <button
+            type="button"
+            onClick={() => setSearchOverlayOpen(o => !o)}
+            title="Search athletes"
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              border: searchOverlayOpen ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.15)',
+              background: searchOverlayOpen ? 'rgba(194, 164, 80, 0.15)' : 'rgba(255,255,255,0.03)',
+              color: searchOverlayOpen ? 'var(--color-accent)' : 'var(--color-text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+          >
+            <Search size={16} />
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.35)', padding: '6px 14px', borderRadius: '20px' }}>
+            <CheckCircle size={16} style={{ color: 'var(--status-success)' }} />
+            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-success)', letterSpacing: '0.04em' }}>{athletesRecordedToday.size}&nbsp;of&nbsp;{filteredAthletes.length}&nbsp;today</span>
+          </div>
+
+          <button
             onClick={() => {
               setIsAddingAthlete(true);
               setEditingAthleteId(null);
-              setNewAthlete({ name: '', sport: selectedSportFilter !== 'ALL' ? selectedSportFilter : '', team: selectedTeamFilter !== 'ALL' ? selectedTeamFilter : '', grade: selectedGradeFilter !== 'ALL' ? selectedGradeFilter : '', position: selectedPositionFilter !== 'ALL' ? selectedPositionFilter : '' });
+              setNewAthlete({ name: '', sport: localSportFilter !== 'All' ? localSportFilter : '', team: '', grade: '', position: '' });
             }}
             className="btn-primary glow-card"
             style={{
-              height: '40px',
-              padding: '0 18px',
+              height: '36px',
+              padding: '0 16px',
               fontSize: '13px',
               fontWeight: 700,
               display: 'flex',
@@ -222,13 +266,60 @@ export default function EntryScreen({
               transition: 'all 0.2s'
             }}
           >
-            <Plus size={17} strokeWidth={2.5} /> Add Athlete
+            <Plus size={16} strokeWidth={2.5} /> Add
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.35)', padding: '6px 14px', borderRadius: '20px' }}>
-            <CheckCircle size={16} style={{ color: 'var(--status-success)' }} />
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-success)', letterSpacing: '0.04em' }}>{athletesRecordedToday.size} LOGGED TODAY</span>
-          </div>
         </div>
+      </div>
+
+      {/* Search overlay - opens on demand from the icon button above rather than a
+          persistent full-width bar, since kiosk interaction favors tapping over typing. */}
+      {searchOverlayOpen && (
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <Search size={16} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+          <input
+            type="text"
+            autoFocus
+            className="input-glass"
+            placeholder="Search athletes by name..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') closeSearchOverlay(); }}
+            style={{ width: '100%', height: '46px', padding: '0 40px 0 44px', fontSize: '15px', borderRadius: '10px' }}
+          />
+          <button
+            onClick={closeSearchOverlay}
+            style={{ position: 'absolute', right: '12px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Sport filter pill row - single-select, local to this screen so switching sports
+          here never changes what AthletesScreen/ProfilesScreen show next. Grade/Position
+          and the Varsity/JV team axis are intentionally not offered on this screen -
+          sport grouping below already does the job a kiosk needs. */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {['All', ...sportsList].map(sport => (
+          <button
+            key={sport}
+            type="button"
+            onClick={() => setLocalSportFilter(sport)}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '999px',
+              border: localSportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
+              background: localSportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
+              color: localSportFilter === sport ? 'var(--navy-950)' : 'var(--color-text-muted)',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            {sport}
+          </button>
+        ))}
       </div>
 
       {/* Non-default track mode banner - large and colored, matching the mode's own
@@ -286,244 +377,125 @@ export default function EntryScreen({
         </div>
       )}
 
-      {/* Search & Dropdown Filters Container */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <Search size={16} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
-          <input
-            type="text"
-            className="input-glass"
-            placeholder="Search athletes by name..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', height: '46px', padding: '0 40px 0 44px', fontSize: '15px', borderRadius: '10px' }}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              style={{ position: 'absolute', right: '12px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <X size={16} />
-            </button>
-          )}
+      {/* Sort Order Toggle Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sort by:</span>
+        <div style={{ display: 'flex', background: 'var(--navy-900)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '20px', padding: '2px' }}>
+          <button
+            type="button"
+            onClick={() => setNameSortOrder('first')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '16px',
+              border: 'none',
+              background: nameSortOrder === 'first' ? 'var(--color-accent)' : 'transparent',
+              color: nameSortOrder === 'first' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            First Name
+          </button>
+          <button
+            type="button"
+            onClick={() => setNameSortOrder('last')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '16px',
+              border: 'none',
+              background: nameSortOrder === 'last' ? 'var(--color-accent)' : 'transparent',
+              color: nameSortOrder === 'last' ? 'var(--navy-950)' : 'var(--color-text-muted)',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Last Name
+          </button>
         </div>
+      </div>
 
-        {/* Responsive Dropdown Filter Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
-          <select
-            value={selectedSportFilter}
-            onChange={e => setSelectedSportFilter(e.target.value)}
-            className="input-glass"
-            style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '8px' }}
-          >
-            <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Sports</option>
-            {sportsList.map(sport => (
-              <option key={sport} value={sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{sport.toUpperCase()}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedGradeFilter}
-            onChange={e => setSelectedGradeFilter(e.target.value)}
-            className="input-glass"
-            style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '8px' }}
-          >
-            <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Grades</option>
-            {gradesList.map(grade => (
-              <option key={grade} value={grade} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{grade.toUpperCase()}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedTeamFilter}
-            onChange={e => setSelectedTeamFilter(e.target.value)}
-            className="input-glass"
-            style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '8px' }}
-          >
-            <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Teams</option>
-            {teamsList.map(team => (
-              <option key={team} value={team} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{team.toUpperCase()}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedPositionFilter}
-            onChange={e => setSelectedPositionFilter(e.target.value)}
-            className="input-glass"
-            style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', borderRadius: '8px' }}
-          >
-            <option value="ALL" style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>All Positions</option>
-            {positionsList.map(pos => (
-              <option key={pos} value={pos} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{pos.toUpperCase()}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Sort Order Toggle Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 2px', marginTop: '2px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
-          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-            Showing {filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? 's' : ''}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sort by:</span>
-            <div style={{ display: 'flex', background: 'var(--navy-900)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '20px', padding: '2px' }}>
-              <button
-                type="button"
-                onClick={() => setNameSortOrder('first')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '16px',
-                  border: 'none',
-                  background: nameSortOrder === 'first' ? 'var(--color-accent)' : 'transparent',
-                  color: nameSortOrder === 'first' ? 'var(--navy-950)' : 'var(--color-text-muted)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                First Name
-              </button>
-              <button
-                type="button"
-                onClick={() => setNameSortOrder('last')}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '16px',
-                  border: 'none',
-                  background: nameSortOrder === 'last' ? 'var(--color-accent)' : 'transparent',
-                  color: nameSortOrder === 'last' ? 'var(--navy-950)' : 'var(--color-text-muted)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Last Name
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Responsive Athlete Card Grid */}
-        {unweighedOnlyFilter && (
-          <div style={{ background: 'rgba(194, 164, 80, 0.15)', border: '1px solid var(--color-accent)', padding: '14px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '20px' }}>⚡</span>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: '15px', color: '#fff', textTransform: 'uppercase' }}>
-                  PRIORITY FILTER ACTIVE: UNLOGGED ATHLETES ONLY
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Showing {filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)).length} athletes remaining for today's check-in session.
-                </div>
+      {unweighedOnlyFilter && (
+        <div style={{ background: 'rgba(194, 164, 80, 0.15)', border: '1px solid var(--color-accent)', padding: '14px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '20px' }}>⚡</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '15px', color: '#fff', textTransform: 'uppercase' }}>
+                PRIORITY FILTER ACTIVE: UNLOGGED ATHLETES ONLY
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                Showing {totalVisibleCount} athletes remaining for today's check-in session.
               </div>
             </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUnweighedOnlyFilter(false)}
+            style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', padding: '8px 16px', borderRadius: '12px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}
+          >
+            ✕ SHOW ALL ATHLETES
+          </button>
+        </div>
+      )}
+
+      {/* Sport-grouped roster - one section per sport (in sportsList's canonical order),
+          each a responsive grid of tappable cards. Search and the sport pill above both
+          filter this same grid; there is no separate rendering path for search results. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px', paddingBottom: '90px' }}>
+        {groupedAthletes.map(({ sport, athletes: sportAthletes }) => {
+          const loggedCount = sportAthletes.filter(a => athletesRecordedToday.has(a.id)).length;
+          return (
+            <div key={sport}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '2px 2px 10px' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--navy-900)' }}>{sport}</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>{loggedCount} of {sportAthletes.length} logged</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+                {sportAthletes.map(a => {
+                  // Defensive: rosters cached before name normalization can still hold null names
+                  const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
+                  // Derive the display strings here rather than inside the card, so the card's
+                  // props stay primitives and its memo comparison is a cheap shallow check.
+                  return (
+                    <AthleteCard
+                      key={a.id}
+                      athleteId={a.id}
+                      name={safeName}
+                      sport={a.sport}
+                      displayName={nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
+                      initials={nameSortOrder === 'last'
+                        ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
+                        : safeName.split(' ').map(n => n[0]).join('')}
+                      isSelected={entryAthleteId === a.id}
+                      isDoneToday={athletesRecordedToday.has(a.id)}
+                      onSelect={handleSelectAthleteForEntry}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+        {totalVisibleCount === 0 && (
+          <div style={{ textAlign: 'center', padding: '44px 20px', color: 'var(--color-text-muted)', fontSize: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+            <div>
+              <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--white)', display: 'block', marginBottom: '6px' }}>Athlete Not Found in Roster?</span>
+              No athletes matched your search or filters. If you are new to the program, you can quickly create your profile right now!
+            </div>
             <button
-              type="button"
-              onClick={() => setUnweighedOnlyFilter(false)}
-              style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', padding: '8px 16px', borderRadius: '12px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}
+              onClick={() => {
+                setIsAddingAthlete(true);
+                setEditingAthleteId(null);
+                setNewAthlete({ name: search || '', sport: localSportFilter !== 'All' ? localSportFilter : '', team: '', grade: '', position: '' });
+              }}
+              className="btn-primary glow-card"
+              style={{ height: '48px', padding: '0 24px', fontSize: '15px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(194, 164, 80, 0.3)' }}
             >
-              ✕ SHOW ALL ATHLETES
+              <Plus size={18} strokeWidth={2.5} /> Add {search ? `"${search}"` : 'New Athlete'} & Log Weight
             </button>
-          </div>
-        )}
-        {search.trim() ? (
-          // Typing a name narrows straight to compact pills instead of the full card
-          // grid below - a search match used to render as one more full-size card,
-          // which on an iPad's kiosk viewport looked like its own oversized floating
-          // box and often pushed the "Log" action below the fold. A pill is tappable
-          // the same way, just without the card's avatar/sport/position chrome that a
-          // narrowed-down search doesn't need to show.
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '50vh', overflowY: 'auto', paddingBottom: '8px' }}>
-            {(unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes).map(a => {
-              const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
-              const isDone = athletesRecordedToday.has(a.id);
-              const isSelected = entryAthleteId === a.id;
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => handleSelectAthleteForEntry(a.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '10px 18px', borderRadius: '999px', cursor: 'pointer',
-                    fontSize: '14px', fontWeight: 700, whiteSpace: 'nowrap',
-                    border: isSelected ? '2px solid var(--color-accent)' : (isDone ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(255,255,255,0.15)'),
-                    background: isSelected ? 'rgba(194, 164, 80, 0.18)' : (isDone ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255,255,255,0.03)'),
-                    color: isDone ? 'var(--status-success)' : 'var(--white)',
-                  }}
-                >
-                  {isDone && <CheckCircle size={14} />}
-                  {safeName}
-                  <span style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>&middot; {a.sport || 'General'}</span>
-                </button>
-              );
-            })}
-            {filteredAthletes.length === 0 && (
-              <div style={{ width: '100%', textAlign: 'center', padding: '32px 20px', color: 'var(--color-text-muted)', fontSize: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-                <div>
-                  <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--white)', display: 'block', marginBottom: '4px' }}>Athlete Not Found in Roster?</span>
-                  No athletes matched "{search}". If they're new to the program, you can quickly create their profile right now!
-                </div>
-                <button
-                  onClick={() => {
-                    setIsAddingAthlete(true);
-                    setEditingAthleteId(null);
-                    setNewAthlete({ name: search || '', sport: selectedSportFilter !== 'ALL' ? selectedSportFilter : '', team: selectedTeamFilter !== 'ALL' ? selectedTeamFilter : '', grade: selectedGradeFilter !== 'ALL' ? selectedGradeFilter : '', position: selectedPositionFilter !== 'ALL' ? selectedPositionFilter : '' });
-                  }}
-                  className="btn-primary glow-card"
-                  style={{ height: '44px', padding: '0 22px', fontSize: '14px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(194, 164, 80, 0.3)' }}
-                >
-                  <Plus size={16} strokeWidth={2.5} /> Add "{search}" & Log Weight
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '12px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px', paddingBottom: '90px' }}>
-            {(unweighedOnlyFilter ? filteredAthletes.filter(a => !athletesRecordedToday.has(a.id)) : filteredAthletes).map(a => {
-              // Defensive: rosters cached before name normalization can still hold null names
-              const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
-              // Derive the display strings here rather than inside the card, so the card's
-              // props stay primitives and its memo comparison is a cheap shallow check.
-              return (
-                <AthleteCard
-                  key={a.id}
-                  athleteId={a.id}
-                  name={safeName}
-                  sport={a.sport}
-                  position={a.position}
-                  team={a.team}
-                  displayName={nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
-                  initials={nameSortOrder === 'last'
-                    ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
-                    : safeName.split(' ').map(n => n[0]).join('')}
-                  isSelected={entryAthleteId === a.id}
-                  isDoneToday={athletesRecordedToday.has(a.id)}
-                  onSelect={handleSelectAthleteForEntry}
-                />
-              );
-            })}
-            {filteredAthletes.length === 0 && (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '44px 20px', color: 'var(--color-text-muted)', fontSize: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-                <div>
-                  <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--white)', display: 'block', marginBottom: '6px' }}>Athlete Not Found in Roster?</span>
-                  No athletes matched your search or filters. If you are new to the program, you can quickly create your profile right now!
-                </div>
-                <button
-                  onClick={() => {
-                    setIsAddingAthlete(true);
-                    setEditingAthleteId(null);
-                    setNewAthlete({ name: search || '', sport: selectedSportFilter !== 'ALL' ? selectedSportFilter : '', team: selectedTeamFilter !== 'ALL' ? selectedTeamFilter : '', grade: selectedGradeFilter !== 'ALL' ? selectedGradeFilter : '', position: selectedPositionFilter !== 'ALL' ? selectedPositionFilter : '' });
-                  }}
-                  className="btn-primary glow-card"
-                  style={{ height: '48px', padding: '0 24px', fontSize: '15px', fontWeight: 800, background: 'var(--color-accent)', color: 'var(--navy-950)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(194, 164, 80, 0.3)' }}
-                >
-                  <Plus size={18} strokeWidth={2.5} /> Add {search ? `"${search}"` : 'New Athlete'} & Log Weight
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -572,17 +544,9 @@ export default function EntryScreen({
             {/* Athlete Profile Title inside Modal */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                {(() => {
-                  const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
-                  let hash = 0;
-                  for (let i = 0; i < selectedAthlete.name.length; i++) hash = selectedAthlete.name.charCodeAt(i) + ((hash << 5) - hash);
-                  const avatarBg = avatarColors[Math.abs(hash) % avatarColors.length];
-                  return (
-                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 700, fontSize: '22px', flexShrink: 0 }}>
-                      {selectedAthlete.name.split(' ').map(n=>n[0]).join('')}
-                    </div>
-                  );
-                })()}
+                <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: getSportColor(selectedAthlete.sport), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--white)', fontWeight: 700, fontSize: '22px', flexShrink: 0 }}>
+                  {selectedAthlete.name.split(' ').map(n=>n[0]).join('')}
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: 'var(--color-accent)', textTransform: 'uppercase' }}>{selectedAthlete.name}</span>
