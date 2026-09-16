@@ -395,3 +395,170 @@ export const buildImportPlan = (csvText, roster = [], options = {}) => {
     },
   };
 };
+
+// --- Live API sync ------------------------------------------------------------------
+
+// Only Plyomat's "vertical" display mode has a home in performance_tests today - same
+// reasoning as METRIC_TEST_TYPE above for the CSV path (PPS/RSI/contact-time are
+// different quantities that don't belong on an inches leaderboard).
+export const DISPLAY_MODE_TEST_TYPE = {
+  vertical: { testType: 'vertical_jump', unit: 'in' },
+};
+
+// Plyomat's API reports jump height in centimeters; every vertical_jump row elsewhere in
+// this app is inches (see METRIC_TEST_TYPE above). Converting here, once, at the import
+// boundary keeps the rest of the app - leaderboards, profile charts - unaware that two
+// different unit systems ever existed. Getting this wrong would not error; it would just
+// quietly rank a 61cm jump ("24 in") as a 61-inch jump on every board it touches.
+const CM_TO_IN = 1 / 2.54;
+
+/**
+ * Turn a page of Plyomat API `Set`s (with nested `reps`) into the same reviewable plan
+ * shape buildImportPlan produces from a CSV, so the review UI and the writer
+ * (usePerformanceTests.importPlan) need no changes to consume either source.
+ *
+ * @param apiSets     Set[] from GET /sets (each with a `reps` array)
+ * @param apiAthletes Athlete[] from GET /athletes (id, first_name, last_name, ...)
+ * @param roster      existing athletes [{id, name, sport, grade}]
+ * @param options     { existingTests, createMissing }
+ * @returns { tests, newAthletes, needsReview, skipped, unsupported, duplicates, summary }
+ */
+export const buildImportPlanFromApiSets = (apiSets, apiAthletes = [], roster = [], options = {}) => {
+  const { existingTests = [], createMissing = true } = options;
+  const alreadyImported = extractSessionIds(existingTests);
+  const athleteById = new Map(apiAthletes.map(a => [a.id, a]));
+
+  const tests = [];
+  const skipped = [];
+  const unsupported = [];
+  const duplicates = [];
+  const newAthletes = new Map();
+  const needsReview = new Map();
+
+  for (const set of apiSets || []) {
+    const apiAthlete = athleteById.get(set.athlete_id);
+    if (!apiAthlete) {
+      skipped.push({ row: set, name: '(unknown)', reason: 'athlete not found in Plyomat response' });
+      continue;
+    }
+    const name = `${apiAthlete.first_name || ''} ${apiAthlete.last_name || ''}`.trim();
+    if (!name) { skipped.push({ row: set, name: '(blank)', reason: 'no athlete name in Plyomat response' }); continue; }
+
+    if (set.id && alreadyImported.has(set.id)) { duplicates.push({ row: set, name }); continue; }
+
+    const tt = DISPLAY_MODE_TEST_TYPE[set.display_mode];
+    if (!tt) {
+      unsupported.push({ row: set, name, metric: set.display_mode || '(none)', protocol: set.laterality || '(none)' });
+      continue;
+    }
+
+    const keptHeights = (set.reps || [])
+      .filter(r => r.is_kept && Number(r.jump_height_cm) > 0)
+      .map(r => Number(r.jump_height_cm));
+    if (keptHeights.length === 0) {
+      skipped.push({ row: set, name, reason: 'no kept reps' });
+      continue;
+    }
+    const value = Math.max(...keptHeights) * CM_TO_IN;
+
+    const match = matchAthlete(name, roster);
+
+    // Same "flag, don't guess" discipline as the CSV path: a Plyomat set carries no
+    // sport/grade at all (that comes from /groups, out of scope for v1), so a matched
+    // athlete's sport is read from OUR roster, never inferred here.
+    if (match && match.confidence === 'review') {
+      const key = normalizeName(name);
+      if (!needsReview.has(key)) {
+        needsReview.set(key, {
+          csvName: name,
+          candidate: match.athlete,
+          score: match.score,
+          group: '',
+          suggestedSport: '',
+          suggestedGrade: '',
+          rowCount: 0,
+          rows: [],
+        });
+      }
+      const rec = needsReview.get(key);
+      rec.rowCount++;
+      rec.sport = match.athlete.sport || '';
+      rec.rows.push({
+        athlete_id: null,
+        pendingAthleteKey: key,
+        athlete_name: name,
+        sport: match.athlete.sport || '',
+        test_type: tt.testType,
+        test_variant: defaultVariantFor(tt.testType, match.athlete.sport || ''),
+        metric: value,
+        unit: tt.unit,
+        source: 'plyomat',
+        notes: sessionNote(set.id),
+        created_at: set.started_at || new Date().toISOString(),
+        plyomatExternalId: apiAthlete.external_id || null,
+      });
+      continue;
+    }
+
+    let athleteId = match ? match.athlete.id : null;
+    let athleteName = match ? match.athlete.name : name;
+    let sport = match ? (match.athlete.sport || '') : '';
+
+    if (!match) {
+      if (!createMissing) {
+        skipped.push({ row: set, name, reason: 'not on the roster' });
+        continue;
+      }
+      const key = normalizeName(name);
+      if (!newAthletes.has(key)) {
+        newAthletes.set(key, { name, sport: '', grade: '', group: '', unrecognizedGroup: [], rowCount: 0 });
+      }
+      const rec = newAthletes.get(key);
+      rec.rowCount++;
+      athleteName = rec.name;
+      sport = rec.sport;
+    }
+
+    tests.push({
+      athlete_id: athleteId,
+      pendingAthleteKey: athleteId ? null : normalizeName(name),
+      athlete_name: athleteName,
+      sport: sport || '',
+      test_type: tt.testType,
+      test_variant: defaultVariantFor(tt.testType, sport || ''),
+      metric: value,
+      unit: tt.unit,
+      source: 'plyomat',
+      notes: sessionNote(set.id),
+      created_at: set.started_at || new Date().toISOString(),
+      matchConfidence: match ? match.confidence : 'new',
+      // Read for visibility only - Plyomat's write scopes for this field aren't honored
+      // yet, so this never round-trips back; it's here in case a coach starts setting
+      // external_id in Plyomat's own app and a future pass wants to use it for matching.
+      plyomatExternalId: apiAthlete.external_id || null,
+    });
+  }
+
+  const createdList = [...newAthletes.values()];
+  const reviewList = [...needsReview.values()];
+  return {
+    tests,
+    newAthletes: createdList,
+    needsReview: reviewList,
+    skipped,
+    unsupported,
+    duplicates,
+    summary: {
+      rowsInFile: (apiSets || []).length,
+      toImport: tests.length,
+      athletesToCreate: createdList.length,
+      needsReview: reviewList.length,
+      rowsAwaitingReview: reviewList.reduce((s, r) => s + r.rowCount, 0),
+      skipped: skipped.length,
+      unsupported: unsupported.length,
+      duplicates: duplicates.length,
+      fuzzyMatches: tests.filter(t => t.matchConfidence === 'fuzzy').length,
+      reversedMatches: tests.filter(t => t.matchConfidence === 'reversed').length,
+    },
+  };
+};

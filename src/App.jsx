@@ -490,7 +490,45 @@ export default function App() {
   // Speed & Power test results - lifted here (rather than fetched inside
   // SpeedPowerPanel itself) so Profiles can also read best-test data without opening a
   // second realtime subscription to the same table.
-  const { performanceTests, addTest: addPerformanceTest, updateTest: updatePerformanceTest, deleteTest: deletePerformanceTest, importPlan: importPlyomatPlan } = usePerformanceTests();
+  const { performanceTests, addTest: addPerformanceTest, updateTest: updatePerformanceTest, deleteTest: deletePerformanceTest, importPlan: importPlyomatPlan, advancePlyomatSyncCheckpoint } = usePerformanceTests();
+
+  // "Sync from Plyomat" checkpoint (db/010) - read once so the panel knows whether this
+  // is a first-ever sync (fetch everything) or an incremental one (?since=<this value>).
+  // Kept in App.jsx state, not the panel itself, so it stays in sync across screens the
+  // same way athletes/existingTests already are.
+  const [plyomatLastSyncedAt, setPlyomatLastSyncedAt] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase.from('plyomat_sync_state').select('last_synced_at').eq('id', true).single();
+        if (!error && data) setPlyomatLastSyncedAt(data.last_synced_at);
+      } catch (e) { /* offline or not yet migrated - panel treats null the same as "never synced" */ }
+    })();
+  }, []);
+
+  // Thin invoke wrapper - the Edge Function is a pure proxy (it makes no product
+  // decisions), so this is the only Plyomat-network-aware code in App.jsx itself.
+  const onPlyomatApiSync = React.useCallback(async (since) => {
+    const { data, error } = await supabase.functions.invoke('plyomat-sync', { body: { since: since || undefined } });
+    if (error) {
+      // On a non-2xx response supabase-js throws a generic FunctionsHttpError instead of
+      // handing back the function's own JSON body - recover the real
+      // {ok:false,error:{code,message}} payload from the raw Response on `error.context`
+      // so the panel can show Plyomat's actual reason, not a generic network failure.
+      if (error.context && typeof error.context.json === 'function') {
+        try { return await error.context.json(); } catch (e) { /* fall through to throw */ }
+      }
+      throw error;
+    }
+    return data;
+  }, []);
+
+  // Only advances the checkpoint after a confirmed, non-partial import - never past data
+  // a rate-limited sync did not actually retrieve (see plyomat-sync/sync.ts).
+  const onPlyomatSyncComplete = React.useCallback(async (fetchedThrough) => {
+    const res = await advancePlyomatSyncCheckpoint(fetchedThrough);
+    if (res.ok) setPlyomatLastSyncedAt(fetchedThrough);
+  }, [advancePlyomatSyncCheckpoint]);
 
   // Lift Tracker (Bench/Squat/Deadlift/etc.) - same lifted-to-App-level reasoning as
   // Speed & Power above, so Profiles can eventually read best-lift data without a
@@ -3232,6 +3270,9 @@ export default function App() {
                 performanceTests={performanceTests}
                 addPerformanceTest={addPerformanceTest}
                 onPlyomatImport={(plan, decisions) => importPlyomatPlan(plan, decisions, fetchAthletes)}
+                plyomatLastSyncedAt={plyomatLastSyncedAt}
+                onPlyomatApiSync={onPlyomatApiSync}
+                onPlyomatSyncComplete={onPlyomatSyncComplete}
                 ensureReportWindow={ensureReportWindow}
               />
             )}

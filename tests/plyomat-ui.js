@@ -76,7 +76,7 @@ const CSV = [
 
   console.log('\n[A] The import panel is on the Analytics screen');
   let body = await page.locator('body').innerText();
-  check('panel renders', /IMPORT JUMP RESULTS FROM A CSV/i.test(body), body.slice(0, 120));
+  check('panel renders', /IMPORT JUMP RESULTS FROM PLYOMAT/i.test(body), body.slice(0, 120));
   check('no page errors', errors.length === 0, errors.join(' | '));
 
   console.log('\n[B] Picking a file previews the plan and writes NOTHING');

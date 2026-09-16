@@ -179,7 +179,10 @@ export function usePerformanceTests() {
       }
 
       const payload = tests.map(t => {
-        const { pendingAthleteKey, matchConfidence, ...rest } = t;
+        // plyomatExternalId travels with a plan row for on-screen visibility only (see
+        // plyomatImport.js) - performance_tests has no such column, so it's stripped here
+        // alongside the other plan-only bookkeeping fields rather than sent to Postgres.
+        const { pendingAthleteKey, matchConfidence, plyomatExternalId, ...rest } = t;
         return { ...rest, athlete_id: t.athlete_id || idByKey.get(pendingAthleteKey) || null };
       }).filter(t => t.athlete_id);
 
@@ -202,5 +205,25 @@ export function usePerformanceTests() {
     }
   }, [mergeRows]);
 
-  return { performanceTests: rows, addTest, updateTest, deleteTest, importPlan };
+  // Advances the "sync from Plyomat" checkpoint after a successful, non-partial API sync
+  // import - kept here rather than inside importPlan itself, since importPlan is shared
+  // by both the CSV and API paths and only the API path has a checkpoint to move. Called
+  // by the panel with the Edge Function's own `fetchedThrough` timestamp, never advanced
+  // past data a partial/rate-limited sync didn't actually retrieve.
+  const advancePlyomatSyncCheckpoint = useCallback(async (fetchedThrough) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const { error } = await supabase.from('plyomat_sync_state').update({
+        last_synced_at: fetchedThrough,
+        last_synced_by: userData?.user?.id || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', true);
+      if (error) throw error;
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) };
+    }
+  }, []);
+
+  return { performanceTests: rows, addTest, updateTest, deleteTest, importPlan, advancePlyomatSyncCheckpoint };
 }

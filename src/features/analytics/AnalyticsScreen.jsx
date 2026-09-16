@@ -37,6 +37,9 @@ export default function AnalyticsScreen({
   performanceTests,
   addPerformanceTest,
   onPlyomatImport,
+  plyomatLastSyncedAt,
+  onPlyomatApiSync,
+  onPlyomatSyncComplete,
   ensureReportWindow,
 }) {
   const [rangeDays, setRangeDays] = React.useState(30);
@@ -514,6 +517,9 @@ export default function AnalyticsScreen({
             athletes={athletes}
             existingTests={performanceTests}
             onImport={onPlyomatImport}
+            lastSyncedAt={plyomatLastSyncedAt}
+            onApiSync={onPlyomatApiSync}
+            onSyncComplete={onPlyomatSyncComplete}
             card={card}
             h3={h3}
             eyebrow={eyebrow}

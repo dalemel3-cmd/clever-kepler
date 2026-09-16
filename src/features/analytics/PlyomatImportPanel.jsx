@@ -1,6 +1,6 @@
 import React from 'react';
-import { Upload, AlertTriangle, CheckCircle, X, UserPlus, HelpCircle } from 'lucide-react';
-import { buildImportPlan } from './plyomatImport';
+import { Upload, AlertTriangle, CheckCircle, X, UserPlus, HelpCircle, RefreshCw } from 'lucide-react';
+import { buildImportPlan, buildImportPlanFromApiSets } from './plyomatImport';
 
 const box = {
   padding: '10px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
@@ -23,21 +23,26 @@ const Stat = ({ n, label, tone }) => (
  * importer that just wrote what matched would have reported success while dropping over
  * half the file, which is precisely the silent-rejection failure in docs/HANDOFF.md §1.
  */
-export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebrow, grid: gridColor, existingTests }) {
+export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebrow, grid: gridColor, existingTests, lastSyncedAt, onApiSync, onSyncComplete }) {
+  const [mode, setMode] = React.useState('csv'); // 'csv' | 'api'
   const [plan, setPlan] = React.useState(null);
   const [fileName, setFileName] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState(null);
   const [error, setError] = React.useState('');
+  const [info, setInfo] = React.useState('');
   // Per-ambiguous-name decision: 'link' (same person) or 'create' (different person).
   // Undecided stays undecided - those rows import under neither reading.
   const [decisions, setDecisions] = React.useState({});
+  // Only set once an API sync's own response resolves, so confirm() knows whether to
+  // advance the checkpoint afterward and to what value - never guessed client-side.
+  const [pendingFetchedThrough, setPendingFetchedThrough] = React.useState(null);
   const inputRef = React.useRef(null);
 
   const handleFile = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    setError(''); setResult(null); setDecisions({});
+    setError(''); setInfo(''); setResult(null); setDecisions({});
     try {
       const text = await file.text();
       const p = buildImportPlan(text, athletes, { existingTests: existingTests || [], createMissing: true });
@@ -52,14 +57,53 @@ export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebr
     if (inputRef.current) inputRef.current.value = '';
   };
 
+  const runApiSync = async () => {
+    setError(''); setInfo(''); setResult(null); setDecisions({}); setPendingFetchedThrough(null);
+    setBusy(true);
+    try {
+      const res = await onApiSync(lastSyncedAt || null);
+      if (!res || res.ok === false) {
+        const code = res && res.error && res.error.code;
+        if (code === 'not_configured' || code === 'unauthorized' || res?.error) {
+          setError(res?.error?.message
+            ? `Plyomat sync isn't configured correctly — ${res.error.message}. Ask whoever manages the Supabase project to check PLYOMAT_API_KEY.`
+            : "Plyomat sync isn't configured correctly — the API key looks invalid. Ask whoever manages the Supabase project to check PLYOMAT_API_KEY.");
+        } else {
+          setError('Sync failed. Try again in a moment.');
+        }
+        setBusy(false);
+        return;
+      }
+      const p = buildImportPlanFromApiSets(res.sets, res.athletes, athletes, { existingTests: existingTests || [], createMissing: true });
+      if (res.partial) {
+        setInfo("Plyomat's API asked us to slow down partway through — this sync covers what was fetched so far. Run “Sync from Plyomat” again in a minute to pick up the rest.");
+      }
+      if (p.summary.rowsInFile === 0 && !res.partial) {
+        setInfo(lastSyncedAt ? 'No new results since the last sync.' : 'Plyomat has no results yet.');
+      }
+      setPlan(p.summary.rowsInFile > 0 ? p : null);
+      // Only a fully (non-partial) fetched sync gets to advance the checkpoint - a
+      // partial one must not skip the tail it never actually retrieved.
+      setPendingFetchedThrough(res.partial ? null : res.fetchedThrough);
+    } catch (err) {
+      setError("Couldn't reach the sync service. Check your connection and try again.");
+    }
+    setBusy(false);
+  };
+
   const confirm = async () => {
     if (!plan) return;
     setBusy(true); setError('');
     try {
       const res = await onImport(plan, decisions);
       setResult(res);
-      if (res && res.ok) setPlan(null);
-      else if (res && res.error) setError(res.error);
+      if (res && res.ok) {
+        setPlan(null);
+        if (mode === 'api' && pendingFetchedThrough && typeof onSyncComplete === 'function') {
+          await onSyncComplete(pendingFetchedThrough);
+        }
+        setPendingFetchedThrough(null);
+      } else if (res && res.error) setError(res.error);
     } catch (err) {
       setError(err.message || 'Import failed.');
     }
@@ -73,19 +117,63 @@ export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebr
     <div className="card-glass glow-card" style={card}>
       <div>
         <span style={eyebrow('#60a5fa')}><Upload size={14} /> PLYOMAT IMPORT</span>
-        <h3 style={h3}>IMPORT JUMP RESULTS FROM A CSV</h3>
+        <h3 style={h3}>IMPORT JUMP RESULTS FROM PLYOMAT</h3>
         <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-          Export a session from Plyomat and pick the file here. You&rsquo;ll see exactly what will
-          be imported, created, and skipped before anything is saved.
+          {mode === 'csv'
+            ? <>Export a session from Plyomat and pick the file here. You&rsquo;ll see exactly what will be imported, created, and skipped before anything is saved.</>
+            : <>Pull new results directly from Plyomat. Same preview-before-write review as a CSV import &mdash; nothing is saved until you confirm.</>}
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <input ref={inputRef} id="plyomat-file" type="file" accept=".csv,text/csv" onChange={handleFile}
-          aria-label="Plyomat CSV file"
-          style={{ fontSize: '12px', color: 'var(--color-text-muted)' }} />
-        {fileName && plan && <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{fileName}</span>}
-      </div>
+      {typeof onApiSync === 'function' && (
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button type="button" onClick={() => { setMode('csv'); setError(''); setInfo(''); setPlan(null); }}
+            style={{ padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: mode === 'csv' ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.15)', background: mode === 'csv' ? 'var(--color-accent)' : 'transparent', color: mode === 'csv' ? 'var(--navy-950)' : 'var(--color-text-muted)' }}>
+            UPLOAD CSV
+          </button>
+          <button type="button" onClick={() => { setMode('api'); setError(''); setInfo(''); setPlan(null); }}
+            style={{ padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: mode === 'api' ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.15)', background: mode === 'api' ? 'var(--color-accent)' : 'transparent', color: mode === 'api' ? 'var(--navy-950)' : 'var(--color-text-muted)' }}>
+            PLYOMAT SYNC
+          </button>
+        </div>
+      )}
+
+      {mode === 'csv' ? (
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input ref={inputRef} id="plyomat-file" type="file" accept=".csv,text/csv" onChange={handleFile}
+            aria-label="Plyomat CSV file"
+            style={{ fontSize: '12px', color: 'var(--color-text-muted)' }} />
+          {fileName && plan && <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{fileName}</span>}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {!lastSyncedAt && (
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+              First sync may take a minute or two &mdash; it&rsquo;s pulling full history since no previous sync is on record.
+            </div>
+          )}
+          <button type="button" onClick={runApiSync} disabled={busy}
+            style={{
+              alignSelf: 'flex-start', height: '40px', padding: '0 20px', borderRadius: '10px', border: 'none',
+              background: busy ? 'rgba(96,165,250,0.3)' : 'linear-gradient(135deg, #60a5fa 0%, #2563eb 100%)',
+              color: '#04203f', fontWeight: 800, fontSize: '13px',
+              cursor: busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '7px',
+            }}>
+            <RefreshCw size={15} style={busy ? { animation: 'spin 1s linear infinite' } : undefined} /> {busy ? 'SYNCING…' : 'SYNC FROM PLYOMAT'}
+          </button>
+          {lastSyncedAt && (
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+              Last synced {new Date(lastSyncedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
+      )}
+
+      {info && !error && (
+        <div style={{ ...box, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24' }}>
+          <AlertTriangle size={15} /> {info}
+        </div>
+      )}
 
       {error && (
         <div style={{ ...box, background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}>
