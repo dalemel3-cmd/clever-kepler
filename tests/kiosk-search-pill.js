@@ -2,11 +2,12 @@
 // Requires a preview server on http://127.0.0.1:4173 and Playwright.
 // All Supabase traffic is intercepted - never touches the real database.
 //
-// Typing a name in the kiosk's search used to still render every match as a full-size
-// AthleteCard - on an iPad's kiosk viewport a single match looked like its own
-// oversized floating box, and often pushed the entry modal's action buttons below the
-// fold. A search now collapses matches into compact pills instead (v4.27.0); the full
-// card grid is unchanged when the search box is empty.
+// v4.35.0: Quick Entry's roster is now grouped by sport and rendered as one consistent
+// card grid at all times - search (now behind an icon button that opens an overlay,
+// instead of a persistent bar) and the new sport-filter pill row both just narrow that
+// same grid, rather than search switching to a separate compact pill-button rendering
+// the way it used to (v4.27.0-v4.34.x). AthleteCard also dropped its "TAP TO LOG" text
+// pill in favor of a small checkmark badge shown only when an athlete is done.
 import { chromium } from 'playwright';
 import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
@@ -47,40 +48,50 @@ const newPage = async (browser) => {
   return page;
 };
 
+const openSearch = async (page) => {
+  await page.locator('[title="Search athletes"]').click();
+  await page.waitForTimeout(200);
+};
+
 (async () => {
   const browser = await chromium.launch(LAUNCH_OPTS);
 
-  console.log('\n[A] Empty search still shows the full card grid');
+  console.log('\n[A] Empty search shows the full sport-grouped card grid');
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#entry`); await page.waitForTimeout(1800);
     const body = await page.locator('body').innerText();
-    check('cards show their "TAP TO LOG" affordance', /TAP TO LOG/.test(body));
+    check('Football section header is visible', /FOOTBALL/.test(body));
+    check('Baseball section header is visible', /BASEBALL/.test(body));
+    check('both athletes appear as cards', /Pill Athlete/.test(body) && /Other Athlete/.test(body));
+    check('nobody is logged yet (0 of 2 today)', /0.{0,2}of.{0,2}2.{0,2}today/i.test(body), body.slice(0, 200));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
-  console.log('\n[B] Typing a search collapses matches into pills, not full cards');
+  console.log('\n[B] Typing in the search overlay narrows the same card grid, not a different pill list');
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#entry`); await page.waitForTimeout(1800);
+    await openSearch(page);
     await page.getByPlaceholder('Search athletes by name...').fill('Pill');
     await page.waitForTimeout(400);
     const body = await page.locator('body').innerText();
     check('the match appears', /Pill Athlete/.test(body));
     check('the non-matching athlete is filtered out', !/Other Athlete/.test(body));
-    check('full-card chrome ("TAP TO LOG") is gone while searching', !/TAP TO LOG/.test(body));
-    const pillBtn = page.getByRole('button', { name: /Pill Athlete/i });
-    check('the match renders as a single pill button', await pillBtn.count() === 1, `count=${await pillBtn.count()}`);
+    check('its sport section header is still shown (still a grouped grid, not a pill list)', /FOOTBALL/.test(body));
+    const card = page.locator('[data-testid="athlete-card"]');
+    check('exactly one card remains', await card.count() === 1, `count=${await card.count()}`);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
-  console.log('\n[C] Clicking a pill opens the entry modal, same as a card');
+  console.log('\n[C] Clicking a card while searching still opens the entry modal');
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#entry`); await page.waitForTimeout(1800);
+    await openSearch(page);
     await page.getByPlaceholder('Search athletes by name...').fill('Pill');
     await page.waitForTimeout(400);
-    await page.getByRole('button', { name: /Pill Athlete/i }).click();
+    await page.locator('[data-testid="athlete-card"]').first().click();
     await page.waitForTimeout(700);
     const body = await page.locator('body').innerText();
     check('the entry modal opened for the right athlete', /Pill Athlete/.test(body) && /BODY WEIGHT/i.test(body), body.slice(0, 200));
@@ -91,10 +102,44 @@ const newPage = async (browser) => {
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#entry`); await page.waitForTimeout(1800);
+    await openSearch(page);
     await page.getByPlaceholder('Search athletes by name...').fill('Nobody Here');
     await page.waitForTimeout(400);
     const body = await page.locator('body').innerText();
     check('offers to add the searched name', /Add "Nobody Here" & Log Weight/i.test(body), body.slice(0, 200));
+    check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[E] The sport pill row filters the grid independently of search');
+  {
+    const page = await newPage(browser);
+    await page.goto(`${APP}/#entry`); await page.waitForTimeout(1800);
+    await page.getByRole('button', { name: 'Football', exact: true }).click();
+    await page.waitForTimeout(400);
+    let body = await page.locator('body').innerText();
+    check('Football athlete still shows', /Pill Athlete/.test(body));
+    check('Baseball athlete is filtered out', !/Other Athlete/.test(body), body.slice(0, 200));
+    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await page.waitForTimeout(400);
+    body = await page.locator('body').innerText();
+    check('"All" restores both athletes', /Pill Athlete/.test(body) && /Other Athlete/.test(body));
+    check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[F] Closing the search overlay clears the filter');
+  {
+    const page = await newPage(browser);
+    await page.goto(`${APP}/#entry`); await page.waitForTimeout(1800);
+    await openSearch(page);
+    await page.getByPlaceholder('Search athletes by name...').fill('Pill');
+    await page.waitForTimeout(400);
+    let body = await page.locator('body').innerText();
+    check('narrowed to one match while typing', /Pill Athlete/.test(body) && !/Other Athlete/.test(body));
+    // The X button inside the overlay both clears the query and closes the overlay.
+    await page.locator('input[placeholder="Search athletes by name..."]').locator('xpath=following-sibling::button').click();
+    await page.waitForTimeout(400);
+    body = await page.locator('body').innerText();
+    check('closing restores the full grid', /Pill Athlete/.test(body) && /Other Athlete/.test(body), body.slice(0, 200));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

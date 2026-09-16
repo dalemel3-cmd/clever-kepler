@@ -12,6 +12,17 @@ const LAUNCH_OPTS = process.env.CHROMIUM_PATH ? { executablePath: process.env.CH
 const APP = process.env.APP_URL || 'http://127.0.0.1:4173';
 const SUPA = '**/cwfpjlomlvkburugolky.supabase.co/**';
 
+// A hash-only page.goto() to the same route the SPA is already on doesn't cause a real
+// navigation, so Quick Entry's local searchOverlayOpen state can survive across these
+// calls - blindly clicking the search icon would sometimes toggle an already-open
+// overlay closed. Only click it if the search input isn't visible yet.
+const ensureSearchOpen = async (page) => {
+  if (await page.getByPlaceholder('Search athletes by name...').count() === 0) {
+    await page.locator('[title="Search athletes"]').click();
+    await page.waitForTimeout(200);
+  }
+};
+
 // ---------- mock data ----------
 const SPORTS = ['Football', 'Basketball', 'Volleyball', 'Wrestling', 'Track & Field', 'Softball'];
 const uuid = (n) => `${String(n).padStart(8, '0')}-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -154,6 +165,7 @@ let athleteInserts = [];
 
   // ---------- 3. kiosk entry: rapid numpad + save ----------
   await page.goto(`${APP}/#entry`); await page.waitForTimeout(800);
+  await ensureSearchOpen(page);
   await page.getByPlaceholder('Search athletes by name...').fill('Athlete2 ');
   await page.waitForTimeout(400);
   const card = page.locator('text=Athlete2 Test2').first();
@@ -184,6 +196,7 @@ let athleteInserts = [];
   // ---------- 5. weird values ----------
   const weird = async (label, val) => {
     await page.goto(`${APP}/#entry`); await page.waitForTimeout(400);
+    await ensureSearchOpen(page);
     await page.getByPlaceholder('Search athletes by name...').fill('Athlete6 ');
     await page.waitForTimeout(350);
     await page.locator('text=Athlete6 Test6').first().click(); await page.waitForTimeout(400);
@@ -229,6 +242,7 @@ let athleteInserts = [];
   await ctx.setOffline(true);
   await page.goto(`${APP}/#entry`).catch(() => {});
   await page.waitForTimeout(600);
+  await ensureSearchOpen(page);
   await page.getByPlaceholder('Search athletes by name...').fill('Athlete8 ');
   await page.waitForTimeout(350);
   await page.locator('text=Athlete8 Test8').first().click(); await page.waitForTimeout(400);

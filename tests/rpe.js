@@ -198,8 +198,8 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
     // coach can tell which mode the kiosk is in without hunting for the small pill.
     check('a "Session RPE Only" mode banner is shown', /SESSION RPE ONLY/i.test(await page.locator('body').innerText()));
 
-    const card = page.locator('.card-glass', { hasText: 'Fresh Athlete' }).first();
-    check('not marked DONE before logging anything', !/DONE/.test(await card.innerText()));
+    const card = page.locator('[data-testid="athlete-card"]', { hasText: 'Fresh Athlete' }).first();
+    check('not marked DONE before logging anything', await card.locator('[data-testid="athlete-done-badge"]').count() === 0);
 
     await page.getByText('Fresh Athlete').first().click();
     await page.waitForTimeout(900);
@@ -215,8 +215,8 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
     // Close the modal (if still open) so the roster card is visible again.
     await page.keyboard.press('Escape').catch(() => {});
     await page.waitForTimeout(400);
-    const cardAfter = page.locator('.card-glass', { hasText: 'Fresh Athlete' }).first();
-    check('marked DONE after logging RPE (kiosk is in RPE mode)', /DONE/.test(await cardAfter.innerText()),
+    const cardAfter = page.locator('[data-testid="athlete-card"]', { hasText: 'Fresh Athlete' }).first();
+    check('marked DONE after logging RPE (kiosk is in RPE mode)', await cardAfter.locator('[data-testid="athlete-done-badge"]').count() === 1,
       'RPE entries are still excluded from the kiosk\'s own "recorded today" set');
     await ctx.close();
   }

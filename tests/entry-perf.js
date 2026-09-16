@@ -65,11 +65,14 @@ for (const a of athletes) {
   console.log(`\n(fixture: ${athletes.length} athletes, ${logs.length} weigh-ins)`);
 
   console.log('\n[A] Roster grid renders and stays interactive');
-  const cardCount = await page.locator('text=TAP TO LOG').count();
+  const cardCount = await page.locator('[data-testid="athlete-card"]').count();
   check('roster tiles rendered', cardCount > 0, `found ${cardCount}`);
 
   // Typing in the search box re-filters the grid. This is the interaction that used to
-  // rebuild every tile per character.
+  // rebuild every tile per character. Search lives behind an icon button now, not a
+  // persistent bar - open it before looking for the input.
+  await page.locator('[title="Search athletes"]').click();
+  await page.waitForTimeout(200);
   const search = page.getByPlaceholder(/Search athletes/i);
   const t0 = Date.now();
   await search.type('Athlete1', { delay: 0 });
@@ -81,7 +84,7 @@ for (const a of athletes) {
   await page.waitForTimeout(600);
 
   console.log('\n[B] Weigh-in modal: no live backdrop blur');
-  await page.locator('text=TAP TO LOG').first().click();
+  await page.locator('[data-testid="athlete-card"]').first().click();
   await page.waitForTimeout(900);
   // Count every live backdrop-filter, not just full-viewport ones. The overlay is
   // `position: fixed; inset: 0` but sizes to the nearest transformed ancestor
@@ -115,7 +118,7 @@ for (const a of athletes) {
   // stays open and covers the ADD ATHLETE button.
   await page.reload();
   await page.waitForTimeout(2200);
-  await page.getByRole('button', { name: /ADD ATHLETE/i }).first().click();
+  await page.getByRole('button', { name: 'Add', exact: true }).first().click();
   await page.waitForTimeout(1000);
   const addOpen = await page.getByText(/NEW ATHLETE PROFILE/i).count();
   check('add-athlete modal opened', addOpen > 0);
@@ -164,7 +167,7 @@ for (const a of athletes) {
   await page.reload();
   await page.waitForTimeout(2000);
   for (let i = 0; i < 5; i++) {
-    await page.locator('text=TAP TO LOG').first().click().catch(() => {});
+    await page.locator('[data-testid="athlete-card"]').first().click().catch(() => {});
     await page.waitForTimeout(300);
     // Click the overlay itself to dismiss - that is the app's own close affordance.
     await page.mouse.click(8, 8).catch(() => {});

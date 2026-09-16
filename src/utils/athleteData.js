@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v4.34.1';
+export const APP_VERSION = 'v4.35.0';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -325,3 +325,26 @@ export const computeAcuteChronicLoad = (rpeLogs = [], { chronicWeeks = 4, trackD
     ratio: hasBaseline ? acuteLoad / chronicAvgWeeklyLoad : null,
   };
 };
+
+// Fixed per-sport avatar colors (Quick Entry's kiosk grid, and the entry modal's own
+// avatar) so every athlete on a sport reads as one group at a glance, instead of each
+// name hashing to an arbitrary, unrelated color. Sports not listed fall back to
+// DEFAULT_SPORT_COLOR rather than throwing or rendering blank.
+export const SPORT_COLORS = {
+  Football: '#8a5a2b',
+  Volleyball: '#5b6e3e',
+  Wrestling: '#6b3a5b',
+  Baseball: '#2c3e6b',
+  Softball: '#6b4226',
+  'Track & Field': '#3b6e6e',
+  'Cross Country': '#4b3e6b',
+  Basketball: '#6b5b2e',
+  Soccer: '#2e5b4b',
+  Cheer: '#6b2e3e',
+  Dance: '#6b2e3e',
+  Golf: '#3e4e6b',
+  Tennis: '#3e4e6b',
+  Swimming: '#3b6e6e',
+};
+export const DEFAULT_SPORT_COLOR = '#3e4e6b';
+export const getSportColor = (sport) => SPORT_COLORS[sport] || DEFAULT_SPORT_COLOR;

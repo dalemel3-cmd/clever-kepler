@@ -1408,7 +1408,77 @@ Supabase dashboard toggle, not something this session's tooling can flip.
 
 ---
 
-## 37. Next up
+## 37. Quick Entry (Kiosk Mode) redesign (v4.35.0)
+
+A designer handoff (static HTML reference, not shipped code) asked for a condensed,
+tap-first redesign of the Quick Entry screen - the one coaches actually stand in front of
+during practice. The old screen had grown a header row, two conditional mode/baseline
+banners, a 4-column Sport/Grade/Team/Position filter-select grid, a sort toggle, and a
+roster that rendered two *different* ways depending on whether search was active (a full
+`AthleteCard` grid when empty, a separate compact pill-button list when searching, which
+didn't use `AthleteCard` at all).
+
+What changed in `EntryScreen.jsx`:
+1. **Search collapses behind an icon button** that opens an overlay on demand, instead of
+   a persistent full-width bar - kiosk interaction favors tapping over typing. Closing the
+   overlay (via its X or Escape) also clears the query.
+2. **Grade, Position, and the Varsity/JV Team filter are dropped from this screen** - sport
+   grouping already does that job here, and a coach can still see grade/team elsewhere
+   (Athletes screen). This only removed dead plumbing: `selectedGradeFilter`/
+   `selectedTeamFilter`/`selectedPositionFilter` and their setters, grepped across the
+   whole app, were used by nothing except this screen's own now-removed `<select>`s.
+3. **A new single-select sport-filter pill row** ("All" + one pill per sport), styled to
+   match the existing gold-fill/navy-text active convention from `LiftScreen.jsx`'s
+   leaderboard filter. Deliberately **local** state (`localSportFilter`), not the shared
+   `selectedSportFilter` `AthletesScreen`/`ProfilesScreen` also read - switching sports on
+   Quick Entry no longer silently changes what those screens show next.
+4. **The roster is grouped into one section per sport** (header: sport name + "`n` of
+   `total` logged"), computed once via a `useMemo` that also folds in the unweighed-only
+   filter - replacing two separate copies of that same `.filter()` call the old bimodal
+   code had.
+5. **Search and the sport pill both filter the same card grid now.** The old
+   dual-rendering split (cards vs. a separate pill-button list while searching) is gone.
+6. **`AthleteCard` redesigned**: 44px rounded-square avatar (was circular) colored by
+   *sport* now, not a per-name hash - a new shared `getSportColor()`/`SPORT_COLORS` export
+   in `athleteData.js` replaces two previously-duplicated `AVATAR_COLORS` arrays (the
+   card's own copy, and a second hand-rolled one in the entry modal's header avatar, now
+   also using the shared helper). Dropped the sport/position/team subtext line and the
+   "DONE"/"TAP TO LOG" text pill in favor of a small checkmark badge shown only when
+   logged today, plus ~55% card opacity - the card stays in place and stays tappable, so a
+   coach can still correct an entry.
+
+Everything else - Baseline Testing Mode toggle+banner, the unweighed-only priority
+filter+banner, the sort-by-name toggle, and the RPE/sleep-only mode banners - was kept
+exactly as it worked before, just relocated below the new compact top bar/pill row rather
+than removed. The entry modal, `KioskNumpad`, and entry-submission logic are untouched;
+this was a discovery/filtering redesign only. (`KioskNumpad`'s pre-existing `onEnter`
+prop being silently ignored - it only destructures `{ value, onChange }` - was noted
+during planning as a real gap, but is explicitly out of scope here.)
+
+`tests/kiosk-search-pill.js` was fully rewritten (the dual-rendering behavior it tested no
+longer exists) - 6 scenarios, 21 probes, covering the unified grid, the sport pill, and
+the search-overlay open/close/clear cycle. `tests/entry-perf.js` needed a scoped selector
+swap: it used `text=TAP TO LOG` as both an assertion and a click target in three places,
+which cannot survive that text's removal - replaced with a new `data-testid="athlete-card"`
+hook on `AthleteCard`'s root, and its "ADD ATHLETE" button match updated for the
+shortened "+ Add" label.
+
+A full regression sweep surfaced three more collateral breaks the plan hadn't listed,
+fixed the same way: `tests/data-integrity.js` and `tests/stress.js` both filled the search
+box directly without opening the new icon-gated overlay first - both patched to click
+`[title="Search athletes"]` before filling. `tests/stress.js` specifically needed an
+*idempotent* open helper (`ensureSearchOpen`), not a plain click: it calls
+`page.goto('#entry')` repeatedly on a page already sitting on that hash, which doesn't
+force a real SPA reload, so the search overlay's local state can carry over between
+calls - a second blind click was toggling an already-open overlay closed. `tests/rpe.js`'s
+kiosk mode-check scenario asserted literal `/DONE/` text against `.card-glass` - genuinely
+broken by the redesign's move to a checkmark-only badge, not a real regression - fixed by
+adding a `data-testid="athlete-done-badge"` hook and asserting on its presence instead.
+Full 35-file regression sweep re-run clean after all of the above.
+
+---
+
+## 38. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
