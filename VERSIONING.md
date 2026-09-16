@@ -55,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.36.2` | Removed the header's standalone "LOG ENTRY" button next to "ACTIVATE KIOSK MODE" - it just navigated to the same screen the sidebar's own LOG ENTRY nav item already reaches, a redundant third path (with EXIT KIOSK) to the same place |
 | `4.36.1` | Fixed Settings' "Sports Offered" field so a coach can actually type a comma to add a new sport - it was never migrated to the shared ListField fix (v4.31.0) that solved the identical bug for Lift Types/Session Labels, so the input still derived its value straight from the parsed array on every keystroke and stripped the comma before a second sport could be typed |
 | `4.36.0` | Analytics gained "Sync from Plyomat" - a live pull from Plyomat's Partner API alongside the existing CSV upload, via a new Supabase Edge Function holding the API key. Same preview-before-write review UI as the CSV path; a sync checkpoint (db/010) tracks what's already been pulled so repeat syncs only fetch what's new |
 | `4.35.0` | Quick Entry (Kiosk Mode) redesign: search collapses behind an icon that opens on demand, Grade/Position/Team filters dropped in favor of sport-grouped sections with a single-select sport pill row, roster tiles are larger tappable cards (checkmark badge + dimming instead of a "TAP TO LOG"/"DONE" text pill), and search now filters the same card grid instead of switching to a separate compact pill list |

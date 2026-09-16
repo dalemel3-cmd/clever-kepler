@@ -1570,7 +1570,20 @@ passes.
 
 ---
 
-## 40. Next up
+## 40. Removed a redundant header button (v4.36.2)
+
+The main header had a "LOG ENTRY" button sitting next to "ACTIVATE KIOSK MODE" that just
+navigated to the same `#entry` screen the sidebar's own permanent "LOG ENTRY" nav item already
+reaches - a third path to a place already two clicks (or one, via the sidebar) away, alongside
+the dedicated "EXIT KIOSK" button that already appears once a coach is actually in kiosk mode.
+Removed per direct request after noticing the redundancy; the sidebar nav item is unaffected and
+remains the way to reach the entry screen outside of kiosk mode. No test referenced this
+specific button (`tests/athletes-screen.js`'s "Log Entry" click is a different, case-sensitive
+button on the Athletes panel, unaffected). Full regression sweep re-run and passes.
+
+---
+
+## 41. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
