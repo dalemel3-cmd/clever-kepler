@@ -1478,7 +1478,71 @@ Full 35-file regression sweep re-run clean after all of the above.
 
 ---
 
-## 38. Next up
+## 38. Sync from Plyomat: live API integration (v4.36.0)
+
+Plyomat published a real Partner API (OpenAPI 3.1, Bearer-key auth, read-only at v0.1) since
+the manual CSV importer (§4/§15) was built. Analytics' Plyomat panel now offers a "PLYOMAT
+SYNC" mode alongside "UPLOAD CSV" - a "Sync from Plyomat" button that pulls new jump results
+directly, reviewed through the exact same preview-before-write UI (stat tiles, ambiguous-name
+decisions, new-athlete disclosure) the CSV path already used, since both now produce the same
+plan shape.
+
+**New infrastructure - first Supabase Edge Function in this repo**: `supabase/functions/
+plyomat-sync/`. It is a thin authenticated proxy only - it verifies the caller via the same
+`is_approved_coach()` RPC every RLS policy already relies on, then pages Plyomat's
+`GET /sets?since=` and `GET /athletes`, handles 429/Retry-After backoff, and returns raw JSON.
+All product/matching logic (fuzzy name matching, sport inference, dedup) stays client-side in
+`plyomatImport.js`'s new `buildImportPlanFromApiSets()`, sharing every reusable piece with the
+CSV path's `buildImportPlan()` rather than duplicating it in Deno. Deploy with
+`supabase functions deploy plyomat-sync`; set the secret once with
+`supabase secrets set PLYOMAT_API_KEY=pk_live_...` (never committed, never touches the browser
+or a database table - this app is single-tenant, one school, one Plyomat org).
+
+**Mapping decisions**: only `display_mode: 'vertical'` sets import (parity with the CSV path's
+jump-height-only support today) - everything else lands in `unsupported`, same as an
+unrecognized CSV metric. Best-of-kept height is the max `jump_height_cm` among `is_kept` reps,
+converted to inches (`× 1/2.54`) to match the unit every other `vertical_jump` row in this app
+already uses - worth calling out because a silent unit mismatch here would corrupt every
+leaderboard, not error loudly. Dedup keys on the immutable per-capture `set.id` (not
+`session_id`, which groups multiple sets), embedded in `notes` exactly like the CSV path's
+Session ID. **v1 is create-only**: a set whose `version` later increments (a coach edited the
+capture inside Plyomat's own app) is not detected or re-imported - matches the CSV path's
+existing "a known id is a pure duplicate, full stop" behavior, and avoids silently clobbering a
+coach's local correction with an unreviewed "newer" value. `Athlete.external_id`/
+`external_source` are read and carried through plan rows for visibility only (not written
+anywhere, not used for matching) - the API can't write them from our side yet, so any real use
+of that field waits on a future Plyomat API revision.
+
+**New checkpoint table** `db/010_plyomat_sync_state.sql`: a singleton row (`last_synced_at`,
+`last_synced_by`), RLS-gated by the same `is_approved_coach()` pattern as every other table.
+The client reads it before syncing (passes `since:` last_synced_at, or omits it entirely on a
+first-ever sync - the panel warns this may take a minute or two) and only advances it after a
+confirmed, **non-partial** import - a rate-limited sync must not skip the tail it never actually
+retrieved, so it shows an informational message instead and leaves the checkpoint alone for the
+next attempt to re-cover.
+
+**Testing**: `tests/plyomat-import.js` gained §H/§I covering `buildImportPlanFromApiSets`
+(unsupported display modes, no-kept-reps, cm→in conversion, external_id pass-through, re-sync
+no-op) with the same adversarial-fixture style as the CSV suite. New
+`tests/plyomat-api-sync.js` (Playwright) stubs the client's call to the Edge Function itself
+(`**/functions/v1/plyomat-sync**` is a browser-side network request, fully interceptable, unlike
+the function's own outbound call to Plyomat) and covers the full sync→preview→confirm→checkpoint
+flow, a partial/rate-limited response, and a 401. Fixed a real bug found while writing that
+test: `supabase.functions.invoke()` throws a generic error on any non-2xx response instead of
+handing back the function's own JSON body - `onPlyomatApiSync` in `App.jsx` now recovers the
+real `{ok:false,error}` payload from `error.context` so the panel can show Plyomat's actual
+reason instead of a generic network failure.
+
+**Not covered by this session's tooling - explicit pre-launch checklist, not done here**:
+`supabase/functions/plyomat-sync/sync.test.ts` (a Deno unit test mocking `fetch`, pinning down
+the pagination/backoff/error-shape logic in `sync.ts`) was written but could not be *run* in
+this sandbox - no network access to install Deno. Before this ships: run that test suite, and do
+at least one manual end-to-end sync against Plyomat's real API (or a sandbox key if they offer
+one) to confirm real pagination envelopes and rate-limit behavior match what the tests assume.
+
+---
+
+## 39. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

@@ -7,6 +7,7 @@
 import {
   parseCsv, parseMetric, parseGroups, similarity, matchAthlete,
   buildImportPlan, extractSessionIds, sessionNote,
+  buildImportPlanFromApiSets,
   FUZZY_THRESHOLD, REVIEW_THRESHOLD,
 } from '../src/features/analytics/plyomatImport.js';
 
@@ -143,6 +144,57 @@ console.log('\n[F] The plan: nothing is silently dropped');
   eq('previously imported rows become duplicates', second.summary.duplicates, 2);
   eq('...and none of them import again', second.tests.length, 0);
   eq('session id round-trips through notes', [...extractSessionIds([{ notes: sessionNote('abc') }])], ['abc']);
+}
+
+console.log('\n[H] The live API sync path (v4.36.0): same discipline, different input shape');
+{
+  const roster = [
+    { id: 'r4', name: 'ALEKSANDR KELLEY', sport: 'Football' },
+    { id: 'r3', name: 'JAKE BODENSTEIN', sport: 'Football' },
+  ];
+  const apiAthletes = [
+    { id: 'a1', first_name: 'Aleksandr', last_name: 'Kelley' }, // roster hit
+    { id: 'a2', first_name: 'Brand', last_name: 'New' },        // new athlete
+    { id: 'a3', first_name: 'Power', last_name: 'Guy' },        // unsupported display_mode
+    { id: 'a4', first_name: 'Blank', last_name: 'Value' },      // no kept reps
+    { id: 'a5', first_name: 'Rylee', last_name: 'Bodenstein' }, // ambiguous
+    { id: 'a6', first_name: 'External', last_name: 'IdCarrier', external_id: 'plyo-ext-1', external_source: 'sis' },
+  ];
+  const apiSets = [
+    { id: 's1', athlete_id: 'a1', display_mode: 'vertical', laterality: 'bilateral', started_at: '2026-09-01T20:00:00Z', version: 1,
+      reps: [{ rep_index: 0, jump_height_cm: 64.29, is_kept: true, captured_at: '2026-09-01T20:00:00Z' }] }, // 64.29cm = 25.31in
+    { id: 's2', athlete_id: 'a2', display_mode: 'vertical', laterality: 'bilateral', started_at: '2026-09-01T20:01:00Z', version: 1,
+      reps: [{ rep_index: 0, jump_height_cm: 50.8, is_kept: true, captured_at: '2026-09-01T20:01:00Z' }] }, // 50.8cm = 20.00in
+    { id: 's3', athlete_id: 'a3', display_mode: 'pps', laterality: 'bilateral', started_at: '2026-09-01T20:03:00Z', version: 1, reps: [] },
+    { id: 's4', athlete_id: 'a4', display_mode: 'vertical', laterality: 'bilateral', started_at: '2026-09-01T20:04:00Z', version: 1,
+      reps: [{ rep_index: 0, jump_height_cm: 55, is_kept: false, captured_at: '2026-09-01T20:04:00Z' }] },
+    { id: 's5', athlete_id: 'a5', display_mode: 'vertical', laterality: 'bilateral', started_at: '2026-09-01T20:05:00Z', version: 1,
+      reps: [{ rep_index: 0, jump_height_cm: 55.88, is_kept: true, captured_at: '2026-09-01T20:05:00Z' }] },
+    { id: 's6', athlete_id: 'a6', display_mode: 'vertical', laterality: 'bilateral', started_at: '2026-09-01T20:06:00Z', version: 1,
+      reps: [{ rep_index: 0, jump_height_cm: 61, is_kept: true, captured_at: '2026-09-01T20:06:00Z' }] },
+    { id: 's7', athlete_id: 'zzz-unknown', display_mode: 'vertical', laterality: 'bilateral', started_at: '2026-09-01T20:07:00Z', version: 1, reps: [] },
+  ];
+
+  const p = buildImportPlanFromApiSets(apiSets, apiAthletes, roster, {});
+
+  eq('roster hit + new athlete + external-id carrier import (3)', p.tests.length, 3);
+  eq('cm converted to inches for the roster hit', Number(p.tests.find(t => t.athlete_name === 'ALEKSANDR KELLEY').metric.toFixed(2)), 25.31);
+  eq('...and for the new athlete too', Number(p.tests.find(t => t.athlete_name === 'Brand New').metric.toFixed(2)), 20.00);
+  eq('two athletes get created (Brand New + the external-id carrier)', p.newAthletes.length, 2);
+  check('a new athlete from the API has no guessed sport/grade', p.newAthletes.every(a => a.sport === '' && a.grade === ''));
+  eq('non-vertical display_mode is unsupported, not coerced', p.unsupported.length, 1);
+  eq('...and names the display_mode', p.unsupported[0].metric, 'pps');
+  eq('a set with no kept reps is skipped', p.skipped.filter(s => s.reason === 'no kept reps').length, 1);
+  eq('an athlete missing from the Plyomat response is skipped', p.skipped.filter(s => s.reason === 'athlete not found in Plyomat response').length, 1);
+  eq('the ambiguous name awaits review, same as the CSV path', p.needsReview.length, 1);
+  check('nothing ambiguous leaked into the import', !p.tests.some(t => /bodenstein/i.test(t.athlete_name)));
+  eq('external_id is threaded through for visibility, unused for matching', p.tests.find(t => t.athlete_name === 'External IdCarrier').plyomatExternalId, 'plyo-ext-1');
+
+  console.log('\n[I] Re-syncing already-imported sets is a no-op (dedup on set.id)');
+  const already = p.tests.map(t => ({ notes: t.notes }));
+  const second = buildImportPlanFromApiSets(apiSets, apiAthletes, roster, { existingTests: already });
+  eq('previously imported sets become duplicates', second.summary.duplicates, 3);
+  eq('...and none of them import again', second.tests.length, 0);
 }
 
 console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
