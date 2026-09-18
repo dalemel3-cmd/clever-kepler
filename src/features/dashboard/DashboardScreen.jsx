@@ -48,9 +48,14 @@ export default function DashboardScreen({
       responded,
       pct: roster.length > 0 ? Math.round((responded / roster.length) * 100) : 0,
       avg: logs.length > 0 ? (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) : null,
-      isHard
+      isHard,
+      hard: logs.filter(r => r.rpe >= settings.rpeHighThreshold).length
     };
   }).sort((a, b) => a.pct - b.pct);
+
+  const respondedIds = new Set(todaysRpeLogs.map(r => r.athlete_id));
+  const rpeRate = athletes.length > 0 ? Math.round((respondedIds.size / athletes.length) * 100) : 0;
+  const avgRpe = todaysRpeLogs.length > 0 ? (todaysRpeLogs.reduce((s, r) => s + (r.rpe || 0), 0) / todaysRpeLogs.length).toFixed(1) : '0.0';
 
   return (
     <div className="flex flex-col w-full h-full overflow-y-auto pb-space-xl animate-fade-in">
@@ -267,7 +272,9 @@ export default function DashboardScreen({
                   <span className="material-symbols-outlined text-primary text-base">monitoring</span>
                   <span className="font-headline-md text-headline-md uppercase text-on-surface">TODAY'S INTERNAL TRAINING LOAD &amp; READINESS</span>
                 </div>
-                <span className="font-label-sm text-label-sm px-2 py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 uppercase font-bold">{allSports.length} TEAMS ACTIVE</span>
+                <span className="font-label-sm text-label-sm px-2 py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 uppercase font-bold">
+                  {todaysRpeLogs.length === 0 ? 'NO SESSIONS LOGGED YET' : `${respondedIds.size} of ${athletes.length} REPORTED · ${rpeRate}% · AVG ${avgRpe}`}
+                </span>
               </div>
               <p className="font-body-sm text-body-sm text-on-surface-variant">Aggregated Rated Perceived Exertion (sRPE) &amp; biometric exertion telemetry across training zones.</p>
               
@@ -280,11 +287,35 @@ export default function DashboardScreen({
                     const none = s.logCount === 0;
                     return (
                       <div key={s.sport} data-testid="rpe-sport-card" data-sport={s.sport} onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }} className="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d] cursor-pointer hover:border-primary/50 transition-colors">
-                        <div className="flex items-center justify-between">
-                          <span className="font-label-sm text-label-sm text-on-surface-variant uppercase truncate" title={s.sport}>{s.sport}</span>
-                          <span className={`font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold ${s.isHard ? 'bg-error-container border-error/30 text-error' : (none ? 'bg-surface-container-high border-[#2a313d] text-dim' : 'bg-primary/20 border-primary/30 text-primary')}`}>
-                            RPE {none ? '--' : (s.avg ? s.avg.toFixed(1) : '--')}
-                          </span>
+                        <div className="flex items-start justify-between gap-space-xs">
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-label-sm text-label-sm text-on-surface-variant uppercase truncate" title={s.sport}>{s.sport}</span>
+                            <span className="font-body-sm text-body-sm text-dim">
+                              {s.logCount === 0 ? `${s.rosterCount} Athletes Listed` : `${s.logCount} Session${s.logCount !== 1 ? 's' : ''} Logged`}
+                            </span>
+                          </div>
+                          {s.hard > 0 ? (
+                            <span className="font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold whitespace-nowrap bg-error-container border-error/30 text-error">
+                              {s.hard} HARD
+                            </span>
+                          ) : (
+                            <span className={`font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold whitespace-nowrap ${none ? 'bg-surface-container-high border-[#2a313d] text-dim' : 'bg-primary/20 border-primary/30 text-primary'}`}>
+                              {none ? 'No Data' : (s.isHard ? 'Heavy Load' : 'Moderate/Recovery')}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 flex items-center gap-space-md">
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <span className="font-label-sm text-[10px] text-dim uppercase tracking-widest">TEAM AVG RPE</span>
+                            <span className={`font-metric-val text-metric-val ${none ? 'text-dim' : (s.isHard ? 'text-error' : 'text-primary')}`}>
+                              {none ? '—' : s.avg.toFixed(1)} <span className="font-body-sm text-body-sm text-dim">/ {settings.rpeScaleMax || 10}</span>
+                            </span>
+                          </div>
+                          <div className="w-px h-9 bg-[#2a313d]" />
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <span className="font-label-sm text-[10px] text-dim uppercase tracking-widest">LOG RESPONSE RATE</span>
+                            <span className="font-metric-val text-metric-val text-on-surface">{s.pct}%</span>
+                          </div>
                         </div>
                         <div className="mt-2 flex items-end gap-1 h-14">
                            {(() => {
@@ -310,7 +341,7 @@ export default function DashboardScreen({
                            })()}
                         </div>
                         <span className="mt-1 block font-body-sm text-body-sm text-dim text-right">
-                          {none ? 'No Data' : (s.isHard ? 'Heavy Load' : 'Moderate/Recovery')} &middot; {s.rosterCount} Athletes
+                          {s.responded}/{s.rosterCount} athletes reported
                         </span>
                       </div>
                     );

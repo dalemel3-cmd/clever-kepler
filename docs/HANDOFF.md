@@ -2024,7 +2024,42 @@ the numpad next to the fields instead of below them.
    to fit both. Confirm & Sync now fits in the same view as the numpad with no
    scrolling, verified against the RPE flow at 1024px width.
 
-## 54. Next up
+## 54. Bug hunt: Dashboard RPE cards had lost their response-rate stats (v4.44.0)
+
+Coach asked to keep hunting for refactor bugs since the app now works for the
+day. Ran the full regression suite with the RPE dashboard test's blocking
+selector issue already fixed (§50 added the missing `data-testid`), which let
+it run past the point it previously failed at and surface 13 new failures -
+all pointing at the same root cause.
+
+**The reskin kept the math, dropped the display.** `DashboardScreen.jsx`'s
+`rpeBySport` already computed `pct` (response rate), `responded`, and
+`logCount` per team - but the card only ever rendered the sport name, an RPE
+badge, and the weekly bar chart. A coach had no way to see how many athletes
+on a team had actually reported RPE today, which session count, or how many
+sessions were rated "hard" - all silently missing with no indication anything
+was gone, same failure mode as §51's silent RPE-save bug.
+
+Restored, reusing the existing computed values (no new math needed):
+- Per-card **"TEAM AVG RPE"/"LOG RESPONSE RATE"** two-stat row.
+- Per-card **"N HARD"** badge when `s.hard > 0` (count of individual sessions
+  ≥ `rpeHighThreshold`, not just the boolean `isHard` flag), falling back to
+  the existing Heavy Load/Moderate/Recovery/No Data label otherwise.
+- Session-count line ("2 Sessions Logged" vs "N Athletes Listed") and a
+  responded/roster count line ("1/2 athletes reported").
+- The panel header's roll-up pill ("X of Y REPORTED · Z% · AVG W"), replacing
+  the "N TEAMS ACTIVE" badge that had taken its place - added `respondedIds`/
+  `rpeRate`/`avgRpe` computed the same way `rpeBySport` already does per team.
+
+Verified against `tests/rpe-dashboard.js`: 6/19 passing before this fix (the
+rest blocked on the missing selector), 17/19 after - the 2 remaining failures
+are test staleness (the panel's own heading text was intentionally renamed
+from "TODAY'S SESSION LOAD" to "TODAY'S INTERNAL TRAINING LOAD & READINESS" in
+an earlier pass, which breaks the test's own string-based section-slicing, not
+an app bug - confirmed the real roll-up text renders correctly via a direct
+DOM read).
+
+## 55. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
