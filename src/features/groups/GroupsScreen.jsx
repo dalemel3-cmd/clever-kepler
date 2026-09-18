@@ -152,7 +152,7 @@ export default function GroupsScreen({
 
       {/* 3x2 High Impact Team Readiness Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-space-lg w-full">
-        {sportsList.map(sport => {
+        {sportsList.filter(sport => athletes.some(a => (a.sport || '').toLowerCase() === sport.toLowerCase())).map(sport => {
           const sportAthletes = athletes.filter(a => (a.sport || '').toLowerCase() === sport.toLowerCase());
 
           let totalW = 0;
@@ -249,7 +249,7 @@ export default function GroupsScreen({
             </div>
           );
         })}
-        {sportsList.length === 0 && (
+        {sportsList.filter(sport => athletes.some(a => (a.sport || '').toLowerCase() === sport.toLowerCase())).length === 0 && (
           <div className="col-span-full text-center p-12 text-text-muted border border-card-border rounded-xl bg-card-surface/50">
             No sports currently tracked. Add athletes with sport tags to populate group statistics.
           </div>
@@ -257,20 +257,24 @@ export default function GroupsScreen({
       </div>
 
       {/* Bottom Global Summary Telemetry Bar */}
-      {sportsList.length > 0 && (
-        <div className="mt-space-xl p-space-md rounded-xl bg-card-surface border border-card-border flex flex-wrap items-center justify-between gap-space-md">
-          <div className="flex items-center gap-space-md">
-            <div className="flex items-center gap-space-xs text-antique-gold">
-              <span className="material-symbols-outlined text-xl">hub</span>
-              <span className="font-headline-md text-headline-md uppercase tracking-wider text-text-headline">Department Overview</span>
-            </div>
-            <div className="hidden sm:flex items-center gap-space-md font-label-md text-label-md text-text-muted border-l border-card-border pl-space-md">
-              <span>Total Screened: <strong className="text-text-headline">{athletes.length} Athletes</strong></span>
-              <span>Total Groups: <strong className="text-text-headline">{sportsList.length}</strong></span>
+      {(() => {
+        const activeSports = sportsList.filter(sport => athletes.some(a => (a.sport || '').toLowerCase() === sport.toLowerCase()));
+        if (activeSports.length === 0) return null;
+        return (
+          <div className="mt-space-xl p-space-md rounded-xl bg-card-surface border border-card-border flex flex-wrap items-center justify-between gap-space-md">
+            <div className="flex items-center gap-space-md">
+              <div className="flex items-center gap-space-xs text-antique-gold">
+                <span className="material-symbols-outlined text-xl">hub</span>
+                <span className="font-headline-md text-headline-md uppercase tracking-wider text-text-headline">Department Overview</span>
+              </div>
+              <div className="hidden sm:flex items-center gap-space-md font-label-md text-label-md text-text-muted border-l border-card-border pl-space-md">
+                <span>Total Screened: <strong className="text-text-headline">{athletes.length} Athletes</strong></span>
+                <span>Total Groups: <strong className="text-text-headline">{activeSports.length}</strong></span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

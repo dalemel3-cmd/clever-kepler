@@ -88,7 +88,7 @@ export default function LiftScreen({
   // without opening Profiles.
   const lastLiftByAthlete = React.useMemo(() => {
     const map = new Map();
-    for (const l of liftLogs) {
+    for (const l of (liftLogs || [])) {
       const cur = map.get(l.athlete_id);
       if (!cur || new Date(l.created_at) > new Date(cur.created_at)) map.set(l.athlete_id, l);
     }
@@ -112,7 +112,7 @@ export default function LiftScreen({
   // All of today's logged sets (not deduped by athlete) - drives both the
   // "Today's session" recent row below and the session tonnage total.
   const todaysLogs = React.useMemo(() => (
-    [...liftLogs]
+    [...(liftLogs || [])]
       .filter(l => l.created_at && getCentralDateString(new Date(l.created_at)) === todayStr)
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   ), [liftLogs, todayStr]);
@@ -247,7 +247,7 @@ export default function LiftScreen({
   const lastNameOf = (fullName) => (fullName || '').trim().split(/\s+/).pop().toLowerCase();
 
   const handleExportCSV = () => {
-    const sorted = [...liftLogs].sort((a, b) => {
+    const sorted = [...(liftLogs || [])].sort((a, b) => {
       const lastCmp = lastNameOf(a.athlete_name).localeCompare(lastNameOf(b.athlete_name));
       if (lastCmp !== 0) return lastCmp;
       const nameCmp = (a.athlete_name || '').localeCompare(b.athlete_name || '');
@@ -293,7 +293,7 @@ export default function LiftScreen({
 
   const athleteRecentLifts = React.useMemo(() => {
     if (!selectedAthlete) return [];
-    return liftLogs
+    return (liftLogs || [])
       .filter(l => l.athlete_id === selectedAthlete.id)
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 8);
@@ -303,7 +303,7 @@ export default function LiftScreen({
     const roster = leaderboardSportFilter === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === leaderboardSportFilter);
     const rosterIds = new Set(roster.map(a => a.id));
     const byAthlete = new Map();
-    for (const l of liftLogs) {
+    for (const l of (liftLogs || [])) {
       if (l.lift_type !== leaderboardLift || !rosterIds.has(l.athlete_id)) continue;
       const est = estimate1RM(Number(l.weight_lbs), Number(l.reps));
       const cur = byAthlete.get(l.athlete_id);
@@ -320,21 +320,13 @@ export default function LiftScreen({
   };
 
   return (
-    <div className="flex flex-col w-full pb-space-xl">
+    <div className="flex flex-col w-full h-full overflow-y-auto pb-space-xl">
       {/* Top Breadcrumb & Control Anchor */}
       <div className="flex flex-wrap items-center justify-between gap-space-sm pt-space-md pb-space-sm">
         <div className="flex items-center gap-space-xs font-label-md text-label-md tracking-widest text-outline uppercase">
           <span>WORKSPACE</span>
           <span className="material-symbols-outlined text-xs">chevron_right</span>
           <span className="text-primary font-bold">LIFT TRACKER &amp; WEIGHT ROOM FLOOR</span>
-        </div>
-        <div className="flex items-center gap-space-sm font-label-sm text-label-sm text-on-surface-variant">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-high text-secondary">
-            <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>
-            WEIGHT ROOM TELEMETRY: LIVE
-          </span>
-          <span className="hidden sm:inline text-outline-variant">|</span>
-          <span className="hidden sm:inline">RACKS 1-14 ENGAGED</span>
         </div>
       </div>
 

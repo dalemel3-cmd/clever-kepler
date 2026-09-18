@@ -85,7 +85,7 @@ export default function AthletesScreen({
   // most for this athlete (weight delta if flagged, otherwise their best test) -
   // computed once here so the list and the sort share the exact same numbers.
   const rows = useMemo(() => {
-    return filteredAthletes.map(a => {
+    return (filteredAthletes || []).map(a => {
       const logs = reportData.filter(r => r.athlete_id === a.id || (!r.athlete_id && r.athlete_name === a.name)).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
       const badge = badgeFor(a, logs, settings);
       const bestVertical = bestTestFor(performanceTests || [], a.id, 'vertical_jump');
@@ -134,8 +134,8 @@ export default function AthletesScreen({
 
   if (isAddingAthlete) {
     return (
-      <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="animate-slide-up flex flex-col gap-5">
+        <div className="bg-slate-900 rounded-2xl border border-white/10 p-6 flex flex-col gap-4">
           <div onClick={() => setIsAddingAthlete(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', marginBottom: '8px' }}>
             <ChevronLeft size={16} /> Back
           </div>
@@ -210,7 +210,7 @@ export default function AthletesScreen({
   }
 
   return (
-    <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="animate-slide-up flex flex-col gap-5">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
         <div>
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>WORKSPACE &middot; ATHLETES</div>
@@ -230,7 +230,7 @@ export default function AthletesScreen({
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '20px', alignItems: 'start' }} className="athletes-layout">
         {/* LEFT: consolidated list */}
-        <div className="card-glass glow-card" style={{ borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div className="bg-slate-900 rounded-2xl border border-white/10 p-5 flex flex-col gap-1">
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <Search size={18} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
             <input
@@ -332,7 +332,7 @@ export default function AthletesScreen({
           };
 
           return (
-            <div className="card-glass glow-card" style={{ borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div className="bg-slate-900 rounded-2xl border border-white/10 p-5 flex flex-col gap-4">
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <Avatar name={a.name} size={56} />
                 <div style={{ minWidth: 0 }}>
@@ -422,7 +422,7 @@ export default function AthletesScreen({
             </div>
           );
         })() : (
-          <div className="card-glass" style={{ borderRadius: '18px', padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          <div className="bg-slate-900 rounded-2xl p-8 text-center text-gray-400">
             No athletes to show.
           </div>
         )}

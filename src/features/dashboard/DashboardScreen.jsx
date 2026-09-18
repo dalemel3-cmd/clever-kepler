@@ -53,7 +53,7 @@ export default function DashboardScreen({
   }).sort((a, b) => a.pct - b.pct);
 
   return (
-    <div className="flex flex-col w-full pb-space-xl animate-fade-in">
+    <div className="flex flex-col w-full h-full overflow-y-auto pb-space-xl animate-fade-in">
       {/* Top Command Center Bar */}
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-space-md py-space-md border-b border-[#2a313d]">
         <div className="flex flex-col gap-space-xs">
@@ -61,10 +61,6 @@ export default function DashboardScreen({
             <span className="font-label-sm text-label-sm uppercase tracking-widest text-primary">WORKSPACE</span>
             <span className="text-[#2a313d] font-label-sm text-label-sm">/</span>
             <span className="font-label-sm text-label-sm uppercase tracking-widest text-on-surface">COMMAND CENTER</span>
-            <span className="px-space-xs py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 font-label-sm text-label-sm flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>
-              FLOOR ACTIVE
-            </span>
           </div>
           <h1 className="font-display text-display uppercase tracking-tight text-on-surface flex items-center gap-space-sm">
             {greeting}

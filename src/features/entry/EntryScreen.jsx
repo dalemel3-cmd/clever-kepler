@@ -100,7 +100,7 @@ export default function EntryScreen({
   const totalVisibleCount = groupedAthletes.reduce((sum, g) => sum + g.athletes.length, 0);
 
   return (
-    <main className="relative pt-16 w-full px-6 bg-[#030a14] min-h-screen">
+    <main className="relative pt-16 w-full px-6 bg-[#030a14] min-h-screen overflow-y-auto">
       <div className="flex flex-col w-full pb-20">
         {/* Top Command & Kiosk HUD Bar */}
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-6 mt-6">
@@ -222,7 +222,6 @@ export default function EntryScreen({
                 <span className="font-body-sm text-xs text-[#bcc1ca]">Rice Lake Telemetry Link · Auto-capture on steady state</span>
               </div>
             </div>
-            <span className="font-label-sm text-xs bg-[#061c41] border border-[#2a313d] px-2 py-1 rounded text-[#b89c5b] font-bold">NFC READY</span>
           </div>
           <div className="md:col-span-3 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center gap-2 justify-between shadow-md">
             <div className="flex flex-col">
