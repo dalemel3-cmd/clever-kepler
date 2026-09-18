@@ -118,25 +118,55 @@ export default function LiftScreen({
   }, [reportData]);
 
   const todayStr = getCentralDateString();
+  // All of today's logged sets (not deduped by athlete) - drives both the
+  // "Today's session" recent row below and the session tonnage total.
+  const todaysLogs = React.useMemo(() => (
+    [...liftLogs]
+      .filter(l => l.created_at && getCentralDateString(new Date(l.created_at)) === todayStr)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  ), [liftLogs, todayStr]);
+
+  // Total lbs lifted today across every athlete's every set (weight x reps,
+  // summed) - a quick "how much work got done today" number for the header,
+  // computed straight from today's real logs rather than tracked separately.
+  const sessionTonnage = React.useMemo(() => (
+    Math.round(todaysLogs.reduce((sum, l) => sum + (Number(l.weight_lbs) || 0) * (Number(l.reps) || 0), 0))
+  ), [todaysLogs]);
+
   // Today's session: whoever this coach has already logged a lift for today,
   // most-recently-logged first, capped at 8 - tapping one skips straight to their
-  // entry modal instead of re-finding them in the roster below.
+  // entry modal instead of re-finding them in the roster below. Keeps the full
+  // log (not just the lift type) so "+1 Set" can repeat the exact same set.
   const recentAthletes = React.useMemo(() => {
-    const todays = [...liftLogs]
-      .filter(l => l.created_at && getCentralDateString(new Date(l.created_at)) === todayStr)
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const seen = new Set();
     const out = [];
-    for (const l of todays) {
+    for (const l of todaysLogs) {
       if (seen.has(l.athlete_id)) continue;
       seen.add(l.athlete_id);
       const athlete = athletes.find(a => a.id === l.athlete_id);
       if (!athlete) continue;
-      out.push({ athlete, lastLift: l.lift_type });
+      out.push({ athlete, lastLift: l.lift_type, lastLog: l });
       if (out.length >= 8) break;
     }
     return out;
-  }, [liftLogs, athletes, todayStr]);
+  }, [todaysLogs, athletes]);
+
+  // Repeats an athlete's most recent set (same lift/weight/reps) with one tap,
+  // for the common case of back-to-back identical sets - no need to reopen the
+  // modal and retype the same numbers.
+  const [repeatingId, setRepeatingId] = React.useState(null);
+  const handleQuickRepeat = async (athlete, lastLog) => {
+    setRepeatingId(athlete.id);
+    await addLift({
+      athlete_id: athlete.id,
+      athlete_name: athlete.name,
+      sport: athlete.sport || '',
+      lift_type: lastLog.lift_type,
+      weight_lbs: Number(lastLog.weight_lbs),
+      reps: Number(lastLog.reps),
+    });
+    setRepeatingId(null);
+  };
 
   const filteredAthletes = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -145,6 +175,19 @@ export default function LiftScreen({
       .filter(a => !q || a.name.toLowerCase().includes(q))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [athletes, sportFilter, search]);
+
+  // Roster pagination - large programs (150-200+ athletes) were rendering every
+  // filtered row at once. Page size is well above any existing test roster and
+  // any single sport's real roster size, so this only engages for the
+  // "All" view of a genuinely large program.
+  const ROSTER_PAGE_SIZE = 50;
+  const [rosterPage, setRosterPage] = React.useState(0);
+  React.useEffect(() => { setRosterPage(0); }, [sportFilter, search]);
+  const rosterPageCount = Math.max(1, Math.ceil(filteredAthletes.length / ROSTER_PAGE_SIZE));
+  const pagedAthletes = React.useMemo(() => {
+    const start = rosterPage * ROSTER_PAGE_SIZE;
+    return filteredAthletes.slice(start, start + ROSTER_PAGE_SIZE);
+  }, [filteredAthletes, rosterPage]);
 
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId) || null;
 
@@ -375,22 +418,42 @@ export default function LiftScreen({
 
             {recentAthletes.length > 0 && (
               <>
-                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '14px' }}>
-                  Today's session &middot; {recentAthletes.length} logged
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '14px', flexWrap: 'wrap', gap: '6px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Today's session &middot; {recentAthletes.length} logged
+                  </div>
+                  {sessionTonnage > 0 && (
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {sessionTonnage.toLocaleString()} lbs lifted today
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px', marginTop: '8px' }}>
-                  {recentAthletes.map(({ athlete, lastLift }) => (
-                    <button
+                  {recentAthletes.map(({ athlete, lastLift, lastLog }) => (
+                    <div
                       key={athlete.id}
-                      type="button"
-                      onClick={() => openEntry(athlete.id)}
                       className="card-glass"
-                      style={{ flex: 'none', width: '128px', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'left' }}
+                      style={{ flex: 'none', width: '128px', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}
                     >
-                      <Avatar name={athlete.name} size={36} />
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginTop: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{athlete.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{lastLift}</div>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => openEntry(athlete.id)}
+                        style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <Avatar name={athlete.name} size={36} />
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginTop: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{athlete.name}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{lastLift} &middot; {lastLog.weight_lbs}&times;{lastLog.reps}</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickRepeat(athlete, lastLog)}
+                        disabled={repeatingId === athlete.id}
+                        title={`Log another ${lastLog.weight_lbs} lbs × ${lastLog.reps} ${lastLog.lift_type} set for ${athlete.name}`}
+                        style={{ marginTop: '2px', padding: '5px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: repeatingId === athlete.id ? 'not-allowed' : 'pointer', border: '1px solid rgba(184, 156, 91, 0.4)', background: 'rgba(184, 156, 91, 0.1)', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      >
+                        <Plus size={12} /> {repeatingId === athlete.id ? '...' : '1 Set'}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </>
@@ -428,10 +491,23 @@ export default function LiftScreen({
               </div>
             ) : (
               <div>
-                {filteredAthletes.map((a, idx) => {
+                {pagedAthletes.map((a, idx) => {
                   const lastLog = lastLiftByAthlete.get(a.id);
                   const lastWeightRow = lastWeightByAthlete.get(a.id);
-                  const isStale = !lastLog || (new Date() - new Date(lastLog.created_at)) > settings.baselineExpiryDays * 24 * 60 * 60 * 1000;
+                  // Three states, not two: an athlete who has genuinely never logged a
+                  // lift is worth telling apart from one whose last log has simply aged
+                  // past the expiry window - both need attention, but "never" points a
+                  // coach toward onboarding them, not just re-testing.
+                  const status = !lastLog
+                    ? 'never'
+                    : (new Date() - new Date(lastLog.created_at)) > settings.baselineExpiryDays * 24 * 60 * 60 * 1000
+                      ? 'stale'
+                      : 'current';
+                  const statusStyle = {
+                    stale: { bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.35)', label: 'Stale' },
+                    never: { bg: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.2)', label: 'Never Logged' },
+                    current: { bg: 'rgba(255,255,255,0.06)', color: 'var(--color-text-muted)', border: '1px solid rgba(255,255,255,0.1)', label: 'Current' },
+                  }[status];
                   return (
                     <div
                       key={a.id}
@@ -448,11 +524,9 @@ export default function LiftScreen({
                       </div>
                       <span style={{
                         padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap',
-                        background: isStale ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255,255,255,0.06)',
-                        color: isStale ? '#f59e0b' : 'var(--color-text-muted)',
-                        border: isStale ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(255,255,255,0.1)',
+                        background: statusStyle.bg, color: statusStyle.color, border: statusStyle.border,
                       }}>
-                        {isStale ? 'Stale' : 'Current'}
+                        {statusStyle.label}
                       </span>
                       <button
                         type="button"
@@ -464,6 +538,31 @@ export default function LiftScreen({
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {filteredAthletes.length > ROSTER_PAGE_SIZE && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderTop: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap', gap: '10px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  Showing {rosterPage * ROSTER_PAGE_SIZE + 1}&ndash;{Math.min((rosterPage + 1) * ROSTER_PAGE_SIZE, filteredAthletes.length)} of {filteredAthletes.length}
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setRosterPage(p => Math.max(0, p - 1))}
+                    disabled={rosterPage === 0}
+                    style={{ padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: rosterPage === 0 ? 'not-allowed' : 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: rosterPage === 0 ? 'rgba(255,255,255,0.25)' : 'var(--color-text-muted)' }}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRosterPage(p => Math.min(rosterPageCount - 1, p + 1))}
+                    disabled={rosterPage >= rosterPageCount - 1}
+                    style={{ padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: rosterPage >= rosterPageCount - 1 ? 'not-allowed' : 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: rosterPage >= rosterPageCount - 1 ? 'rgba(255,255,255,0.25)' : 'var(--color-text-muted)' }}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             )}
           </div>

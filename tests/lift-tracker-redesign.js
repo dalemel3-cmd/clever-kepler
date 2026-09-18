@@ -109,7 +109,14 @@ const newPage = async (browser, viewport = { width: 1280, height: 900 }) => {
     // case-insensitively rather than the source casing.
     check('logged-3-days-ago athlete reads Current', /Current Squatter[\s\S]{0,80}Current/i.test(body), body.match(/Current Squatter[\s\S]{0,80}/)?.[0]);
     check('logged-30-days-ago athlete reads Stale', /Stale Lifter[\s\S]{0,80}Stale/i.test(body), body.match(/Stale Lifter[\s\S]{0,80}/)?.[0]);
-    check('never-logged athlete also reads Stale, not a crash or blank badge', /Never Logged[\s\S]{0,80}Stale/i.test(body), body.match(/Never Logged[\s\S]{0,80}/)?.[0]);
+    // v4.37.0: a never-logged athlete now gets its own distinct badge (not lumped
+    // into "Stale"). The 30 filler athletes never logged either, so their badges
+    // also read "Never Logged" - getByText('Never Logged') alone is ambiguous
+    // across all of them (and the athlete's own name duplicates its own badge
+    // text). Locate this one row by its avatar initials ("NL"), unique among the
+    // fixtures (every filler athlete's initials are "FA").
+    const neverLoggedRowText = await page.getByText('NL', { exact: true }).locator('..').innerText();
+    check('never-logged athlete gets a distinct "Never Logged" badge, not "Stale"', /Never Logged/i.test(neverLoggedRowText) && !/\bStale\b/i.test(neverLoggedRowText), neverLoggedRowText);
     check('never-logged athlete\'s meta line says so, not a fake date', /Never Logged[\s\S]{0,80}never logged/i.test(body));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }

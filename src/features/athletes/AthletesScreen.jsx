@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search, X, Plus, ChevronLeft } from 'lucide-react';
-import { isPostPracticeLog, hasWeight, isRpeLog, getAthleteBaseline } from '../../utils/athleteData';
+import { isPostPracticeLog, hasWeight, isRpeLog, getAthleteBaseline, getWeeklyWeightDelta } from '../../utils/athleteData';
 import { bestTestFor } from '../profiles/ProfilesScreen';
 import { formatMetric } from '../analytics/SpeedPowerPanel';
 import { estimate1RM } from '../lifts/LiftScreen';
@@ -316,6 +316,7 @@ export default function AthletesScreen({
             return (!best || est > best.est) ? { est: Math.round(est), liftType: l.lift_type } : best;
           }, null);
           const lastActive = logs[0]?.created_at ? new Date(logs[0].created_at).toLocaleDateString() : null;
+          const weeklyDelta = getWeeklyWeightDelta(reportData, a.id);
 
           const historyLabel = (l) => {
             if (l.is_baseline === true || l.is_baseline === 'true' || l.is_baseline === 1) return 'Baseline set';
@@ -370,6 +371,17 @@ export default function AthletesScreen({
                     {bestLift ? `${bestLift.est} lb` : 'No lifts logged'}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{bestLift ? `Best est. 1RM (${bestLift.liftType})` : 'Best est. 1RM'}</div>
+                </div>
+                <div style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px' }}>
+                  <div style={{
+                    fontFamily: 'var(--font-display)', fontSize: weeklyDelta ? '18px' : '13px', fontWeight: 700,
+                    color: !weeklyDelta ? 'var(--color-text-muted)' : weeklyDelta.delta < 0 ? '#f87171' : weeklyDelta.delta > 0 ? '#4ade80' : 'var(--color-accent)',
+                  }}>
+                    {weeklyDelta ? `${weeklyDelta.delta > 0 ? '+' : ''}${weeklyDelta.delta} lb` : 'Not enough data'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+                    {weeklyDelta ? `Weight change (${weeklyDelta.daysBetween}d)` : 'Weekly weight change'}
+                  </div>
                 </div>
               </div>
 

@@ -1660,7 +1660,52 @@ literal substring "FAIL" as part of their own log tags, e.g. `NET-FAIL`,
 
 ---
 
-## 44. Next up
+## 44. Lift Tracker: real features scoped down from a Stitch mockup (v4.37.0)
+
+A second Stitch-generated mockup (a fuller Lift Tracker/roster redesign, not just
+the leaderboard from §41) mixed genuinely real, buildable ideas with a lot of
+fabricated capability - rack station assignments, bar-velocity (VBT) telemetry,
+workout-block/protocol assignments, rest timers, "fatigue beacons," rack
+utilization %, and scheduled/check-in session states. None of that has any real
+system behind it in this app, so it was dropped outright, same standing rule as
+the leaderboard pass.
+
+What *did* get built for real, confirmed item-by-item with the coach first:
+
+1. **Three-tier roster status.** `isStale` was a straight boolean before - a
+   never-logged athlete and a genuinely-gone-stale one both just read "Stale".
+   Split into `current`/`stale`/`never` in `LiftScreen.jsx`; "Never Logged" gets
+   its own dashed/muted badge style, pointing a coach toward onboarding rather
+   than re-testing. `tests/lift-tracker-redesign.js` updated to assert the new
+   distinct badge (previously it explicitly asserted the old "reads Stale
+   either way" behavior - that assertion is now the wrong behavior on purpose).
+2. **Session Tonnage.** Total lbs lifted today (sum of weight x reps across
+   today's real `lift_logs`), shown next to the "Today's session" header. Pure
+   arithmetic over data already being fetched - no new schema.
+3. **"+1 Set" quick-repeat.** Each Today's Session card gained a button that
+   re-logs the athlete's last set (same lift/weight/reps) via the existing
+   `addLift`, for the common back-to-back-identical-sets case, without
+   reopening the modal.
+4. **Roster pagination.** 50 athletes/page - well above any existing test
+   fixture or realistic single-sport roster, so it only engages for a
+   genuinely large "All" view (Shiloh's real roster is ~190). Page resets to 1
+   on search/filter change.
+5. **Weekly weight-change** - new `getWeeklyWeightDelta()` in `athleteData.js`
+   (latest real weigh-in vs. the closest one ~7 days prior, falling back to the
+   oldest available log short of a full week). Explicitly *not* added to Lift
+   Tracker per the coach's direction; surfaced instead as a 6th tile on the
+   Athletes screen's profile panel, right next to Best est. 1RM.
+
+`AthletesScreen.jsx`'s profile grid is now 3x2 instead of 2x2+1. Full 37-file
+regression suite re-run clean, plus a fix to `tests/lift-tracker-redesign.js`
+itself: a DOM-depth mismatch (avatar div is one level shallower than the name
+div) made a `.locator('..').locator('..')` overshoot past the intended row -
+worth remembering for any future test that locates a table/list row by an
+avatar's initials rather than by name text.
+
+---
+
+## 45. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

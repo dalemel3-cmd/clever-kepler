@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v4.36.5';
+export const APP_VERSION = 'v4.37.0';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -348,3 +348,35 @@ export const SPORT_COLORS = {
 };
 export const DEFAULT_SPORT_COLOR = '#3e4e6b';
 export const getSportColor = (sport) => SPORT_COLORS[sport] || DEFAULT_SPORT_COLOR;
+
+// Most recent real body weight vs. the closest one at/before `days` earlier
+// (default 7 - a week-over-week trend), from real weigh-ins only (post-practice
+// sweat checks and RPE-only rows carry no trustworthy weight). Returns null
+// when there's no second weigh-in far enough back to compare against, rather
+// than a misleading same-day or one-log "delta". Kept here (not in a specific
+// screen) so any screen can show a weekly trend without recomputing it.
+export const getWeeklyWeightDelta = (reportData, athleteId, { days = 7, now = Date.now() } = {}) => {
+  const logs = (reportData || [])
+    .filter(r => r.athlete_id === athleteId && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r))
+    .map(r => ({ weight: Number(r.weight_lbs), at: new Date(r.created_at).getTime() }))
+    .filter(r => !isNaN(r.at))
+    .sort((a, b) => b.at - a.at);
+  if (logs.length < 2) return null;
+
+  const current = logs[0];
+  const cutoff = current.at - days * 24 * 60 * 60 * 1000;
+  // The nearest log at/before the cutoff; short of a full week of history, fall
+  // back to the oldest log available so a coach still sees a labeled trend
+  // rather than nothing, just over fewer days than `days`.
+  const prior = logs.find(l => l.at <= cutoff) || logs[logs.length - 1];
+  if (!prior || prior.at === current.at) return null;
+
+  return {
+    current: current.weight,
+    previous: prior.weight,
+    delta: Math.round((current.weight - prior.weight) * 10) / 10,
+    currentAt: current.at,
+    previousAt: prior.at,
+    daysBetween: Math.max(1, Math.round((current.at - prior.at) / (24 * 60 * 60 * 1000))),
+  };
+};
