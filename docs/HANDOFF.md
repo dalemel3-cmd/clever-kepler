@@ -1705,7 +1705,47 @@ avatar's initials rather than by name text.
 
 ---
 
-## 45. Next up
+## 45. Dashboard RPE grid + Sport Groups reskin (v4.38.0)
+
+Two more screens scoped down from Stitch mockups, same standing rule as §41/§44:
+keep only what's backed by real data, drop the rest. This round's fabricated
+content was the most aggressive yet - an entire fake athletic-trainer/hardware
+workflow (season/schedule status per team, smart-scale docks, "squad
+neuromuscular readiness," Catapult GPS metres, injury/training-room tracking,
+"force sync scales") with zero real system behind any of it. All dropped.
+
+**Dashboard - Internal Load Metrics (RPE section).** Previously showed one
+team at a time via a dropdown (`loadSport` state, `aria-label="Team"` select) -
+v4.22.0's fix for a "wall of near-empty boards" problem. The new mockup went
+back to an all-teams-visible grid, and the coach liked it, so it's back -
+same `rpeBySport` computation, same avg RPE / response-rate / hard-count
+numbers per team, just every card rendered at once instead of picked from a
+dropdown. Added an honest load label per card ("Heavy Load"/"Moderate"/
+"Light / Recovery"/"No Data") derived from the same `settings.rpeHighThreshold`
+already used to flag hard sessions elsewhere - not a new fabricated metric,
+just a plain-language read on a real number. `tests/rpe-dashboard.js` and
+`tests/dashboard-focus-and-sticky-lifts.js` rewritten for the grid (no more
+`getByLabel('Team')`; cards now found via `[data-testid="rpe-sport-card"][data-sport="..."]`).
+
+**Sport Groups screen** (`src/features/groups/GroupsScreen.jsx`, real nav
+label "Teams & Rosters" - the mockup renamed it "Sport Groups," left alone
+per direction). Confirmed pure-reskin scope explicitly before touching
+code - three real-but-new metrics the mockup surfaced (per-team weigh-in
+compliance %, dehydration alert count, missing-baseline count) were flagged
+as optional and the coach chose reskin-only, so none of them were added.
+Restyled the per-sport card: stat tiles now sit in their own bordered
+sub-panel, and a footer row gained explicit "View Roster" (primary) and "Set
+Team Baselines" buttons alongside the existing "Weigh-In Status" one - the
+baselines button just opens the existing Bulk Team Baseline Studio panel
+pre-selected to that sport (`setBulkBaselineSport` + `setShowBulkBaselineStudio`,
+both already-existing handlers), not new logic. `AVG LB`/`AVG RPE`/`AVG SLEEP`
+labels kept byte-for-byte (`tests/dashboard-profile-team.js` asserts them).
+
+Full 37-file regression suite re-run clean after each change.
+
+---
+
+## 46. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

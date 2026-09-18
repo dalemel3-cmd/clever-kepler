@@ -26,10 +26,6 @@ export default function DashboardScreen({
   // "N of M checked in" badge already answers the question 90% of the time). One tap
   // opens it back up for the sport-by-sport detail.
   const [accountabilityOpen, setAccountabilityOpen] = useState(false);
-  // Which team's Internal Load card is showing. Reset happens in the section itself
-  // (falls back to the first team with data) so a sport dropped from the roster never
-  // leaves this pointed at a team that no longer exists.
-  const [loadSport, setLoadSport] = useState('ALL');
   // Internal Load Metrics collapses behind the same chevron pattern as the
   // Session Accountability Tracker below it - default closed to save vertical
   // space, since the roll-up pill in its header already answers "did anyone log?"
@@ -421,108 +417,107 @@ export default function DashboardScreen({
                   </div>
                 </div>
               )}
-              {/* One team's load at a time, picked from a dropdown - the grid of every
-                  team's card at once (the old layout) was the same "N near-empty boards"
-                  problem the Speed & Power leaderboard had, and got the same fix. */}
+              {/* Every team's load at once, as a grid - matching the redesigned mockup's
+                  look (a coach scans all teams in one glance rather than switching a
+                  dropdown one at a time). Each tile's numbers are the exact same
+                  rpeBySport computation as before; only the layout changed. */}
               {loadMetricsOpen && (rpeBySport.length === 0 ? (
                 <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>
-              ) : (() => {
-                const s = rpeBySport.find(x => x.sport === loadSport) || rpeBySport[0];
-                const none = s.logCount === 0;
-                const isHard = s.avg != null && s.avg >= settings.rpeHighThreshold;
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <select
-                      aria-label="Team"
-                      value={s.sport}
-                      onChange={e => setLoadSport(e.target.value)}
-                      className="input-glass"
-                      style={{ height: '38px', padding: '0 12px', fontSize: '13px', fontWeight: 700, borderRadius: '10px', maxWidth: '260px' }}
-                    >
-                      {rpeBySport.map(x => (
-                        <option key={x.sport} value={x.sport} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{x.sport}</option>
-                      ))}
-                    </select>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+                  {rpeBySport.map(s => {
+                    const none = s.logCount === 0;
+                    const isHard = s.avg != null && s.avg >= settings.rpeHighThreshold;
+                    // Honest categorization of a real number (avg RPE), not a fabricated
+                    // metric - derived from the same rpeHighThreshold setting that already
+                    // decides "hard" elsewhere, with a moderate band two points below it.
+                    const loadLabel = none
+                      ? 'No Data'
+                      : isHard
+                        ? 'Heavy Load'
+                        : s.avg >= Math.max(0, settings.rpeHighThreshold - 2)
+                          ? 'Moderate'
+                          : 'Light / Recovery';
+                    return (
+                      <div
+                        key={s.sport}
+                        data-testid="rpe-sport-card"
+                        data-sport={s.sport}
+                        onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }}
+                        className="glow-card"
+                        title={`View ${s.sport} roster`}
+                        style={{
+                          padding: '20px',
+                          borderRadius: '18px',
+                          background: none ? 'rgba(255,255,255,0.02)' : (isHard ? 'rgba(239, 68, 68, 0.04)' : 'rgba(59, 130, 246, 0.04)'),
+                          border: none ? '1px solid rgba(255,255,255,0.08)' : (isHard ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(59, 130, 246, 0.25)'),
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '14px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          position: 'relative',
+                          overflow: 'hidden'
+                        }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                          <div>
+                            <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)', display: 'block', letterSpacing: '0.02em' }}>{s.sport}</span>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                              {s.logCount === 0 ? `${s.rosterCount} Athletes Listed` : `${s.logCount} Session${s.logCount !== 1 ? 's' : ''} Logged`}
+                            </span>
+                          </div>
+                          {s.hard > 0 ? (
+                            <span style={{
+                              fontSize: '12px', fontWeight: 800, padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap',
+                              background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', letterSpacing: '0.04em',
+                            }}>
+                              {s.hard} HARD
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap',
+                              background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', letterSpacing: '0.03em',
+                            }}>
+                              {loadLabel}
+                            </span>
+                          )}
+                        </div>
 
-                    <div
-                      data-testid="rpe-sport-card"
-                      data-sport={s.sport}
-                      onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }}
-                      className="glow-card"
-                      title={`View ${s.sport} roster`}
-                      style={{
-                        padding: '20px',
-                        borderRadius: '18px',
-                        background: none ? 'rgba(255,255,255,0.02)' : (isHard ? 'rgba(239, 68, 68, 0.04)' : 'rgba(59, 130, 246, 0.04)'),
-                        border: none ? '1px solid rgba(255,255,255,0.08)' : (isHard ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(59, 130, 246, 0.25)'),
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '14px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        position: 'relative',
-                        overflow: 'hidden'
-                      }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                        <div>
-                          <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)', display: 'block', letterSpacing: '0.02em' }}>{s.sport}</span>
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                            {s.logCount === 0 ? `${s.rosterCount} Athletes Listed` : `${s.logCount} Session${s.logCount !== 1 ? 's' : ''} Logged`}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TEAM AVG RPE</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: none ? 'var(--color-text-muted)' : (isHard ? '#ef4444' : '#60a5fa') }}>
+                              {none ? '\u2014' : s.avg.toFixed(1)} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>/ {settings.rpeScaleMax}</span>
+                            </span>
+                          </div>
+                          <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
+                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LOG RESPONSE RATE</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: 'var(--white)' }}>
+                              {s.pct}%
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%', width: `${s.pct}%`, borderRadius: '4px',
+                            background: isHard ? 'linear-gradient(90deg, #f87171 0%, #dc2626 100%)' : 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
+                            transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                          }} />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Reported Today</span>
+                          <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--white)' }}>
+                            {s.responded}/{s.rosterCount} athletes
                           </span>
                         </div>
-                        {s.hard > 0 && (
-                          <span style={{
-                            fontSize: '12px',
-                            fontWeight: 800,
-                            padding: '4px 10px',
-                            borderRadius: '12px',
-                            whiteSpace: 'nowrap',
-                            background: 'rgba(239, 68, 68, 0.15)',
-                            color: '#ef4444',
-                            letterSpacing: '0.04em'
-                          }}>
-                            {s.hard} HARD
-                          </span>
-                        )}
                       </div>
-
-                      {/* The pair that used to sit in the panel header, now per team. */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TEAM AVG RPE</span>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: none ? 'var(--color-text-muted)' : (isHard ? '#ef4444' : '#60a5fa') }}>
-                            {none ? '\u2014' : s.avg.toFixed(1)} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>/ {settings.rpeScaleMax}</span>
-                          </span>
-                        </div>
-                        <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LOG RESPONSE RATE</span>
-                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: 'var(--white)' }}>
-                            {s.pct}%
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                        <div style={{
-                          height: '100%',
-                          width: `${s.pct}%`,
-                          borderRadius: '4px',
-                          background: isHard ? 'linear-gradient(90deg, #f87171 0%, #dc2626 100%)' : 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
-                          transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-                        }} />
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Reported Today</span>
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--white)' }}>
-                          {s.responded}/{s.rosterCount} athletes
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })())}
+                    );
+                  })}
+                </div>
+              ))}
 
               {loadMetricsOpen && todaysRpeLogs.length === 0 && (
                 <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>

@@ -77,13 +77,13 @@ const newPage = async (browser, viewport) => {
     await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2000);
     check('header visible', (await page.getByText('INTERNAL LOAD METRICS').count()) > 0);
     let body = await page.locator('body').innerText();
-    check('team picker hidden before expanding', !(await page.getByLabel('Team', { exact: true }).count()));
+    check('team cards hidden before expanding', !(await page.locator('[data-testid="rpe-sport-card"]').count()));
     await page.getByText('INTERNAL LOAD METRICS').click();
     await page.waitForTimeout(400);
-    check('team picker visible after expanding', (await page.getByLabel('Team', { exact: true }).count()) > 0);
+    check('team cards visible after expanding', (await page.locator('[data-testid="rpe-sport-card"]').count()) > 0);
     await page.getByText('INTERNAL LOAD METRICS').click();
     await page.waitForTimeout(400);
-    check('collapses again on a second click', !(await page.getByLabel('Team', { exact: true }).count()));
+    check('collapses again on a second click', !(await page.locator('[data-testid="rpe-sport-card"]').count()));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

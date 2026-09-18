@@ -1,4 +1,4 @@
-import { TrendingUp, CheckCircle, ClipboardList } from 'lucide-react';
+import { TrendingUp, CheckCircle, ClipboardList, Users, Eye } from 'lucide-react';
 import { getAthleteBaseline, isRpeLog, hasSleep } from '../../utils/athleteData';
 
 export default function GroupsScreen({
@@ -22,9 +22,14 @@ export default function GroupsScreen({
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>SPORT GROUPS</h2>
-          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{sportsList.length} sport{sportsList.length !== 1 ? 's' : ''} tracked</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>SPORT GROUPS</h2>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Team-level biometric health, weigh-in compliance, and squad baselines.</span>
+          </div>
+          <span style={{ padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', background: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.35)', whiteSpace: 'nowrap' }}>
+            {sportsList.length} sport{sportsList.length !== 1 ? 's' : ''} tracked
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <button
@@ -178,10 +183,10 @@ export default function GroupsScreen({
                 padding: '24px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '24px',
+                gap: '20px',
                 cursor: 'pointer',
                 border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-lg)',
+                borderRadius: '18px',
                 transition: 'transform 0.2s, border-color 0.2s'
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
@@ -190,9 +195,10 @@ export default function GroupsScreen({
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--white)' }}>
                 {sport}
               </div>
-              <div style={{ display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap' }}>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(70px, 1fr))', gap: '16px', padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: 'var(--white)' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 800, lineHeight: 1, color: 'var(--white)' }}>
                     {sportAthletes.length}
                   </span>
                   <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -200,7 +206,7 @@ export default function GroupsScreen({
                   </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: countW > 0 ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 800, lineHeight: 1, color: countW > 0 ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
                     {avgW > 0 ? avgW : '--'}
                   </span>
                   <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -209,7 +215,7 @@ export default function GroupsScreen({
                 </div>
                 {settings.enableRpe && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: avgRpe > 0 ? '#f97316' : 'var(--color-text-muted)' }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 800, lineHeight: 1, color: avgRpe > 0 ? '#f97316' : 'var(--color-text-muted)' }}>
                       {avgRpe > 0 ? avgRpe.toFixed(1) : '--'}
                     </span>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -218,7 +224,7 @@ export default function GroupsScreen({
                   </div>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 800, lineHeight: 1, color: avgSleep > 0 ? '#60a5fa' : 'var(--color-text-muted)' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 800, lineHeight: 1, color: avgSleep > 0 ? '#60a5fa' : 'var(--color-text-muted)' }}>
                     {avgSleep > 0 ? avgSleep.toFixed(1) : '--'}
                   </span>
                   <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -226,13 +232,30 @@ export default function GroupsScreen({
                   </span>
                 </div>
               </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); setTeamStatusSport(sport); setScreen('team-status'); }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(184, 156, 91, 0.12)', border: '1px solid rgba(184, 156, 91, 0.35)', color: 'var(--color-accent)', fontSize: '12px', fontWeight: 800, letterSpacing: '0.02em', cursor: 'pointer' }}
-                title="See who on this team hasn't weighed in yet, sorted by most recent log"
-              >
-                <ClipboardList size={15} /> WEIGH-IN STATUS
-              </button>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setSelectedSportFilter(sport); setScreen('athletes'); }}
+                  style={{ flex: '1 1 140px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 14px', borderRadius: '10px', background: 'var(--color-accent)', border: 'none', color: 'var(--navy-950)', fontSize: '12px', fontWeight: 800, letterSpacing: '0.02em', cursor: 'pointer' }}
+                  title={`View the ${sport} roster`}
+                >
+                  <Eye size={15} /> VIEW ROSTER
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setTeamStatusSport(sport); setScreen('team-status'); }}
+                  style={{ flex: '1 1 140px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.12)', border: '1px solid rgba(184, 156, 91, 0.35)', color: 'var(--color-accent)', fontSize: '12px', fontWeight: 800, letterSpacing: '0.02em', cursor: 'pointer' }}
+                  title="See who on this team hasn't weighed in yet, sorted by most recent log"
+                >
+                  <ClipboardList size={15} /> WEIGH-IN STATUS
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setBulkBaselineSport(sport); setBulkBaselineDate(''); setShowBulkBaselineStudio(true); }}
+                  style={{ flex: '1 1 140px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 800, letterSpacing: '0.02em', cursor: 'pointer' }}
+                  title={`Open the Bulk Team Baseline Studio for ${sport}`}
+                >
+                  <Users size={15} /> SET TEAM BASELINES
+                </button>
+              </div>
             </div>
           );
         })}
