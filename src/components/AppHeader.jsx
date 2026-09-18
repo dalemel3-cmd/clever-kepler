@@ -9,10 +9,11 @@ export function AppHeader({
   unsyncedQueueCount,
   syncOfflineCache,
   handleManualCloudRefresh,
-  coachInitials
+  coachInitials,
+  sidebarCollapsed
 }) {
   return (
-    <header className={`fixed top-0 ${isKioskMode ? 'left-0' : 'left-64'} right-0 h-16 bg-[#030a14]/85 backdrop-blur-xl border-b border-[#2a313d]/60 z-40 flex items-center justify-between px-space-lg`}>
+    <header className={`fixed top-0 ${isKioskMode ? 'left-0' : (sidebarCollapsed ? 'left-20' : 'left-64')} right-0 h-16 bg-[#030a14]/85 backdrop-blur-xl border-b border-[#2a313d]/60 z-40 flex items-center justify-between px-space-lg transition-[left] duration-200`}>
       {isKioskMode ? (
         <div className="flex flex-1 items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-space-md">

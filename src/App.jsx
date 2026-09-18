@@ -248,6 +248,16 @@ export default function App() {
       }
     }), [athletes, search, selectedSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
   const [isKioskMode, setIsKioskMode] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('shiloh_sidebar_collapsed') === 'true'; } catch (e) { return false; }
+  });
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('shiloh_sidebar_collapsed', String(next)); } catch (e) {}
+      return next;
+    });
+  };
   
   // Entry State
   const [entryAthleteId, setEntryAthleteId] = useState(null);
@@ -3010,12 +3020,12 @@ export default function App() {
       )}
       
 
-      {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} />}
-      
-      <div className={isKioskMode ? "w-full" : "pl-64"}>
-        <AppHeader 
-          isKioskMode={isKioskMode} 
-          setIsKioskMode={setIsKioskMode} 
+      {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />}
+
+      <div className={`flex-1 min-w-0 ${isKioskMode ? "w-full" : (sidebarCollapsed ? "pl-20" : "pl-64")}`}>
+        <AppHeader
+          isKioskMode={isKioskMode}
+          setIsKioskMode={setIsKioskMode}
           setScreen={setScreen}
           isOnline={isOnline}
           isRefreshing={isRefreshing}
@@ -3023,6 +3033,7 @@ export default function App() {
           syncOfflineCache={syncOfflineCache}
           handleManualCloudRefresh={handleManualCloudRefresh}
           coachInitials={coachInitials}
+          sidebarCollapsed={sidebarCollapsed}
         />
         <main className="relative pt-16 w-full px-space-lg bg-surface h-screen overflow-y-auto" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
 

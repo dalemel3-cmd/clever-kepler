@@ -1972,7 +1972,43 @@ duration → label → Confirm & Sync) confirming a real `POST /rest/v1/weigh_in
 fires with the correct `rpe`/`session_minutes`/`session_label`/`session_type`
 payload - not just that the button is clickable.
 
-## 52. Next up
+## 52. Sidebar polish + collapsible nav, iPad-landscape overflow bug (v4.42.0)
+
+Same-day follow-up to §51. Requested: bigger logo, drop the decorative lock icon
+and "LIVE" badge from the sidebar header, and make the sidebar collapsible - then
+an urgent add-on to confirm the layout actually fits iPad landscape (1024x768,
+the size coaches use courtside).
+
+1. **Sidebar header cleanup.** Logo grown from `h-10` to `h-16` when expanded;
+   dropped the `lock` icon span and the "LIVE" badge row entirely - neither
+   represented anything real (no lock state, no live/offline distinction beyond
+   what the header's own sync indicator already shows).
+2. **Collapsible sidebar.** New `sidebarCollapsed` state in `App.jsx`, persisted
+   to `localStorage` (`shiloh_sidebar_collapsed`) so it survives a reload.
+   Collapsed state shows a `w-20` icon-only rail (labels/section headers hidden,
+   `title` attributes added for a hover tooltip); a chevron toggle button sits
+   in the sidebar header (absolutely positioned on the right edge when
+   collapsed). `AppHeader.jsx` and the main content column both read the same
+   state to shift their left offset (`left-64`/`pl-64` vs `left-20`/`pl-20`).
+3. **Real bug found while iPad-testing: content silently overflowed past the
+   viewport edge with no scrollbar.** The content column (`<div className={...
+   pl-64}>` in `App.jsx`) is the sole normal-flow child of `#root`'s
+   `display:flex` container (the sidebar is `position:fixed`, out of flow) -
+   with no `flex-1`/width class, a flex item's `width:auto` sizes to its
+   content instead of stretching to fill the container. Any row inside that
+   didn't wrap (Quick Entry's mode-selector and quick-action button row) could
+   grow the whole column wider than the viewport, and `body{overflow-x:hidden}`
+   (from `src/styles.css`, meant to suppress an occasional 1px horizontal
+   jiggle) hid the result as silent clipping instead of a scrollbar - buttons
+   past ~1024px were simply unreachable on an iPad in landscape, with zero
+   visual indication anything was missing. Fixed with `flex-1 min-w-0` on the
+   content column, which caps it to the actual remaining flex space and lets
+   Tailwind's `flex-wrap` rows wrap the way they were meant to. Verified with a
+   1024x768 viewport across Dashboard/Entry/Groups/Athletes/Lift Tracker -
+   `main`'s right edge now matches the viewport edge exactly, collapsed and
+   expanded.
+
+## 53. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
