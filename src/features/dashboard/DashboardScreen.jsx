@@ -1,5 +1,5 @@
 import { CheckCircle } from 'lucide-react';
-import { getCentralDateString, getCentralTimeString, isRpeLog } from '../../utils/athleteData';
+import { getCentralDateString, getCentralTimeString, isRpeLog, hasWeight, isPostPracticeLog } from '../../utils/athleteData';
 
 export default function DashboardScreen({
   settings,
@@ -374,18 +374,35 @@ export default function DashboardScreen({
                      const sportAthletes = athletes.filter(a => (a.sport || 'General') === sport);
                      const doneCount = sportAthletes.filter(a => athletesRecordedToday.has(a.id)).length;
                      const pct = sportAthletes.length > 0 ? Math.round((doneCount / sportAthletes.length) * 100) : 0;
-                     
+                     // A team that has never once logged a real weigh-in (only jump results,
+                     // or nothing at all) would show "0 of N logged (0%)" forever if treated
+                     // the same as a team that just hasn't checked in yet today - that reads
+                     // as a permanent compliance failure, not "this team doesn't track
+                     // body weight." Distinguish the two rather than fabricate a gap.
+                     const sportAthleteIds = new Set(sportAthletes.map(a => a.id));
+                     const hasEverWeighed = (reportData || []).some(r =>
+                       r.athlete_id && sportAthleteIds.has(r.athlete_id) && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r));
+                     const neverTracked = sportAthletes.length > 0 && !hasEverWeighed;
+
                      return (
                       <div key={sport} className="flex flex-col gap-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setSelectedSportFilter(sport); setScreen('athletes'); }}>
                         <div className="flex justify-between items-center text-on-surface font-label-md text-label-md">
                           <span className="uppercase">{sport}</span>
-                          <span className={`font-mono font-semibold ${pct === 100 ? 'text-status-success' : (pct > 0 ? 'text-primary' : 'text-dim')}`}>
-                            {doneCount} of {sportAthletes.length} logged ({pct}%)
-                          </span>
+                          {neverTracked ? (
+                            <span className="font-label-sm text-label-sm text-dim">NOT TRACKING WEIGH-INS</span>
+                          ) : (
+                            <span className={`font-mono font-semibold ${pct === 100 ? 'text-status-success' : (pct > 0 ? 'text-primary' : 'text-dim')}`}>
+                              {doneCount} of {sportAthletes.length} logged ({pct}%)
+                            </span>
+                          )}
                         </div>
-                        <div className="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
-                          <div className={`${pct === 100 ? 'bg-status-success' : 'bg-primary'} h-3 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>
-                        </div>
+                        {neverTracked ? (
+                          <span className="font-body-sm text-body-sm text-dim">No weigh-ins logged for this team yet - not a compliance gap, just not started.</span>
+                        ) : (
+                          <div className="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
+                            <div className={`${pct === 100 ? 'bg-status-success' : 'bg-primary'} h-3 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>
+                          </div>
+                        )}
                       </div>
                      );
                    })

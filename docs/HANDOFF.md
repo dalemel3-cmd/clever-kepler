@@ -2059,7 +2059,38 @@ an earlier pass, which breaks the test's own string-based section-slicing, not
 an app bug - confirmed the real roll-up text renders correctly via a direct
 DOM read).
 
-## 55. Next up
+## 55. Bug hunt continued: "Weigh-Ins Remaining" lost its never-tracked distinction (v4.45.0)
+
+Same bug-hunt pass as §54, same root cause pattern: a real conditional the
+reskin dropped, not just a style change. `dashboard-profile-team.js` still
+had 5 failures after §54's fix; 4 of them traced to one missing check in the
+right-hand "Weigh-Ins Remaining by Sport" card.
+
+Pre-refactor (v4.22.1), a sport whose athletes have RPE logs but have *never*
+logged a real body weight (only jump results, RPE, or nothing) was
+distinguished from a sport that simply hasn't checked in *today* - the first
+reads "NOT TRACKING WEIGH-INS" (dashed border, muted), the second shows the
+normal progress bar. Without that check, a program that doesn't do
+body-weight tracking would show a permanent "0 of N logged (0%)" forever,
+which looks exactly like a stuck compliance failure a coach would chase.
+
+The reskin's simplified per-sport row computed `doneCount`/`pct` from
+`athletesRecordedToday` only, with no historical check at all. Restored the
+`neverTracked` computation (`hasWeight(r) && !isPostPracticeLog(r) &&
+!isRpeLog(r)` across all of that sport's history in `reportData`) and the
+two render branches, reusing helpers already exported from `athleteData.js`
+rather than reinventing the weight-detection logic.
+
+Verified against `tests/dashboard-profile-team.js`: 15/20 passing before,
+16/20 after. Remaining 3 failures are cosmetic wording differences from an
+earlier intentional rename (the panel's own "SESSION ACCOUNTABILITY TRACKER"
+heading and "Daily Compliance"/"N LEFT"/"DONE" labels were replaced with
+"WEIGH-INS REMAINING BY SPORT" and "X of Y logged (Z%)" in an earlier pass;
+the AVG LB → Avg Weight rename from §50 is the fourth) - not touched, since
+reverting an intentional rename to chase a stale test string would be the
+wrong fix.
+
+## 56. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
