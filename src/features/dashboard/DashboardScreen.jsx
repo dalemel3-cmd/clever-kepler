@@ -377,6 +377,10 @@ export default function DashboardScreen({
               pct: roster.length > 0 ? Math.round((responded / roster.length) * 100) : 0,
               avg: logs.length > 0 ? (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) : null,
               hard: logs.filter(r => r.rpe >= settings.rpeHighThreshold).length,
+              // Individual RPE values, most recent first - drives the small per-athlete
+              // bar chart on each team's card. Real logged values, not a fabricated
+              // distribution.
+              logs: [...logs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
             };
           }).sort((a, b) => a.pct - b.pct);
 
@@ -522,6 +526,34 @@ export default function DashboardScreen({
                               {s.pct}%
                             </span>
                           </div>
+                        </div>
+
+                        {/* Each bar is one athlete's actual logged RPE today (most recent
+                            6), height scaled to the team's rpeScaleMax and colored by the
+                            same hard/moderate/light thresholds used everywhere else on this
+                            card - a real per-athlete breakdown, not a fabricated chart. */}
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '48px', padding: '0 2px' }} title={none ? 'No RPE logged yet today' : `${s.logs.length} logged today`}>
+                          {none ? (
+                            <div className="chart-bar empty" style={{ width: '100%' }} />
+                          ) : (
+                            s.logs.slice(0, 6).map(log => {
+                              const rpeVal = Number(log.rpe) || 0;
+                              const barHeight = Math.max(4, Math.round((rpeVal / settings.rpeScaleMax) * 44));
+                              const barColor = rpeVal >= settings.rpeHighThreshold
+                                ? '#ef4444'
+                                : rpeVal >= Math.max(0, settings.rpeHighThreshold - 2)
+                                  ? 'var(--color-accent)'
+                                  : '#3b82f6';
+                              return (
+                                <div
+                                  key={log.id}
+                                  className="chart-bar"
+                                  title={`${log.athlete_name}: RPE ${log.rpe}`}
+                                  style={{ height: `${barHeight}px`, background: barColor, flex: 1, maxWidth: '28px' }}
+                                />
+                              );
+                            })
+                          )}
                         </div>
 
                         <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>

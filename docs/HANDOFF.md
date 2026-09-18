@@ -1806,7 +1806,25 @@ Full 37-file regression suite re-run clean.
 
 ---
 
-## 48. Next up
+## 48. RPE mini bar charts on the Dashboard team cards (v4.38.3)
+
+Follow-up to §47: the coach specifically liked the mockup's little bar-chart
+visual under each team's RPE numbers and asked for it. Mapped to real data
+rather than inventing a new metric: each team's `rpeBySport` entry now also
+returns its actual `logs` array (already being filtered/computed for other
+stats, just not returned before), and each card renders up to 6 of that
+team's most recent RPE logs today as vertical bars - height scaled to
+`settings.rpeScaleMax`, colored red/gold/blue by the same
+hard/moderate/light thresholds already used for the "N HARD" badge and load
+label. A team with no logs today shows the existing `.chart-bar.empty` flat
+line instead of a fake chart. Reused `styles.css`'s `.chart-bar` utility
+class, which existed but had no callers anywhere in the app until now.
+
+Full 37-file regression suite re-run clean.
+
+---
+
+## 49. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
