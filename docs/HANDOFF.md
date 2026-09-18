@@ -1630,7 +1630,37 @@ error, which is why it didn't show up there.
 
 ---
 
-## 43. Next up
+## 43. Fixed: a normal refresh didn't pick up a new deploy (v4.36.5)
+
+After the v4.36.4 crash fix shipped, the coach reported a hard refresh showed
+it but an ordinary refresh didn't - a real PWA update bug, not a caching
+inconvenience. `vite.config.js` has had `registerType: 'autoUpdate'` since the
+PWA was first set up, but that setting only controls what the generated
+service worker does once told to activate - it doesn't by itself make the
+page notice a new one exists. Nothing in the app ever imported
+`virtual:pwa-register`, so Vite silently fell back to injecting its own bare
+`navigator.serviceWorker.register('/sw.js')` with no update-checking or
+reload logic at all. A hard refresh bypasses the service worker entirely
+(straight to network), which is why it always "worked"; a normal refresh
+goes through the still-active old worker, which had no reason to ever check
+for or hand off to a new one.
+
+Fixed in `src/main.jsx`: now actually calls `registerSW()` from
+`virtual:pwa-register` with `immediate: true`, plus an hourly
+`registration.update()` poll so a tab left open in a kiosk for hours still
+notices a new deploy without needing to be closed and reopened. Also made
+`vite.config.js`'s `workbox.skipWaiting`/`clientsClaim`/`cleanupOutdatedCaches`
+explicit rather than relying on `autoUpdate` to imply them. Confirmed in the
+production build: `dist/index.html` no longer injects the old bare
+`registerSW.js`, and the real `workbox-window` update/reload logic is bundled
+into the app's own JS. Full 37-file Playwright regression suite re-run and
+passes (`data-integrity.js` and `stress.js` print labels containing the
+literal substring "FAIL" as part of their own log tags, e.g. `NET-FAIL`,
+`QUEUE-DROP` - not real failures; both report `pageErrors: 0`).
+
+---
+
+## 44. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

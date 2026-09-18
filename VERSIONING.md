@@ -55,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.36.5` | Fixed a PWA update bug: a normal refresh kept serving whatever the old service worker had already cached, so a coach saw a deploy only after a hard refresh. `registerType: 'autoUpdate'` in vite.config.js never actually made this work by itself - nothing in the app imported `virtual:pwa-register`, so Vite fell back to a bare `navigator.serviceWorker.register(...)` with no update-detection or reload logic. main.jsx now calls `registerSW()` for real (immediate activation, hourly update polling, auto-reload once a new worker takes control) |
 | `4.36.4` | Fixed a crash: the v4.36.3 leaderboard restyle added an athlete avatar built from `lift_logs.athlete_name`, and `colorFor`/`initialsOf` called `.split()` on it with no null/blank guard - a row with a missing name crashed the whole render. Both helpers now fall back safely |
 | `4.36.3` | Lift Tracker visual polish: leaderboard rows restyled with a numbered rank badge, avatar, and right-aligned Est. 1RM; weight/reps inputs in the Log Set modal gained +/- steppers. Styling only - no data model or behavior changes |
 | `4.36.2` | Removed the header's standalone "LOG ENTRY" button next to "ACTIVATE KIOSK MODE" - it just navigated to the same screen the sidebar's own LOG ENTRY nav item already reaches, a redundant third path (with EXIT KIOSK) to the same place |

@@ -8,6 +8,15 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        // clientsClaim + skipWaiting so a newly-installed service worker takes
+        // over immediately instead of waiting for every open tab to close -
+        // paired with the registerSW() call in main.jsx, which is what
+        // actually triggers the reload once it does.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
+      },
       includeAssets: ['logo1.png', 'logo2.png', 'favicon.svg'],
       manifest: {
         name: 'HPD APP',
