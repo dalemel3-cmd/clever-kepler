@@ -1745,7 +1745,38 @@ Full 37-file regression suite re-run clean after each change.
 
 ---
 
-## 46. Next up
+## 46. Leaderboard podium + Kiosk polish (v4.38.1)
+
+The coach uploaded a batch of 4 Stitch mockups at once (Leaderboard, Kiosk Mode,
+Dashboard, Lift Tracker roster) wanting a full-app visual revamp. After a
+conversation about scope - fake hardware/medical-workflow features flatly
+refused as unsafe-to-fake in a youth athlete safety app, everything else
+agreed as fair game later but not this pass - the standing rule was
+reconfirmed as pure layout/visual work only, applied automatically per
+screen without a fresh confirmation round each time (established over
+enough repetitions in §41/§44/§45 to trust going forward).
+
+Of the 4: **Dashboard** and **Lift Tracker roster** were identical to mockups
+already implemented in §44/§45 - nothing new to do. **Kiosk Mode**
+(`EntryScreen.jsx`) turned out to already implement nearly everything real in
+its mockup (icon-triggered search, sport pills, First/Last sort, all three
+track-mode toggles, Baseline Mode, sport-grouped grid, empty-state quick-add) -
+the mockup's remaining differences were entirely fabricated (NFC wrist tags,
+"Digital Scale Rack" hardware, an "Add Guest/Trial" athlete type, jersey
+numbers with no backing schema field). Only real addition: a live percentage
+badge on the "N of M today" counter.
+
+**Leaderboard** got a real top-3 podium (gold center, silver/bronze either
+side) above the existing ranked list - same `leaderboardRows` data, same
+Epley-ranked numbers, no "Verified Kiosk"/"New School Class Record"/"Form
+Authenticated" fabricated copy this design has carried in every prior pass.
+Only renders when there are at least 3 ranked athletes.
+
+Full 37-file regression suite re-run clean.
+
+---
+
+## 47. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

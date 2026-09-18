@@ -240,6 +240,11 @@ export default function EntryScreen({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.35)', padding: '6px 14px', borderRadius: '20px' }}>
             <CheckCircle size={16} style={{ color: 'var(--status-success)' }} />
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-success)', letterSpacing: '0.04em' }}>{athletesRecordedToday.size}&nbsp;of&nbsp;{filteredAthletes.length}&nbsp;today</span>
+            {filteredAthletes.length > 0 && (
+              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--navy-950)', background: 'var(--status-success)', padding: '2px 8px', borderRadius: '999px' }}>
+                {Math.round((athletesRecordedToday.size / filteredAthletes.length) * 100)}%
+              </span>
+            )}
           </div>
 
           <button

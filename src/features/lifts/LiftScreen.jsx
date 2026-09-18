@@ -622,6 +622,46 @@ export default function LiftScreen({
             </div>
           ) : (
             <div>
+              {/* Top-3 podium - same real ranked data as the list below, just a
+                  different arrangement for the top spots. No fabricated
+                  "verified"/"record" copy - only real weight, reps, sport and date. */}
+              {leaderboardRows.length >= 3 && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr 1fr', gap: '12px', alignItems: 'end', padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  {[leaderboardRows[1], leaderboardRows[0], leaderboardRows[2]].map((row, col) => {
+                    const rank = col === 1 ? 1 : col === 0 ? 2 : 3;
+                    const isGold = rank === 1;
+                    const podiumColor = rank === 1 ? 'var(--color-accent)' : rank === 2 ? '#94a3b8' : '#b45309';
+                    return (
+                      <div
+                        key={row.athlete_id}
+                        onClick={() => openProfile(row.athlete_id)}
+                        className={isGold ? 'glow-card' : ''}
+                        style={{
+                          cursor: 'pointer', borderRadius: '14px', padding: isGold ? '20px 16px' : '16px 14px',
+                          background: isGold ? 'rgba(184, 156, 91, 0.1)' : 'rgba(255,255,255,0.02)',
+                          border: isGold ? '1px solid rgba(184, 156, 91, 0.4)' : '1px solid rgba(255,255,255,0.08)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', textAlign: 'center',
+                          transform: isGold ? 'translateY(-8px)' : 'none',
+                        }}
+                      >
+                        <span style={{
+                          width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: 'var(--font-display)', fontSize: '12px', fontWeight: 800, background: podiumColor,
+                          color: 'var(--navy-950)',
+                        }}>
+                          {rank}
+                        </span>
+                        <Avatar name={row.athlete_name} size={isGold ? 52 : 44} />
+                        <div style={{ fontSize: isGold ? '15px' : '13px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{row.athlete_name}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{row.sport || 'General'}</div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: isGold ? '26px' : '20px', fontWeight: 800, color: podiumColor, lineHeight: 1 }}>{row.est}</div>
+                        <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>est. 1RM</div>
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{row.weight_lbs} lbs &times; {row.reps} &middot; {shortDate(row.created_at)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {leaderboardRows.map((row, idx) => (
                 <div
                   key={row.athlete_id}
