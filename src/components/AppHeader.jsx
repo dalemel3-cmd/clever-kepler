@@ -1,14 +1,15 @@
 import React from 'react';
 
-export function AppHeader({ 
-  isKioskMode, 
+export function AppHeader({
+  isKioskMode,
   setIsKioskMode,
   setScreen,
   isOnline,
   isRefreshing,
   unsyncedQueueCount,
   syncOfflineCache,
-  handleManualCloudRefresh
+  handleManualCloudRefresh,
+  coachInitials
 }) {
   return (
     <header className={`fixed top-0 ${isKioskMode ? 'left-0' : 'left-64'} right-0 h-16 bg-[#030a14]/85 backdrop-blur-xl border-b border-[#2a313d]/60 z-40 flex items-center justify-between px-space-lg`}>
@@ -58,12 +59,10 @@ export function AppHeader({
           </div>
           
           <div className="flex items-center gap-space-md">
-            <div className="hidden lg:flex items-center bg-surface-container-high border border-[#2a313d] rounded px-space-sm py-1.5 text-on-surface-variant font-label-md text-label-md gap-space-sm">
-              <span className="material-symbols-outlined text-base text-dim">search</span>
-              <span>Athlete search...</span>
-              <kbd className="bg-surface-container-highest px-1.5 py-0.5 rounded text-on-surface font-label-sm text-label-sm border border-[#2a313d]">Ctrl+K</kbd>
-            </div>
-            
+            {/* The mockup's "Athlete search... Ctrl+K" box was purely decorative -
+                no input, no keyboard shortcut, no search logic behind it. Real
+                athlete search already lives on the Athletes/Lift Tracker/Kiosk
+                screens themselves; removed rather than ship a fake control. */}
             <div className="flex items-center gap-space-xs">
               <button onClick={() => setScreen('entry')} className="flex items-center gap-1 px-space-sm py-1.5 rounded bg-primary text-[#030a14] hover:bg-primary-hover font-headline-md text-headline-md uppercase transition-all shadow-sm">
                 <span className="material-symbols-outlined text-base">add</span>
@@ -76,7 +75,7 @@ export function AppHeader({
             </div>
             
             <div className="w-8 h-8 rounded-full bg-primary text-[#030a14] flex items-center justify-center font-bold text-xs border border-[#2a313d]">
-              CM
+              {coachInitials || 'HP'}
             </div>
           </div>
         </>

@@ -239,10 +239,11 @@ export default function EntryScreen({
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
             <div className="relative flex-1 max-w-xl">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#bcc1ca] text-lg">search</span>
-              <input 
-                className="w-full pl-10 pr-4 py-2 bg-[#061c41] border border-[#2a313d] rounded-lg text-white font-body-md text-sm placeholder:text-[#bcc1ca] focus:outline-none focus:border-[#b89c5b] transition-colors" 
-                id="athlete-search" 
-                placeholder="Tap to search or swipe alphabetical rail..." 
+              <input
+                className="w-full pl-10 pr-4 py-2 bg-[#061c41] border border-[#2a313d] rounded-lg text-white font-body-md text-sm placeholder:text-[#bcc1ca] focus:outline-none focus:border-[#b89c5b] transition-colors"
+                id="athlete-search"
+                title="Search athletes"
+                placeholder="Tap to search or swipe alphabetical rail..."
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -369,9 +370,10 @@ export default function EntryScreen({
                   <div className="flex items-center justify-between bg-[#030a14] border border-[#2a313d] p-4 rounded-xl">
                     <div className="flex flex-col w-full">
                       <span className="font-label-sm text-xs uppercase text-[#b89c5b] font-bold">LIVE METRIC CAPTURE (LBS)</span>
-                      <input 
+                      <input
                         type="text"
                         inputMode="decimal"
+                        aria-label="Body weight (lbs)"
                         className="font-display text-4xl text-white tracking-wider font-bold bg-transparent border-none outline-none w-full mt-1"
                         placeholder={lastLoggedWeight ? String(lastLoggedWeight) : '0.0'}
                         value={weightInput || ''}

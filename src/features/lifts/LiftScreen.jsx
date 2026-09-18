@@ -362,7 +362,7 @@ export default function LiftScreen({
             <span className="material-symbols-outlined text-lg text-primary">military_tech</span>
             <span>LEADERBOARD</span>
           </button>
-          <button onClick={handleExportCSV} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data">
+          <button onClick={handleExportCSV} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data" aria-label="Export all lift logs to CSV">
             <span className="material-symbols-outlined text-lg">download</span>
           </button>
 
@@ -384,12 +384,12 @@ export default function LiftScreen({
       {view === 'log' && (
         <>
           {/* Search and Live Sport Chips */}
-          <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl">
+          <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl sticky top-0 z-10">
             <div className="relative w-full">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
               <input
                 className="w-full bg-surface-container-lowest text-on-surface font-body-md text-body-md pl-10 pr-24 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-outline"
-                placeholder="Search athlete by name, jersey #, rack station, or current lift..."
+                placeholder="Search athlete by name..."
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}

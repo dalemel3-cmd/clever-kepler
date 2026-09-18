@@ -229,21 +229,30 @@ export default function GroupsScreen({
                 </div>
               </div>
 
-              {/* Action Button Footer */}
-              <div className="p-space-md bg-collegiate-dark/60 border-t border-card-border/60 flex gap-space-sm flex-wrap">
+              {/* Action Button Footer - stacked full-width (not a 3-up row): these
+                  labels ("Weigh-In Status", "Set Team Baselines") don't fit a
+                  third-width button without wrapping to multiple lines. */}
+              <div className="p-space-md bg-collegiate-dark/60 border-t border-card-border/60 flex flex-col gap-space-sm">
                 <button
                   onClick={(e) => { e.stopPropagation(); setSelectedSportFilter(sport); setScreen('athletes'); }}
-                  className="flex-1 flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-collegiate-blue hover:bg-collegiate-blue/80 text-text-headline border border-card-border font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-collegiate-blue hover:bg-collegiate-blue/80 text-text-headline border border-card-border font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap"
                 >
                   <span className="material-symbols-outlined text-lg">badge</span>
                   <span>View Roster</span>
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); setTeamStatusSport(sport); setScreen('team-status'); }}
-                  className="flex-1 flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors shadow font-bold"
+                  className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors shadow font-bold whitespace-nowrap"
                 >
                   <span className="material-symbols-outlined text-lg">assignment_turned_in</span>
                   <span>Weigh-In Status</span>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setBulkBaselineSport(sport); setBulkBaselineDate(''); setShowBulkBaselineStudio(true); }}
+                  className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-transparent hover:bg-card-surface text-text-muted border border-card-border font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap"
+                >
+                  <span className="material-symbols-outlined text-lg">tune</span>
+                  <span>Set Team Baselines</span>
                 </button>
               </div>
             </div>

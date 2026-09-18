@@ -8,6 +8,22 @@ export default {
   theme: {
     extend: {
       "colors": {
+        // GroupsScreen.jsx (Tailwind refactor) shipped using an invented, one-off
+        // color vocabulary instead of the semantic tokens every other screen uses
+        // (surface-container/on-surface/primary/etc. above) - none of these names
+        // existed in this file, so every class using them rendered with no color
+        // at all. Aliased to the real, already-established values rather than
+        // rewriting the 77 call sites across that file.
+        "collegiate-dark": "#030a14",
+        "collegiate-blue": "#0e182a",
+        "antique-gold": "#b89c5b",
+        "antique-dark": "#030a14",
+        "gold-hover": "#d1b87a",
+        "card-border": "#2a313d",
+        "card-surface": "#0a1120",
+        "text-headline": "#ffffff",
+        "text-muted": "#bcc1ca",
+        "slate-accent": "#34d399",
         "tertiary-fixed-dim": "#7bd0ff",
         "on-tertiary": "#030a14",
         "primary": "#b89c5b",

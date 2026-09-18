@@ -3010,7 +3010,7 @@ export default function App() {
       )}
       
 
-      {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => []} />}
+      {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} />}
       
       <div className={isKioskMode ? "w-full" : "pl-64"}>
         <AppHeader 
@@ -3022,6 +3022,7 @@ export default function App() {
           unsyncedQueueCount={unsyncedQueueCount}
           syncOfflineCache={syncOfflineCache}
           handleManualCloudRefresh={handleManualCloudRefresh}
+          coachInitials={coachInitials}
         />
         <main className="relative pt-16 w-full px-space-lg bg-surface min-h-screen" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
 

@@ -1859,7 +1859,72 @@ Full 37-file regression suite re-run clean after the fix.
 
 ---
 
-## 50. Next up
+## 50. Post-refactor stabilization after an external Tailwind CSS pass (v4.40.0)
+
+The coach ran an external, automated Tailwind CSS refactor (`refactor.py`/`refactor.cjs`,
+not part of this app's normal workflow) and pushed it straight to `main` — introducing
+Tailwind v4, new `AppHeader.jsx`/`AppSidebar.jsx` shell components, and Material Symbols
+icons across 7 screens. Asked to "fix all the bugs... make the app functional" afterward.
+Real breaks found and fixed:
+
+1. **Lift Tracker nav pointed at the wrong screen.** `AppSidebar.jsx`'s "Lift Tracker"
+   link used nav id `roster` (App.jsx has no `screen === 'roster'` case), so it silently
+   fell through to whatever screen was already showing — reported by the coach as
+   "lift tracker to athletes... got tangled up." Fixed to `lifts`, matching
+   `screen === 'lifts'`. Athletes link had the same problem (`roster` → `athletes`).
+2. **Analytics & RPE was unreachable.** No sidebar entry survived the refactor at all;
+   added back under INSIGHTS.
+3. **Sport Groups colors were undefined.** `GroupsScreen.jsx` used an invented, one-off
+   Tailwind color vocabulary (`collegiate-dark`, `antique-gold`, `card-surface`,
+   `text-headline`, etc. — 77 call sites) with zero matching entries in
+   `tailwind.config.js`, so every one of those classes rendered with no color. Aliased
+   each invented name to the app's real, already-established hex values in
+   `tailwind.config.js` rather than rewriting 77 call sites.
+4. **Sport Groups lost its third action button.** "View Roster" and "Weigh-In Status"
+   survived; "Set Team Baselines" (opens the Bulk Team Baseline Studio pre-filled for
+   that sport) did not. Added back. Also fixed the 3-button footer wrapping to 2-3
+   lines in a narrow card — switched from a `flex-wrap`/`flex-1` row to a `flex-col`
+   stack of full-width buttons.
+5. **Sidebar/header fell back to hardcoded fake identity.** `AppSidebar`/`AppHeader`
+   shipped with `coachInitials`/`coachName` never passed down from `App.jsx`, so every
+   coach saw hardcoded "CM"/"Coach Mason" instead of `settings.coachName`. Sidebar's
+   alert badge was also hardcoded to `getDailyAlerts={() => []}` (always zero). Both
+   wired to the real values.
+6. **Header's search box was decorative.** The mockup's "Athlete search... Ctrl+K"
+   box had no input, no shortcut, and no logic behind it. Removed rather than ship a
+   fake control — real athlete search already exists on the Athletes/Lift
+   Tracker/Kiosk screens.
+7. **Accessible labels dropped in the reskin.** Lift Tracker's CSV-export button lost
+   its `aria-label` (kept only a `title`); Quick Entry's body-weight input lost its
+   `aria-label` entirely; the Kiosk athlete-search input lost its identifying `title`.
+   All three restored — no behavior change, just re-attached labels the test suite
+   (and screen readers) rely on to find these controls.
+8. **Lift Tracker's search bar lost its sticky-while-scrolling behavior** (a real
+   v4.38-era feature, not part of this refactor) — the `position: sticky` class had
+   been dropped from its wrapper during the reskin. Restored, along with shortening
+   its placeholder back to what the pinned-search feature was built against.
+
+**Confirmed NOT broken**, despite an initial shallow read suggesting otherwise: the
+Dashboard retained its weekly RPE bar chart, 4-tile header, and always-expanded
+Internal Load Metrics/Weigh-Ins panels — just re-implemented with different internal
+variable names. Every Lift Tracker and Athletes feature built earlier this session
+(session tonnage, +1 Set quick-repeat, leaderboard podium, three-tier staleness status,
+weekly weight delta) also survived intact, only visually reskinned.
+
+**Known, deliberately unfixed:** the full 37-file regression suite surfaced several
+failures that are test staleness, not app bugs — e.g. `AVG LB` was intentionally
+relabeled `Avg Weight` on Sport Groups cards, and leaderboard/roster athlete names
+picked up a new `uppercase` CSS class the older tests don't account for. Not touched
+in this pass; flagged for a follow-up test-suite update rather than reverting
+intentional styling.
+
+**Not done, worth raising:** ~58 Material Symbols icon usages were introduced across
+7 files, replacing/coexisting with the app's established `lucide-react` bundled icon
+library. Material Symbols loads from Google Fonts at runtime — a real regression risk
+for a PWA whose stated design intent is to keep working with no network. Recommend
+converting these back to `lucide-react` as a follow-up, not attempted here.
+
+## 51. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

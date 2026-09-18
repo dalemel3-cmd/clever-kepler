@@ -1,6 +1,7 @@
 import React from 'react';
+import { APP_VERSION } from '../utils/athleteData';
 
-export function AppSidebar({ screen, setScreen, getDailyAlerts }) {
+export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coachInitials }) {
   const handleNav = (newScreen) => (e) => {
     e.preventDefault();
     setScreen(newScreen);
@@ -67,13 +68,14 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts }) {
             <span className="px-space-sm pb-space-xs font-label-sm text-label-sm text-dim uppercase tracking-widest">ROSTER & TEAMS</span>
             <nav className="flex flex-col gap-1">
               {navItem('groups', 'shield', 'Sport Groups', null)}
-              {navItem('roster', 'group', 'Athletes', null)}
-              {navItem('profiles', 'fitness_center', 'Lift Tracker', null)}
+              {navItem('athletes', 'group', 'Athletes', null)}
+              {navItem('lifts', 'fitness_center', 'Lift Tracker', null)}
             </nav>
           </div>
           <div className="flex flex-col">
             <span className="px-space-sm pb-space-xs font-label-sm text-label-sm text-dim uppercase tracking-widest">INSIGHTS</span>
             <nav className="flex flex-col gap-1">
+              {navItem('analytics', 'monitoring', 'Analytics & RPE', null)}
               {navItem('reports', 'description', 'Reports', null)}
               {navItem('settings', 'settings', 'Settings', null)}
             </nav>
@@ -82,14 +84,14 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts }) {
       </div>
       <div className="p-space-md bg-[#04142f] border-t border-[#2a313d]/50 mt-space-lg">
         <div className="flex items-center gap-space-sm">
-          <div className="w-9 h-9 rounded bg-[#0e182a] border border-[#2a313d] flex items-center justify-center font-headline-md text-headline-md text-primary">CM</div>
+          <div className="w-9 h-9 rounded bg-[#0e182a] border border-[#2a313d] flex items-center justify-center font-headline-md text-headline-md text-primary">{coachInitials || 'HP'}</div>
           <div className="flex flex-col overflow-hidden">
-            <span className="font-label-lg text-label-lg text-on-surface truncate">Coach Mason</span>
+            <span className="font-label-lg text-label-lg text-on-surface truncate">{coachName || 'Coach'}</span>
             <span className="font-body-sm text-body-sm text-dim truncate">Shiloh Athletics Head Coach</span>
           </div>
         </div>
         <div className="mt-space-sm pt-space-xs flex items-center justify-between font-label-sm text-label-sm text-dim">
-          <span><span className="text-secondary">●</span> Cloud Live v4.36.2</span>
+          <span><span className="text-secondary">●</span> Cloud Live {APP_VERSION}</span>
           <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
         </div>
       </div>
