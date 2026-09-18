@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X, Dumbbell, Award, Plus, ChevronLeft, Pencil, Trash2, Check, Download } from 'lucide-react';
+import { Search, X, Dumbbell, Award, Plus, Minus, ChevronLeft, Pencil, Trash2, Check, Download } from 'lucide-react';
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 // Estimated 1-rep max (Epley formula). Weight and reps are always stored as the raw
@@ -477,66 +477,81 @@ export default function LiftScreen({
       )}
 
       {view === 'leaderboard' && (
-        <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <select
-              aria-label="Lift"
-              value={leaderboardLift}
-              onChange={e => setLeaderboardLift(e.target.value)}
-              className="input-glass"
-              style={{ height: '42px', padding: '0 14px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', maxWidth: '280px' }}
-            >
-              {liftTypes.map(lt => (
-                <option key={lt} value={lt} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{lt}</option>
-              ))}
-            </select>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {['ALL', ...sports].map(sport => (
-                <button
-                  key={sport}
-                  type="button"
-                  onClick={() => setLeaderboardSportFilter(sport)}
-                  style={{
-                    padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                    border: leaderboardSportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    background: leaderboardSportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
-                    color: leaderboardSportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
-                  }}
-                >
-                  {sport === 'ALL' ? 'All' : sport}
-                </button>
-              ))}
+        <div className="card-glass" style={{ borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+          <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Award size={18} style={{ color: 'var(--color-accent)' }} />
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#fff' }}>
+                {leaderboardLift} Leaderboard
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <select
+                aria-label="Lift"
+                value={leaderboardLift}
+                onChange={e => setLeaderboardLift(e.target.value)}
+                className="input-glass"
+                style={{ height: '42px', padding: '0 14px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', maxWidth: '280px' }}
+              >
+                {liftTypes.map(lt => (
+                  <option key={lt} value={lt} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{lt}</option>
+                ))}
+              </select>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {['ALL', ...sports].map(sport => (
+                  <button
+                    key={sport}
+                    type="button"
+                    onClick={() => setLeaderboardSportFilter(sport)}
+                    style={{
+                      padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                      border: leaderboardSportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
+                      background: leaderboardSportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
+                      color: leaderboardSportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
+                    }}
+                  >
+                    {sport === 'ALL' ? 'All' : sport}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           {leaderboardRows.length === 0 ? (
-            <div style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '20px 0', textAlign: 'center' }}>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '32px 22px', textAlign: 'center' }}>
               No {leaderboardLift} results logged yet{leaderboardSportFilter !== 'ALL' ? ` for ${leaderboardSportFilter}` : ''}.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div>
               {leaderboardRows.map((row, idx) => (
                 <div
                   key={row.athlete_id}
                   onClick={() => openProfile(row.athlete_id)}
                   style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-                    padding: '14px 18px', borderRadius: '14px', cursor: 'pointer',
-                    background: idx === 0 ? 'rgba(184, 156, 91, 0.1)' : 'rgba(255,255,255,0.02)',
-                    border: idx === 0 ? '1px solid rgba(184, 156, 91, 0.35)' : '1px solid rgba(255,255,255,0.06)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px',
+                    padding: '14px 22px', cursor: 'pointer',
+                    borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                    background: idx === 0 ? 'rgba(184, 156, 91, 0.08)' : 'transparent',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 800, color: idx === 0 ? 'var(--color-accent)' : 'var(--color-text-muted)', width: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+                    <span style={{
+                      width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: 800,
+                      background: idx === 0 ? 'var(--color-accent)' : 'rgba(255,255,255,0.06)',
+                      color: idx === 0 ? 'var(--navy-950)' : 'var(--color-text-muted)',
+                    }}>
                       {idx + 1}
                     </span>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{row.athlete_name}</div>
+                    <Avatar name={row.athlete_name} size={36} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.athlete_name}</div>
                       <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{row.sport || 'General'} &middot; best set: {row.weight_lbs} lbs &times; {row.reps}</div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--color-accent)' }}>{row.est}</div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: idx === 0 ? 'var(--color-accent)' : '#fff' }}>{row.est}</div>
                     <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>est. 1RM</div>
                   </div>
                 </div>
@@ -614,28 +629,64 @@ export default function LiftScreen({
                   instead of shrinking to fit. */}
               <div style={{ minWidth: 0 }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Weight (lbs)</label>
-                <input
-                  type="number"
-                  step="5"
-                  placeholder="245"
-                  className="input-glass"
-                  value={weight}
-                  onChange={e => setWeight(e.target.value)}
-                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)' }}
-                />
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    aria-label="Decrease weight by 5"
+                    onClick={() => setWeight(String(Math.max(0, (parseFloat(weight) || 0) - 5)))}
+                    style={{ width: '40px', flexShrink: 0, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <input
+                    type="number"
+                    step="5"
+                    placeholder="245"
+                    className="input-glass"
+                    value={weight}
+                    onChange={e => setWeight(e.target.value)}
+                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)', textAlign: 'center' }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Increase weight by 5"
+                    onClick={() => setWeight(String((parseFloat(weight) || 0) + 5))}
+                    style={{ width: '40px', flexShrink: 0, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
               </div>
               <div style={{ minWidth: 0 }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Reps</label>
-                <input
-                  type="number"
-                  step="1"
-                  min="1"
-                  placeholder="5"
-                  className="input-glass"
-                  value={reps}
-                  onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ''))}
-                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)' }}
-                />
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    aria-label="Decrease reps by 1"
+                    onClick={() => setReps(String(Math.max(1, (parseInt(reps, 10) || 1) - 1)))}
+                    style={{ width: '40px', flexShrink: 0, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    placeholder="5"
+                    className="input-glass"
+                    value={reps}
+                    onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ''))}
+                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)', textAlign: 'center' }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Increase reps by 1"
+                    onClick={() => setReps(String((parseInt(reps, 10) || 0) + 1))}
+                    style={{ width: '40px', flexShrink: 0, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
               </div>
             </div>
 

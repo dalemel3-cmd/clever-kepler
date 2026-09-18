@@ -1583,7 +1583,35 @@ button on the Athletes panel, unaffected). Full regression sweep re-run and pass
 
 ---
 
-## 41. Next up
+## 41. Lift Tracker visual polish (v4.36.3)
+
+The coach is using Google Stitch (an external AI design tool) to explore redesigns,
+starting with the Lift Tracker screen. Stitch's generated mockup included several
+fabricated new-capability items (a bodyweight/strength-to-weight metric, a "+lbs vs
+prev" comparison chip, date-range filtering, a three-tier badge, fake "Verified
+Kiosk"/"Form Authenticated"/latency copy) and an unrelated sidebar restructuring -
+none of that shipped; the coach explicitly chose reskin-only, dropping every
+fabricated element and leaving the real nav alone.
+
+Two purely visual changes were adopted, both hand-integrated against the real
+component (not the Tailwind markup Stitch produced, which used different prop
+names, a hardcoded lift/sport list, and a delete flow bypassing the existing
+confirm-modal convention):
+
+- The leaderboard row layout now shows a numbered rank badge, the athlete's avatar,
+  and a right-aligned Est. 1RM figure, styled with the app's real tokens (no new
+  colors, no Tailwind).
+- The Log Set modal's Weight and Reps inputs each gained +/- stepper buttons
+  (5 lbs / 1 rep), useful on a kiosk/iPad where tapping beats typing.
+
+No props, handlers, data flow, or the portal-based modal changed. Full lift-tracker
+regression suite (`lift-csv-export.js`, `lift-edit.js`,
+`lift-leaderboard-sport-filter.js`, `lift-tracker-redesign.js`, `lift-tracker.js` -
+82 checks) re-run and passes.
+
+---
+
+## 42. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
