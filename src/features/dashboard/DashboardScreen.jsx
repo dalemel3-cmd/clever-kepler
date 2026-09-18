@@ -46,17 +46,33 @@ export default function DashboardScreen({
           </h1>
           <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} &middot; {athletes.length} athletes &middot; Ready for sessions</div>
         </div>
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Athletes</span>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--white)' }}>{athletes.length}</span>
-          </div>
-          <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--color-accent)' }}>{Math.max(todaySessions, executiveInsights.todayCount || executiveInsights.todayRecordedCount || 0)}</span>
-          </div>
-        </div>
+        {(() => {
+          const compliancePct = athletes.length > 0 ? Math.round((athletesRecordedToday.size / athletes.length) * 100) : 0;
+          const unresolvedCount = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length;
+          return (
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Athletes</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--white)' }}>{athletes.length}</span>
+              </div>
+              <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--color-accent)' }}>{Math.max(todaySessions, executiveInsights.todayCount || executiveInsights.todayRecordedCount || 0)}</span>
+              </div>
+              <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Weigh-In Compliance</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--color-accent)' }}>{compliancePct}<span style={{ fontSize: '16px' }}>%</span></span>
+              </div>
+              <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Needs Attention</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: unresolvedCount > 0 ? 'var(--status-error)' : 'var(--status-success)' }}>{unresolvedCount}</span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Top Fold: Executive Insights, Pre-Session Banner & Live Monitoring */}
@@ -258,10 +274,10 @@ export default function DashboardScreen({
                       transition: 'all 0.2s ease',
                       background: 'rgba(255,255,255,0.02)'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
                         <div style={{
-                          width: '42px',
-                          height: '42px',
+                          width: '52px',
+                          height: '52px',
                           borderRadius: '50%',
                           background: 'linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)',
                           border: '1px solid rgba(255,255,255,0.2)',
@@ -269,15 +285,16 @@ export default function DashboardScreen({
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontFamily: 'var(--font-display)',
-                          fontSize: '15px',
+                          fontSize: '18px',
                           fontWeight: 800,
-                          color: '#fff'
+                          color: '#fff',
+                          flexShrink: 0
                         }}>
                           {initials}
                         </div>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--white)' }}>{item.athlete_name}</span>
+                            <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)' }}>{item.athlete_name}</span>
                             {item.streak >= 2 && (
                               <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.25)', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>🔥 {item.streak}-DAY</span>
                             )}
@@ -286,6 +303,9 @@ export default function DashboardScreen({
                             )}
                           </div>
                           <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{item.sport} &middot; {item.message}</span>
+                          {item.action && (
+                            <div style={{ fontSize: '12px', color: item.color, fontWeight: 700, marginTop: '2px' }}>{item.action}</div>
+                          )}
                         </div>
                       </div>
                       <div style={{
@@ -318,6 +338,11 @@ export default function DashboardScreen({
             );
           })()}
         </div>
+
+        {/* 3 & 4: Internal Load Metrics and Weigh-Ins Remaining sit side by side on a
+            wide screen (matching the redesigned mockup), stacking on narrow ones. Each
+            stays independently collapsible - only the container arrangement changed. */}
+        <div className="dashboard-load-accountability-row" style={{ display: 'grid', gridTemplateColumns: settings.enableRpe ? '1fr 1fr' : '1fr', gap: '24px', alignItems: 'start' }}>
 
         {/* 3. Session RPE Analytics (Only shown if RPE is enabled) */}
         {settings.enableRpe && (() => {
@@ -650,7 +675,15 @@ export default function DashboardScreen({
             })()}
           </div>}
         </div>
+
+        </div>
       </div>
+
+      <style>{`
+        @media (max-width: 960px) {
+          .dashboard-load-accountability-row { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

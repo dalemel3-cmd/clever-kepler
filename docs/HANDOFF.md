@@ -1776,7 +1776,37 @@ Full 37-file regression suite re-run clean.
 
 ---
 
-## 47. Next up
+## 47. Dashboard layout revamp, matched to the coach's exact reference mockup (v4.38.2)
+
+Same Dashboard mockup as §45, but this time the coach asked for the actual page
+layout/arrangement, not just the RPE section. Confirmed scope stayed
+reskin-only (no new features) - the fabricated hardware/medical-workflow
+content from that mockup (Facility Dispatch framing, Bulk ATC Action, Export
+Medical Log, per-alert Notify ATC/Held from Contact/Hydration Protocol
+Logged buttons, smart-scale/rack-pod footer) was dropped again, same as
+before.
+
+Three real layout changes, all using data already computed in the component:
+
+1. **Header stat strip** grew from 2 tiles to 4: Total Athletes, Sessions
+   Today, Weigh-In Compliance % (`athletesRecordedToday.size / athletes.length`),
+   and Needs Attention count (unresolved `dailyAlerts`). No "+4 new" or
+   "/18 Target" - those had no real tracking behind them.
+2. **Needs Attention cards** enlarged (bigger avatar/name) and now show each
+   alert's `action` field (e.g. "💧 Increase Hydration") - that field already
+   existed on every alert object computed in `App.jsx`'s `dailyAlerts`, it just
+   wasn't rendered here before.
+3. **Internal Load Metrics and Weigh-Ins Remaining** now sit in a two-column
+   grid on screens ≥960px (`.dashboard-load-accountability-row`, same
+   breakpoint AthletesScreen already uses) instead of stacking full-width.
+   Each card keeps its own independent collapse/expand state - only the
+   container arrangement changed.
+
+Full 37-file regression suite re-run clean.
+
+---
+
+## 48. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
