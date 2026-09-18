@@ -239,7 +239,7 @@ export default function EntryScreen({
                 className="w-full pl-10 pr-4 py-2 bg-[#061c41] border border-[#2a313d] rounded-lg text-white font-body-md text-sm placeholder:text-[#bcc1ca] focus:outline-none focus:border-[#b89c5b] transition-colors"
                 id="athlete-search"
                 title="Search athletes"
-                placeholder="Tap to search or swipe alphabetical rail..."
+                placeholder="Search athletes by name..."
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}

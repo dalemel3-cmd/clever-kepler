@@ -2090,7 +2090,28 @@ the AVG LB → Avg Weight rename from §50 is the fourth) - not touched, since
 reverting an intentional rename to chase a stale test string would be the
 wrong fix.
 
-## 56. Next up
+## 56. Bug hunt continued: fabricated placeholder copy, confirmed offline queue intact (v4.46.0)
+
+Third round of the same bug hunt. Quick Entry's search input placeholder read
+"Tap to search or swipe alphabetical rail..." - no alphabetical rail exists
+anywhere in the codebase (confirmed via grep), same category of fabricated
+content as the NFC wrist-tag copy and ACTIVE FLOOR badge already removed in
+§51. Fixed to "Search athletes by name...".
+
+Also used this pass to separate real bugs from stale tests in the offline/
+network-failure area, since several tests there (`data-integrity.js`,
+`kiosk-search-pill.js`, `entry-perf.js`) were failing on
+`getByPlaceholder('Search athletes by name...')` before this fix, and
+`tests/offline-recovery.js` and `data-integrity.js`'s network-failure probe
+both look for a `Save Record & Complete|Save as regular entry` button that no
+longer exists (renamed to "CONFIRM & SYNC ATHLETE" in the reskin). Scripted
+the same save-during-connection-failure flow by hand against the real button:
+confirmed a save while the network is down still lands in
+`shiloh_offline_weigh_ins` (queue count 1, as expected) - the offline-queue
+mechanism itself (all in `App.jsx`, untouched by the reskin) was never
+broken, only the tests' own button-text selectors were stale.
+
+## 57. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
