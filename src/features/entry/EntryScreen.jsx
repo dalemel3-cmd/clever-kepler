@@ -407,6 +407,7 @@ export default function EntryScreen({
                       <input 
                         type="text"
                         inputMode="decimal"
+                        aria-label="Session RPE"
                         className="font-display text-2xl text-white tracking-wider font-bold bg-[#030a14] border border-[#2a313d] rounded-xl p-3 outline-none"
                         placeholder="e.g. 7"
                         value={rpeInput || ''}
@@ -425,7 +426,7 @@ export default function EntryScreen({
                               className={`py-2 rounded-lg font-headline-md text-sm ${rpeDurationInput === val ? 'bg-[#b89c5b] text-[#030a14] font-bold border border-[#b89c5b]' : 'bg-[#061c41] border border-[#2a313d] text-white hover:bg-[#030a14]'}`}
                               onClick={() => { setRpeDurationInput(val); setFocusedField('rpe_duration'); }}
                             >
-                              {val}m
+                              {val} MIN
                             </button>
                           ))}
                         </div>

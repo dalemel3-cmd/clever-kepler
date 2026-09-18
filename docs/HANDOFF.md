@@ -2111,7 +2111,38 @@ confirmed a save while the network is down still lands in
 mechanism itself (all in `App.jsx`, untouched by the reskin) was never
 broken, only the tests' own button-text selectors were stale.
 
-## 57. Next up
+## 57. Bug hunt continued: missing test hooks on Quick Entry cards (v4.47.0, not yet pushed)
+
+Fourth round of the same bug hunt, run to completion but held locally (not
+pushed) per instruction. Ran the remaining untouched test files
+(`rpe.js`, `select-visibility.js`, `settings-*.js`, `sync-and-ux.js`,
+`tooltip-units.js`, `profile-*.js`) to check screens not yet covered.
+
+Found two more of the same "attribute quietly dropped in the reskin" pattern
+from §51:
+1. **`AthleteCard.jsx`'s "LOGGED TODAY" checkmark** had no `data-testid` at
+   all, so nothing (test or otherwise) could programmatically confirm an
+   athlete flips to "done" after a save. Added
+   `data-testid="athlete-done-badge"`.
+2. **The Session RPE numeric input** had no `aria-label`, same gap as the
+   body-weight input fixed in §51 (which does have one) - inconsistent
+   between the two inputs sharing the same modal. Added
+   `aria-label="Session RPE"`.
+
+Also reverted the RPE duration quick-pick buttons from "30m"/"60m" back to
+"30 MIN"/"60 MIN" - purely a readability/consistency call (short lowercase
+"m" is easy to misread on a gym tablet at a glance), not a functional fix.
+
+**Confirmed NOT a bug, deliberately left alone:** most other remaining test
+failures in this pass (`sync-and-ux.js`, `settings-live.js`) are the same
+stale "Save Record & Complete"/"Save as regular entry" button-text selector
+already identified in §56 as chasing a renamed Confirm button, not real app
+regressions. `profile-baseline-chart-agreement.js` fails on a Playwright API
+signature mismatch inside the test file itself (`addInitScript` called with
+too many arguments) - a pre-existing test-authoring bug unrelated to this
+refactor or any app code, not something this pass touched.
+
+## 58. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

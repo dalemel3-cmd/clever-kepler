@@ -31,7 +31,7 @@ function AthleteCard({
               <span className="font-body-sm text-xs text-[#bcc1ca] truncate">{position ? position : sport} {grade ? `· ${grade}` : ''}</span>
             </div>
           </div>
-          <span className="material-symbols-outlined text-[#34d399] text-xl">check_circle</span>
+          <span data-testid="athlete-done-badge" className="material-symbols-outlined text-[#34d399] text-xl">check_circle</span>
         </div>
         <div className="flex items-end justify-between mt-4 pt-1 bg-[#0a1120]/80 border border-[#2a313d] p-2 rounded-lg">
           <div className="flex flex-col">
