@@ -2008,7 +2008,23 @@ the size coaches use courtside).
    `main`'s right edge now matches the viewport edge exactly, collapsed and
    expanded.
 
-## 53. Next up
+## 53. RPE entry modal: drop weight capture, numpad beside fields (v4.43.0)
+
+Coach asked to remove "Live Metric Capture" from the RPE entry screen and move
+the numpad next to the fields instead of below them.
+
+1. **Real bug: weight capture showed in RPE mode.** The "LIVE METRIC CAPTURE
+   (LBS)" body-weight box was gated on `kioskTrackMode !== 'sleep_only'`, which
+   is true for `'rpe'` too - not just `'both'`. So every Session RPE entry also
+   showed an irrelevant weight field. Changed the gate to `=== 'both'`.
+2. **Numpad moved beside the fields, not below.** `EntryScreen.jsx`'s athlete
+   modal now splits into two columns on `sm:` and up (`flex-col sm:flex-row`):
+   the RPE/duration/label (or weight/sleep) fields on the left, `KioskNumpad`
+   fixed at `sm:w-64` on the right. Modal widened from `max-w-lg` to `max-w-3xl`
+   to fit both. Confirm & Sync now fits in the same view as the numpad with no
+   scrolling, verified against the RPE flow at 1024px width.
+
+## 54. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

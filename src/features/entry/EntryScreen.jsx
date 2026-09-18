@@ -341,7 +341,7 @@ export default function EntryScreen({
         {/* Modal replacing old modal logic */}
         {entryAthleteId && selectedAthlete && (
           <div className="fixed inset-0 bg-[#030a14]/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-[#0a1120] border border-[#2a313d] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-[#0a1120] border border-[#2a313d] rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
               {/* Modal Header */}
               <div className="bg-[#061c41] border-b border-[#2a313d] p-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -362,7 +362,9 @@ export default function EntryScreen({
               
               {/* Form Content */}
               <div className="p-6 flex flex-col gap-4 overflow-y-auto">
-                {kioskTrackMode !== 'sleep_only' && (
+              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col gap-4 flex-1 min-w-0">
+                {kioskTrackMode === 'both' && (
                   <div className="flex items-center justify-between bg-[#030a14] border border-[#2a313d] p-4 rounded-xl">
                     <div className="flex flex-col w-full">
                       <span className="font-label-sm text-xs uppercase text-[#b89c5b] font-bold">LIVE METRIC CAPTURE (LBS)</span>
@@ -446,16 +448,18 @@ export default function EntryScreen({
                     </div>
                   </>
                 )}
+              </div>
 
-                <div className="mt-2">
+                <div className="sm:w-64 flex-shrink-0">
                   <KioskNumpad
                     value={focusedField === 'weight' ? weightInput : (focusedField === 'rpe' ? rpeInput : (focusedField === 'rpe_duration' ? rpeDurationInput : sleepInput))}
                     onChange={val => focusedField === 'weight' ? setWeightInput(val) : (focusedField === 'rpe' ? setRpeInput(String(val).replace(/[^0-9]/g, '')) : (focusedField === 'rpe_duration' ? setRpeDurationInput(String(val).replace(/[^0-9]/g, '')) : setSleepInput(val)))}
                     onEnter={handleSave}
                   />
                 </div>
-                
-                <button 
+              </div>
+
+                <button
                   className="w-full py-3 mt-2 rounded-xl bg-[#b89c5b] hover:bg-[#d1b87a] text-[#030a14] font-headline-lg text-base uppercase tracking-wider font-bold flex items-center justify-center gap-2 shadow-xl active:scale-[0.98] transition-transform"
                   onClick={() => handleSave(isBaselineTestingMode && kioskTrackMode === 'both')}
                   disabled={saving}
