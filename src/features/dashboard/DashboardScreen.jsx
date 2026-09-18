@@ -279,7 +279,7 @@ export default function DashboardScreen({
                   rpeBySport.map(s => {
                     const none = s.logCount === 0;
                     return (
-                      <div key={s.sport} onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }} className="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d] cursor-pointer hover:border-primary/50 transition-colors">
+                      <div key={s.sport} data-testid="rpe-sport-card" data-sport={s.sport} onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }} className="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d] cursor-pointer hover:border-primary/50 transition-colors">
                         <div className="flex items-center justify-between">
                           <span className="font-label-sm text-label-sm text-on-surface-variant uppercase truncate" title={s.sport}>{s.sport}</span>
                           <span className={`font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold ${s.isHard ? 'bg-error-container border-error/30 text-error' : (none ? 'bg-surface-container-high border-[#2a313d] text-dim' : 'bg-primary/20 border-primary/30 text-primary')}`}>

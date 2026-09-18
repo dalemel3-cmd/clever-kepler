@@ -111,16 +111,12 @@ export default function EntryScreen({
               <span className="text-white font-semibold">
                 {kioskTrackMode === 'sleep_only' ? 'SLEEP & RECOVERY ONLY' : (kioskTrackMode === 'rpe' ? 'SESSION RPE ONLY' : 'RAPID WEIGH-IN & SLEEP ENTRY')}
               </span>
-              <span className="px-2 py-0.5 rounded bg-[#0a1120] border border-[#2a313d] text-[#34d399] font-label-sm text-[10px] tracking-widest flex items-center gap-1 ml-1 font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#34d399] animate-ping"></span>
-                ACTIVE FLOOR
-              </span>
             </div>
             <h1 className="font-display text-4xl uppercase tracking-tight text-white m-0 leading-none">
               RAPID QUICK ENTRY KIOSK
             </h1>
             <p className="font-body-md text-sm text-[#bcc1ca] m-0 max-w-2xl">
-              Tap athlete card or scan NFC wrist tag to register today's digital telemetry.
+              Tap an athlete card to log today's weigh-in or session.
             </p>
           </div>
           
@@ -345,7 +341,7 @@ export default function EntryScreen({
         {/* Modal replacing old modal logic */}
         {entryAthleteId && selectedAthlete && (
           <div className="fixed inset-0 bg-[#030a14]/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-[#0a1120] border border-[#2a313d] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-[#0a1120] border border-[#2a313d] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
               {/* Modal Header */}
               <div className="bg-[#061c41] border-b border-[#2a313d] p-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -365,7 +361,7 @@ export default function EntryScreen({
               </div>
               
               {/* Form Content */}
-              <div className="p-6 flex flex-col gap-4">
+              <div className="p-6 flex flex-col gap-4 overflow-y-auto">
                 {kioskTrackMode !== 'sleep_only' && (
                   <div className="flex items-center justify-between bg-[#030a14] border border-[#2a313d] p-4 rounded-xl">
                     <div className="flex flex-col w-full">
@@ -433,6 +429,21 @@ export default function EntryScreen({
                         </div>
                       </div>
                     )}
+                    <div className="flex flex-col gap-1 mt-2">
+                      <span className="font-label-sm text-xs uppercase text-[#bcc1ca] tracking-wider font-semibold">Session Label</span>
+                      <div className="flex flex-wrap gap-1">
+                        {(settings.rpeSessionLabels || []).map(lbl => (
+                          <button
+                            key={lbl}
+                            type="button"
+                            className={`flex-1 min-w-[64px] py-2 px-3 rounded-lg font-headline-md text-sm ${rpeLabelInput === lbl ? 'bg-[#b89c5b] text-[#030a14] font-bold border border-[#b89c5b]' : 'bg-[#061c41] border border-[#2a313d] text-white hover:bg-[#030a14]'}`}
+                            onClick={() => setRpeLabelInput(lbl)}
+                          >
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </>
                 )}
 

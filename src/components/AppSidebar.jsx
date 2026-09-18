@@ -40,12 +40,11 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coach
     <aside className="fixed left-0 top-0 h-full w-64 bg-surface-container-low border-r border-[#2a313d]/60 z-50 flex flex-col justify-between overflow-y-auto">
       <div className="flex flex-col">
         <div className="p-space-lg bg-[#04142f] border-b border-[#2a313d]/50">
-          <div className="flex items-center justify-between">
-            <span className="font-headline-lg text-headline-lg tracking-wider text-on-surface uppercase">HUMAN PERFORMANCE</span>
+          <div className="flex items-center justify-between gap-space-sm">
+            <img src="/logo1.png" alt="Human Performance - Shiloh Christian" className="h-10 w-auto object-contain" />
             <span className="material-symbols-outlined text-primary text-base">lock</span>
           </div>
-          <div className="flex items-center justify-between mt-space-xs">
-            <span className="font-label-md text-label-md tracking-widest text-primary uppercase">SHILOH ATHLETICS</span>
+          <div className="flex items-center justify-end mt-space-xs">
             <span className="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30">LIVE</span>
           </div>
         </div>

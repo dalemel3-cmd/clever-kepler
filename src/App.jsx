@@ -3024,7 +3024,7 @@ export default function App() {
           handleManualCloudRefresh={handleManualCloudRefresh}
           coachInitials={coachInitials}
         />
-        <main className="relative pt-16 w-full px-space-lg bg-surface min-h-screen" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+        <main className="relative pt-16 w-full px-space-lg bg-surface h-screen overflow-y-auto" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
 
           {(pullProgress > 10 || isRefreshing || showRefreshCelebration) && (
             <div style={{ position: 'sticky', top: 0, left: '50%', transform: 'translateX(0)', zIndex: 10000, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: '8px', paddingTop: '4px' }}>

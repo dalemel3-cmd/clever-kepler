@@ -1924,7 +1924,55 @@ library. Material Symbols loads from Google Fonts at runtime — a real regressi
 for a PWA whose stated design intent is to keep working with no network. Recommend
 converting these back to `lucide-react` as a follow-up, not attempted here.
 
-## 51. Next up
+## 51. Critical fix: Session RPE saves were silently failing (v4.41.0)
+
+Same-day follow-up to §50. The coach reported the app was unscrollable and teams
+were missing from every screen, and asked for a check that RPE tracking would
+work for that afternoon's session. Found one blocking bug and three real ones:
+
+1. **RPE saves were a silent no-op.** `App.jsx`'s `handleSave` has always required
+   `rpeLabelInput` to be set before writing an RPE row (`!rpeLabelInput` in the
+   guard clause at the top of the function) - but the Tailwind reskin of
+   `EntryScreen.jsx`'s athlete entry modal dropped the "Session Label" picker
+   entirely, even though `rpeLabelInput`/`setRpeLabelInput` were still being
+   passed in as props. A coach selecting Session RPE mode, entering an RPE value,
+   and tapping "Confirm & Sync" saw the modal close and the button say "SAVING..."
+   like normal - nothing was ever written, and nothing told them it failed. Fixed
+   by restoring the label picker (buttons from `settings.rpeSessionLabels`,
+   default `['Lift', 'Run', 'Combined']`) in the RPE section of the modal, same
+   as the pre-refactor version had.
+2. **The whole app was unscrollable past one screen's height.** `src/styles.css`
+   (untouched legacy file) sets `body { overflow: hidden }` intentionally, on the
+   assumption that a `.scroll-area` element inside would do the actual scrolling.
+   The refactor's new `<main>` in `App.jsx` used `min-h-screen` with no
+   `overflow-y-auto` and no `h-screen`, so it had no scroll container of its own
+   - content past the first viewport was simply clipped. This is also why the
+   coach saw teams "not showing up on every screen": Dashboard, Sport Groups, and
+   Quick Entry were all rendering every sport correctly, just below the fold with
+   no way to scroll to it. Fixed by giving `<main>` its own `h-screen
+   overflow-y-auto`.
+3. **The per-athlete kiosk modal had the same bug at a smaller scale.** Its
+   content div had no `overflow-y-auto` and the modal itself no `max-h-[...]`, so
+   on a session with RPE + duration + label all showing, the "CONFIRM & SYNC"
+   button could render below the modal's visible area with no way to scroll to
+   it - a coach on a shorter viewport (or after the label picker was added back)
+   could get physically stuck unable to save. Fixed with `max-h-[90vh]` on the
+   modal and `overflow-y-auto` on its content.
+4. **Removed the decorative "ACTIVE FLOOR" pulsing badge and "scan NFC wrist
+   tag" copy** from Quick Entry per the coach's request - same category as the
+   fabricated-hardware content dropped from earlier Stitch passes, just missed
+   in this refactor since a human wrote it directly rather than pulling it from
+   a mockup.
+5. **Restored the real logo** (`public/logo1.png`, already in the repo from an
+   earlier pass) as the sidebar's top-left mark, replacing the plain-text
+   "HUMAN PERFORMANCE / SHILOH ATHLETICS" wordmark the refactor introduced.
+
+Verified end-to-end with a scripted kiosk flow (RPE mode → athlete → RPE value →
+duration → label → Confirm & Sync) confirming a real `POST /rest/v1/weigh_ins`
+fires with the correct `rpe`/`session_minutes`/`session_label`/`session_type`
+payload - not just that the button is clickable.
+
+## 52. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
