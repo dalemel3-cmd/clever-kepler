@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Oswald:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "midnight": "#030a14", "collegiate-dark": "#061c41", "collegiate-blue": "#08295c", "card-surface": "#0a1120", "card-border": "#2a313d", "antique-gold": "#b89c5b", "gold-hover": "#d1b87a", "antique-dark": "#041024", "emerald-sport": "#34d399", "emerald-deep": "#10b981", "crimson-alert": "#f87171", "crimson-deep": "#ef4444", "slate-accent": "#38bdf8", "text-headline": "#ffffff", "text-body": "#bcc1ca", "text-muted": "#7a8291" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "margin-mobile": "1rem", "space-sm": "0.5rem", "gutter-mobile": "0.75rem", "space-md": "1rem", "space-xl": "2rem", "margin": "1.5rem", "gutter": "1.25rem", "space-lg": "1.5rem", "space-xs": "0.25rem" }, "fontFamily": { "label-lg": [ "Manrope", "sans-serif" ], "headline-xl-mobile": [ "Oswald", "sans-serif" ], "body-sm": [ "Manrope", "sans-serif" ], "headline-xl": [ "Oswald", "sans-serif" ], "label-sm": [ "Manrope", "sans-serif" ], "label-md": [ "Manrope", "sans-serif" ], "body-lg": [ "Manrope", "sans-serif" ], "headline-lg": [ "Oswald", "sans-serif" ], "display": [ "Oswald", "sans-serif" ], "body-md": [ "Manrope", "sans-serif" ], "metric-val": [ "Oswald", "sans-serif" ], "headline-md": [ "Oswald", "sans-serif" ] }, "fontSize": { "label-lg": [ "13px", { "lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "600" } ], "headline-xl-mobile": [ "28px", { "lineHeight": "32px", "letterSpacing": "0.02em", "fontWeight": "700" } ], "body-sm": [ "12px", { "lineHeight": "16px", "fontWeight": "400" } ], "headline-xl": [ "36px", { "lineHeight": "40px", "letterSpacing": "0.02em", "fontWeight": "700" } ], "label-sm": [ "10px", { "lineHeight": "12px", "letterSpacing": "0.08em", "fontWeight": "700" } ], "label-md": [ "11px", { "lineHeight": "14px", "letterSpacing": "0.06em", "fontWeight": "700" } ], "body-lg": [ "16px", { "lineHeight": "24px", "fontWeight": "400" } ], "headline-lg": [ "24px", { "lineHeight": "28px", "letterSpacing": "0.03em", "fontWeight": "600" } ], "display": [ "48px", { "lineHeight": "52px", "letterSpacing": "0.02em", "fontWeight": "700" } ], "body-md": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ], "metric-val": [ "28px", { "lineHeight": "30px", "letterSpacing": "0.01em", "fontWeight": "700" } ], "headline-md": [ "18px", { "lineHeight": "24px", "letterSpacing": "0.04em", "fontWeight": "600" } ] } } } };</script></head><body class="bg-midnight font-body-md text-text-body antialiased selection:bg-antique-gold selection:text-antique-dark"><aside class="fixed left-0 top-0 h-full w-64 bg-collegiate-dark border-r border-[#2a313d]/60 z-50 flex flex-col justify-between overflow-y-auto"><div class="flex flex-col"><div class="p-space-lg bg-collegiate-blue/50 border-b border-[#2a313d]/50"><div class="flex items-center justify-between"><span class="font-headline-lg text-headline-lg tracking-wider text-text-headline uppercase">HUMAN PERFORMANCE</span><span class="material-symbols-outlined text-antique-gold text-base">lock</span></div><div class="flex items-center justify-between mt-space-xs"><span class="font-label-md text-label-md tracking-widest text-antique-gold uppercase">SHILOH ATHLETICS</span><span class="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-collegiate-blue text-emerald-sport">LIVE</span></div></div><div class="px-space-md pt-space-md"><button class="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-collegiate-blue/80 hover:bg-collegiate-blue text-antique-gold border border-antique-gold/30 rounded-xl font-headline-md text-headline-md uppercase tracking-wider transition-colors"><span class="material-symbols-outlined text-antique-gold text-lg">bolt</span>ACTIVATE KIOSK MODE</button></div><div class="px-space-md pt-space-lg flex flex-col gap-space-md"><div class="flex flex-col"><span class="px-space-sm pb-space-xs font-label-sm text-label-sm text-text-muted uppercase tracking-widest">DAILY OPERATIONS</span><nav class="flex flex-col gap-1"><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="dashboard" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">grid_view</span><span class="font-label-lg text-label-lg">Dashboard</span></div><span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-emerald-sport/20 text-emerald-sport">Live</span></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="lift-tracker" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">fitness_center</span><span class="font-label-lg text-label-lg">Lift Tracker</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="quick-entry" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">touch_app</span><span class="font-label-lg text-label-lg">Quick Entry / Kiosk</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="alerts" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">notifications</span><span class="font-label-lg text-label-lg">Alerts</span></div><span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-crimson-deep text-white font-bold">5</span></a></nav></div><div class="flex flex-col"><span class="px-space-sm pb-space-xs font-label-sm text-label-sm text-text-muted uppercase tracking-widest">ROSTER &amp; TEAMS</span><nav class="flex flex-col gap-1"><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="athletes" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">group</span><span class="font-label-lg text-label-lg">Athletes</span></div></a><a aria-current="page" class="flex items-center justify-between px-space-sm py-space-sm transition-colors bg-antique-gold text-antique-dark font-bold rounded-lg shadow-sm" data-path="sport-groups" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">shield</span><span class="font-label-lg text-label-lg">Sport Groups</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="baseline-studio" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">tune</span><span class="font-label-lg text-label-lg">Baseline Studio</span></div></a></nav></div><div class="flex flex-col"><span class="px-space-sm pb-space-xs font-label-sm text-label-sm text-text-muted uppercase tracking-widest">INSIGHTS</span><nav class="flex flex-col gap-1"><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="analytics" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">bar_chart</span><span class="font-label-lg text-label-lg">Analytics &amp; RPE</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="reports" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">description</span><span class="font-label-lg text-label-lg">Reports</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-text-body hover:bg-collegiate-blue/60 hover:text-text-headline transition-colors" data-path="settings" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">settings</span><span class="font-label-lg text-label-lg">Settings</span></div></a></nav></div></div></div><div class="p-space-md bg-collegiate-blue/40 border-t border-[#2a313d]/50 mt-space-lg"><div class="flex items-center gap-space-sm"><div class="w-9 h-9 rounded bg-collegiate-blue flex items-center justify-center font-headline-md text-headline-md text-antique-gold border border-antique-gold/20">CM</div><div class="flex flex-col overflow-hidden"><span class="font-label-lg text-label-lg text-text-headline truncate">Coach Mason</span><span class="font-body-sm text-body-sm text-text-muted truncate">Shiloh Athletics Head Coach</span></div></div><div class="mt-space-sm pt-space-xs flex items-center justify-between font-label-sm text-label-sm text-text-muted"><span><span class="text-emerald-sport">●</span> Cloud Live v4.36.2</span><span>Thu, Sep 17</span></div></div></aside><div class="pl-64"><header class="fixed top-0 left-64 right-0 h-16 bg-collegiate-dark/95 backdrop-blur-xl border-b border-[#2a313d]/60 shadow-[0_1px_8px_rgba(0,0,0,0.4)] z-40 flex items-center justify-between px-space-lg"><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-xs font-label-md text-label-md text-text-muted uppercase tracking-wider"><span>Shiloh Athletics</span><span class="material-symbols-outlined text-sm text-text-muted">chevron_right</span><span class="text-text-headline font-bold">Operations</span></div><div class="flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-collegiate-blue/80 border border-emerald-sport/30 font-label-sm text-label-sm text-emerald-sport"><span class="w-2 h-2 rounded-full bg-emerald-sport animate-pulse"></span><span>SYSTEM READY</span></div></div><div class="flex items-center gap-space-md"><div class="flex items-center bg-collegiate-blue/60 border border-[#2a313d] rounded px-space-sm py-1.5 text-text-muted font-label-md text-label-md gap-space-sm"><span class="material-symbols-outlined text-base">search</span><span class="hidden sm:inline text-text-body">Athlete search...</span><kbd class="bg-card-surface border border-[#2a313d] px-1.5 py-0.5 rounded text-text-headline font-label-sm text-label-sm">Ctrl+K</kbd></div><div class="flex items-center gap-space-xs"><button class="flex items-center gap-1 px-space-sm py-1.5 rounded bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase transition-opacity shadow-sm"><span class="material-symbols-outlined text-base">add</span><span>Log Set</span></button><button class="hidden md:flex items-center gap-1 px-space-sm py-1.5 rounded bg-collegiate-blue hover:bg-collegiate-blue/80 text-antique-gold border border-antique-gold/30 font-headline-md text-headline-md uppercase transition-colors"><span class="material-symbols-outlined text-base">sensors</span><span>Kiosk Mode</span></button></div><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-1 ring-antique-gold/40" src="https://lh3.googleusercontent.com/aida/AEtjO1V4icFJHYKREU-vYR1j1pFQu8NOSjkNYXufgMRY4HA87PnyOriAa5h_L4QLCoMn82ew9mLY744D7jHoJlCLim4Id17KFKeM5IcksOaLGmIQFT2oefVv4xc8oEV48n0qeUSt5UgfyvS4TPOqCtIxRoffpKpCjqXA86otTTotiXHuKbVxJ21SQNNzIhUFx0ZC8sej0pS5sBqPjoiRMEpa-thmY0AuRcl-PDGhfsNjNdt0pSGXuy0GaTKx0ItrDx5ofE2WPRYrRzoC"/></div></header><main class="relative pt-16 w-full px-space-lg bg-midnight min-h-screen"><div class="flex flex-col w-full pb-space-xl">
+<!-- Top Workspace Context & Action Bar -->
+<div class="flex flex-col gap-space-md pt-space-md mb-space-lg">
+<!-- Breadcrumb & System Sub-header -->
+<div class="flex flex-wrap items-center justify-between gap-space-md">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-space-xs font-label-md text-label-md uppercase tracking-wider text-text-muted">
+<span>Workspace</span>
+<span class="material-symbols-outlined text-sm text-text-muted">chevron_right</span>
+<span class="text-antique-gold font-bold">Sport Groups</span>
+</div>
+<h1 class="font-display text-headline-xl text-text-headline uppercase tracking-wide flex items-center gap-space-sm">
+          Sport Groups &amp; Readiness
+          <span class="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-collegiate-blue text-antique-gold border border-antique-gold/30 tracking-widest font-bold">14 SQUADS TRACKED</span>
+</h1>
+<p class="font-body-md text-body-md text-text-body max-w-2xl">
+          Team-level biometric health, weigh-in compliance, internal training load, and squad baselines.
+        </p>
+</div>
+<!-- Quick Action Pill Buttons -->
+<div class="flex items-center gap-space-sm self-start sm:self-center">
+<div class="flex items-center gap-space-xs px-space-md py-space-sm rounded-xl bg-card-surface border border-card-border text-text-body font-label-md text-label-md uppercase tracking-wider">
+<span class="material-symbols-outlined text-antique-gold text-base">calendar_today</span>
+<span>Date: Sep 17, 2026</span>
+</div>
+<button class="flex items-center gap-space-xs px-space-md py-space-sm rounded-xl bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider font-bold shadow-lg transition-all duration-150 active:scale-95">
+<span class="material-symbols-outlined text-lg">bolt</span>
+<span>Bulk Team Baseline Studio</span>
+</button>
+</div>
+</div>
+<!-- Filter Pills Row with Count Badges -->
+<div class="flex items-center justify-between gap-space-md overflow-x-auto py-space-xs mt-space-xs">
+<div class="flex items-center gap-space-xs min-w-max" id="sportFilterTabs">
+<button class="filter-tab px-space-md py-1.5 rounded bg-antique-gold text-antique-dark font-headline-md text-headline-md uppercase tracking-wider font-bold transition-colors shadow-sm" data-filter="all">
+          All Sports <span class="ml-1 text-label-sm font-label-sm px-1.5 py-0.5 rounded bg-antique-dark/20 text-antique-dark font-bold">14</span>
+</button>
+<button class="filter-tab px-space-md py-1.5 rounded bg-card-surface hover:bg-collegiate-blue text-text-body border border-card-border font-headline-md text-headline-md uppercase tracking-wider transition-colors" data-filter="in-season">
+          Active In-Season <span class="ml-1 text-label-sm font-label-sm px-1.5 py-0.5 rounded bg-collegiate-blue text-emerald-sport">4</span>
+</button>
+<button class="filter-tab px-space-md py-1.5 rounded bg-card-surface hover:bg-collegiate-blue text-text-body border border-card-border font-headline-md text-headline-md uppercase tracking-wider transition-colors" data-filter="off-season">
+          Off-Season Training <span class="ml-1 text-label-sm font-label-sm px-1.5 py-0.5 rounded bg-collegiate-blue text-antique-gold">6</span>
+</button>
+<button class="filter-tab px-space-md py-1.5 rounded bg-card-surface hover:bg-collegiate-blue text-text-body border border-card-border font-headline-md text-headline-md uppercase tracking-wider transition-colors" data-filter="needs-action">
+          Needs Action <span class="ml-1 text-label-sm font-label-sm px-1.5 py-0.5 rounded bg-crimson-deep/20 border border-crimson-alert/30 text-crimson-alert font-bold">2</span>
+</button>
+</div>
+<!-- Quick Search / View Density Toggle -->
+<div class="hidden xl:flex items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Sort:</span>
+<select class="bg-card-surface border border-card-border text-text-body font-label-md text-label-md rounded px-space-sm py-1 focus:outline-none cursor-pointer">
+<option>Readiness Priority</option>
+<option>Squad Size</option>
+<option>Next Activity</option>
+</select>
+</div>
+</div>
+</div>
+<!-- 3x2 High Impact Team Readiness Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-space-lg w-full">
+<!-- Card 1: FOOTBALL -->
+<div class="sport-card flex flex-col justify-between rounded-xl bg-card-surface border border-card-border hover:border-antique-gold/40 transition-all duration-200 shadow-md overflow-hidden relative group" data-category="in-season needs-action">
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Top Status & Squad Monogram -->
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-display text-headline-lg text-text-headline uppercase tracking-wide">Football</span>
+<span class="font-label-sm text-label-sm text-text-muted uppercase px-1 rounded bg-collegiate-blue">Varsity &amp; JV</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">Head Coach: Mason / D-1 Fall Schedule</span>
+</div>
+<span class="inline-flex items-center gap-1.5 px-space-sm py-1 rounded bg-emerald-deep/20 text-emerald-sport border border-emerald-sport/30 font-label-sm text-label-sm tracking-wider uppercase font-bold">
+<span class="w-2 h-2 rounded-full bg-emerald-sport animate-ping"></span>
+            In-Season · Practice in 1h
+          </span>
+</div>
+<!-- Alert Pill for Football (Dehydration) -->
+<div class="flex items-center justify-between p-space-sm rounded-lg bg-crimson-deep/20 border border-crimson-alert/30 text-crimson-alert">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-base text-crimson-alert">warning</span>
+<span class="font-label-md text-label-md tracking-wide font-bold uppercase">5 Dehydration Alerts Flagged</span>
+</div>
+<span class="font-label-sm text-label-sm uppercase underline cursor-pointer hover:text-white">Review</span>
+</div>
+<!-- High-Density Telemetry Matrix -->
+<div class="grid grid-cols-4 gap-space-xs p-space-sm rounded-lg bg-midnight border border-card-border/60">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Athletes</span>
+<span class="font-metric-val text-metric-val text-text-headline">51</span>
+<span class="font-body-sm text-body-sm text-text-muted">Rostered</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
+<span class="font-metric-val text-metric-val text-antique-gold">185</span>
+<span class="font-body-sm text-body-sm text-text-muted">Pounds</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
+<span class="font-metric-val text-metric-val text-antique-gold">7.2</span>
+<span class="font-body-sm text-body-sm text-crimson-alert">High Int.</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Sleep</span>
+<span class="font-metric-val text-metric-val text-slate-accent">8.0</span>
+<span class="font-body-sm text-body-sm text-text-muted">Hours</span>
+</div>
+</div>
+<!-- Weigh-In Compliance Progress Bar -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-text-muted uppercase tracking-wide">Weigh-in Compliance</span>
+<span class="text-crimson-alert font-bold tracking-widest">12 / 51 (24%)</span>
+</div>
+<div class="w-full h-2 rounded-full bg-collegiate-dark overflow-hidden">
+<div class="h-full bg-antique-gold rounded-full" style="width: 24%"></div>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">39 athletes pending mandatory pre-practice weigh check.</span>
+</div>
+</div>
+<!-- Action Button Footer -->
+<div class="p-space-md bg-collegiate-dark/60 border-t border-card-border/60">
+<button class="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider rounded-lg font-bold transition-colors shadow">
+<span class="material-symbols-outlined text-lg">assignment_turned_in</span>
+<span>Launch Team Weigh-In Station</span>
+</button>
+</div>
+</div>
+<!-- Card 2: BASEBALL -->
+<div class="sport-card flex flex-col justify-between rounded-xl bg-card-surface border border-card-border hover:border-antique-gold/40 transition-all duration-200 shadow-md overflow-hidden relative group" data-category="off-season needs-action">
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Top Status & Squad Monogram -->
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-display text-headline-lg text-text-headline uppercase tracking-wide">Baseball</span>
+<span class="font-label-sm text-label-sm text-text-muted uppercase px-1 rounded bg-collegiate-blue">Varsity</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">Fielding &amp; Bullpen Conditioning</span>
+</div>
+<span class="inline-flex items-center gap-1.5 px-space-sm py-1 rounded bg-collegiate-blue text-antique-gold border border-antique-gold/30 font-label-sm text-label-sm tracking-wider uppercase font-bold">
+<span class="w-2 h-2 rounded-full bg-antique-gold"></span>
+            Fall Ball Practice
+          </span>
+</div>
+<!-- Telemetry Matrix -->
+<div class="grid grid-cols-4 gap-space-xs p-space-sm rounded-lg bg-midnight border border-card-border/60">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Athletes</span>
+<span class="font-metric-val text-metric-val text-text-headline">33</span>
+<span class="font-body-sm text-body-sm text-text-muted">Rostered</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
+<span class="font-metric-val text-metric-val text-antique-gold">217</span>
+<span class="font-body-sm text-body-sm text-text-muted">Pounds</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
+<span class="font-metric-val text-metric-val text-antique-gold">6.1</span>
+<span class="font-body-sm text-body-sm text-emerald-sport">Optimal</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Sleep</span>
+<span class="font-metric-val text-metric-val text-slate-accent">7.6</span>
+<span class="font-body-sm text-body-sm text-text-muted">Hours</span>
+</div>
+</div>
+<!-- Weigh-In Compliance Progress Bar -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-text-muted uppercase tracking-wide">Weigh-in Compliance</span>
+<span class="text-antique-gold font-bold tracking-widest">3 / 33 (9%)</span>
+</div>
+<div class="w-full h-2 rounded-full bg-collegiate-dark overflow-hidden">
+<div class="h-full bg-antique-gold rounded-full" style="width: 9%"></div>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">Locker scale dock opened 15m ago.</span>
+</div>
+<!-- Weekly Load Sparkline Indicator -->
+<div class="flex items-center justify-between p-space-sm rounded-lg bg-collegiate-dark/40 border border-card-border/40">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-wider">Weekly Barbell Volume</span>
+<div class="flex items-end gap-1 h-5">
+<div class="w-1.5 bg-antique-gold/40 h-2 rounded-xs"></div>
+<div class="w-1.5 bg-antique-gold/60 h-3 rounded-xs"></div>
+<div class="w-1.5 bg-antique-gold/80 h-4 rounded-xs"></div>
+<div class="w-1.5 bg-antique-gold h-5 rounded-xs"></div>
+<div class="w-1.5 bg-emerald-sport h-3.5 rounded-xs"></div>
+</div>
+</div>
+</div>
+<!-- Action Button Footer -->
+<div class="p-space-md bg-collegiate-dark/60 border-t border-card-border/60">
+<button class="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider font-bold rounded-lg transition-colors shadow">
+<span class="material-symbols-outlined text-lg">assignment_turned_in</span>
+<span>Launch Team Weigh-In Station</span>
+</button>
+</div>
+</div>
+<!-- Card 3: MEN'S BASKETBALL (MBB) -->
+<div class="sport-card flex flex-col justify-between rounded-xl bg-card-surface border border-card-border hover:border-antique-gold/40 transition-all duration-200 shadow-md overflow-hidden relative group" data-category="in-season">
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Top Status & Squad Monogram -->
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-display text-headline-lg text-text-headline uppercase tracking-wide">Men's Basketball</span>
+<span class="font-label-sm text-label-sm text-text-muted uppercase px-1 rounded bg-collegiate-blue">MBB</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">Court 1 &amp; Weight Room Cycle</span>
+</div>
+<span class="inline-flex items-center gap-1.5 px-space-sm py-1 rounded bg-emerald-deep/20 text-emerald-sport border border-emerald-sport/30 font-label-sm text-label-sm tracking-wider uppercase font-bold">
+<span class="w-2 h-2 rounded-full bg-emerald-sport"></span>
+            Pre-Season Camp
+          </span>
+</div>
+<!-- Telemetry Matrix -->
+<div class="grid grid-cols-4 gap-space-xs p-space-sm rounded-lg bg-midnight border border-card-border/60">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Athletes</span>
+<span class="font-metric-val text-metric-val text-text-headline">20</span>
+<span class="font-body-sm text-body-sm text-text-muted">Rostered</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
+<span class="font-metric-val text-metric-val text-antique-gold">168</span>
+<span class="font-body-sm text-body-sm text-text-muted">Pounds</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
+<span class="font-metric-val text-metric-val text-antique-gold">6.4</span>
+<span class="font-body-sm text-body-sm text-emerald-sport">Controlled</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Sleep</span>
+<span class="font-metric-val text-metric-val text-slate-accent">8.0</span>
+<span class="font-body-sm text-body-sm text-emerald-sport">Peak</span>
+</div>
+</div>
+<!-- Weigh-In Compliance Progress Bar -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-text-muted uppercase tracking-wide">Weigh-in Compliance</span>
+<span class="text-emerald-sport font-bold tracking-widest">18 / 20 (90% Ready)</span>
+</div>
+<div class="w-full h-2 rounded-full bg-collegiate-dark overflow-hidden">
+<div class="h-full bg-emerald-sport rounded-full" style="width: 90%"></div>
+</div>
+<span class="font-body-sm text-body-sm text-emerald-sport flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">check_circle</span> 2 athletes in training room rehab.
+          </span>
+</div>
+<!-- Readiness Index Chip -->
+<div class="flex items-center justify-between p-space-sm rounded-lg bg-collegiate-dark/40 border border-card-border/40">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-wider">Squad Neuromuscular Readiness</span>
+<span class="font-headline-md text-headline-md text-emerald-sport">94% PRIME</span>
+</div>
+</div>
+<!-- Action Button Footer -->
+<div class="p-space-md bg-collegiate-dark/60 border-t border-card-border/60">
+<button class="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-emerald-deep hover:bg-emerald-sport text-antique-dark font-headline-md text-headline-md uppercase tracking-wider font-bold rounded-lg transition-colors shadow">
+<span class="material-symbols-outlined text-lg">assignment_turned_in</span>
+<span>Launch Team Weigh-In Station</span>
+</button>
+</div>
+</div>
+<!-- Card 4: CHEER & DANCE -->
+<div class="sport-card flex flex-col justify-between rounded-xl bg-card-surface border border-card-border hover:border-antique-gold/40 transition-all duration-200 shadow-md overflow-hidden relative group" data-category="off-season">
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Top Status & Squad Monogram -->
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-display text-headline-lg text-text-headline uppercase tracking-wide">Cheer &amp; Dance</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">Acrobatics, Tumbling &amp; Mobility</span>
+</div>
+<span class="inline-flex items-center gap-1.5 px-space-sm py-1 rounded bg-collegiate-blue text-text-muted border border-card-border font-label-sm text-label-sm tracking-wider uppercase font-bold">
+<span class="w-2 h-2 rounded-full bg-text-muted"></span>
+            Scheduled
+          </span>
+</div>
+<!-- Telemetry Matrix -->
+<div class="grid grid-cols-4 gap-space-xs p-space-sm rounded-lg bg-midnight border border-card-border/60">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Athletes</span>
+<span class="font-metric-val text-metric-val text-text-headline">2</span>
+<span class="font-body-sm text-body-sm text-text-muted">Active</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
+<span class="font-metric-val text-metric-val text-antique-gold">102</span>
+<span class="font-body-sm text-body-sm text-text-muted">Pounds</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
+<span class="font-metric-val text-metric-val text-card-border">--</span>
+<span class="font-body-sm text-body-sm text-text-muted">Unset</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Sleep</span>
+<span class="font-metric-val text-metric-val text-slate-accent">8.0</span>
+<span class="font-body-sm text-body-sm text-text-muted">Hours</span>
+</div>
+</div>
+<!-- Weigh-In Compliance Progress Bar -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-text-muted uppercase tracking-wide">Weigh-in Compliance</span>
+<span class="text-emerald-sport font-bold tracking-widest">100% Complete</span>
+</div>
+<div class="w-full h-2 rounded-full bg-collegiate-dark overflow-hidden">
+<div class="h-full bg-emerald-sport rounded-full" style="width: 100%"></div>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">All active members screened for routine.</span>
+</div>
+<!-- Quick Detail Status -->
+<div class="flex items-center justify-between p-space-sm rounded-lg bg-collegiate-dark/40 border border-card-border/40">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-wider">Hydration Baseline</span>
+<span class="font-label-md text-label-md text-emerald-sport font-bold uppercase">Optimal · Passed</span>
+</div>
+</div>
+<!-- Action Button Footer -->
+<div class="p-space-md bg-collegiate-dark/60 border-t border-card-border/60">
+<button class="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-collegiate-blue hover:bg-collegiate-blue/80 text-text-headline border border-card-border font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors">
+<span class="material-symbols-outlined text-lg">badge</span>
+<span>View Roster</span>
+</button>
+</div>
+</div>
+<!-- Card 5: SOFTBALL -->
+<div class="sport-card flex flex-col justify-between rounded-xl bg-card-surface border border-card-border hover:border-antique-gold/40 transition-all duration-200 shadow-md overflow-hidden relative group" data-category="off-season needs-action">
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Top Status & Squad Monogram -->
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-display text-headline-lg text-text-headline uppercase tracking-wide">Softball</span>
+<span class="font-label-sm text-label-sm text-text-muted uppercase px-1 rounded bg-collegiate-blue">Varsity</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">Batting Cages &amp; Trap Bar Baselines</span>
+</div>
+<span class="inline-flex items-center gap-1.5 px-space-sm py-1 rounded bg-collegiate-blue text-antique-gold border border-antique-gold/30 font-label-sm text-label-sm tracking-wider uppercase font-bold">
+<span class="w-2 h-2 rounded-full bg-antique-gold"></span>
+            Fall Workouts
+          </span>
+</div>
+<!-- Alert Banner: Incomplete Baselines -->
+<div class="flex items-center justify-between p-space-sm rounded-lg bg-crimson-deep/20 border border-crimson-alert/30 text-crimson-alert">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-base">tune</span>
+<span class="font-label-md text-label-md tracking-wide font-bold uppercase">Baselines Incomplete (4 Missing)</span>
+</div>
+<span class="font-label-sm text-label-sm uppercase underline cursor-pointer hover:text-white">Resolve</span>
+</div>
+<!-- Telemetry Matrix -->
+<div class="grid grid-cols-4 gap-space-xs p-space-sm rounded-lg bg-midnight border border-card-border/60">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Athletes</span>
+<span class="font-metric-val text-metric-val text-text-headline">11</span>
+<span class="font-body-sm text-body-sm text-text-muted">Rostered</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
+<span class="font-metric-val text-metric-val text-antique-gold">152</span>
+<span class="font-body-sm text-body-sm text-text-muted">Pounds</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
+<span class="font-metric-val text-metric-val text-card-border">--</span>
+<span class="font-body-sm text-body-sm text-text-muted">Pending</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Sleep</span>
+<span class="font-metric-val text-metric-val text-card-border">--</span>
+<span class="font-body-sm text-body-sm text-text-muted">Unsynced</span>
+</div>
+</div>
+<!-- Weigh-In Compliance Progress Bar -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-text-muted uppercase tracking-wide">Weigh-in Compliance</span>
+<span class="text-text-muted font-bold tracking-widest">0 / 11 (0%)</span>
+</div>
+<div class="w-full h-2 rounded-full bg-collegiate-dark overflow-hidden">
+<div class="h-full bg-card-border rounded-full" style="width: 0%"></div>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">Scheduled for 16:30 fieldhouse rotation.</span>
+</div>
+</div>
+<!-- Action Button Footer -->
+<div class="p-space-md bg-collegiate-dark/60 border-t border-card-border/60">
+<button class="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider font-bold rounded-lg transition-colors shadow">
+<span class="material-symbols-outlined text-lg">tune</span>
+<span>Set Team Baselines</span>
+</button>
+</div>
+</div>
+<!-- Card 6: WOMEN'S SOCCER (WSOC) -->
+<div class="sport-card flex flex-col justify-between rounded-xl bg-card-surface border border-card-border hover:border-antique-gold/40 transition-all duration-200 shadow-md overflow-hidden relative group" data-category="in-season">
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Top Status & Squad Monogram -->
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-display text-headline-lg text-text-headline uppercase tracking-wide">Women's Soccer</span>
+<span class="font-label-sm text-label-sm text-text-muted uppercase px-1 rounded bg-collegiate-blue">WSOC</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">Matchday -1 Taper &amp; Activation</span>
+</div>
+<span class="inline-flex items-center gap-1.5 px-space-sm py-1 rounded bg-emerald-deep/20 text-emerald-sport border border-emerald-sport/30 font-label-sm text-label-sm tracking-wider uppercase font-bold">
+<span class="w-2 h-2 rounded-full bg-emerald-sport animate-pulse"></span>
+            In-Season Match Tomorrow
+          </span>
+</div>
+<!-- Telemetry Matrix -->
+<div class="grid grid-cols-4 gap-space-xs p-space-sm rounded-lg bg-midnight border border-card-border/60">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Athletes</span>
+<span class="font-metric-val text-metric-val text-text-headline">24</span>
+<span class="font-body-sm text-body-sm text-text-muted">Rostered</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
+<span class="font-metric-val text-metric-val text-antique-gold">142</span>
+<span class="font-body-sm text-body-sm text-text-muted">Pounds</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
+<span class="font-metric-val text-metric-val text-emerald-sport">5.8</span>
+<span class="font-body-sm text-body-sm text-emerald-sport">Tapered</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Sleep</span>
+<span class="font-metric-val text-metric-val text-slate-accent">8.2</span>
+<span class="font-body-sm text-body-sm text-emerald-sport">Recovery</span>
+</div>
+</div>
+<!-- Weigh-In Compliance Progress Bar -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-text-muted uppercase tracking-wide">Weigh-in Compliance</span>
+<span class="text-emerald-sport font-bold tracking-widest">22 / 24 (92%)</span>
+</div>
+<div class="w-full h-2 rounded-full bg-collegiate-dark overflow-hidden">
+<div class="h-full bg-emerald-sport rounded-full" style="width: 92%"></div>
+</div>
+<span class="font-body-sm text-body-sm text-text-muted">2 players in athletic training pre-wrap.</span>
+</div>
+<!-- High GPS Readiness Marker -->
+<div class="flex items-center justify-between p-space-sm rounded-lg bg-collegiate-dark/40 border border-card-border/40">
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-wider">Catapult High-Speed Metres</span>
+<span class="font-label-md text-label-md text-emerald-sport font-bold uppercase">Optimal Loading · Gameday Ready</span>
+</div>
+</div>
+<!-- Action Button Footer -->
+<div class="p-space-md bg-collegiate-dark/60 border-t border-card-border/60">
+<button class="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider font-bold rounded-lg transition-colors shadow">
+<span class="material-symbols-outlined text-lg">assignment_turned_in</span>
+<span>Launch Team Weigh-In Station</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bottom Global Summary Telemetry Bar -->
+<div class="mt-space-xl p-space-md rounded-xl bg-card-surface border border-card-border flex flex-wrap items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-space-xs text-antique-gold">
+<span class="material-symbols-outlined text-xl">hub</span>
+<span class="font-headline-md text-headline-md uppercase tracking-wider text-text-headline">Department Overview</span>
+</div>
+<div class="hidden sm:flex items-center gap-space-md font-label-md text-label-md text-text-muted border-l border-card-border pl-space-md">
+<span>Total Screened: <strong class="text-text-headline">141 Athletes</strong></span>
+<span>Avg Department Sleep: <strong class="text-emerald-sport">7.9 hrs</strong></span>
+<span>Weigh-in Protocol: <strong class="text-antique-gold">64.5%</strong></span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-md py-1.5 rounded bg-collegiate-dark hover:bg-collegiate-blue text-text-headline border border-card-border font-headline-md text-headline-md uppercase tracking-wider transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-base">file_download</span>
+        Export Department Report
+      </button>
+<button class="px-space-md py-1.5 rounded bg-collegiate-dark hover:bg-collegiate-blue text-antique-gold border border-antique-gold/30 font-headline-md text-headline-md uppercase tracking-wider transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-base">refresh</span>
+        Force Sync Scales
+      </button>
+</div>
+</div>
+<!-- Interactive Filter Tabs Script -->
+<script>
+    (function() {
+      const tabs = document.querySelectorAll('.filter-tab');
+      const cards = document.querySelectorAll('.sport-card');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          // Reset all tabs
+          tabs.forEach(t => {
+            t.classList.remove('bg-antique-gold', 'text-antique-dark', 'font-bold');
+            t.classList.add('bg-card-surface', 'text-text-body');
+          });
+
+          // Set active tab
+          tab.classList.remove('bg-card-surface', 'text-text-body');
+          tab.classList.add('bg-antique-gold', 'text-antique-dark', 'font-bold');
+
+          const filter = tab.getAttribute('data-filter');
+
+          cards.forEach(card => {
+            const categories = card.getAttribute('data-category') || '';
+            if (filter === 'all') {
+              card.style.display = 'flex';
+            } else if (filter === 'needs-action' && categories.includes('needs-action')) {
+              card.style.display = 'flex';
+            } else if (filter === 'in-season' && categories.includes('in-season')) {
+              card.style.display = 'flex';
+            } else if (filter === 'off-season' && categories.includes('off-season')) {
+              card.style.display = 'flex';
+            } else {
+              card.style.display = 'none';
+            }
+          });
+        });
+      });
+    })();
+  </script>
+</div></main></div></body></html>

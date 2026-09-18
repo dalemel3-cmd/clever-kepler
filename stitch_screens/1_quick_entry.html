@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Oswald:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "primary": "#b89c5b", "primary-light": "#d1b87a", "navy-canvas": "#030a14", "navy-card": "#0a1120", "navy-surface": "#061c41", "navy-border": "#2a313d", "secondary": "#34d399", "on-surface-subtle": "#bcc1ca" }, "fontFamily": { "headline-xl": [ "Oswald" ], "headline-lg": [ "Oswald" ], "headline-md": [ "Oswald" ], "display": [ "Oswald" ], "metric-val": [ "Oswald" ], "body-md": [ "Manrope", "sans-serif" ], "body-sm": [ "Manrope", "sans-serif" ], "label-lg": [ "Manrope", "sans-serif" ], "label-md": [ "Manrope", "sans-serif" ], "label-sm": [ "Manrope", "sans-serif" ] } } } };</script></head><body class="bg-[#030a14] font-body-md text-[#ffffff] antialiased selection:bg-[#b89c5b] selection:text-[#030a14]"><aside class="fixed left-0 top-0 h-full w-64 bg-[#061c41] border-r border-[#2a313d] z-50 flex flex-col justify-between overflow-y-auto"><div class="flex flex-col"><div class="p-6 bg-[#030a14] border-b border-[#2a313d]"><div class="flex items-center justify-between"><span class="font-headline-lg text-2xl tracking-wider text-white uppercase">HUMAN PERFORMANCE</span><span class="material-symbols-outlined text-[#b89c5b] text-base">lock</span></div><div class="flex items-center justify-between mt-1"><span class="font-label-md text-xs tracking-widest text-[#b89c5b] uppercase font-semibold">SHILOH ATHLETICS</span><span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#0a1120] border border-[#2a313d] text-[#34d399] font-bold">LIVE</span></div></div><div class="px-4 pt-4"><button class="w-full flex items-center justify-center gap-2 py-2 px-4 bg-[#0a1120] hover:bg-[#030a14] border border-[#2a313d] text-[#b89c5b] rounded-xl font-headline-md text-base uppercase tracking-wider transition-colors"><span class="material-symbols-outlined text-[#b89c5b] text-lg">bolt</span>ACTIVATE KIOSK MODE</button></div><div class="px-4 pt-6 flex flex-col gap-4"><div class="flex flex-col"><span class="px-2 pb-1 font-label-sm text-[11px] text-[#bcc1ca] uppercase tracking-widest font-semibold">DAILY OPERATIONS</span><nav class="flex flex-col gap-1"><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="dashboard" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">grid_view</span><span class="font-label-lg text-sm">Dashboard</span></div><span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#34d399]/20 text-[#34d399] font-bold border border-[#34d399]/40">Live</span></a><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="lift-tracker" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">fitness_center</span><span class="font-label-lg text-sm">Lift Tracker</span></div></a><a aria-current="page" class="flex items-center justify-between px-3 py-2 transition-colors bg-[#b89c5b] text-[#030a14] font-bold rounded-lg shadow-sm" data-path="quick-entry" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl font-bold">touch_app</span><span class="font-label-lg text-sm">Quick Entry / Kiosk</span></div></a><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="alerts" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">notifications</span><span class="font-label-lg text-sm">Alerts</span></div><span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-red-900/60 text-red-200 border border-red-700/50 font-bold">5</span></a></nav></div><div class="flex flex-col"><span class="px-2 pb-1 font-label-sm text-[11px] text-[#bcc1ca] uppercase tracking-widest font-semibold">ROSTER &amp; TEAMS</span><nav class="flex flex-col gap-1"><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="athletes" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">group</span><span class="font-label-lg text-sm">Athletes</span></div></a><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="sport-groups" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">shield</span><span class="font-label-lg text-sm">Sport Groups</span></div></a><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="baseline-studio" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">tune</span><span class="font-label-lg text-sm">Baseline Studio</span></div></a></nav></div><div class="flex flex-col"><span class="px-2 pb-1 font-label-sm text-[11px] text-[#bcc1ca] uppercase tracking-widest font-semibold">INSIGHTS</span><nav class="flex flex-col gap-1"><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="analytics" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">bar_chart</span><span class="font-label-lg text-sm">Analytics &amp; RPE</span></div></a><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="reports" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">description</span><span class="font-label-lg text-sm">Reports</span></div></a><a class="flex items-center justify-between px-3 py-2 rounded-lg text-[#bcc1ca] hover:bg-[#0a1120] hover:text-white transition-colors" data-path="settings" href="#"><div class="flex items-center gap-2"><span class="material-symbols-outlined text-xl">settings</span><span class="font-label-lg text-sm">Settings</span></div></a></nav></div></div></div><div class="p-4 bg-[#030a14] border-t border-[#2a313d] mt-6"><div class="flex items-center gap-2"><div class="w-9 h-9 rounded bg-[#0a1120] border border-[#2a313d] flex items-center justify-center font-headline-md text-base text-[#b89c5b]">CM</div><div class="flex flex-col overflow-hidden"><span class="font-label-lg text-sm text-white truncate font-semibold">Coach Mason</span><span class="font-body-sm text-xs text-[#bcc1ca] truncate">Shiloh Athletics Head Coach</span></div></div><div class="mt-2 pt-1 flex items-center justify-between font-label-sm text-[11px] text-[#bcc1ca]"><span><span class="text-[#34d399]">●</span> Cloud Live v4.36.2</span><span>Thu, Sep 17</span></div></div></aside><div class="pl-64"><header class="fixed top-0 left-64 right-0 h-16 bg-[#030a14]/90 backdrop-blur-xl border-b border-[#2a313d] z-40 flex items-center justify-between px-6"><div class="flex items-center gap-4"><div class="flex items-center gap-1 font-label-md text-xs text-[#bcc1ca] uppercase tracking-wider"><span>Shiloh Athletics</span><span class="material-symbols-outlined text-sm">chevron_right</span><span class="text-white font-bold">Operations</span></div><div class="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#0a1120] border border-[#2a313d] font-label-sm text-xs text-[#34d399]"><span class="w-2 h-2 rounded-full bg-[#34d399] animate-pulse"></span><span class="font-bold tracking-wide">SYSTEM READY</span></div></div><div class="flex items-center gap-4"><div class="flex items-center bg-[#0a1120] border border-[#2a313d] rounded px-3 py-1.5 text-[#bcc1ca] font-label-md text-xs gap-2"><span class="material-symbols-outlined text-base">search</span><span class="hidden sm:inline">Athlete search...</span><kbd class="bg-[#061c41] border border-[#2a313d] px-1.5 py-0.5 rounded text-white font-label-sm text-[10px]">Ctrl+K</kbd></div><div class="flex items-center gap-2"><button class="flex items-center gap-1 px-3 py-1.5 rounded bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold transition-opacity hover:opacity-90 shadow-sm"><span class="material-symbols-outlined text-base">add</span><span>Log Set</span></button><button class="hidden md:flex items-center gap-1 px-3 py-1.5 rounded bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] text-[#b89c5b] font-headline-md text-sm uppercase transition-colors"><span class="material-symbols-outlined text-base">sensors</span><span>Kiosk Mode</span></button></div><img alt="Profile" class="w-8 h-8 rounded-full object-cover border border-[#2a313d]" src="https://lh3.googleusercontent.com/aida/AEtjO1V4icFJHYKREU-vYR1j1pFQu8NOSjkNYXufgMRY4HA87PnyOriAa5h_L4QLCoMn82ew9mLY744D7jHoJlCLim4Id17KFKeM5IcksOaLGmIQFT2oefVv4xc8oEV48n0qeUSt5UgfyvS4TPOqCtIxRoffpKpCjqXA86otTTotiXHuKbVxJ21SQNNzIhUFx0ZC8sej0pS5sBqPjoiRMEpa-thmY0AuRcl-PDGhfsNjNdt0pSGXuy0GaTKx0ItrDx5ofE2WPRYrRzoC"/></div></header><main class="relative pt-16 w-full px-6 bg-[#030a14] min-h-screen"><div class="flex flex-col w-full pb-20">
+<!-- Top Command & Kiosk HUD Bar -->
+<div class="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-6 mt-6">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2 font-label-md text-xs uppercase tracking-wider text-[#bcc1ca]">
+<span class="text-[#b89c5b] font-bold">KIOSK MODE</span>
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-white font-semibold">RAPID WEIGH-IN &amp; SLEEP ENTRY</span>
+<span class="px-2 py-0.5 rounded bg-[#0a1120] border border-[#2a313d] text-[#34d399] font-label-sm text-[10px] tracking-widest flex items-center gap-1 ml-1 font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-[#34d399] animate-ping"></span>
+          ACTIVE FLOOR
+        </span>
+</div>
+<h1 class="font-display text-4xl uppercase tracking-tight text-white m-0 leading-none">
+        RAPID QUICK ENTRY KIOSK
+      </h1>
+<p class="font-body-md text-sm text-[#bcc1ca] m-0 max-w-2xl">
+        Tap athlete card or scan NFC wrist tag to register today's digital weigh-in, sleep recovery score, and acute session RPE telemetry.
+      </p>
+</div>
+<!-- Mode Selectors & Quick Action Hub -->
+<div class="flex flex-wrap items-center gap-2">
+<div class="flex items-center bg-[#0a1120] border border-[#2a313d] p-1 rounded-xl shadow-md">
+<button class="mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold transition-all shadow-sm" id="mode-weight-sleep">
+<span class="material-symbols-outlined text-base">scale</span>
+<span>Weight + Sleep</span>
+</button>
+<button class="mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[#bcc1ca] hover:text-white font-headline-md text-sm uppercase transition-all" id="mode-sleep-only">
+<span class="material-symbols-outlined text-base">bedtime</span>
+<span>Sleep Only</span>
+</button>
+<button class="mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[#bcc1ca] hover:text-white font-headline-md text-sm uppercase transition-all" id="mode-rpe">
+<span class="material-symbols-outlined text-base">speed</span>
+<span>Session RPE</span>
+</button>
+</div>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#061c41] hover:bg-[#0a1120] border border-[#2a313d] text-[#d1b87a] font-headline-md text-sm uppercase transition-colors shadow-sm">
+<span class="material-symbols-outlined text-base">tune</span>
+<span>Baseline Mode (PIN)</span>
+</button>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold tracking-wider transition-all hover:bg-[#d1b87a] shadow-md active:scale-95">
+<span class="material-symbols-outlined text-base font-bold">person_add</span>
+<span>+ Add Guest / Trial</span>
+</button>
+</div>
+</div>
+<!-- Status & Throughput Ticker Bar -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+<!-- Progress Pill Card -->
+<div class="md:col-span-4 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center justify-between shadow-md">
+<div class="flex items-center gap-4">
+<div class="relative flex items-center justify-center w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d]">
+<svg class="w-10 h-10 -rotate-90" viewbox="0 0 36 36">
+<path class="text-[#2a313d]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3.5"></path>
+<path class="text-[#34d399]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="8, 100" stroke-linecap="round" stroke-width="3.5"></path>
+</svg>
+<span class="material-symbols-outlined text-[#34d399] absolute text-base">check_circle</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-headline-md text-base text-white tracking-wide">15 OF 190 CHECKED IN</span>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#34d399]/20 text-[#34d399] font-bold border border-[#34d399]/40">8%</span>
+</div>
+<span class="font-body-sm text-xs text-[#bcc1ca]">Baseball Morning Block · 18 athletes pending</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#bcc1ca] text-xl">contactless</span>
+</div>
+<!-- Real-time Connected Hardware Pill -->
+<div class="md:col-span-5 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center justify-between shadow-md">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center text-[#b89c5b]">
+<span class="material-symbols-outlined text-2xl">scale</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-headline-md text-base text-white tracking-wide">DIGITAL SCALE RACK #02</span>
+<span class="flex items-center gap-1 text-[#34d399] font-label-sm text-xs font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-[#34d399]"></span> 0.00 LBS TARE
+            </span>
+</div>
+<span class="font-body-sm text-xs text-[#bcc1ca]">Rice Lake Telemetry Link · Auto-capture on steady state</span>
+</div>
+</div>
+<span class="font-label-sm text-xs bg-[#061c41] border border-[#2a313d] px-2 py-1 rounded text-[#b89c5b] font-bold">NFC READY</span>
+</div>
+<!-- Quick Touch Help -->
+<div class="md:col-span-3 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center gap-2 justify-between shadow-md">
+<div class="flex flex-col">
+<span class="font-label-md text-xs uppercase text-white font-bold tracking-wider">Touch Navigation</span>
+<span class="font-body-sm text-xs text-[#bcc1ca]">Tap name for manual pop-up keypad</span>
+</div>
+<div class="flex items-center gap-1 bg-[#061c41] border border-[#2a313d] px-2 py-1 rounded text-white font-label-md text-xs">
+<kbd class="text-[#b89c5b] font-bold">1-TAP</kbd>
+</div>
+</div>
+</div>
+<!-- Filter & Navigation Control Strip -->
+<div class="bg-[#0a1120] border border-[#2a313d] rounded-xl p-4 mb-6 flex flex-col gap-4 shadow-md">
+<!-- Search and Sort Line -->
+<div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+<div class="relative flex-1 max-w-xl">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#bcc1ca] text-lg">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-[#061c41] border border-[#2a313d] rounded-lg text-white font-body-md text-sm placeholder:text-[#bcc1ca] focus:outline-none focus:border-[#b89c5b] transition-colors" id="athlete-search" placeholder="Tap to search or swipe alphabetical rail..." type="text"/>
+<button class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-[#bcc1ca] hover:text-white" id="clear-search">
+<span class="material-symbols-outlined text-sm">close</span>
+</button>
+</div>
+<div class="flex items-center gap-4 self-end lg:self-auto">
+<div class="flex items-center gap-1 font-label-sm text-xs text-[#bcc1ca] uppercase tracking-widest font-semibold">
+<span>SORT BY:</span>
+</div>
+<div class="flex items-center bg-[#061c41] border border-[#2a313d] p-0.5 rounded-lg">
+<button class="sort-btn px-3 py-1 rounded font-label-md text-xs bg-[#b89c5b] text-[#030a14] uppercase font-bold" data-sort="first">First Name</button>
+<button class="sort-btn px-3 py-1 rounded font-label-md text-xs text-[#bcc1ca] hover:text-white uppercase font-medium" data-sort="last">Last Name</button>
+<button class="sort-btn px-3 py-1 rounded font-label-md text-xs text-[#bcc1ca] hover:text-white uppercase font-medium" data-sort="jersey">Jersey #</button>
+</div>
+</div>
+</div>
+<!-- Sport Category Tabs -->
+<div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#b89c5b] text-[#030a14] font-bold shadow-sm whitespace-nowrap">
+        All Roster
+      </button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Baseball <span class="ml-1 text-[#b89c5b] font-semibold">(33)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Cheer &amp; Dance <span class="ml-1 text-[#b89c5b] font-semibold">(14)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Football <span class="ml-1 text-[#b89c5b] font-semibold">(51)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Golf <span class="ml-1 text-[#b89c5b] font-semibold">(12)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        MBB <span class="ml-1 text-[#b89c5b] font-semibold">(20)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Soccer <span class="ml-1 text-[#b89c5b] font-semibold">(24)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Softball <span class="ml-1 text-[#b89c5b] font-semibold">(18)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Tennis <span class="ml-1 text-[#b89c5b] font-semibold">(10)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Track &amp; Field <span class="ml-1 text-[#b89c5b] font-semibold">(44)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Volleyball <span class="ml-1 text-[#b89c5b] font-semibold">(16)</span>
+</button>
+<button class="sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap">
+        Wrestling <span class="ml-1 text-[#b89c5b] font-semibold">(22)</span>
+</button>
+</div>
+</div>
+<!-- Main Interaction Area: Grid with Right Rail Alphabet Scrubber -->
+<div class="relative flex items-start gap-4">
+<!-- Athlete Touch Cards Grid Container -->
+<div class="flex-1">
+<div class="flex items-center justify-between mb-2 px-1">
+<div class="flex items-center gap-2">
+<span class="font-headline-md text-base text-[#b89c5b] uppercase font-bold tracking-wider">BASEBALL SQUAD</span>
+<span class="font-label-sm text-xs text-[#bcc1ca] uppercase">Fall Roster 2024</span>
+</div>
+<span class="font-label-md text-xs text-[#bcc1ca]">1 of 33 Checked In</span>
+</div>
+<!-- 4-Column Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="athletes-grid">
+<!-- Athlete 1: Completed State -->
+<div class="group relative bg-[#061c41] hover:bg-[#061c41]/90 transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer border border-[#2a313d] border-l-4 border-l-[#34d399] overflow-hidden" onclick="openKeypad('Austin Bierman', 'AB', '#12 Pitcher', '198.4')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#0a1120] border border-[#34d399]/40 flex items-center justify-center font-headline-lg text-lg text-[#34d399] font-bold">
+                AB
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Austin Bierman</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#12 · Pitcher (RHP)</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#34d399] text-xl">check_circle</span>
+</div>
+<div class="flex items-end justify-between mt-4 pt-1 bg-[#0a1120]/80 border border-[#2a313d] p-2 rounded-lg">
+<div class="flex flex-col">
+<span class="font-label-sm text-[10px] uppercase text-[#34d399] font-bold">LOGGED 1M AGO</span>
+<div class="flex items-baseline gap-1">
+<span class="font-metric-val text-2xl text-white font-bold leading-none">198.4</span>
+<span class="font-label-sm text-[10px] text-[#bcc1ca]">LBS</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-sm text-[10px] text-[#bcc1ca] uppercase font-semibold">Sleep Index</span>
+<div class="flex items-center gap-1 text-[#b89c5b]">
+<span class="material-symbols-outlined text-sm">bedtime</span>
+<span class="font-label-md text-xs font-bold">8.5h</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Athlete 2: Pending Log State (Default Touch State) -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Bennett Farmer', 'BF', '#44 Catcher', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-[#b89c5b] font-bold">
+                BF
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Bennett Farmer</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#44 · Catcher</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 3 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Braden Gayer', 'BG', '#8 Outfield', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-white font-bold">
+                BG
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Braden Gayer</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#8 · Outfield</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 4 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Brayden Skiles', 'BS', '#22 Infield', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-white font-bold">
+                BS
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Brayden Skiles</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#22 · Infield (2B/SS)</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 5 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Brooks Ramsey', 'BR', '#33 First Base', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-[#b89c5b] font-bold">
+                BR
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Brooks Ramsey</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#33 · First Base</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 6 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Calloway Gum', 'CG', '#15 Pitcher', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-white font-bold">
+                CG
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Calloway Gum</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#15 · Pitcher (LHP)</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 7 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Camden Curlee', 'CC', '#18 Outfield', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-white font-bold">
+                CC
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Camden Curlee</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#18 · Outfield (CF)</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 8 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Chase Brown', 'CB', '#9 Shortstop', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-white font-bold">
+                CB
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Chase Brown</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#9 · Shortstop</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 9 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Clark McDonnel', 'CM', '#27 Pitcher', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-[#b89c5b] font-bold">
+                CM
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Clark McDonnel</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#27 · Pitcher (RHP)</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 10 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Cody Dunavan', 'CD', '#5 Catcher', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-white font-bold">
+                CD
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Cody Dunavan</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#5 · Catcher</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 11 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Drew Frever', 'DF', '#31 Pitcher', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-white font-bold">
+                DF
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Drew Frever</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#31 · Pitcher (RHP)</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+<!-- Athlete 12 -->
+<div class="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" onclick="openKeypad('Dylan Gerber', 'DG', '#14 Outfield', '')">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-white font-bold">
+                DG
+              </div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-base text-white tracking-wide truncate">Dylan Gerber</span>
+<span class="font-body-sm text-xs text-[#bcc1ca] truncate">#14 · Outfield (RF)</span>
+</div>
+</div>
+<span class="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+</div>
+<div class="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">scale</span>
+<span class="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log Weight</span>
+</div>
+<span class="material-symbols-outlined text-base">arrow_forward</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Side Alphabetical Quick-Scrubber Rail (Gym tablet touch navigation) -->
+<div class="hidden md:flex flex-col items-center bg-[#0a1120] border border-[#2a313d] py-2 px-1 rounded-full shadow-md sticky top-20 select-none">
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#b89c5b] font-bold cursor-pointer hover:bg-[#061c41] rounded">A</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">B</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">C</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">D</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">E</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">F</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">G</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">H</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">I</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">J</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">K</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">L</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">M</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">N</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">O</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">P</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">Q</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">R</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">S</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">T</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">U</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">V</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">W</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">X</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">Y</span>
+<span class="alpha-btn px-1.5 py-0.5 font-label-sm text-[11px] text-[#bcc1ca] cursor-pointer hover:text-[#b89c5b] rounded">Z</span>
+</div>
+</div>
+<!-- Interactive Modal / Touch Keypad Popup for Kiosk Floor Entry -->
+<div class="fixed inset-0 bg-[#030a14]/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden" id="keypad-modal">
+<div class="bg-[#0a1120] border border-[#2a313d] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+<!-- Modal Header -->
+<div class="bg-[#061c41] border-b border-[#2a313d] p-6 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-[#b89c5b] text-[#030a14] flex items-center justify-center font-headline-lg text-lg font-bold" id="modal-monogram">
+            BF
+          </div>
+<div class="flex flex-col">
+<span class="font-headline-lg text-xl text-white font-bold" id="modal-name">Bennett Farmer</span>
+<span class="font-body-sm text-xs text-[#bcc1ca]" id="modal-meta">#44 · Catcher · Baseline: 202.1 lbs</span>
+</div>
+</div>
+<button class="w-10 h-10 rounded-full bg-[#0a1120] hover:bg-[#030a14] border border-[#2a313d] text-white flex items-center justify-center" onclick="closeKeypad()">
+<span class="material-symbols-outlined text-lg">close</span>
+</button>
+</div>
+<!-- Live Display Input Panel -->
+<div class="p-6 flex flex-col gap-4">
+<div class="flex items-center justify-between bg-[#030a14] border border-[#2a313d] p-4 rounded-xl">
+<div class="flex flex-col">
+<span class="font-label-sm text-xs uppercase text-[#b89c5b] font-bold">LIVE METRIC CAPTURE</span>
+<div class="flex items-baseline gap-2">
+<span class="font-display text-4xl text-white tracking-wider font-bold" id="keypad-value">203.4</span>
+<span class="font-headline-md text-lg text-[#b89c5b] font-bold">LBS</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] hover:text-white font-label-md text-xs uppercase font-semibold" onclick="tareScale()">TARE 0.0</button>
+<span class="flex items-center gap-1 text-[#34d399] font-label-sm text-xs font-bold">
+<span class="w-2 h-2 rounded-full bg-[#34d399] animate-pulse"></span>
+              STABLE
+            </span>
+</div>
+</div>
+<!-- Sleep Score Quick Select Strip -->
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-xs uppercase text-[#bcc1ca] tracking-wider font-semibold">Last Night Sleep Duration (Hours)</span>
+<div class="grid grid-cols-5 gap-1">
+<button class="sleep-btn py-2 rounded-lg bg-[#061c41] border border-[#2a313d] font-headline-md text-sm text-white hover:bg-[#030a14]" onclick="setSleep(this, '6.0')">6.0h</button>
+<button class="sleep-btn py-2 rounded-lg bg-[#061c41] border border-[#2a313d] font-headline-md text-sm text-white hover:bg-[#030a14]" onclick="setSleep(this, '7.0')">7.0h</button>
+<button class="sleep-btn py-2 rounded-lg bg-[#b89c5b] text-[#030a14] font-headline-md text-sm font-bold border border-[#b89c5b]" onclick="setSleep(this, '8.0')">8.0h</button>
+<button class="sleep-btn py-2 rounded-lg bg-[#061c41] border border-[#2a313d] font-headline-md text-sm text-white hover:bg-[#030a14]" onclick="setSleep(this, '8.5')">8.5h</button>
+<button class="sleep-btn py-2 rounded-lg bg-[#061c41] border border-[#2a313d] font-headline-md text-sm text-white hover:bg-[#030a14]" onclick="setSleep(this, '9.0+')">9.0+</button>
+</div>
+</div>
+<!-- Touch Number Keypad -->
+<div class="grid grid-cols-3 gap-1 mt-1">
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('1')">1</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('2')">2</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('3')">3</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('4')">4</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('5')">5</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('6')">6</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('7')">7</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('8')">8</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('9')">9</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('.')">.</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] font-headline-lg text-xl text-white font-bold active:scale-95 transition-transform" onclick="pressKey('0')">0</button>
+<button class="py-3 rounded-xl bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-white flex items-center justify-center active:scale-95 transition-transform" onclick="backspaceKey()">
+<span class="material-symbols-outlined">backspace</span>
+</button>
+</div>
+<!-- Submit Bar -->
+<button class="w-full py-3 rounded-xl bg-[#b89c5b] hover:bg-[#d1b87a] text-[#030a14] font-headline-lg text-base uppercase tracking-wider font-bold flex items-center justify-center gap-2 shadow-xl active:scale-[0.98] transition-transform" onclick="commitEntry()">
+<span class="material-symbols-outlined font-bold">done_all</span>
+<span>CONFIRM &amp; SYNC ATHLETE</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bottom Floating Floor Status Beacon -->
+<div class="fixed bottom-4 left-72 right-6 bg-[#061c41]/95 backdrop-blur-xl border border-[#2a313d] py-1.5 px-4 rounded-xl shadow-2xl flex items-center justify-between z-30 pointer-events-auto">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-[#34d399] animate-pulse"></span>
+<span class="font-headline-md text-sm uppercase text-white font-bold tracking-wider">ACTIVE KIOSK SESSION</span>
+</div>
+<span class="font-label-md text-xs text-[#2a313d]">|</span>
+<span class="font-label-md text-xs text-[#bcc1ca]">Station #2 (Main Weight Room Scale)</span>
+<span class="font-label-md text-xs text-[#2a313d]">|</span>
+<div class="flex items-center gap-1 text-[#b89c5b] font-label-md text-xs font-semibold">
+<span class="material-symbols-outlined text-sm">sync</span>
+<span>Auto-sync enabled</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1 rounded bg-[#0a1120] hover:bg-[#030a14] border border-[#2a313d] text-white font-label-md text-xs uppercase font-medium">
+        Switch Station
+      </button>
+<button class="px-3 py-1 rounded bg-[#0a1120] hover:bg-[#030a14] border border-[#2a313d] text-red-400 font-label-md text-xs uppercase flex items-center gap-1 font-medium">
+<span class="material-symbols-outlined text-sm">lock</span>
+        Lock Floor
+      </button>
+</div>
+</div>
+</div>
+<script>
+  let currentKeypadVal = "203.4";
+  let activeAthleteTarget = null;
+
+  function openKeypad(name, monogram, meta, initialVal) {
+    document.getElementById('modal-name').innerText = name;
+    document.getElementById('modal-monogram').innerText = monogram;
+    document.getElementById('modal-meta').innerText = meta + ' · Baseline: 202.1 lbs';
+    currentKeypadVal = initialVal || "195.0";
+    document.getElementById('keypad-value').innerText = currentKeypadVal;
+    document.getElementById('keypad-modal').classList.remove('hidden');
+  }
+
+  function closeKeypad() {
+    document.getElementById('keypad-modal').classList.add('hidden');
+  }
+
+  function pressKey(num) {
+    if (currentKeypadVal === "0" || currentKeypadVal === "") {
+      currentKeypadVal = num;
+    } else {
+      if (num === '.' && currentKeypadVal.includes('.')) return;
+      if (currentKeypadVal.length < 5) {
+        currentKeypadVal += num;
+      }
+    }
+    document.getElementById('keypad-value').innerText = currentKeypadVal;
+  }
+
+  function backspaceKey() {
+    currentKeypadVal = currentKeypadVal.slice(0, -1);
+    if (currentKeypadVal === "") currentKeypadVal = "0";
+    document.getElementById('keypad-value').innerText = currentKeypadVal;
+  }
+
+  function tareScale() {
+    currentKeypadVal = "0.0";
+    document.getElementById('keypad-value').innerText = currentKeypadVal;
+  }
+
+  function setSleep(btn, val) {
+    document.querySelectorAll('.sleep-btn').forEach(b => {
+      b.className = "sleep-btn py-2 rounded-lg bg-[#061c41] border border-[#2a313d] font-headline-md text-sm text-white hover:bg-[#030a14]";
+    });
+    btn.className = "sleep-btn py-2 rounded-lg bg-[#b89c5b] text-[#030a14] font-headline-md text-sm font-bold border border-[#b89c5b]";
+  }
+
+  function commitEntry() {
+    closeKeypad();
+  }
+
+  // Interactive Mode Pill Selectors
+  document.querySelectorAll('.mode-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => {
+        b.className = "mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[#bcc1ca] hover:text-white font-headline-md text-sm uppercase transition-all";
+      });
+      button.className = "mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold transition-all shadow-sm";
+    });
+  });
+
+  // Sport Filter Highlighting
+  document.querySelectorAll('.sport-filter').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.sport-filter').forEach(t => {
+        t.className = "sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca] whitespace-nowrap";
+      });
+      tab.className = "sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide bg-[#b89c5b] text-[#030a14] font-bold shadow-sm whitespace-nowrap";
+    });
+  });
+
+  // Search filter
+  const searchInput = document.getElementById('athlete-search');
+  const clearBtn = document.getElementById('clear-search');
+  searchInput.addEventListener('input', (e) => {
+    const val = e.target.value.toLowerCase();
+    if (val.length > 0) {
+      clearBtn.classList.remove('hidden');
+    } else {
+      clearBtn.classList.add('hidden');
+    }
+    const cards = document.querySelectorAll('#athletes-grid > div');
+    cards.forEach(card => {
+      const text = card.innerText.toLowerCase();
+      if (text.includes(val)) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  });
+
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    clearBtn.classList.add('hidden');
+    document.querySelectorAll('#athletes-grid > div').forEach(c => c.style.display = 'flex');
+  });
+
+  // Alphabet Scrubber quick jump simulation
+  document.querySelectorAll('.alpha-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.alpha-btn').forEach(b => {
+        b.classList.remove('bg-[#061c41]', 'text-[#b89c5b]', 'font-bold');
+        b.classList.add('text-[#bcc1ca]');
+      });
+      btn.classList.add('bg-[#061c41]', 'text-[#b89c5b]', 'font-bold');
+      btn.classList.remove('text-[#bcc1ca]');
+      
+      const char = btn.innerText;
+      const cards = document.querySelectorAll('#athletes-grid > div');
+      cards.forEach(card => {
+        const name = card.querySelector('.font-headline-md').innerText.toUpperCase();
+        if (name.startsWith(char)) {
+          card.style.display = 'flex';
+          card.classList.add('ring-2', 'ring-[#b89c5b]');
+          setTimeout(() => card.classList.remove('ring-2', 'ring-[#b89c5b]'), 1500);
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
+</script></main></div></body></html>

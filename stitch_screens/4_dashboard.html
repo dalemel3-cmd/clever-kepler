@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Oswald:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      "colors": {
+        "tertiary-fixed-dim": "#7bd0ff",
+        "on-tertiary": "#030a14",
+        "primary": "#b89c5b",
+        "primary-hover": "#d1b87a",
+        "surface-container-highest": "#172338",
+        "background": "#030a14",
+        "outline-variant": "#2a313d",
+        "on-secondary-fixed-variant": "#005236",
+        "on-secondary-fixed": "#002113",
+        "primary-fixed": "#e8d8b5",
+        "surface-dim": "#030a14",
+        "tertiary-container": "#1e3a5f",
+        "on-primary-fixed": "#2a1700",
+        "on-surface-variant": "#bcc1ca",
+        "primary-fixed-dim": "#d1b87a",
+        "secondary": "#34d399",
+        "on-primary": "#030a14",
+        "on-background": "#ffffff",
+        "outline": "#2a313d",
+        "secondary-fixed": "#34d399",
+        "surface-container-lowest": "#030a14",
+        "secondary-container": "rgba(52, 211, 153, 0.15)",
+        "surface-container-low": "#061c41",
+        "surface-variant": "#0e182a",
+        "on-surface": "#ffffff",
+        "on-primary-container": "#030a14",
+        "inverse-on-surface": "#030a14",
+        "on-tertiary-fixed": "#ffffff",
+        "surface": "#030a14",
+        "on-tertiary-fixed-variant": "#b89c5b",
+        "on-secondary-container": "#34d399",
+        "surface-tint": "#b89c5b",
+        "error-container": "rgba(248, 113, 113, 0.12)",
+        "on-tertiary-container": "#ffffff",
+        "on-primary-fixed-variant": "#030a14",
+        "on-secondary": "#030a14",
+        "inverse-surface": "#ffffff",
+        "on-error": "#ffffff",
+        "surface-bright": "#15243d",
+        "tertiary": "#8bb5e8",
+        "surface-container": "#0a1120",
+        "surface-container-high": "#0e182a",
+        "secondary-fixed-dim": "#34d399",
+        "on-error-container": "#f87171",
+        "primary-container": "#b89c5b",
+        "tertiary-fixed": "#b89c5b",
+        "error": "#f87171",
+        "inverse-primary": "#d1b87a",
+        "dim": "#7a8291"
+      },
+      "borderRadius": {
+        "DEFAULT": "0.125rem",
+        "lg": "0.25rem",
+        "xl": "0.5rem",
+        "full": "0.75rem"
+      },
+      "spacing": {
+        "margin-mobile": "1rem",
+        "space-sm": "0.5rem",
+        "gutter-mobile": "0.75rem",
+        "space-md": "1rem",
+        "space-xl": "2rem",
+        "margin": "1.5rem",
+        "gutter": "1.25rem",
+        "space-lg": "1.5rem",
+        "space-xs": "0.25rem"
+      },
+      "fontFamily": {
+        "label-lg": [ "Inter" ],
+        "headline-xl-mobile": [ "Oswald" ],
+        "body-sm": [ "Inter" ],
+        "headline-xl": [ "Oswald" ],
+        "label-sm": [ "Inter" ],
+        "label-md": [ "Inter" ],
+        "body-lg": [ "Inter" ],
+        "headline-lg": [ "Oswald" ],
+        "display": [ "Oswald" ],
+        "body-md": [ "Inter" ],
+        "metric-val": [ "Oswald" ],
+        "headline-md": [ "Oswald" ]
+      },
+      "fontSize": {
+        "label-lg": [ "13px", { "lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "600" } ],
+        "headline-xl-mobile": [ "28px", { "lineHeight": "32px", "letterSpacing": "0.02em", "fontWeight": "700" } ],
+        "body-sm": [ "12px", { "lineHeight": "16px", "fontWeight": "400" } ],
+        "headline-xl": [ "36px", { "lineHeight": "40px", "letterSpacing": "0.02em", "fontWeight": "700" } ],
+        "label-sm": [ "10px", { "lineHeight": "12px", "letterSpacing": "0.08em", "fontWeight": "700" } ],
+        "label-md": [ "11px", { "lineHeight": "14px", "letterSpacing": "0.06em", "fontWeight": "700" } ],
+        "body-lg": [ "16px", { "lineHeight": "24px", "fontWeight": "400" } ],
+        "headline-lg": [ "24px", { "lineHeight": "28px", "letterSpacing": "0.03em", "fontWeight": "600" } ],
+        "display": [ "48px", { "lineHeight": "52px", "letterSpacing": "0.02em", "fontWeight": "700" } ],
+        "body-md": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ],
+        "metric-val": [ "28px", { "lineHeight": "30px", "letterSpacing": "0.01em", "fontWeight": "700" } ],
+        "headline-md": [ "18px", { "lineHeight": "24px", "letterSpacing": "0.04em", "fontWeight": "600" } ]
+      }
+    }
+  }
+};</script></head><body class="bg-background font-body-md text-on-surface antialiased selection:bg-primary selection:text-on-primary"><aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-low border-r border-[#2a313d]/60 z-50 flex flex-col justify-between overflow-y-auto"><div class="flex flex-col"><div class="p-space-lg bg-[#04142f] border-b border-[#2a313d]/50"><div class="flex items-center justify-between"><span class="font-headline-lg text-headline-lg tracking-wider text-on-surface uppercase">HUMAN PERFORMANCE</span><span class="material-symbols-outlined text-primary text-base">lock</span></div><div class="flex items-center justify-between mt-space-xs"><span class="font-label-md text-label-md tracking-widest text-primary uppercase">SHILOH ATHLETICS</span><span class="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30">LIVE</span></div></div><div class="px-space-md pt-space-md"><button class="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-primary hover:bg-primary-hover text-[#030a14] rounded-xl font-headline-md text-headline-md uppercase tracking-wider transition-colors shadow-md"><span class="material-symbols-outlined text-[#030a14] text-lg">bolt</span>ACTIVATE KIOSK MODE</button></div><div class="px-space-md pt-space-lg flex flex-col gap-space-md"><div class="flex flex-col"><span class="px-space-sm pb-space-xs font-label-sm text-label-sm text-dim uppercase tracking-widest">DAILY OPERATIONS</span><nav class="flex flex-col gap-1" data-active-classes="bg-primary text-on-primary font-bold rounded-lg"><a aria-current="page" class="flex items-center justify-between px-space-sm py-space-sm transition-colors bg-primary text-[#030a14] font-bold rounded-lg shadow-sm" data-path="dashboard" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl text-[#030a14]">grid_view</span><span class="font-label-lg text-label-lg">Dashboard</span></div><span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-[#030a14]/25 text-[#030a14] font-bold">Live</span></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="lift-tracker" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">fitness_center</span><span class="font-label-lg text-label-lg">Lift Tracker</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="quick-entry" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">touch_app</span><span class="font-label-lg text-label-lg">Quick Entry / Kiosk</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="alerts" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">notifications</span><span class="font-label-lg text-label-lg">Alerts</span></div><span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-error-container border border-error/30 text-error">5</span></a></nav></div><div class="flex flex-col"><span class="px-space-sm pb-space-xs font-label-sm text-label-sm text-dim uppercase tracking-widest">ROSTER &amp; TEAMS</span><nav class="flex flex-col gap-1" data-active-classes="bg-primary text-on-primary font-bold rounded-lg"><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="athletes" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">group</span><span class="font-label-lg text-label-lg">Athletes</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="sport-groups" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">shield</span><span class="font-label-lg text-label-lg">Sport Groups</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="baseline-studio" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">tune</span><span class="font-label-lg text-label-lg">Baseline Studio</span></div></a></nav></div><div class="flex flex-col"><span class="px-space-sm pb-space-xs font-label-sm text-label-sm text-dim uppercase tracking-widest">INSIGHTS</span><nav class="flex flex-col gap-1" data-active-classes="bg-primary text-on-primary font-bold rounded-lg"><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="analytics" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">bar_chart</span><span class="font-label-lg text-label-lg">Analytics &amp; RPE</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="reports" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">description</span><span class="font-label-lg text-label-lg">Reports</span></div></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="settings" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-xl">settings</span><span class="font-label-lg text-label-lg">Settings</span></div></a></nav></div></div></div><div class="p-space-md bg-[#04142f] border-t border-[#2a313d]/50 mt-space-lg"><div class="flex items-center gap-space-sm"><div class="w-9 h-9 rounded bg-[#0e182a] border border-[#2a313d] flex items-center justify-center font-headline-md text-headline-md text-primary">CM</div><div class="flex flex-col overflow-hidden"><span class="font-label-lg text-label-lg text-on-surface truncate">Coach Mason</span><span class="font-body-sm text-body-sm text-dim truncate">Shiloh Athletics Head Coach</span></div></div><div class="mt-space-sm pt-space-xs flex items-center justify-between font-label-sm text-label-sm text-dim"><span><span class="text-secondary">●</span> Cloud Live v4.36.2</span><span>Thu, Sep 17</span></div></div></aside><div class="pl-64"><header class="fixed top-0 left-64 right-0 h-16 bg-[#030a14]/85 backdrop-blur-xl border-b border-[#2a313d]/60 z-40 flex items-center justify-between px-space-lg"><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant uppercase tracking-wider"><span>Shiloh Athletics</span><span class="material-symbols-outlined text-sm text-dim">chevron_right</span><span class="text-on-surface font-bold">Operations</span></div><div class="flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-secondary-container border border-secondary/30 font-label-sm text-label-sm text-secondary"><span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span><span>SYSTEM READY</span></div></div><div class="flex items-center gap-space-md"><div class="flex items-center bg-surface-container-high border border-[#2a313d] rounded px-space-sm py-1.5 text-on-surface-variant font-label-md text-label-md gap-space-sm"><span class="material-symbols-outlined text-base text-dim">search</span><span class="hidden sm:inline">Athlete search...</span><kbd class="bg-surface-container-highest px-1.5 py-0.5 rounded text-on-surface font-label-sm text-label-sm border border-[#2a313d]">Ctrl+K</kbd></div><div class="flex items-center gap-space-xs"><button class="flex items-center gap-1 px-space-sm py-1.5 rounded bg-primary text-[#030a14] hover:bg-primary-hover font-headline-md text-headline-md uppercase transition-all shadow-sm"><span class="material-symbols-outlined text-base">add</span><span>Log Set</span></button><button class="hidden md:flex items-center gap-1 px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-primary font-headline-md text-headline-md uppercase transition-colors"><span class="material-symbols-outlined text-base">sensors</span><span>Kiosk Mode</span></button></div><img alt="Profile" class="w-8 h-8 rounded-full object-cover border border-[#2a313d]" src="https://lh3.googleusercontent.com/aida/AEtjO1V4icFJHYKREU-vYR1j1pFQu8NOSjkNYXufgMRY4HA87PnyOriAa5h_L4QLCoMn82ew9mLY744D7jHoJlCLim4Id17KFKeM5IcksOaLGmIQFT2oefVv4xc8oEV48n0qeUSt5UgfyvS4TPOqCtIxRoffpKpCjqXA86otTTotiXHuKbVxJ21SQNNzIhUFx0ZC8sej0pS5sBqPjoiRMEpa-thmY0AuRcl-PDGhfsNjNdt0pSGXuy0GaTKx0ItrDx5ofE2WPRYrRzoC"/></div></header><main class="relative pt-16 w-full px-space-lg bg-surface min-h-screen"><div class="flex flex-col w-full pb-space-xl">
+<!-- Top Command Center Bar -->
+<div class="flex flex-col xl:flex-row xl:items-end justify-between gap-space-md py-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-primary">WORKSPACE</span>
+<span class="text-[#2a313d] font-label-sm text-label-sm">/</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface">COMMAND CENTER</span>
+<span class="px-space-xs py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 font-label-sm text-label-sm flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>
+          FLOOR ACTIVE
+        </span>
+</div>
+<h1 class="font-display text-display uppercase tracking-tight text-on-surface flex items-center gap-space-sm">
+        GOOD EVENING, COACH MASON
+      </h1>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-space-xs flex-wrap">
+<span>Thursday, Sep 17</span>
+<span class="text-dim">·</span>
+<span class="text-primary font-semibold">190 rostered athletes</span>
+<span class="text-dim">·</span>
+<span>4 teams in-season</span>
+<span class="text-dim">·</span>
+<span class="text-secondary font-medium">Session #15 underway</span>
+</p>
+</div>
+<!-- Live Performance Metric Badges -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-space-sm">
+<div class="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+<span class="font-label-sm text-label-sm text-dim uppercase tracking-wider">TOTAL ATHLETES</span>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-metric-val text-metric-val text-on-surface">190</span>
+<span class="font-label-sm text-label-sm text-secondary font-bold">+4 new</span>
+</div>
+</div>
+<div class="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+<span class="font-label-sm text-label-sm text-dim uppercase tracking-wider">SESSIONS TODAY</span>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-metric-val text-metric-val text-on-surface">15</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">/ 18 Target</span>
+</div>
+</div>
+<div class="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-dim uppercase tracking-wider">WEIGH-IN SYNC</span>
+<span class="material-symbols-outlined text-sm text-primary">scale</span>
+</div>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-metric-val text-metric-val text-primary">8%</span>
+<span class="font-label-sm text-label-sm text-dim">(15/190)</span>
+</div>
+</div>
+<div class="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-error uppercase tracking-wider font-bold">DEHYDRATION</span>
+<span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
+</div>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-metric-val text-metric-val text-error">5</span>
+<span class="font-label-sm text-label-sm text-error uppercase font-bold">URGENT</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Primary Rapid Action Command Bar -->
+<div class="mt-space-md p-space-md bg-surface-container rounded-xl border border-[#2a313d] shadow-md flex flex-wrap items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-2xl">fitness_center</span>
+</div>
+<div>
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-md text-headline-md uppercase text-on-surface">FACILITY DISPATCH</span>
+<span class="px-1.5 py-0.5 rounded bg-primary text-[#030a14] font-label-sm text-label-sm font-bold">LIVE QUEUE</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">175 athletes awaiting pre/post mass check across 4 active groups.</p>
+</div>
+</div>
+<!-- Actions Set -->
+<div class="flex flex-wrap items-center gap-space-sm">
+<button class="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-primary text-[#030a14] hover:bg-primary-hover transition-all shadow-sm font-headline-md text-headline-md uppercase" id="start-weigh-btn">
+<span class="material-symbols-outlined text-base">bolt</span>
+<span>Start Weigh-Ins (175 remaining)</span>
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-tertiary font-headline-md text-headline-md uppercase transition-colors">
+<span class="material-symbols-outlined text-base">speed</span>
+<span>Session RPE Entry</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-error-container border border-error/30 hover:border-error/60 text-error font-headline-md text-headline-md uppercase transition-colors">
+<span class="material-symbols-outlined text-base">warning</span>
+<span>Bulk Alert Protocol</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface font-headline-md text-headline-md uppercase transition-colors">
+<span class="material-symbols-outlined text-base">post_add</span>
+<span>+ Manual Post-Practice Log</span>
+</button>
+</div>
+</div>
+<!-- URGENT NEEDS ATTENTION (ALERT ROSTER SECTION) -->
+<div class="mt-space-lg flex flex-col gap-space-sm">
+<div class="flex items-center justify-between flex-wrap gap-space-xs">
+<div class="flex items-center gap-space-sm">
+<div class="flex items-center gap-1.5 px-space-sm py-1 rounded bg-error-container border border-error/30 text-error font-label-md text-label-md uppercase">
+<span class="material-symbols-outlined text-sm">notification_important</span>
+<span>URGENT NEEDS ATTENTION (5 ATHLETES)</span>
+</div>
+<span class="font-body-sm text-body-sm text-dim hidden sm:inline">Exceeding standard variance threshold (&gt;1.0% mass lost)</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high border border-[#2a313d] font-label-md text-label-md uppercase text-primary transition-colors flex items-center gap-1" id="bulk-notify-btn">
+<span class="material-symbols-outlined text-sm">send</span>
+<span>Take Bulk ATC Action</span>
+</button>
+<button class="px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high border border-[#2a313d] font-label-md text-label-md uppercase text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">download</span>
+<span>Export Medical Log</span>
+</button>
+</div>
+</div>
+<!-- Alert Athletes List -->
+<div class="grid grid-cols-1 gap-space-xs">
+<!-- Athlete 1: Severe -->
+<div class="p-space-md rounded-xl bg-surface-container hover:bg-surface-container-high border border-[#2a313d] transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-space-md shadow-sm">
+<div class="flex items-start sm:items-center gap-space-md">
+<div class="w-12 h-12 rounded-lg bg-surface-container-high border border-[#2a313d] text-primary flex items-center justify-center font-headline-lg text-headline-lg shrink-0">
+            MM
+          </div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-md text-headline-md uppercase text-on-surface tracking-wide">MICKEY MCINTYRE</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high border border-[#2a313d] font-label-sm text-label-sm text-on-surface-variant uppercase">Football · OT #74</span>
+<span class="px-1.5 py-0.5 rounded bg-error-container border border-error/30 text-error font-label-sm text-label-sm uppercase font-bold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-error animate-pulse"></span>
+                DEHYDRATION RISK (-2.8%)
+              </span>
+</div>
+<div class="flex items-center gap-space-md mt-1 font-body-sm text-body-sm text-on-surface-variant">
+<span>Current: <strong class="text-error font-mono">267.0 lbs</strong></span>
+<span>Baseline: <span class="font-mono text-on-surface">274.7 lbs</span></span>
+<span class="text-error font-bold font-mono">-7.7 lbs drop</span>
+<span class="text-dim">·</span>
+<span class="font-label-sm text-label-sm text-dim">Aug 3 Baseline</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-space-xs flex-wrap self-end lg:self-center">
+<button class="px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface font-label-md text-label-md uppercase transition-colors" onclick="handleAction(this, 'Flagged Re-weigh')">
+            Flag for Re-weigh
+          </button>
+<button class="px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-primary font-label-md text-label-md uppercase transition-colors" onclick="handleAction(this, 'ATC Dispatched')">
+            Notify ATC
+          </button>
+<button class="px-space-sm py-1.5 rounded bg-primary text-[#030a14] hover:bg-primary-hover font-label-md text-label-md uppercase transition-colors font-semibold" onclick="handleAction(this, 'Protocol Active')">
+            Hydration Protocol Logged
+          </button>
+</div>
+</div>
+<!-- Athlete 2: Critical -->
+<div class="p-space-md rounded-xl bg-surface-container hover:bg-surface-container-high border border-error/40 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-space-md shadow-sm">
+<div class="flex items-start sm:items-center gap-space-md">
+<div class="w-12 h-12 rounded-lg bg-surface-container-high border border-[#2a313d] text-primary flex items-center justify-center font-headline-lg text-headline-lg shrink-0">
+            TB
+          </div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-md text-headline-md uppercase text-on-surface tracking-wide">TRENT BUTLER</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high border border-[#2a313d] font-label-sm text-label-sm text-on-surface-variant uppercase">Football · WR #11</span>
+<span class="px-1.5 py-0.5 rounded bg-error text-[#030a14] font-label-sm text-label-sm uppercase font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">crisis_alert</span>
+                HIGH CRITICAL DEHYDRATION (-3.5%)
+              </span>
+</div>
+<div class="flex items-center gap-space-md mt-1 font-body-sm text-body-sm text-on-surface-variant">
+<span>Current: <strong class="text-error font-mono">156.1 lbs</strong></span>
+<span>Baseline: <span class="font-mono text-on-surface">161.7 lbs</span></span>
+<span class="text-error font-bold font-mono">-5.6 lbs drop</span>
+<span class="text-dim">·</span>
+<span class="font-label-sm text-label-sm text-error">Immediate Action Mandatory</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-space-xs flex-wrap self-end lg:self-center">
+<button class="px-space-sm py-1.5 rounded bg-error-container border border-error/50 text-error font-label-md text-label-md uppercase font-bold hover:brightness-110 transition-all" onclick="handleAction(this, 'Athlete Held')">
+            Held from Contact
+          </button>
+<button class="px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-primary font-label-md text-label-md uppercase transition-colors" onclick="handleAction(this, 'ATC Alerted')">
+            Notify ATC Team
+          </button>
+</div>
+</div>
+<!-- Athlete 3: Significant Risk -->
+<div class="p-space-md rounded-xl bg-surface-container hover:bg-surface-container-high border border-[#2a313d] transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-space-md shadow-sm">
+<div class="flex items-start sm:items-center gap-space-md">
+<div class="w-12 h-12 rounded-lg bg-surface-container-high border border-[#2a313d] text-primary flex items-center justify-center font-headline-lg text-headline-lg shrink-0">
+            JB
+          </div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-md text-headline-md uppercase text-on-surface tracking-wide">JAKE BODENSTEIN</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high border border-[#2a313d] font-label-sm text-label-sm text-on-surface-variant uppercase">Football · LB #52</span>
+<span class="px-1.5 py-0.5 rounded bg-error-container border border-error/30 text-error font-label-sm text-label-sm uppercase font-bold">
+                DEHYDRATION RISK (-2.2%)
+              </span>
+</div>
+<div class="flex items-center gap-space-md mt-1 font-body-sm text-body-sm text-on-surface-variant">
+<span>Current: <strong class="text-error font-mono">221.7 lbs</strong></span>
+<span>Baseline: <span class="font-mono text-on-surface">226.6 lbs</span></span>
+<span class="text-error font-bold font-mono">-4.9 lbs drop</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-space-xs flex-wrap self-end lg:self-center">
+<button class="px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-tertiary font-label-md text-label-md uppercase transition-colors" onclick="handleAction(this, 'Checked In')">
+            Hydration Check
+          </button>
+<button class="px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface font-label-md text-label-md uppercase transition-colors" onclick="handleAction(this, 'Re-weigh Set')">
+            Queue Post-Practice
+          </button>
+</div>
+</div>
+<!-- Athlete 4: Moderate Fluctuations -->
+<div class="p-space-md rounded-xl bg-surface-container hover:bg-surface-container-high border border-[#2a313d] transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-space-md shadow-sm">
+<div class="flex items-start sm:items-center gap-space-md">
+<div class="w-12 h-12 rounded-lg bg-surface-container-high border border-[#2a313d] text-on-surface-variant flex items-center justify-center font-headline-lg text-headline-lg shrink-0">
+            DS
+          </div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-md text-headline-md uppercase text-on-surface tracking-wide">DRAKE SCHMIDT</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high border border-[#2a313d] font-label-sm text-label-sm text-on-surface-variant uppercase">Football · DE #90</span>
+<span class="px-1.5 py-0.5 rounded bg-primary/15 border border-primary/30 text-primary font-label-sm text-label-sm uppercase">
+                MILD FLUCTUATION (-1.2%)
+              </span>
+</div>
+<div class="flex items-center gap-space-md mt-1 font-body-sm text-body-sm text-on-surface-variant">
+<span>Current: <span class="font-mono text-on-surface">255.8 lbs</span></span>
+<span>Baseline: <span class="font-mono text-on-surface">258.8 lbs</span></span>
+<span class="text-primary font-mono font-semibold">-3.0 lbs drop</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-space-xs flex-wrap self-end lg:self-center">
+<button class="px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface-variant hover:text-on-surface font-label-md text-label-md uppercase transition-colors" onclick="clearRow(this)">
+            Clear Alert
+          </button>
+</div>
+</div>
+<!-- Athlete 5: Mild Fluctuations -->
+<div class="p-space-md rounded-xl bg-surface-container hover:bg-surface-container-high border border-[#2a313d] transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-space-md shadow-sm">
+<div class="flex items-start sm:items-center gap-space-md">
+<div class="w-12 h-12 rounded-lg bg-surface-container-high border border-[#2a313d] text-on-surface-variant flex items-center justify-center font-headline-lg text-headline-lg shrink-0">
+            BE
+          </div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="font-headline-md text-headline-md uppercase text-on-surface tracking-wide">BENSON EILAND</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high border border-[#2a313d] font-label-sm text-label-sm text-on-surface-variant uppercase">Football · TE #88</span>
+<span class="px-1.5 py-0.5 rounded bg-primary/15 border border-primary/30 text-primary font-label-sm text-label-sm uppercase">
+                MILD FLUCTUATION (-1.1%)
+              </span>
+</div>
+<div class="flex items-center gap-space-md mt-1 font-body-sm text-body-sm text-on-surface-variant">
+<span>Current: <span class="font-mono text-on-surface">245.3 lbs</span></span>
+<span>Baseline: <span class="font-mono text-on-surface">248.0 lbs</span></span>
+<span class="text-primary font-mono font-semibold">-2.7 lbs drop</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-space-xs flex-wrap self-end lg:self-center">
+<button class="px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface-variant hover:text-on-surface font-label-md text-label-md uppercase transition-colors" onclick="clearRow(this)">
+            Clear Alert
+          </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Split 2-Column Analytical Insights Grid -->
+<div class="mt-space-lg grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
+<!-- Left Column: Load & Readiness -->
+<div class="lg:col-span-6 flex flex-col gap-space-md">
+<div class="p-space-md rounded-xl bg-surface-container border border-[#2a313d] shadow-sm flex flex-col justify-between h-full">
+<div>
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-base">monitoring</span>
+<span class="font-headline-md text-headline-md uppercase text-on-surface">TODAY'S INTERNAL TRAINING LOAD &amp; READINESS</span>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 uppercase font-bold">4 TEAMS ACTIVE</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Aggregated Rated Perceived Exertion (sRPE) &amp; biometric exertion telemetry across training zones.</p>
+<!-- RPE Distribution Visualization -->
+<div class="mt-space-md grid grid-cols-2 gap-space-sm">
+<div class="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d]">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">FOOTBALL (VARSITY)</span>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-error-container border border-error/30 text-error font-bold">RPE 8.9</span>
+</div>
+<div class="mt-2 flex items-end gap-1 h-14">
+<div class="w-full bg-[#172338] rounded-sm h-6"></div>
+<div class="w-full bg-[#172338] rounded-sm h-8"></div>
+<div class="w-full bg-[#b89c5b] rounded-sm h-11"></div>
+<div class="w-full bg-[#f87171] rounded-sm h-14"></div>
+</div>
+<span class="mt-1 block font-body-sm text-body-sm text-dim text-right">Heavy Load · 48 Athletes</span>
+</div>
+<div class="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d]">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">MEN'S BASKETBALL</span>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-primary/20 border border-primary/30 text-primary font-bold">RPE 7.4</span>
+</div>
+<div class="mt-2 flex items-end gap-1 h-14">
+<div class="w-full bg-[#172338] rounded-sm h-7"></div>
+<div class="w-full bg-[#b89c5b] rounded-sm h-10"></div>
+<div class="w-full bg-[#d1b87a] rounded-sm h-12"></div>
+<div class="w-full bg-[#172338] rounded-sm h-8"></div>
+</div>
+<span class="mt-1 block font-body-sm text-body-sm text-dim text-right">Moderate/High · 18 Athletes</span>
+</div>
+<div class="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d]">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">BASEBALL</span>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-secondary-container border border-secondary/30 text-secondary font-bold">RPE 4.2</span>
+</div>
+<div class="mt-2 flex items-end gap-1 h-14">
+<div class="w-full bg-[#34d399] rounded-sm h-8"></div>
+<div class="w-full bg-[#172338] rounded-sm h-4"></div>
+<div class="w-full bg-[#172338] rounded-sm h-3"></div>
+<div class="w-full bg-[#172338] rounded-sm h-2"></div>
+</div>
+<span class="mt-1 block font-body-sm text-body-sm text-dim text-right">Recovery Protocol · 33 Athletes</span>
+</div>
+<div class="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d]">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">TRACK &amp; FIELD</span>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-primary/20 border border-primary/30 text-primary font-bold">RPE 7.8</span>
+</div>
+<div class="mt-2 flex items-end gap-1 h-14">
+<div class="w-full bg-[#172338] rounded-sm h-5"></div>
+<div class="w-full bg-[#172338] rounded-sm h-9"></div>
+<div class="w-full bg-[#b89c5b] rounded-sm h-13"></div>
+<div class="w-full bg-[#172338] rounded-sm h-7"></div>
+</div>
+<span class="mt-1 block font-body-sm text-body-sm text-dim text-right">Speed-Power · 38 Athletes</span>
+</div>
+</div>
+</div>
+<!-- Live Rack Status Ribbon -->
+<div class="mt-space-md p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d] flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+<span class="font-label-sm text-label-sm uppercase font-bold text-on-surface">Floor Active:</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Football Rack Block 2 concluding in 12 min</span>
+</div>
+<button class="font-label-sm text-label-sm uppercase text-primary hover:text-primary-hover hover:underline">View Racks</button>
+</div>
+</div>
+</div>
+<!-- Right Column: Weigh-ins Remaining by Sport -->
+<div class="lg:col-span-6 flex flex-col gap-space-md">
+<div class="p-space-md rounded-xl bg-surface-container border border-[#2a313d] shadow-sm flex flex-col justify-between h-full">
+<div>
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-base">fact_check</span>
+<span class="font-headline-md text-headline-md uppercase text-on-surface">WEIGH-INS REMAINING BY SPORT</span>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-bold">15 OF 190 LOGGED</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Mandatory hydration &amp; baseline tracking accountability per athletic department directive.</p>
+<!-- Sport Group Bars -->
+<div class="mt-space-md flex flex-col gap-space-md">
+<!-- Football -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-on-surface font-label-md text-label-md">
+<span class="uppercase">Football (Varsity)</span>
+<span class="font-mono text-primary font-semibold">12 of 51 logged (24%)</span>
+</div>
+<div class="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
+<div class="bg-primary h-3 rounded-full" style="width: 24%"></div>
+</div>
+</div>
+<!-- Baseball -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-on-surface font-label-md text-label-md">
+<span class="uppercase">Baseball</span>
+<span class="font-mono text-secondary font-semibold">3 of 33 logged (9%)</span>
+</div>
+<div class="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
+<div class="bg-secondary h-3 rounded-full" style="width: 9%"></div>
+</div>
+</div>
+<!-- Men's Basketball -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-on-surface font-label-md text-label-md">
+<span class="uppercase">Men's Basketball</span>
+<span class="font-mono text-dim">0 of 20 logged (0%)</span>
+</div>
+<div class="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
+<div class="bg-[#172338] h-3 rounded-full" style="width: 0%"></div>
+</div>
+</div>
+<!-- Track & Field -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-on-surface font-label-md text-label-md">
+<span class="uppercase">Track &amp; Field</span>
+<span class="font-mono text-dim">0 of 40 logged (0%)</span>
+</div>
+<div class="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
+<div class="bg-[#172338] h-3 rounded-full" style="width: 0%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Dispatch Trigger -->
+<div class="mt-space-lg pt-space-sm flex items-center justify-between gap-space-sm">
+<button class="w-full py-space-sm px-space-md rounded-lg bg-[#0e182a] hover:bg-[#172338] border border-[#2a313d] text-primary hover:text-primary-hover font-headline-md text-headline-md uppercase transition-colors flex items-center justify-center gap-space-xs" id="send-sms-btn">
+<span class="material-symbols-outlined text-base">notifications_active</span>
+<span>Send Team Check-in Reminder via SMS/App</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Facility Live Kiosk Snapshot Banner -->
+<div class="mt-space-lg p-space-md rounded-xl bg-surface-container border border-[#2a313d] shadow-sm flex flex-col md:flex-row items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-lg bg-[#0e182a] border border-[#2a313d] flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-2xl">sensors</span>
+</div>
+<div>
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-md text-headline-md uppercase text-on-surface">SHILOH PERFORMANCE LAB KIOSK ONLINE</span>
+<span class="px-1.5 py-0.5 rounded bg-secondary-container border border-secondary/30 text-secondary font-label-sm text-label-sm font-bold">RACK PODS 1-12</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Athletes can self-authenticate at smart scales or rack tablets using Student IDs or NFC tags.</p>
+</div>
+</div>
+<div class="flex items-center gap-space-sm w-full md:w-auto justify-end">
+<button class="px-space-md py-space-sm rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface font-headline-md text-headline-md uppercase transition-colors">
+        Calibrate Scales
+      </button>
+<button class="px-space-md py-space-sm rounded-lg bg-primary text-[#030a14] font-headline-md text-headline-md uppercase hover:bg-primary-hover transition-colors flex items-center gap-1 shadow-sm font-bold">
+<span class="material-symbols-outlined text-sm">open_in_new</span>
+<span>Open Kiosk Fullscreen</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  function handleAction(btn, text) {
+    btn.textContent = text;
+    btn.classList.remove('bg-surface-container-high', 'bg-primary', 'border-[#2a313d]');
+    btn.classList.add('bg-secondary-container', 'text-secondary', 'border', 'border-secondary/40');
+  }
+
+  function clearRow(btn) {
+    const card = btn.closest('.p-space-md');
+    if (card) {
+      card.style.opacity = '0.35';
+      btn.textContent = 'Cleared';
+      btn.disabled = true;
+    }
+  }
+
+  document.getElementById('send-sms-btn')?.addEventListener('click', function() {
+    this.innerHTML = '<span class="material-symbols-outlined text-base text-secondary">done_all</span><span class="text-secondary">Broadcast Reminders Dispatched (175 Athletes)</span>';
+  });
+
+  document.getElementById('bulk-notify-btn')?.addEventListener('click', function() {
+    this.innerHTML = '<span class="material-symbols-outlined text-base text-secondary">check_circle</span><span class="text-secondary">ATC Alert Sent</span>';
+  });
+
+  document.getElementById('start-weigh-btn')?.addEventListener('click', function() {
+    alert('Directing coach terminal to real-time biometric scale input...');
+  });
+</script></main></div></body></html>

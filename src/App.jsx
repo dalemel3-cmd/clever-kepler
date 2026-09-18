@@ -2,6 +2,8 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database, Target, BarChart3, Dumbbell } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import './styles.css';
+import { AppSidebar } from './components/AppSidebar';
+import { AppHeader } from './components/AppHeader';
 import { Confetti } from './components/Confetti';
 import { KioskNumpad } from './components/KioskNumpad';
 const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
@@ -3007,137 +3009,22 @@ export default function App() {
         </div>
       )}
       
-      {/* Sidebar (Desktop Only - Hidden in Kiosk Mode) */}
-      {!isKioskMode && (
-        <div className="sidebar">
-          <div style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <img 
-              src="/logo1.png" 
-              alt={`${settings.organizationName} logo`} 
-              style={{ width: '100%', objectFit: 'contain', cursor: 'pointer' }} 
-              onClick={() => { setScreen('dashboard'); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
-            />
-          </div>
-          <div style={{ padding: '0 24px 16px', fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>WORKSPACE</div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {renderSidebarItem('dashboard', <Users size={18} />, 'DASHBOARD')}
-            {renderSidebarItem('entry', <Plus size={18} />, 'LOG ENTRY')}
-            {renderSidebarItem('groups', <Shield size={18} />, 'TEAMS & ROSTERS')}
-            {renderSidebarItem('athletes', <User size={18} />, 'ATHLETES')}
-            {settings.enableLiftTracker && renderSidebarItem('lifts', <Dumbbell size={18} />, 'LIFT TRACKER')}
-            {renderSidebarItem('alerts', <AlertTriangle size={18} />, 'ALERTS' + (unresolvedDailyAlertsCount > 0 ? ` (${unresolvedDailyAlertsCount})` : ''))}
-            {renderSidebarItem('analytics', <BarChart3 size={18} />, 'ANALYTICS')}
-            {renderSidebarItem('reports', <FileText size={18} />, 'REPORTS')}
-            {renderSidebarItem('settings', <Settings size={18} />, 'SETTINGS')}
-          </div>
-          <div style={{ marginTop: 'auto', padding: '24px', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 700 }}>{coachInitials}</div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700 }}>{(settings.coachName || '').toUpperCase()}</span>
-                <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{settings.organizationName}</span>
-              </div>
-            </div>
-            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
-          </div>
-        </div>
-      )}
 
-      {/* Main Content */}
-      <div className="main-content">
-        
-        {/* Top Header */}
-        <div style={{ flex: 'none', minHeight: '70px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 20px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', paddingTop: 'calc(8px + env(safe-area-inset-top, 0px))', flexWrap: 'wrap', gap: '10px' }}>
-          {isKioskMode ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.08em' }}>KIOSK MODE</span>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 8px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
-                {unsyncedQueueCount > 0 ? (
-                  <span
-                    onClick={() => syncOfflineCache(true)}
-                    style={{ fontSize: '11px', background: 'rgba(234, 179, 8, 0.25)', color: '#fbbf24', padding: '4px 12px', borderRadius: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fbbf24', cursor: 'pointer', boxShadow: '0 0 10px rgba(234, 179, 8, 0.4)' }}
-                    title="Tap to force sync queued logs immediately"
-                  >
-                    <RefreshCw size={12} style={{ animation: 'spin 2s linear infinite' }} />
-                    ⏳ {unsyncedQueueCount} UNSYNCED {unsyncedQueueCount === 1 ? 'LOG' : 'LOGS'} &middot; TAP TO SYNC
-                  </span>
-                ) : (
-                  <span
-                    onClick={handleManualCloudRefresh}
-                    title="Click or drag screen down to instantly synchronize cloud records"
-                    style={{ fontSize: '11px', background: cloudStatus === 'live' ? 'rgba(34, 197, 94, 0.15)' : cloudStatus === 'offline' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(234, 179, 8, 0.15)', color: cloudStatus === 'live' ? 'var(--status-success)' : cloudStatus === 'offline' ? '#ef4444' : '#fbbf24', padding: '4px 12px', borderRadius: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', border: `1px solid ${cloudStatus === 'live' ? 'rgba(34, 197, 94, 0.4)' : cloudStatus === 'offline' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(234, 179, 8, 0.4)'}`, cursor: 'pointer', boxShadow: cloudStatus === 'live' ? '0 0 10px rgba(34, 197, 94, 0.15)' : 'none' }}
-                  >
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: cloudStatus === 'live' ? '#4ade80' : cloudStatus === 'offline' ? '#ef4444' : '#fbbf24', boxShadow: cloudStatus === 'live' ? '0 0 8px #4ade80' : 'none', animation: isRefreshing ? 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none' }} />
-                    {isRefreshing ? 'REFRESHING...' : (cloudStatus === 'live' ? '☁️ CLOUD SYNCED & LIVE' : cloudStatus === 'offline' ? 'OFFLINE SYNC QUEUE' : '⟳ RECONNECTING TO CLOUD...')}
-                  </span>
-                )}
-              </div>
-              <button 
-                onClick={() => setIsKioskMode(false)}
-                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Unlock size={14} /> EXIT KIOSK
-              </button>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {/* A separate "LOG ENTRY" button used to sit here, but it just navigated
-                    to the same #entry screen the sidebar's own LOG ENTRY nav item already
-                    reaches - a redundant third way (with EXIT KIOSK below) to get to a
-                    place already one click away. */}
-                <button
-                  onClick={() => { setIsKioskMode(true); setScreen('entry'); }}
-                  className="btn-primary no-print"
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '12px' }}
-                >
-                  <Lock size={14} /> <span className="kiosk-btn-text">ACTIVATE KIOSK MODE</span>
-                </button>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                {unsyncedQueueCount > 0 ? (
-                  <span
-                    onClick={() => syncOfflineCache(true)}
-                    className="no-print"
-                    style={{ fontSize: '11px', background: 'rgba(234, 179, 8, 0.25)', color: '#fbbf24', padding: '5px 14px', borderRadius: '20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #fbbf24', cursor: 'pointer', boxShadow: '0 0 12px rgba(234, 179, 8, 0.4)' }}
-                    title="Tap to force sync queued logs immediately"
-                  >
-                    <RefreshCw size={12} style={{ animation: 'spin 2s linear infinite' }} />
-                    ⏳ {unsyncedQueueCount} UNSYNCED {unsyncedQueueCount === 1 ? 'LOG' : 'LOGS'} &middot; TAP TO SYNC
-                  </span>
-                ) : (
-                  <span
-                    onClick={handleManualCloudRefresh}
-                    title="Click or pull down screen to instantly synchronize cloud records"
-                    className="no-print"
-                    style={{ fontSize: '11px', background: cloudStatus === 'live' ? 'rgba(34, 197, 94, 0.12)' : cloudStatus === 'offline' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(234, 179, 8, 0.12)', color: cloudStatus === 'live' ? '#4ade80' : cloudStatus === 'offline' ? '#ef4444' : '#fbbf24', padding: '5px 14px', borderRadius: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', border: `1px solid ${cloudStatus === 'live' ? 'rgba(34, 197, 94, 0.35)' : cloudStatus === 'offline' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(234, 179, 8, 0.35)'}`, cursor: 'pointer', boxShadow: cloudStatus === 'live' ? '0 0 12px rgba(34, 197, 94, 0.15)' : 'none' }}
-                  >
-                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: cloudStatus === 'live' ? '#4ade80' : cloudStatus === 'offline' ? '#ef4444' : '#fbbf24', boxShadow: cloudStatus === 'live' ? '0 0 8px #4ade80' : 'none', animation: isRefreshing ? 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none' }} />
-                    {isRefreshing ? 'REFRESHING...' : (cloudStatus === 'live' ? 'CLOUD LIVE' : cloudStatus === 'offline' ? 'OFFLINE QUEUE' : 'RECONNECTING...')}
-                    <span style={{ color: 'rgba(255,255,255,0.3)', margin: '0 2px' }}>|</span>
-                    <span style={{ color: 'var(--color-accent)' }}>{APP_VERSION}</span>
-                  </span>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} className="hide-mobile">
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+      {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => []} />}
+      
+      <div className={isKioskMode ? "w-full" : "pl-64"}>
+        <AppHeader 
+          isKioskMode={isKioskMode} 
+          setIsKioskMode={setIsKioskMode} 
+          setScreen={setScreen}
+          isOnline={isOnline}
+          isRefreshing={isRefreshing}
+          unsyncedQueueCount={unsyncedQueueCount}
+          syncOfflineCache={syncOfflineCache}
+          handleManualCloudRefresh={handleManualCloudRefresh}
+        />
+        <main className="relative pt-16 w-full px-space-lg bg-surface min-h-screen" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
 
-        {/* Scroll Area */}
-        <div 
-          ref={scrollAreaRef}
-          className="scroll-area"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          style={{ position: 'relative' }}
-        >
           {(pullProgress > 10 || isRefreshing || showRefreshCelebration) && (
             <div style={{ position: 'sticky', top: 0, left: '50%', transform: 'translateX(0)', zIndex: 10000, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: '8px', paddingTop: '4px' }}>
               <div className="card-glass" style={{ background: 'rgba(13, 27, 46, 0.96)', border: showRefreshCelebration ? '1px solid #4ade80' : '1px solid var(--color-accent)', color: '#fff', padding: '8px 22px', borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', transition: 'all 0.2s ease', transform: `translateY(${pullProgress > 0 ? Math.min(18, pullProgress / 5) : 8}px)` }}>
@@ -3465,7 +3352,7 @@ export default function App() {
             </Suspense>
 
           </div>
-        </div>
+        </main>
 
       </div>
 
