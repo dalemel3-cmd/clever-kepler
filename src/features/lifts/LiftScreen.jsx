@@ -22,8 +22,8 @@ export function bestLiftFor(logs, athleteId, liftType) {
 }
 
 const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
-const colorFor = (name) => avatarColors[name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length];
-const initialsOf = (name) => name.split(' ').map(n => n[0]).join('').toUpperCase();
+const colorFor = (name) => avatarColors[(name || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length];
+const initialsOf = (name) => (name || '?').trim().split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?';
 const shortDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 // Same escape/download convention ReportsScreen.jsx uses for its exports.

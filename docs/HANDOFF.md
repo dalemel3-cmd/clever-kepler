@@ -1611,7 +1611,26 @@ regression suite (`lift-csv-export.js`, `lift-edit.js`,
 
 ---
 
-## 42. Next up
+## 42. Fixed: leaderboard crash from a missing athlete name (v4.36.4)
+
+The v4.36.3 leaderboard restyle (§41) added `<Avatar name={row.athlete_name} />` to
+each row, where `athlete_name` comes from `lift_logs` - a denormalized column, not
+guaranteed non-empty the way `athletes.name` is. `colorFor`/`initialsOf` called
+`.split()` directly on whatever they were given with no guard, so any row with a
+null or blank `athlete_name` threw and crashed the leaderboard's render - reported
+by the coach as "the app crashed" right after the v4.36.3 deploy. None of the local
+Playwright fixtures happened to exercise a blank name, so the regression suite
+passed at the time and this only surfaced against real production data.
+
+Fixed both helpers to fall back to `''`/`'?'` instead of dereferencing a possibly-
+missing name. Full lift-tracker regression suite (82 checks) re-run and passes.
+Checked Vercel's runtime error log for the affected window - nothing recorded,
+confirming this was a client-side render crash (a white screen), not a server
+error, which is why it didn't show up there.
+
+---
+
+## 43. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

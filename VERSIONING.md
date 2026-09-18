@@ -55,6 +55,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `4.36.4` | Fixed a crash: the v4.36.3 leaderboard restyle added an athlete avatar built from `lift_logs.athlete_name`, and `colorFor`/`initialsOf` called `.split()` on it with no null/blank guard - a row with a missing name crashed the whole render. Both helpers now fall back safely |
 | `4.36.3` | Lift Tracker visual polish: leaderboard rows restyled with a numbered rank badge, avatar, and right-aligned Est. 1RM; weight/reps inputs in the Log Set modal gained +/- steppers. Styling only - no data model or behavior changes |
 | `4.36.2` | Removed the header's standalone "LOG ENTRY" button next to "ACTIVATE KIOSK MODE" - it just navigated to the same screen the sidebar's own LOG ENTRY nav item already reaches, a redundant third path (with EXIT KIOSK) to the same place |
 | `4.36.1` | Fixed Settings' "Sports Offered" field so a coach can actually type a comma to add a new sport - it was never migrated to the shared ListField fix (v4.31.0) that solved the identical bug for Lift Types/Session Labels, so the input still derived its value straight from the parsed array on every keystroke and stripped the comma before a second sport could be typed |
