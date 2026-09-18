@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X, Dumbbell, Award, Plus, Minus, ChevronLeft, Pencil, Trash2, Check, Download } from 'lucide-react';
+import { ChevronLeft, X, Minus, Plus, Pencil, Trash2, Check } from 'lucide-react';
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 // Estimated 1-rep max (Epley formula). Weight and reps are always stored as the raw
@@ -21,8 +21,6 @@ export function bestLiftFor(logs, athleteId, liftType) {
   return best ? { ...best, estimated1RM: Math.round(bestEst) } : null;
 }
 
-const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
-const colorFor = (name) => avatarColors[(name || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length];
 const initialsOf = (name) => (name || '?').trim().split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?';
 const shortDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
@@ -41,13 +39,6 @@ const downloadCSV = (filename, headers, rows) => {
   URL.revokeObjectURL(url);
 };
 
-function Avatar({ name, size = 42 }) {
-  return (
-    <div style={{ width: `${size}px`, height: `${size}px`, borderRadius: '12px', background: colorFor(name), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: `${Math.round(size * 0.36)}px`, flexShrink: 0 }}>
-      {initialsOf(name)}
-    </div>
-  );
-}
 
 export default function LiftScreen({
   settings,
@@ -146,7 +137,7 @@ export default function LiftScreen({
       const athlete = athletes.find(a => a.id === l.athlete_id);
       if (!athlete) continue;
       out.push({ athlete, lastLift: l.lift_type, lastLog: l });
-      if (out.length >= 8) break;
+      if (out.length >= 6) break; // Limit to 6 for grid layout 3x2
     }
     return out;
   }, [todaysLogs, athletes]);
@@ -328,152 +319,105 @@ export default function LiftScreen({
     setScreen('profiles');
   };
 
-  const tabBtn = (key, label, icon) => (
-    <button
-      type="button"
-      onClick={() => setView(key)}
-      style={{
-        padding: '10px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: 800,
-        textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer',
-        border: view === key ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.12)',
-        background: view === key ? 'rgba(184, 156, 91, 0.15)' : 'transparent',
-        color: view === key ? 'var(--color-accent)' : 'var(--color-text-muted)',
-        display: 'flex', alignItems: 'center', gap: '8px',
-      }}
-    >
-      {icon} {label}
-    </button>
-  );
-
   return (
-    <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
-        <div>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>WORKSPACE &middot; LIFT TRACKER</div>
-          <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Dumbbell size={26} /> LIFT TRACKER
-          </h1>
-          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-            Recent athletes and today's session surface first. The full roster is one search away, sorted by session frequency instead of A&ndash;Z.
-          </div>
+    <div className="flex flex-col w-full pb-space-xl">
+      {/* Top Breadcrumb & Control Anchor */}
+      <div className="flex flex-wrap items-center justify-between gap-space-sm pt-space-md pb-space-sm">
+        <div className="flex items-center gap-space-xs font-label-md text-label-md tracking-widest text-outline uppercase">
+          <span>WORKSPACE</span>
+          <span className="material-symbols-outlined text-xs">chevron_right</span>
+          <span className="text-primary font-bold">LIFT TRACKER &amp; WEIGHT ROOM FLOOR</span>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {tabBtn('log', 'Log a Lift', <Dumbbell size={15} />)}
-          {tabBtn('leaderboard', 'Leaderboard', <Award size={15} />)}
-          {/* Icon-only, no label, and set apart from the tabs above by a divider -
-              a coach reaching for this knows what it does; an athlete tapping through
-              the kiosk has no reason to read a bare icon as part of logging a lift. */}
-          <div style={{ width: '1px', height: '24px', background: 'var(--color-border)', margin: '0 2px' }} />
+        <div className="flex items-center gap-space-sm font-label-sm text-label-sm text-on-surface-variant">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-high text-secondary">
+            <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>
+            WEIGHT ROOM TELEMETRY: LIVE
+          </span>
+          <span className="hidden sm:inline text-outline-variant">|</span>
+          <span className="hidden sm:inline">RACKS 1-14 ENGAGED</span>
+        </div>
+      </div>
+
+      {/* Hero Header & Action Toolbar */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-md py-space-sm">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-space-sm">
+            <div className="w-10 h-10 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary">
+              <span className="material-symbols-outlined text-2xl">fitness_center</span>
+            </div>
+            <h1 className="font-headline-xl text-headline-xl tracking-tight text-on-surface uppercase">
+              LIFT TRACKER &amp; WEIGHT ROOM FLOOR
+            </h1>
+          </div>
+          <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
+            Live athlete tracking, rack station load telemetrics, and rapid-fire set verification. Sorted dynamically by session engagement and velocity drops.
+          </p>
+        </div>
+
+        {/* Action Toolbar & Segmented View */}
+        <div className="flex flex-wrap items-center gap-space-xs">
           <button
-            type="button"
-            onClick={handleExportCSV}
-            title="Export all lift logs to CSV"
-            aria-label="Export all lift logs to CSV"
-            style={{
-              width: '38px', height: '38px', borderRadius: '10px', cursor: 'pointer',
-              border: '1px solid rgba(255,255,255,0.12)', background: 'transparent',
-              color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
+            onClick={() => setView('log')}
+            className={`flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase transition-all shadow-md active:scale-95 ${view === 'log' ? 'bg-primary-container hover:bg-primary text-on-primary-container' : 'bg-surface-container hover:bg-surface-container-high text-on-surface'}`}
           >
-            <Download size={16} />
+            <span className="material-symbols-outlined text-lg">add</span>
+            <span>LOG A LIFT / SET</span>
           </button>
+          <button
+            onClick={() => setView('leaderboard')}
+            className={`flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase transition-colors ${view === 'leaderboard' ? 'bg-primary-container hover:bg-primary text-on-primary-container' : 'bg-surface-container hover:bg-surface-container-high text-on-surface'}`}
+          >
+            <span className="material-symbols-outlined text-lg text-primary">military_tech</span>
+            <span>LEADERBOARD</span>
+          </button>
+          <button onClick={handleExportCSV} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data">
+            <span className="material-symbols-outlined text-lg">download</span>
+          </button>
+
+          {/* Segmented View Controller */}
+          <div className="flex items-center bg-surface-container-lowest p-1 rounded-lg gap-0.5 ml-1">
+            <button className="p-1.5 rounded text-primary bg-surface-container-high transition-colors" id="view-grid-btn" title="Station Grid View">
+              <span className="material-symbols-outlined text-lg">view_cozy</span>
+            </button>
+            <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-list-btn" title="Roster Table View">
+              <span className="material-symbols-outlined text-lg">format_list_bulleted</span>
+            </button>
+            <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-stream-btn" title="Live Velocity Stream">
+              <span className="material-symbols-outlined text-lg">timeline</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {view === 'log' && (
         <>
-          {/* Sticky so the search box, "today's session" recents, and group filters stay
-              put while the athlete list below scrolls - on an iPad with a full team
-              loaded, a coach was having to scroll all the way back to the top just to
-              search for the next athlete or switch groups. */}
-          <div
-            style={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 5,
-              background: 'var(--navy-950)',
-              paddingTop: '4px',
-              paddingBottom: '14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-            }}
-          >
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Search size={18} style={{ position: 'absolute', left: '16px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+          {/* Search and Live Sport Chips */}
+          <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl">
+            <div className="relative w-full">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
               <input
+                className="w-full bg-surface-container-lowest text-on-surface font-body-md text-body-md pl-10 pr-24 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-outline"
+                placeholder="Search athlete by name, jersey #, rack station, or current lift..."
                 type="text"
-                className="input-glass"
-                placeholder="Search athlete by name..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                style={{ width: '100%', height: '48px', padding: '0 38px 0 44px', fontSize: '14px' }}
               />
-              {search && (
-                <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '14px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                  <X size={18} />
-                </button>
-              )}
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {search ? (
+                  <button onClick={() => setSearch('')} className="px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm uppercase">Clear</button>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm">ESC TO CLEAR</span>
+                )}
+              </div>
             </div>
-
-            {recentAthletes.length > 0 && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '14px', flexWrap: 'wrap', gap: '6px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Today's session &middot; {recentAthletes.length} logged
-                  </div>
-                  {sessionTonnage > 0 && (
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {sessionTonnage.toLocaleString()} lbs lifted today
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px', marginTop: '8px' }}>
-                  {recentAthletes.map(({ athlete, lastLift, lastLog }) => (
-                    <div
-                      key={athlete.id}
-                      className="card-glass"
-                      style={{ flex: 'none', width: '128px', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => openEntry(athlete.id)}
-                        style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-                      >
-                        <Avatar name={athlete.name} size={36} />
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginTop: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{athlete.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{lastLift} &middot; {lastLog.weight_lbs}&times;{lastLog.reps}</div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickRepeat(athlete, lastLog)}
-                        disabled={repeatingId === athlete.id}
-                        title={`Log another ${lastLog.weight_lbs} lbs × ${lastLog.reps} ${lastLog.lift_type} set for ${athlete.name}`}
-                        style={{ marginTop: '2px', padding: '5px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: repeatingId === athlete.id ? 'not-allowed' : 'pointer', border: '1px solid rgba(184, 156, 91, 0.4)', background: 'rgba(184, 156, 91, 0.1)', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
-                      >
-                        <Plus size={12} /> {repeatingId === athlete.id ? '...' : '1 Set'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '14px' }}>
-              Filter by group
-            </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+            
+            <div className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none">
+              <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider whitespace-nowrap mr-1">GROUPS:</span>
               {['ALL', ...sports].map(sport => (
                 <button
                   key={sport}
                   onClick={() => setSportFilter(sport)}
-                  style={{
-                    padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700,
-                    cursor: 'pointer',
-                    border: sportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    background: sportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
-                    color: sportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
-                  }}
+                  className={`sport-pill px-space-sm py-1 rounded font-label-md text-label-md whitespace-nowrap ${sportFilter === sport ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors'}`}
                 >
                   {sport === 'ALL' ? 'All' : sport}
                 </button>
@@ -481,278 +425,359 @@ export default function LiftScreen({
             </div>
           </div>
 
-          <div className="card-glass" style={{ borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '16px 18px 8px' }}>
-              {sportFilter === 'ALL' ? 'All Athletes' : sportFilter} &middot; {filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? 's' : ''}
-            </div>
-            {filteredAthletes.length === 0 ? (
-              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                No athletes match "{search}".
+          {/* Live Weight Room Floor Section */}
+          {recentAthletes.length > 0 && (
+            <div className="flex flex-col gap-space-sm mt-space-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-space-xs">
+                  <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">ACTIVE TODAY</span>
+                  <span className="text-on-surface-variant font-label-md text-label-md">• {recentAthletes.length} ATHLETES CURRENTLY LOGGED</span>
+                </div>
+                {sessionTonnage > 0 && (
+                  <div className="flex items-center gap-space-xs font-label-sm text-label-sm text-outline">
+                    <span className="w-2 h-2 rounded-full bg-secondary"></span>
+                    <span>{sessionTonnage.toLocaleString()} LBS LIFTED TODAY</span>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div>
-                {pagedAthletes.map((a, idx) => {
-                  const lastLog = lastLiftByAthlete.get(a.id);
-                  const lastWeightRow = lastWeightByAthlete.get(a.id);
-                  // Three states, not two: an athlete who has genuinely never logged a
-                  // lift is worth telling apart from one whose last log has simply aged
-                  // past the expiry window - both need attention, but "never" points a
-                  // coach toward onboarding them, not just re-testing.
-                  const status = !lastLog
-                    ? 'never'
-                    : (new Date() - new Date(lastLog.created_at)) > settings.baselineExpiryDays * 24 * 60 * 60 * 1000
-                      ? 'stale'
-                      : 'current';
-                  const statusStyle = {
-                    stale: { bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.35)', label: 'Stale' },
-                    never: { bg: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.2)', label: 'Never Logged' },
-                    current: { bg: 'rgba(255,255,255,0.06)', color: 'var(--color-text-muted)', border: '1px solid rgba(255,255,255,0.1)', label: 'Current' },
-                  }[status];
+
+              {/* Active Rack Station Carousel Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-space-sm">
+                {recentAthletes.map(({ athlete, lastLift, lastLog }) => {
                   return (
-                    <div
-                      key={a.id}
-                      onClick={() => openEntry(a.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 18px', cursor: 'pointer', borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}
-                    >
-                      <Avatar name={a.name} size={42} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                          {lastWeightRow ? `${Number(lastWeightRow.weight_lbs)} lbs · ` : ''}
-                          {lastLog ? `last logged ${shortDate(lastLog.created_at)}` : 'never logged'}
+                    <div key={athlete.id} className="flex flex-col justify-between p-space-sm bg-surface-container-low hover:bg-surface-container rounded-xl transition-all hover:-translate-y-0.5 shadow-sm group">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-start justify-between cursor-pointer" onClick={() => openEntry(athlete.id)}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded bg-primary-container/20 text-primary font-headline-md text-headline-md flex items-center justify-center">
+                              {initialsOf(athlete.name).slice(0, 2)}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-headline-md text-headline-md text-on-surface truncate uppercase">{athlete.name}</span>
+                              <span className="font-label-sm text-label-sm text-outline uppercase">{athlete.sport || 'GENERAL'}</span>
+                            </div>
+                          </div>
+                          {/* Could format lastLog.created_at more precisely if needed, here just keeping it short */}
+                          <span className="px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm">
+                            {new Date(lastLog.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </span>
+                        </div>
+                        
+                        <div className="p-2 rounded bg-surface-container-lowest flex flex-col gap-0.5 cursor-pointer" onClick={() => openEntry(athlete.id)}>
+                          <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">{lastLift}</span>
+                          <div className="flex items-baseline justify-between">
+                            <span className="font-metric-val text-metric-val text-primary tracking-tight">{lastLog.weight_lbs}<span className="text-xs font-normal text-on-surface-variant ml-0.5">lbs</span></span>
+                            <span className="font-label-md text-label-md text-on-surface">{lastLog.reps} reps</span>
+                          </div>
+                          {/* A fake progress bar to match the UI visual */}
+                          <div className="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden mt-1">
+                            <div className="bg-primary h-full w-full"></div>
+                          </div>
                         </div>
                       </div>
-                      <span style={{
-                        padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap',
-                        background: statusStyle.bg, color: statusStyle.color, border: statusStyle.border,
-                      }}>
-                        {statusStyle.label}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); openEntry(a.id); }}
-                        style={{ padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', border: 'none', background: 'var(--color-accent)', color: 'var(--navy-950)', whiteSpace: 'nowrap' }}
+                      
+                      <button 
+                        onClick={() => handleQuickRepeat(athlete, lastLog)}
+                        disabled={repeatingId === athlete.id}
+                        className="mt-2 w-full py-1.5 rounded bg-surface-container-high hover:bg-primary hover:text-on-primary font-label-md text-label-md uppercase text-primary transition-colors flex items-center justify-center gap-1"
                       >
-                        Log Set
+                        {repeatingId === athlete.id ? (
+                          <span>...</span>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-sm">add</span>
+                            <span>+1 SET</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   );
                 })}
               </div>
-            )}
-            {filteredAthletes.length > ROSTER_PAGE_SIZE && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderTop: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap', gap: '10px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Showing {rosterPage * ROSTER_PAGE_SIZE + 1}&ndash;{Math.min((rosterPage + 1) * ROSTER_PAGE_SIZE, filteredAthletes.length)} of {filteredAthletes.length}
-                </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setRosterPage(p => Math.max(0, p - 1))}
-                    disabled={rosterPage === 0}
-                    style={{ padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: rosterPage === 0 ? 'not-allowed' : 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: rosterPage === 0 ? 'rgba(255,255,255,0.25)' : 'var(--color-text-muted)' }}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRosterPage(p => Math.min(rosterPageCount - 1, p + 1))}
-                    disabled={rosterPage >= rosterPageCount - 1}
-                    style={{ padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: rosterPage >= rosterPageCount - 1 ? 'not-allowed' : 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: rosterPage >= rosterPageCount - 1 ? 'rgba(255,255,255,0.25)' : 'var(--color-text-muted)' }}
-                  >
-                    Next
-                  </button>
+            </div>
+          )}
+
+          {/* Full Roster Log Section */}
+          <div className="flex flex-col gap-space-sm mt-space-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="font-headline-lg text-headline-lg uppercase text-on-surface tracking-wide">
+                  ROSTER LOGS &amp; WORKOUT ASSIGNMENTS
+                </h2>
+                <span className="font-label-sm text-label-sm text-outline uppercase">{filteredAthletes.length} REGISTERED ATHLETES • SORTED BY VELOCITY / RECENCY</span>
+              </div>
+              <div className="flex items-center gap-space-xs">
+                <span className="font-label-sm text-label-sm text-on-surface-variant">BATCH ACTION:</span>
+                <button className="px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md uppercase transition-colors">
+                  Mark Block Complete
+                </button>
+              </div>
+            </div>
+
+            {/* Roster Table Container */}
+            {filteredAthletes.length === 0 ? (
+              <div className="bg-surface-container-low rounded-xl p-space-xl text-center text-on-surface-variant">
+                No athletes match "{search}".
+              </div>
+            ) : (
+              <div className="bg-surface-container-low rounded-xl overflow-hidden shadow-lg">
+                {/* Table Header Bar */}
+                <div className="grid grid-cols-12 px-space-md py-space-sm bg-surface-container-high text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
+                  <div className="col-span-4 sm:col-span-3">ATHLETE &amp; SPORT</div>
+                  <div className="col-span-2 hidden md:block">BODYWEIGHT</div>
+                  <div className="col-span-3 hidden sm:block">STATUS</div>
+                  <div className="col-span-3 sm:col-span-2">LAST LOGGED SET</div>
+                  <div className="col-span-5 sm:col-span-2 text-right">ACTION</div>
                 </div>
+
+                {/* Rows Container */}
+                <div className="flex flex-col">
+                  {pagedAthletes.map((a, idx) => {
+                    const lastLog = lastLiftByAthlete.get(a.id);
+                    const lastWeightRow = lastWeightByAthlete.get(a.id);
+                    const status = !lastLog
+                      ? 'never'
+                      : (new Date() - new Date(lastLog.created_at)) > settings.baselineExpiryDays * 24 * 60 * 60 * 1000
+                        ? 'stale'
+                        : 'current';
+
+                    return (
+                      <div key={a.id} className="roster-row grid grid-cols-12 items-center px-space-md py-3.5 bg-surface-container hover:bg-surface-container-highest transition-colors border-b border-surface-container-high last:border-b-0 cursor-pointer" onClick={() => openEntry(a.id)}>
+                        <div className="col-span-4 sm:col-span-3 flex items-center gap-space-sm">
+                          <div className={`w-9 h-9 rounded bg-surface-container-highest ${status === 'stale' ? 'text-error' : (status === 'never' ? 'text-outline' : 'text-primary')} font-headline-md text-headline-md flex items-center justify-center shrink-0`}>
+                            {initialsOf(a.name).slice(0, 2)}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-label-lg text-label-lg text-on-surface uppercase truncate">{a.name}</span>
+                            <div className="flex items-center gap-1">
+                              <span className="font-label-sm text-label-sm text-on-surface-variant">{a.sport || 'General'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="col-span-2 hidden md:flex flex-col">
+                          {lastWeightRow ? (
+                            <span className="font-metric-val text-metric-val text-on-surface">{Number(lastWeightRow.weight_lbs)} <span className="font-normal text-xs text-outline">lbs</span></span>
+                          ) : (
+                            <span className="font-metric-val text-metric-val text-outline">—</span>
+                          )}
+                        </div>
+
+                        <div className="col-span-3 hidden sm:flex flex-col">
+                          {status === 'stale' && <span className="px-2 py-0.5 rounded bg-error-container/30 text-error font-label-sm text-label-sm w-fit font-bold uppercase">STALE</span>}
+                          {status === 'never' && <span className="px-2 py-0.5 rounded bg-surface-container-highest text-outline font-label-sm text-label-sm w-fit uppercase">NEVER LOGGED</span>}
+                          {status === 'current' && <span className="px-2 py-0.5 rounded bg-secondary-container/20 text-secondary font-label-sm text-label-sm w-fit uppercase">CURRENT</span>}
+                        </div>
+
+                        <div className="col-span-3 sm:col-span-2 flex flex-col">
+                          {lastLog ? (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-label-lg text-label-lg text-on-surface">{lastLog.weight_lbs} × {lastLog.reps}</span>
+                              </div>
+                              <span className="font-label-sm text-label-sm text-outline">{lastLog.lift_type} • {shortDate(lastLog.created_at)}</span>
+                            </>
+                          ) : (
+                            <span className="font-label-sm text-label-sm text-outline">No logs</span>
+                          )}
+                        </div>
+
+                        <div className="col-span-5 sm:col-span-2 flex items-center justify-end gap-1.5">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); openEntry(a.id); }}
+                            className={`px-space-sm py-1.5 rounded bg-primary-container hover:bg-primary text-on-primary-container font-headline-md text-headline-md uppercase transition-colors shadow-sm`}
+                          >
+                            LOG SET
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); openProfile(a.id); }}
+                            className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface" 
+                            title="View Athlete Dashboard"
+                          >
+                            <span className="material-symbols-outlined text-base">visibility</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {filteredAthletes.length > ROSTER_PAGE_SIZE && (
+                  <div className="flex items-center justify-between p-space-md border-t border-surface-container-high flex-wrap gap-2">
+                    <span className="font-label-sm text-label-sm text-outline">
+                      Showing {rosterPage * ROSTER_PAGE_SIZE + 1}–{Math.min((rosterPage + 1) * ROSTER_PAGE_SIZE, filteredAthletes.length)} of {filteredAthletes.length}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRosterPage(p => Math.max(0, p - 1))}
+                        disabled={rosterPage === 0}
+                        className="px-3 py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest disabled:opacity-50 text-on-surface font-label-md text-label-md transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRosterPage(p => Math.min(rosterPageCount - 1, p + 1))}
+                        disabled={rosterPage >= rosterPageCount - 1}
+                        className="px-3 py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest disabled:opacity-50 text-on-surface font-label-md text-label-md transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-
-          <div className="card-glass" style={{ padding: '18px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-              Recent/today's session replaces re-scanning the whole roster A&ndash;Z every practice, a single search field replaces name search plus a row of sport pills fighting for space, and each row now states weight and last-logged date so a stale athlete stands out without opening Profiles.
-            </div>
           </div>
         </>
       )}
 
       {view === 'leaderboard' && (
-        <div className="card-glass" style={{ borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-          <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Award size={18} style={{ color: 'var(--color-accent)' }} />
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#fff' }}>
-                {leaderboardLift} Leaderboard
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <select
-                aria-label="Lift"
-                value={leaderboardLift}
-                onChange={e => setLeaderboardLift(e.target.value)}
-                className="input-glass"
-                style={{ height: '42px', padding: '0 14px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', maxWidth: '280px' }}
-              >
-                {liftTypes.map(lt => (
-                  <option key={lt} value={lt} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>{lt}</option>
-                ))}
-              </select>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {['ALL', ...sports].map(sport => (
-                  <button
-                    key={sport}
-                    type="button"
-                    onClick={() => setLeaderboardSportFilter(sport)}
-                    style={{
-                      padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                      border: leaderboardSportFilter === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
-                      background: leaderboardSportFilter === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.02)',
-                      color: leaderboardSportFilter === sport ? 'var(--navy-950)' : 'var(--color-text)',
-                    }}
-                  >
-                    {sport === 'ALL' ? 'All' : sport}
-                  </button>
-                ))}
+        <div className="flex flex-col gap-space-sm mt-space-md">
+          <div className="bg-surface-container-low rounded-xl overflow-hidden shadow-lg">
+            <div className="p-space-md border-b border-surface-container-high flex flex-col gap-space-sm">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-xl">military_tech</span>
+                <span className="font-headline-lg text-headline-lg text-on-surface uppercase tracking-wide">
+                  {leaderboardLift} Leaderboard
+                </span>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-space-md">
+                <select
+                  aria-label="Lift"
+                  value={leaderboardLift}
+                  onChange={e => setLeaderboardLift(e.target.value)}
+                  className="bg-surface-container text-on-surface font-label-md text-label-md px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {liftTypes.map(lt => (
+                    <option key={lt} value={lt}>{lt}</option>
+                  ))}
+                </select>
+                
+                <div className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none">
+                  {['ALL', ...sports].map(sport => (
+                    <button
+                      key={sport}
+                      type="button"
+                      onClick={() => setLeaderboardSportFilter(sport)}
+                      className={`px-space-sm py-1 rounded font-label-md text-label-md whitespace-nowrap ${leaderboardSportFilter === sport ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors'}`}
+                    >
+                      {sport === 'ALL' ? 'All' : sport}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {leaderboardRows.length === 0 ? (
-            <div style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '32px 22px', textAlign: 'center' }}>
-              No {leaderboardLift} results logged yet{leaderboardSportFilter !== 'ALL' ? ` for ${leaderboardSportFilter}` : ''}.
-            </div>
-          ) : (
-            <div>
-              {/* Top-3 podium - same real ranked data as the list below, just a
-                  different arrangement for the top spots. No fabricated
-                  "verified"/"record" copy - only real weight, reps, sport and date. */}
-              {leaderboardRows.length >= 3 && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr 1fr', gap: '12px', alignItems: 'end', padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {[leaderboardRows[1], leaderboardRows[0], leaderboardRows[2]].map((row, col) => {
-                    const rank = col === 1 ? 1 : col === 0 ? 2 : 3;
-                    const isGold = rank === 1;
-                    const podiumColor = rank === 1 ? 'var(--color-accent)' : rank === 2 ? '#94a3b8' : '#b45309';
-                    return (
-                      <div
-                        key={row.athlete_id}
-                        onClick={() => openProfile(row.athlete_id)}
-                        className={isGold ? 'glow-card' : ''}
-                        style={{
-                          cursor: 'pointer', borderRadius: '14px', padding: isGold ? '20px 16px' : '16px 14px',
-                          background: isGold ? 'rgba(184, 156, 91, 0.1)' : 'rgba(255,255,255,0.02)',
-                          border: isGold ? '1px solid rgba(184, 156, 91, 0.4)' : '1px solid rgba(255,255,255,0.08)',
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', textAlign: 'center',
-                          transform: isGold ? 'translateY(-8px)' : 'none',
-                        }}
-                      >
-                        <span style={{
-                          width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontFamily: 'var(--font-display)', fontSize: '12px', fontWeight: 800, background: podiumColor,
-                          color: 'var(--navy-950)',
-                        }}>
-                          {rank}
+            {leaderboardRows.length === 0 ? (
+              <div className="p-space-xl text-center text-on-surface-variant font-body-md text-body-md">
+                No {leaderboardLift} results logged yet{leaderboardSportFilter !== 'ALL' ? ` for ${leaderboardSportFilter}` : ''}.
+              </div>
+            ) : (
+              <div>
+                {/* Top-3 podium */}
+                {leaderboardRows.length >= 3 && (
+                  <div className="grid grid-cols-3 gap-2 items-end p-space-md border-b border-surface-container-high bg-surface-container-lowest/50">
+                    {[leaderboardRows[1], leaderboardRows[0], leaderboardRows[2]].map((row, col) => {
+                      const rank = col === 1 ? 1 : col === 0 ? 2 : 3;
+                      const isGold = rank === 1;
+                      const podiumColor = rank === 1 ? 'text-primary' : rank === 2 ? 'text-[#94a3b8]' : 'text-[#b45309]';
+                      const podiumBg = rank === 1 ? 'bg-primary-container/10 border-primary/40' : 'bg-surface-container border-surface-container-highest';
+                      
+                      return (
+                        <div
+                          key={row.athlete_id}
+                          onClick={() => openProfile(row.athlete_id)}
+                          className={`cursor-pointer rounded-xl flex flex-col items-center gap-1 text-center border p-3 transition-transform hover:-translate-y-1 ${podiumBg} ${isGold ? '-translate-y-2' : ''}`}
+                        >
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center font-display text-xs font-bold ${rank === 1 ? 'bg-primary text-on-primary' : rank === 2 ? 'bg-[#94a3b8] text-surface' : 'bg-[#b45309] text-surface'}`}>
+                            {rank}
+                          </span>
+                          <div className="w-10 h-10 rounded bg-surface-container-highest flex items-center justify-center font-headline-md text-headline-md mt-2 text-on-surface">
+                            {initialsOf(row.athlete_name).slice(0, 2)}
+                          </div>
+                          <div className={`font-headline-md text-headline-md text-on-surface uppercase truncate max-w-full ${isGold ? 'mt-1' : ''}`}>{row.athlete_name}</div>
+                          <div className="font-label-sm text-label-sm text-outline uppercase">{row.sport || 'GENERAL'}</div>
+                          <div className={`font-display font-bold leading-none mt-1 ${isGold ? 'text-3xl' : 'text-2xl'} ${podiumColor}`}>{row.est}</div>
+                          <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider">EST. 1RM</div>
+                          <div className="font-label-sm text-label-sm text-on-surface-variant mt-1">{row.weight_lbs} lbs × {row.reps}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Remaining rows */}
+                <div className="flex flex-col">
+                  {leaderboardRows.map((row, idx) => (
+                    <div
+                      key={row.athlete_id}
+                      onClick={() => openProfile(row.athlete_id)}
+                      className={`flex items-center justify-between gap-3 px-space-md py-3 cursor-pointer border-b border-surface-container-high last:border-0 hover:bg-surface-container transition-colors ${idx === 0 ? 'bg-primary-container/5' : ''}`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`w-7 h-7 rounded flex items-center justify-center shrink-0 font-display text-sm font-bold ${idx === 0 ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'}`}>
+                          {idx + 1}
                         </span>
-                        <Avatar name={row.athlete_name} size={isGold ? 52 : 44} />
-                        <div style={{ fontSize: isGold ? '15px' : '13px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{row.athlete_name}</div>
-                        <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{row.sport || 'General'}</div>
-                        <div style={{ fontFamily: 'var(--font-display)', fontSize: isGold ? '26px' : '20px', fontWeight: 800, color: podiumColor, lineHeight: 1 }}>{row.est}</div>
-                        <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>est. 1RM</div>
-                        <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{row.weight_lbs} lbs &times; {row.reps} &middot; {shortDate(row.created_at)}</div>
+                        <div className="w-9 h-9 rounded bg-surface-container-highest flex items-center justify-center font-headline-md text-headline-md shrink-0 text-on-surface">
+                          {initialsOf(row.athlete_name).slice(0, 2)}
+                        </div>
+                        <div className="min-w-0 flex flex-col">
+                          <span className="font-label-lg text-label-lg text-on-surface uppercase truncate">{row.athlete_name}</span>
+                          <span className="font-label-sm text-label-sm text-outline">{row.sport || 'GENERAL'} • best: {row.weight_lbs}×{row.reps}</span>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-              {leaderboardRows.map((row, idx) => (
-                <div
-                  key={row.athlete_id}
-                  onClick={() => openProfile(row.athlete_id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px',
-                    padding: '14px 22px', cursor: 'pointer',
-                    borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                    background: idx === 0 ? 'rgba(184, 156, 91, 0.08)' : 'transparent',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-                    <span style={{
-                      width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'var(--font-display)', fontSize: '13px', fontWeight: 800,
-                      background: idx === 0 ? 'var(--color-accent)' : 'rgba(255,255,255,0.06)',
-                      color: idx === 0 ? 'var(--navy-950)' : 'var(--color-text-muted)',
-                    }}>
-                      {idx + 1}
-                    </span>
-                    <Avatar name={row.athlete_name} size={36} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.athlete_name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{row.sport || 'General'} &middot; best set: {row.weight_lbs} lbs &times; {row.reps}</div>
+                      <div className="text-right shrink-0">
+                        <div className={`font-display text-xl font-bold ${idx === 0 ? 'text-primary' : 'text-on-surface'}`}>{row.est}</div>
+                        <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider">EST. 1RM</div>
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: idx === 0 ? 'var(--color-accent)' : '#fff' }}>{row.est}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>est. 1RM</div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Entry modal - rendered through a portal straight onto <body>, escaping the
-          scrollable roster list underneath. The roster's scroll container uses
-          -webkit-overflow-scrolling: touch for iPad momentum scrolling, and Safari
-          has a long-standing bug where a position: fixed descendant of a
-          touch-scrolling container drifts along with that container's scroll
-          instead of staying pinned to the viewport - so on an iPad, tapping
-          "Log Set" opened the modal but it kept sliding with the roster underneath
-          it instead of popping up in place. Escaping the scroll container via
-          createPortal sidesteps the bug entirely. */}
+      {/* Modal Overlay */}
       {selectedAthlete && createPortal(
         <div
           className="modal-overlay animate-fade-in"
           style={{ position: 'fixed', inset: 0, zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.9)', overflowY: 'auto' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeEntry(); }}
         >
-          {/* maxHeight + its own scroll: on a short/mobile viewport (or once the
-              keyboard is up for the weight/reps inputs) the card was taller than the
-              visible screen, so its bottom - including the Log Lift button and the
-              rounded corner - got clipped, with the roster peeking in underneath. */}
-          <div className="card-glass glow-card animate-slide-up" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid rgba(184, 156, 91, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="card-glass glow-card animate-slide-up bg-surface-container-low shadow-lg" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid rgba(255, 193, 116, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <div onClick={closeEntry} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-accent)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginBottom: '8px' }}>
+                <div onClick={closeEntry} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginBottom: '8px' }} className="text-primary hover:text-primary-fixed transition-colors">
                   <ChevronLeft size={14} /> BACK
                 </div>
-                <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: '#fff', textTransform: 'uppercase' }}>{selectedAthlete.name}</h3>
-                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{selectedAthlete.sport || 'General'}</div>
+                <h3 className="font-display text-2xl font-bold text-on-surface uppercase m-0">{selectedAthlete.name}</h3>
+                <div className="font-label-sm text-label-sm text-on-surface-variant mt-1 uppercase">{selectedAthlete.sport || 'General'}</div>
               </div>
-              <button onClick={closeEntry} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
+              <button onClick={closeEntry} className="bg-transparent border-none text-on-surface-variant hover:text-on-surface cursor-pointer">
                 <X size={22} />
               </button>
             </div>
 
             {successMsg && (
-              <div style={{ padding: '12px 16px', borderRadius: '12px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', color: '#4ade80', fontSize: '13px', fontWeight: 700 }}>
+              <div className="px-4 py-3 rounded-xl bg-secondary-container/20 border border-secondary-container/40 text-secondary font-label-md text-label-md">
                 {successMsg}
               </div>
             )}
 
             <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Lift</label>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Lift</label>
+              <div className="flex gap-2 flex-wrap">
                 {liftTypes.map(lt => (
                   <button
                     key={lt}
                     type="button"
                     onClick={() => setLiftType(lt)}
-                    style={{
-                      padding: '10px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-                      border: liftType === lt ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.15)',
-                      background: liftType === lt ? 'rgba(184, 156, 91, 0.18)' : 'rgba(255,255,255,0.02)',
-                      color: liftType === lt ? '#fff' : 'var(--color-text-muted)',
-                    }}
+                    className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${liftType === lt ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
                   >
                     {lt}
                   </button>
@@ -760,20 +785,15 @@ export default function LiftScreen({
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
-              {/* minWidth: 0 on both the grid item and the input itself - a number
-                  input's intrinsic content width doesn't shrink below its min-content
-                  size by default inside a grid track, so on a narrow screen the two
-                  boxes were overflowing their 1fr columns and overlapping each other
-                  instead of shrinking to fit. */}
-              <div style={{ minWidth: 0 }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Weight (lbs)</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="min-w-0">
+                <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Weight (lbs)</label>
+                <div className="flex gap-2">
                   <button
                     type="button"
                     aria-label="Decrease weight by 5"
                     onClick={() => setWeight(String(Math.max(0, (parseFloat(weight) || 0) - 5)))}
-                    style={{ width: '40px', flexShrink: 0, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
                   >
                     <Minus size={16} />
                   </button>
@@ -781,29 +801,29 @@ export default function LiftScreen({
                     type="number"
                     step="5"
                     placeholder="245"
-                    className="input-glass"
+                    className="w-full min-w-0 h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-display text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary border border-transparent"
                     value={weight}
                     onChange={e => setWeight(e.target.value)}
-                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)', textAlign: 'center' }}
                   />
                   <button
                     type="button"
                     aria-label="Increase weight by 5"
                     onClick={() => setWeight(String((parseFloat(weight) || 0) + 5))}
-                    style={{ width: '40px', flexShrink: 0, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
                   >
                     <Plus size={16} />
                   </button>
                 </div>
               </div>
-              <div style={{ minWidth: 0 }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Reps</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
+
+              <div className="min-w-0">
+                <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Reps</label>
+                <div className="flex gap-2">
                   <button
                     type="button"
                     aria-label="Decrease reps by 1"
                     onClick={() => setReps(String(Math.max(1, (parseInt(reps, 10) || 1) - 1)))}
-                    style={{ width: '40px', flexShrink: 0, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
                   >
                     <Minus size={16} />
                   </button>
@@ -812,16 +832,15 @@ export default function LiftScreen({
                     step="1"
                     min="1"
                     placeholder="5"
-                    className="input-glass"
+                    className="w-full min-w-0 h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-display text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary border border-transparent"
                     value={reps}
                     onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ''))}
-                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '52px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '22px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(184, 156, 91, 0.4)', textAlign: 'center' }}
                   />
                   <button
                     type="button"
                     aria-label="Increase reps by 1"
                     onClick={() => setReps(String((parseInt(reps, 10) || 0) + 1))}
-                    style={{ width: '40px', flexShrink: 0, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
                   >
                     <Plus size={16} />
                   </button>
@@ -833,65 +852,55 @@ export default function LiftScreen({
               type="button"
               onClick={handleSave}
               disabled={disableSave}
-              className="btn-primary glow-card"
-              style={{ height: '52px', borderRadius: '16px', fontSize: '15px', fontWeight: 800, background: disableSave ? 'rgba(184, 156, 91, 0.3)' : 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', cursor: disableSave ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              className={`h-12 rounded-xl font-headline-md text-headline-md uppercase flex items-center justify-center gap-2 transition-all ${disableSave ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary hover:bg-primary-fixed text-on-primary shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}
             >
               <Plus size={18} /> {saving ? 'Saving...' : 'Log Lift'}
             </button>
 
             {athleteRecentLifts.length > 0 && (
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Recent Lifts</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: editingLiftId ? 'none' : '180px', overflowY: editingLiftId ? 'visible' : 'auto' }}>
+                <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-3">Recent Lifts</div>
+                <div className={`flex flex-col gap-2 ${editingLiftId ? '' : 'max-h-48 overflow-y-auto'}`}>
                   {athleteRecentLifts.map(l => (
                     editingLiftId === l.id ? (
-                      // Inline edit: correct the weight/reps, or move this set to a
-                      // different exercise entirely if it was logged under the wrong one.
-                      <div key={l.id} style={{ padding: '12px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.08)', border: '1px solid rgba(184, 156, 91, 0.35)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <div key={l.id} className="p-3 rounded-xl bg-primary-container/10 border border-primary/30 flex flex-col gap-3">
+                        <div className="flex gap-2 flex-wrap">
                           {liftTypes.map(lt => (
                             <button
                               key={lt}
                               type="button"
                               onClick={() => setEditLiftType(lt)}
-                              style={{
-                                padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                                border: editLiftType === lt ? '2px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.15)',
-                                background: editLiftType === lt ? 'rgba(184, 156, 91, 0.18)' : 'rgba(255,255,255,0.02)',
-                                color: editLiftType === lt ? '#fff' : 'var(--color-text-muted)',
-                              }}
+                              className={`px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors ${editLiftType === lt ? 'bg-primary-container text-on-primary-container border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant border border-transparent'}`}
                             >
                               {lt}
                             </button>
                           ))}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '10px' }}>
+                        <div className="grid grid-cols-2 gap-2">
                           <input
                             type="number"
                             step="5"
                             aria-label="Edit weight"
-                            className="input-glass"
+                            className="h-10 px-3 rounded-lg bg-surface-container-highest text-on-surface font-label-lg font-bold border border-transparent focus:border-primary focus:outline-none"
                             value={editWeight}
                             onChange={e => setEditWeight(e.target.value)}
-                            style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '42px', padding: '0 12px', borderRadius: '8px', background: 'var(--navy-900)', color: '#fff', fontSize: '15px', fontWeight: 700, border: '1px solid rgba(184, 156, 91, 0.4)' }}
                           />
                           <input
                             type="number"
                             step="1"
                             min="1"
                             aria-label="Edit reps"
-                            className="input-glass"
+                            className="h-10 px-3 rounded-lg bg-surface-container-highest text-on-surface font-label-lg font-bold border border-transparent focus:border-primary focus:outline-none"
                             value={editReps}
                             onChange={e => setEditReps(e.target.value.replace(/[^0-9]/g, ''))}
-                            style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', height: '42px', padding: '0 12px', borderRadius: '8px', background: 'var(--navy-900)', color: '#fff', fontSize: '15px', fontWeight: 700, border: '1px solid rgba(184, 156, 91, 0.4)' }}
                           />
                         </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={handleSaveEditLift}
                             disabled={disableEditSave}
-                            style={{ flex: 1, height: '36px', borderRadius: '8px', fontSize: '12px', fontWeight: 800, cursor: disableEditSave ? 'not-allowed' : 'pointer', border: 'none', background: disableEditSave ? 'rgba(184, 156, 91, 0.3)' : 'var(--color-accent)', color: 'var(--navy-950)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            className={`flex-1 h-9 rounded-lg font-label-md text-label-md font-bold flex items-center justify-center gap-1.5 ${disableEditSave ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary-fixed'}`}
                           >
                             <Check size={14} /> {editSaving ? 'Saving...' : 'Save'}
                           </button>
@@ -899,7 +908,7 @@ export default function LiftScreen({
                             type="button"
                             onClick={cancelEditLift}
                             disabled={editSaving}
-                            style={{ height: '36px', padding: '0 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'var(--color-text-muted)' }}
+                            className="px-3 h-9 rounded-lg font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
                           >
                             Cancel
                           </button>
@@ -907,22 +916,22 @@ export default function LiftScreen({
                             type="button"
                             onClick={() => handleDeleteLift(l.id)}
                             disabled={editSaving}
-                            style={{ height: '36px', padding: '0 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            className="px-3 h-9 rounded-lg font-label-md text-label-md bg-error-container/20 text-error hover:bg-error-container/40 border border-error/30 transition-colors flex items-center gap-1.5"
                           >
                             <Trash2 size={14} /> Delete
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '13px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
-                        <span style={{ color: 'var(--color-text-muted)', flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.lift_type}</span>
-                        <span style={{ color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>{l.weight_lbs} lbs &times; {l.reps}</span>
-                        <span style={{ color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{new Date(l.created_at).toLocaleDateString()}</span>
+                      <div key={l.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-surface-container-highest">
+                        <span className="text-on-surface-variant font-label-md text-label-md truncate min-w-0">{l.lift_type}</span>
+                        <span className="text-on-surface font-label-md font-bold whitespace-nowrap">{l.weight_lbs} lbs × {l.reps}</span>
+                        <span className="text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap">{new Date(l.created_at).toLocaleDateString()}</span>
                         <button
                           type="button"
                           onClick={() => startEditLift(l)}
                           title="Edit this entry"
-                          style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', flexShrink: 0 }}
+                          className="p-1 text-on-surface-variant hover:text-on-surface transition-colors"
                         >
                           <Pencil size={14} />
                         </button>
