@@ -2,12 +2,13 @@
 // Requires a preview server on http://127.0.0.1:4173 and Playwright.
 // All Supabase traffic is intercepted - never touches the real database.
 //
-// Covers three v4.28.0 changes:
+// Covers three dashboard/lift-tracker changes:
 //   1. The Pre-Session Action Banner no longer has a "Start today's session" heading
 //      or subtext ahead of its buttons - a coach glances at the banner to tap a
 //      button, and the old copy pushed the buttons down and competed with them.
-//   2. Internal Load Metrics collapses behind a chevron (closed by default), the
-//      same pattern the Session Accountability Tracker already used.
+//   2. Internal Load Metrics is always expanded (v4.38.4) - it collapsed behind a
+//      chevron in v4.28.0, but the coach wanted it always visible like the
+//      reference mockup, matching Weigh-Ins Remaining right next to it.
 //   3. The Lift Tracker's search bar and sport filters are pinned with
 //      position: sticky so a coach scrolling a long roster on an iPad doesn't have
 //      to scroll back to the top to search again or switch tabs.
@@ -71,19 +72,12 @@ const newPage = async (browser, viewport) => {
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
-  console.log('\n[B] Internal Load Metrics is collapsed by default and expands on click');
+  console.log('\n[B] Internal Load Metrics is always expanded, no click needed');
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2000);
     check('header visible', (await page.getByText('INTERNAL LOAD METRICS').count()) > 0);
-    let body = await page.locator('body').innerText();
-    check('team cards hidden before expanding', !(await page.locator('[data-testid="rpe-sport-card"]').count()));
-    await page.getByText('INTERNAL LOAD METRICS').click();
-    await page.waitForTimeout(400);
-    check('team cards visible after expanding', (await page.locator('[data-testid="rpe-sport-card"]').count()) > 0);
-    await page.getByText('INTERNAL LOAD METRICS').click();
-    await page.waitForTimeout(400);
-    check('collapses again on a second click', !(await page.locator('[data-testid="rpe-sport-card"]').count()));
+    check('team cards visible immediately, with no expand step', (await page.locator('[data-testid="rpe-sport-card"]').count()) > 0);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

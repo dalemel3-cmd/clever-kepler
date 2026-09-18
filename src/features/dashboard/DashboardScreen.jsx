@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { CheckCircle, Zap, Activity, Target, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle, Zap, Activity, Target, AlertTriangle } from 'lucide-react';
 import { getCentralDateString, getCentralTimeString, isRpeLog, hasWeight, isPostPracticeLog } from '../../utils/athleteData';
 
 export default function DashboardScreen({
@@ -21,16 +20,12 @@ export default function DashboardScreen({
   dailyAlerts,
   alertStatusFor
 }) {
-  // Collapsed by default - this card is a full-width per-sport breakdown that ate a
-  // lot of dashboard real estate for something a coach mostly glances at once (the
-  // "N of M checked in" badge already answers the question 90% of the time). One tap
-  // opens it back up for the sport-by-sport detail.
-  const [accountabilityOpen, setAccountabilityOpen] = useState(false);
-  // Internal Load Metrics collapses behind the same chevron pattern as the
-  // Session Accountability Tracker below it - default closed to save vertical
-  // space, since the roll-up pill in its header already answers "did anyone log?"
-  // without opening it.
-  const [loadMetricsOpen, setLoadMetricsOpen] = useState(false);
+  // Internal Load Metrics and Weigh-Ins Remaining are always expanded now (both
+  // sit side by side, matching the coach's reference layout) - previously each
+  // collapsed behind a click to save vertical space, but that read as an extra
+  // "open this to see it" step the coach didn't want.
+  const accountabilityOpen = true;
+  const loadMetricsOpen = true;
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
@@ -365,10 +360,31 @@ export default function DashboardScreen({
           // can be read on its own once more teams are loaded. Sport comes from the roster
           // (the source of truth), falling back to whatever the log recorded.
           const sportOf = (r) => (athletes.find(a => a.id === r.athlete_id)?.sport) || r.sport || 'General';
+          // Last 7 calendar days (oldest first, today last), in the program's own
+          // timezone - the bar chart's x-axis. A real week of entries, not a
+          // fabricated distribution.
+          const last7Days = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() - (6 - i));
+            return getCentralDateString(d);
+          });
+          const allRpeLogs = (reportData || []).filter(isRpeLog);
+
           const rpeBySport = Array.from(new Set(athletes.map(a => a.sport || 'General'))).map(sport => {
             const roster = athletes.filter(a => (a.sport || 'General') === sport);
             const logs = todaysRpeLogs.filter(r => sportOf(r) === sport);
             const responded = roster.filter(a => logs.some(l => l.athlete_id === a.id)).length;
+            const sportWeekLogs = allRpeLogs.filter(r => sportOf(r) === sport);
+            // One bar per day this week - that day's average RPE across the team,
+            // or null when nobody logged that day (rendered as an empty bar).
+            const week = last7Days.map(dateStr => {
+              const dayLogs = sportWeekLogs.filter(r => r.created_at && getCentralDateString(new Date(r.created_at)) === dateStr);
+              return {
+                date: dateStr,
+                avg: dayLogs.length > 0 ? (dayLogs.reduce((s, r) => s + (r.rpe || 0), 0) / dayLogs.length) : null,
+                count: dayLogs.length,
+              };
+            });
             return {
               sport,
               rosterCount: roster.length,
@@ -377,23 +393,16 @@ export default function DashboardScreen({
               pct: roster.length > 0 ? Math.round((responded / roster.length) * 100) : 0,
               avg: logs.length > 0 ? (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) : null,
               hard: logs.filter(r => r.rpe >= settings.rpeHighThreshold).length,
-              // Individual RPE values, most recent first - drives the small per-athlete
-              // bar chart on each team's card. Real logged values, not a fabricated
-              // distribution.
-              logs: [...logs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+              week,
             };
           }).sort((a, b) => a.pct - b.pct);
 
           return (
-            <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: loadMetricsOpen ? '20px' : 0, marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
+            <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
               <div
-                onClick={() => setLoadMetricsOpen(o => !o)}
-                role="button"
-                aria-expanded={loadMetricsOpen}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', cursor: 'pointer' }}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {loadMetricsOpen ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />}
                   <div>
                     <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Target size={14} /> INTERNAL LOAD METRICS
@@ -528,32 +537,32 @@ export default function DashboardScreen({
                           </div>
                         </div>
 
-                        {/* Each bar is one athlete's actual logged RPE today (most recent
-                            6), height scaled to the team's rpeScaleMax and colored by the
-                            same hard/moderate/light thresholds used everywhere else on this
-                            card - a real per-athlete breakdown, not a fabricated chart. */}
-                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '48px', padding: '0 2px' }} title={none ? 'No RPE logged yet today' : `${s.logs.length} logged today`}>
-                          {none ? (
-                            <div className="chart-bar empty" style={{ width: '100%' }} />
-                          ) : (
-                            s.logs.slice(0, 6).map(log => {
-                              const rpeVal = Number(log.rpe) || 0;
-                              const barHeight = Math.max(4, Math.round((rpeVal / settings.rpeScaleMax) * 44));
-                              const barColor = rpeVal >= settings.rpeHighThreshold
-                                ? '#ef4444'
-                                : rpeVal >= Math.max(0, settings.rpeHighThreshold - 2)
-                                  ? 'var(--color-accent)'
-                                  : '#3b82f6';
-                              return (
-                                <div
-                                  key={log.id}
-                                  className="chart-bar"
-                                  title={`${log.athlete_name}: RPE ${log.rpe}`}
-                                  style={{ height: `${barHeight}px`, background: barColor, flex: 1, maxWidth: '28px' }}
-                                />
-                              );
-                            })
-                          )}
+                        {/* One bar per day this week - that day's real average RPE for
+                            the team, height scaled to rpeScaleMax and colored by the same
+                            hard/moderate/light thresholds used elsewhere on this card. A
+                            day nobody logged shows the same empty-bar treatment used when
+                            the whole team has no data, not a fake zero. */}
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '48px', padding: '0 2px' }} title={`${s.week.filter(d => d.count > 0).length} of the last 7 days logged`}>
+                          {s.week.map(day => {
+                            if (day.avg == null) {
+                              return <div key={day.date} className="chart-bar empty" style={{ flex: 1, maxWidth: '28px' }} />;
+                            }
+                            const barHeight = Math.max(4, Math.round((day.avg / settings.rpeScaleMax) * 44));
+                            const barColor = day.avg >= settings.rpeHighThreshold
+                              ? '#ef4444'
+                              : day.avg >= Math.max(0, settings.rpeHighThreshold - 2)
+                                ? 'var(--color-accent)'
+                                : '#3b82f6';
+                            const dayLabel = new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                            return (
+                              <div
+                                key={day.date}
+                                className="chart-bar"
+                                title={`${dayLabel}: avg RPE ${day.avg.toFixed(1)} (${day.count} logged)`}
+                                style={{ height: `${barHeight}px`, background: barColor, flex: 1, maxWidth: '28px' }}
+                              />
+                            );
+                          })}
                         </div>
 
                         <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
@@ -586,15 +595,11 @@ export default function DashboardScreen({
         })()}
 
         {/* 4. Full-Width Gamified Compliance Hub: WEIGH-INS REMAINING */}
-        <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: accountabilityOpen ? '20px' : 0, marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
+        <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
           <div
-            onClick={() => setAccountabilityOpen(o => !o)}
-            role="button"
-            aria-expanded={accountabilityOpen}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', cursor: 'pointer' }}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {accountabilityOpen ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />}
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <CheckCircle size={14} /> SESSION ACCOUNTABILITY TRACKER

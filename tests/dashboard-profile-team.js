@@ -76,20 +76,16 @@ const newPage = async (browser) => {
 (async () => {
   const browser = await chromium.launch(LAUNCH_OPTS);
 
-  console.log('\n[A] Dashboard: Session Accountability Tracker is collapsed by default and expands');
+  console.log('\n[A] Dashboard: Session Accountability Tracker is always expanded, no click needed');
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2200);
     check('header visible', (await page.getByText('SESSION ACCOUNTABILITY TRACKER').count()) > 0);
     // "Daily Compliance" only appears inside this card's per-sport grid - unlike
     // "Athletes Listed", which a different always-visible dashboard panel also uses,
-    // so it doesn't give a false pass/fail regardless of collapse state.
+    // so it doesn't give a false pass/fail regardless of layout.
     let body = await page.locator('body').innerText();
-    check('per-sport detail hidden before expanding', !/Daily Compliance/.test(body), body.match(/.{0,60}Daily Compliance/)?.[0] || '');
-    await page.getByText('SESSION ACCOUNTABILITY TRACKER').click();
-    await page.waitForTimeout(400);
-    body = await page.locator('body').innerText();
-    check('per-sport detail visible after expanding', /Daily Compliance/.test(body));
+    check('per-sport detail visible immediately, with no expand step', /Daily Compliance/.test(body));
     // Wrestling (No Weight Athlete) has RPE logs but has never once logged a real
     // weigh-in - it should read as "not tracking weigh-ins", not a permanent "1 LEFT"
     // that never clears (v4.22.1).
@@ -97,10 +93,6 @@ const newPage = async (browser) => {
       /NOT TRACKING WEIGH-INS/.test(body), body.match(/Wrestling[\s\S]{0,120}/)?.[0] || '');
     check('a team with real weigh-ins still shows the normal compliance badge',
       /Football[\s\S]{0,80}(LEFT|DONE)/.test(body), body.match(/Football[\s\S]{0,80}/)?.[0] || '');
-    await page.getByText('SESSION ACCOUNTABILITY TRACKER').click();
-    await page.waitForTimeout(400);
-    body = await page.locator('body').innerText();
-    check('collapses again on second click', !/Daily Compliance/.test(body));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

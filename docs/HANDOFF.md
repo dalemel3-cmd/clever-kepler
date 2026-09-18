@@ -1824,7 +1824,42 @@ Full 37-file regression suite re-run clean.
 
 ---
 
-## 49. Next up
+## 49. Dashboard: always-expanded panels + weekly RPE bars (v4.39.0)
+
+Follow-up to §47/§48: the coach compared the live dashboard against the
+reference mockup again and flagged two remaining gaps.
+
+1. **"Instead of it being a drop down."** Internal Load Metrics and Weigh-Ins
+   Remaining both collapsed behind a click (`loadMetricsOpen`/
+   `accountabilityOpen` state, added in v4.28.0 specifically to save vertical
+   space) - the mockup shows both fully visible with no toggle at all. Removed
+   the collapse entirely: both constants are now just `true`, the chevron
+   icons and `onClick`/`role="button"`/`aria-expanded` are gone from both
+   headers. This affected three test files, not the two expected -
+   `tests/dashboard-focus-and-sticky-lifts.js` and `tests/rpe-dashboard.js`
+   were updated first, then a full-suite run caught a third,
+   `tests/dashboard-profile-team.js`, which independently asserted the same
+   collapse/expand contract for the Weigh-Ins Remaining card under a
+   different test name ("Session Accountability Tracker is collapsed by
+   default"). Worth remembering: a behavior can be pinned down by more test
+   files than a `grep` for one exact string finds, if a second file describes
+   the same UI by a different name.
+2. **"Bar chart of the entries logged over the course of that week."** The
+   v4.38.3 mini bar chart (§48) showed up to 6 of *today's* individual RPE
+   logs. Changed to a real 7-day view: `rpeBySport` now computes `week`, one
+   entry per of the last 7 calendar days (`getCentralDateString`-bucketed)
+   with that day's average RPE across the team, sourced from all of
+   `reportData` (not just `todaysRpeLogs`). Each card renders exactly 7 bars,
+   oldest to newest; a day nobody logged gets the existing `.chart-bar.empty`
+   treatment instead of a fake zero-height or omitted bar. The
+   "TEAM AVG RPE"/"LOG RESPONSE RATE" headline numbers are unchanged (still
+   today-only) - only the chart beneath them became a week view.
+
+Full 37-file regression suite re-run clean after the fix.
+
+---
+
+## 50. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

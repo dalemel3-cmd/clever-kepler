@@ -66,11 +66,8 @@ const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHigh
 
   await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2200);
 
-  // Internal Load Metrics is collapsed by default (v4.28.0) to save dashboard space -
-  // open it before any of these probes look for its contents.
-  await page.getByText('INTERNAL LOAD METRICS').click();
-  await page.waitForTimeout(400);
-
+  // Internal Load Metrics is always expanded (v4.38.4) - no click needed before
+  // these probes look for its contents.
   const cardFor = (sport) => page.locator(`[data-testid="rpe-sport-card"][data-sport="${sport}"]`);
 
   console.log('\n[A] Session Load shows every team at once as a grid, not one at a time');
