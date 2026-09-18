@@ -1,5 +1,5 @@
-import { CheckCircle, Zap, Activity, Target, AlertTriangle } from 'lucide-react';
-import { getCentralDateString, getCentralTimeString, isRpeLog, hasWeight, isPostPracticeLog } from '../../utils/athleteData';
+import { CheckCircle } from 'lucide-react';
+import { getCentralDateString, getCentralTimeString, isRpeLog } from '../../utils/athleteData';
 
 export default function DashboardScreen({
   settings,
@@ -20,707 +20,355 @@ export default function DashboardScreen({
   dailyAlerts,
   alertStatusFor
 }) {
-  // Internal Load Metrics and Weigh-Ins Remaining are always expanded now (both
-  // sit side by side, matching the coach's reference layout) - previously each
-  // collapsed behind a click to save vertical space, but that read as an extra
-  // "open this to see it" step the coach didn't want.
-  const accountabilityOpen = true;
-  const loadMetricsOpen = true;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'GOOD MORNING' : hour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
+  
+  const compliancePct = athletes.length > 0 ? Math.round((athletesRecordedToday.size / athletes.length) * 100) : 0;
+  const unresolvedCount = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length;
+  
+  const unrecordedAthletes = athletes.filter(a => !athletesRecordedToday.has(a.id));
+  const isComplete = unrecordedAthletes.length === 0 && athletes.length > 0;
+  const unresolved = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved');
+  
+  const todayDateStr = getCentralDateString();
+  const todaysRpeLogs = (reportData || []).filter(r => isRpeLog(r) && r.created_at && getCentralDateString(new Date(r.created_at)) === todayDateStr);
+  
+  const allSports = Array.from(new Set(athletes.map(a => a.sport || 'General')));
+
+  const sportOf = (r) => (athletes.find(a => a.id === r.athlete_id)?.sport) || r.sport || 'General';
+  const rpeBySport = allSports.map(sport => {
+    const roster = athletes.filter(a => (a.sport || 'General') === sport);
+    const logs = todaysRpeLogs.filter(r => sportOf(r) === sport);
+    const responded = roster.filter(a => logs.some(l => l.athlete_id === a.id)).length;
+    const isHard = logs.length > 0 && (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) >= settings.rpeHighThreshold;
+    return {
+      sport,
+      rosterCount: roster.length,
+      logCount: logs.length,
+      responded,
+      pct: roster.length > 0 ? Math.round((responded / roster.length) * 100) : 0,
+      avg: logs.length > 0 ? (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) : null,
+      isHard
+    };
+  }).sort((a, b) => a.pct - b.pct);
+
   return (
-    <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
-        <div>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>WORKSPACE &middot; DASHBOARD</div>
-          <h1 className="text-3xl" style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-            {(() => {
-              const hour = new Date().getHours();
-              if (hour < 12) return 'GOOD MORNING';
-              if (hour < 17) return 'GOOD AFTERNOON';
-              return 'GOOD EVENING';
-            })()}
+    <div className="flex flex-col w-full pb-space-xl animate-fade-in">
+      {/* Top Command Center Bar */}
+      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-space-md py-space-md border-b border-[#2a313d]">
+        <div className="flex flex-col gap-space-xs">
+          <div className="flex items-center gap-space-xs">
+            <span className="font-label-sm text-label-sm uppercase tracking-widest text-primary">WORKSPACE</span>
+            <span className="text-[#2a313d] font-label-sm text-label-sm">/</span>
+            <span className="font-label-sm text-label-sm uppercase tracking-widest text-on-surface">COMMAND CENTER</span>
+            <span className="px-space-xs py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 font-label-sm text-label-sm flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>
+              FLOOR ACTIVE
+            </span>
+          </div>
+          <h1 className="font-display text-display uppercase tracking-tight text-on-surface flex items-center gap-space-sm">
+            {greeting}
           </h1>
-          <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} &middot; {athletes.length} athletes &middot; Ready for sessions</div>
+          <p className="font-body-md text-body-md text-on-surface-variant flex items-center gap-space-xs flex-wrap">
+            <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+            <span className="text-dim">&middot;</span>
+            <span className="text-primary font-semibold">{athletes.length} rostered athletes</span>
+            <span className="text-dim">&middot;</span>
+            <span>{allSports.length} teams in-season</span>
+            <span className="text-dim">&middot;</span>
+            <span className="text-secondary font-medium">Session #{Math.max(todaySessions, executiveInsights?.todayCount || 0)} underway</span>
+          </p>
         </div>
-        {(() => {
-          const compliancePct = athletes.length > 0 ? Math.round((athletesRecordedToday.size / athletes.length) * 100) : 0;
-          const unresolvedCount = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length;
-          return (
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Total Athletes</span>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--white)' }}>{athletes.length}</span>
-              </div>
-              <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sessions Today</span>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--color-accent)' }}>{Math.max(todaySessions, executiveInsights.todayCount || executiveInsights.todayRecordedCount || 0)}</span>
-              </div>
-              <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Weigh-In Compliance</span>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: 'var(--color-accent)' }}>{compliancePct}<span style={{ fontSize: '16px' }}>%</span></span>
-              </div>
-              <div style={{ width: '1px', height: '44px', background: 'var(--color-border)' }} />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Needs Attention</span>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '30px', fontWeight: 700, color: unresolvedCount > 0 ? 'var(--status-error)' : 'var(--status-success)' }}>{unresolvedCount}</span>
-              </div>
+
+        {/* Live Performance Metric Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-space-sm">
+          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+            <span className="font-label-sm text-label-sm text-dim uppercase tracking-wider">TOTAL ATHLETES</span>
+            <div className="flex items-baseline gap-space-xs mt-1">
+              <span className="font-metric-val text-metric-val text-on-surface">{athletes.length}</span>
             </div>
-          );
-        })()}
+          </div>
+          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+            <span className="font-label-sm text-label-sm text-dim uppercase tracking-wider">SESSIONS TODAY</span>
+            <div className="flex items-baseline gap-space-xs mt-1">
+              <span className="font-metric-val text-metric-val text-on-surface">{Math.max(todaySessions, executiveInsights?.todayCount || executiveInsights?.todayRecordedCount || 0)}</span>
+            </div>
+          </div>
+          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+            <div className="flex items-center justify-between">
+              <span className="font-label-sm text-label-sm text-dim uppercase tracking-wider">WEIGH-IN SYNC</span>
+              <span className="material-symbols-outlined text-sm text-primary">scale</span>
+            </div>
+            <div className="flex items-baseline gap-space-xs mt-1">
+              <span className="font-metric-val text-metric-val text-primary">{compliancePct}%</span>
+              <span className="font-label-sm text-label-sm text-dim">({athletesRecordedToday.size}/{athletes.length})</span>
+            </div>
+          </div>
+          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+            <div className="flex items-center justify-between">
+              <span className="font-label-sm text-label-sm text-error uppercase tracking-wider font-bold">NEEDS ATTENTION</span>
+              {unresolvedCount > 0 && <span className="w-2 h-2 rounded-full bg-error animate-pulse"></span>}
+            </div>
+            <div className="flex items-baseline gap-space-xs mt-1">
+              <span className={`font-metric-val text-metric-val ${unresolvedCount > 0 ? 'text-error' : 'text-on-surface'}`}>{unresolvedCount}</span>
+              {unresolvedCount > 0 && <span className="font-label-sm text-label-sm text-error uppercase font-bold">URGENT</span>}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Top Fold: Executive Insights, Pre-Session Banner & Live Monitoring */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-        {/* 1. Pre-Session Action Banner */}
-        {(() => {
-          const unrecordedAthletes = athletes.filter(a => !athletesRecordedToday.has(a.id));
-          const isComplete = unrecordedAthletes.length === 0 && athletes.length > 0;
-          return (
-            <div className="card-glass glow-card animate-fade-in" style={{
-              padding: '22px 28px',
-              borderRadius: '20px',
-              border: isComplete ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(194, 164, 80, 0.45)',
-              background: isComplete ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.03) 100%)' : 'linear-gradient(135deg, rgba(194, 164, 80, 0.15) 0%, rgba(19, 21, 28, 0.7) 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '20px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.25)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                <div style={{
-                  width: '52px',
-                  height: '52px',
-                  borderRadius: '16px',
-                  background: isComplete ? 'rgba(34, 197, 94, 0.2)' : 'rgba(194, 164, 80, 0.2)',
-                  border: isComplete ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(194, 164, 80, 0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: isComplete ? 'var(--status-success)' : 'var(--color-accent)'
-                }}>
-                  {isComplete ? <CheckCircle size={26} /> : <Zap size={26} />}
-                </div>
-                {/* The heading + subtext ("Start today's session" / "N athletes not
-                    yet weighed in") used to sit here, ahead of the action buttons. A
-                    coach glances at this banner to tap a button, not to read a status
-                    line the icon already conveys (gold = pending, green = complete) -
-                    dropped so the buttons are the first thing that reads. */}
-                <span style={{ fontSize: '11px', fontWeight: 800, color: isComplete ? 'var(--status-success)' : 'var(--color-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  {isComplete ? '• SESSION COMPLETE' : `• ${unrecordedAthletes.length} NOT YET WEIGHED IN`}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                {!isComplete && (
-                  <button
-                    onClick={() => {
-                      // Set the mode explicitly: this row is a "what am I logging?" picker,
-                      // so landing on the kiosk in whatever mode it was left in would make
-                      // the button lie about what it does.
-                      setKioskTrackMode('both');
-                      try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch (e) {}
-                      setUnweighedOnlyFilter(true);
-                      setScreen('entry');
-                    }}
-                    style={{
-                      padding: '10px 18px',
-                      borderRadius: '12px',
-                      background: 'linear-gradient(135deg, #d4af37 0%, #a68220 100%)',
-                      border: 'none',
-                      color: '#0a0d14',
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      letterSpacing: '0.04em',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 20px rgba(212, 175, 55, 0.35)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      flexShrink: 0,
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <span>Start Weigh-Ins</span>
-                    <span>➔</span>
-                  </button>
-                )}
-                {settings.enableRpe && (
-                  <button
-                    onClick={() => {
-                      setKioskTrackMode('rpe');
-                      try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch (e) {}
-                      // RPE is logged after a session by whoever trained, not just by the
-                      // athletes who missed a morning weigh-in, so don't carry the
-                      // unweighed-only filter into it.
-                      setUnweighedOnlyFilter(false);
-                      setScreen('entry');
-                    }}
-                    style={{
-                      padding: '10px 18px',
-                      borderRadius: '12px',
-                      background: 'rgba(59, 130, 246, 0.15)',
-                      border: '1px solid rgba(96, 165, 250, 0.5)',
-                      color: '#60a5fa',
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      letterSpacing: '0.04em',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      flexShrink: 0,
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <Target size={15} />
-                    <span>Session RPE</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    setManualEntryForm(prev => ({
-                      ...prev,
-                      athleteId: athletes.length > 0 ? athletes[0].id : '',
-                      date: getCentralDateString(),
-                      time: getCentralTimeString(),
-                      weight: '',
-                      successMsg: ''
-                    }));
-                    setShowManualEntryModal(true);
-                  }}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: '12px',
-                    background: 'rgba(30, 58, 138, 0.4)',
-                    border: '1px solid rgba(96, 165, 250, 0.5)',
-                    color: '#60a5fa',
-                    fontFamily: 'var(--font-display)',
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    letterSpacing: '0.04em',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 20px rgba(37, 99, 235, 0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    flexShrink: 0,
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <span>⚡ Post-Practice / Manual Log</span>
-                </button>
-              </div>
+      {/* Primary Rapid Action Command Bar */}
+      <div className="mt-space-md p-space-md bg-surface-container rounded-xl border border-[#2a313d] shadow-md flex flex-wrap items-center justify-between gap-space-md">
+        <div className="flex items-center gap-space-md">
+          <div className="w-10 h-10 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
+            <span className="material-symbols-outlined text-2xl">fitness_center</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-space-xs">
+              <span className="font-headline-md text-headline-md uppercase text-on-surface">FACILITY DISPATCH</span>
+              <span className="px-1.5 py-0.5 rounded bg-primary text-[#030a14] font-label-sm text-label-sm font-bold">LIVE QUEUE</span>
             </div>
-          );
-        })()}
+            <p className="font-body-sm text-body-sm text-on-surface-variant">{unrecordedAthletes.length} athletes awaiting pre/post mass check.</p>
+          </div>
+        </div>
 
-        {/* 2. NEEDS ATTENTION Row Section — pulled straight from the same canonical
-            dailyAlerts list Alerts uses (dehydration + sleep, with severity streaks),
-            instead of a separate dehydration-only recompute. Keeps this in lockstep with
-            whatever a coach has already acknowledged/resolved on the Alerts screen. */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>NEEDS ATTENTION</span>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
-            {dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length > 0 && (
-              <button
-                onClick={() => setScreen('alerts')}
-                style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', fontSize: '11px', fontWeight: 800, letterSpacing: '0.05em', cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
-                VIEW ALL IN ALERTS →
+        {/* Actions Set */}
+        <div className="flex flex-wrap items-center gap-space-sm">
+          {!isComplete && (
+            <button
+              onClick={() => {
+                setKioskTrackMode('both');
+                try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch (e) {}
+                setUnweighedOnlyFilter(true);
+                setScreen('entry');
+              }}
+              className="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-primary text-[#030a14] hover:bg-primary-hover transition-all shadow-sm font-headline-md text-headline-md uppercase"
+            >
+              <span className="material-symbols-outlined text-base">bolt</span>
+              <span>Start Weigh-Ins ({unrecordedAthletes.length} remaining)</span>
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </button>
+          )}
+
+          {settings.enableRpe && (
+            <button
+              onClick={() => {
+                setKioskTrackMode('rpe');
+                try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch (e) {}
+                setUnweighedOnlyFilter(false);
+                setScreen('entry');
+              }}
+              className="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-tertiary font-headline-md text-headline-md uppercase transition-colors"
+            >
+              <span className="material-symbols-outlined text-base">speed</span>
+              <span>Session RPE Entry</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              setManualEntryForm(prev => ({
+                ...prev,
+                athleteId: athletes.length > 0 ? athletes[0].id : '',
+                date: getCentralDateString(),
+                time: getCentralTimeString(),
+                weight: '',
+                successMsg: ''
+              }));
+              setShowManualEntryModal(true);
+            }}
+            className="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface font-headline-md text-headline-md uppercase transition-colors"
+          >
+            <span className="material-symbols-outlined text-base">post_add</span>
+            <span>+ Manual Post-Practice Log</span>
+          </button>
+        </div>
+      </div>
+
+      {/* URGENT NEEDS ATTENTION (ALERT ROSTER SECTION) */}
+      <div className="mt-space-lg flex flex-col gap-space-sm">
+        <div className="flex items-center justify-between flex-wrap gap-space-xs">
+          <div className="flex items-center gap-space-sm">
+            <div className="flex items-center gap-1.5 px-space-sm py-1 rounded bg-error-container border border-error/30 text-error font-label-md text-label-md uppercase">
+              <span className="material-symbols-outlined text-sm">notification_important</span>
+              <span>URGENT NEEDS ATTENTION ({unresolved.length} ATHLETES)</span>
+            </div>
+            <span className="font-body-sm text-body-sm text-dim hidden sm:inline">Athletes flagged by the system</span>
+          </div>
+          <div className="flex items-center gap-space-sm">
+            {unresolved.length > 0 && (
+              <button onClick={() => setScreen('alerts')} className="px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high border border-[#2a313d] font-label-md text-label-md uppercase text-primary transition-colors flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">send</span>
+                <span>View All In Alerts</span>
               </button>
             )}
           </div>
-          {(() => {
-            const unresolved = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved');
-
-            if (unresolved.length === 0) {
-              return (
-                <div className="card-glass" style={{ padding: '18px 24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(34, 197, 94, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <CheckCircle size={20} style={{ color: 'var(--status-success)' }} />
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--white)' }}>All athletes are currently within safe baseline and sleep limits.</span>
-                </div>
-              );
-            }
-
-            // dailyAlerts already arrives sorted most-urgent-first (streak, then magnitude);
-            // show the top handful here and leave the rest for the full Alerts screen.
-            const preview = unresolved.slice(0, 5);
-
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {preview.map((item) => {
-                  const initials = item.athlete_name ? item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
-                  const status = alertStatusFor(item.alert_key);
-                  return (
-                    <div key={item.id} className="card-glass" onClick={() => { setSelectedProfileId(item.athlete_id); fetchProfileData(item.athlete_id); setProfileEntryScreen?.(null); setScreen('profiles'); }} style={{
-                      padding: '16px 24px',
-                      borderRadius: '16px',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      background: 'rgba(255,255,255,0.02)'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                        <div style={{
-                          width: '52px',
-                          height: '52px',
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontFamily: 'var(--font-display)',
-                          fontSize: '18px',
-                          fontWeight: 800,
-                          color: '#fff',
-                          flexShrink: 0
-                        }}>
-                          {initials}
-                        </div>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)' }}>{item.athlete_name}</span>
-                            {item.streak >= 2 && (
-                              <span style={{ fontSize: '9px', background: 'rgba(239, 68, 68, 0.25)', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>🔥 {item.streak}-DAY</span>
-                            )}
-                            {status === 'acknowledged' && (
-                              <span style={{ fontSize: '9px', color: '#f59e0b', fontWeight: 800 }}>ACKNOWLEDGED</span>
-                            )}
-                          </div>
-                          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{item.sport} &middot; {item.message}</span>
-                          {item.action && (
-                            <div style={{ fontSize: '12px', color: item.color, fontWeight: 700, marginTop: '2px' }}>{item.action}</div>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{
-                        padding: '6px 14px',
-                        borderRadius: '16px',
-                        background: `${item.color}22`,
-                        border: `1px solid ${item.color}55`,
-                        color: item.color,
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        letterSpacing: '0.04em',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {item.type}
-                      </div>
-                    </div>
-                  );
-                })}
-                {unresolved.length > preview.length && (
-                  <button
-                    onClick={() => setScreen('alerts')}
-                    className="card-glass"
-                    style={{ padding: '12px', borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.15)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    +{unresolved.length - preview.length} more unresolved — view all in Alerts →
-                  </button>
-                )}
-              </div>
-            );
-          })()}
         </div>
 
-        {/* 3 & 4: Internal Load Metrics and Weigh-Ins Remaining sit side by side on a
-            wide screen (matching the redesigned mockup), stacking on narrow ones. Each
-            stays independently collapsible - only the container arrangement changed. */}
-        <div className="dashboard-load-accountability-row" style={{ display: 'grid', gridTemplateColumns: settings.enableRpe ? '1fr 1fr' : '1fr', gap: '24px', alignItems: 'start' }}>
-
-        {/* 3. Session RPE Analytics (Only shown if RPE is enabled) */}
-        {settings.enableRpe && (() => {
-          const todayDateStr = getCentralDateString();
-          // created_at is a UTC ISO string; comparing its prefix against the program's
-          // Central date silently dropped every evening session (7pm CT is already
-          // tomorrow in UTC). Convert first, the same way every other screen does.
-          const todaysRpeLogs = (reportData || []).filter(r => isRpeLog(r) && r.created_at && getCentralDateString(new Date(r.created_at)) === todayDateStr);
-          const avgRpe = todaysRpeLogs.length > 0 ? (todaysRpeLogs.reduce((acc, r) => acc + (r.rpe || 0), 0) / todaysRpeLogs.length).toFixed(1) : 0;
-          const outliers = todaysRpeLogs.filter(r => r.rpe >= settings.rpeHighThreshold);
-          // Response rate counts athletes who reported, not logs filed. An athlete who
-          // rates a lift and a run on the same day files two rows, which used to push the
-          // rate over 100%.
-          const respondedIds = new Set(todaysRpeLogs.map(r => r.athlete_id));
-          const rpeRate = athletes.length > 0
-            ? Math.round((athletes.filter(a => respondedIds.has(a.id)).length / athletes.length) * 100)
-            : 0;
-
-          // Per-sport breakdown, mirroring the accountability tracker below so each program
-          // can be read on its own once more teams are loaded. Sport comes from the roster
-          // (the source of truth), falling back to whatever the log recorded.
-          const sportOf = (r) => (athletes.find(a => a.id === r.athlete_id)?.sport) || r.sport || 'General';
-          // Last 7 calendar days (oldest first, today last), in the program's own
-          // timezone - the bar chart's x-axis. A real week of entries, not a
-          // fabricated distribution.
-          const last7Days = Array.from({ length: 7 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - (6 - i));
-            return getCentralDateString(d);
-          });
-          const allRpeLogs = (reportData || []).filter(isRpeLog);
-
-          const rpeBySport = Array.from(new Set(athletes.map(a => a.sport || 'General'))).map(sport => {
-            const roster = athletes.filter(a => (a.sport || 'General') === sport);
-            const logs = todaysRpeLogs.filter(r => sportOf(r) === sport);
-            const responded = roster.filter(a => logs.some(l => l.athlete_id === a.id)).length;
-            const sportWeekLogs = allRpeLogs.filter(r => sportOf(r) === sport);
-            // One bar per day this week - that day's average RPE across the team,
-            // or null when nobody logged that day (rendered as an empty bar).
-            const week = last7Days.map(dateStr => {
-              const dayLogs = sportWeekLogs.filter(r => r.created_at && getCentralDateString(new Date(r.created_at)) === dateStr);
-              return {
-                date: dateStr,
-                avg: dayLogs.length > 0 ? (dayLogs.reduce((s, r) => s + (r.rpe || 0), 0) / dayLogs.length) : null,
-                count: dayLogs.length,
-              };
-            });
-            return {
-              sport,
-              rosterCount: roster.length,
-              logCount: logs.length,
-              responded,
-              pct: roster.length > 0 ? Math.round((responded / roster.length) * 100) : 0,
-              avg: logs.length > 0 ? (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) : null,
-              hard: logs.filter(r => r.rpe >= settings.rpeHighThreshold).length,
-              week,
-            };
-          }).sort((a, b) => a.pct - b.pct);
-
-          return (
-            <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
-              <div
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Target size={14} /> INTERNAL LOAD METRICS
-                    </span>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: '4px 0 0 0', letterSpacing: '0.03em' }}>
-                      TODAY'S SESSION LOAD
-                    </h3>
-                  </div>
-                </div>
-                {/* The avg/response pair now lives on each team card. What stays up here is
-                    a roll-up pill, matching the accountability tracker's summary below. */}
-                <div style={{
-                  padding: '8px 18px',
-                  borderRadius: '20px',
-                  background: 'rgba(59, 130, 246, 0.12)',
-                  border: '1px solid rgba(59, 130, 246, 0.35)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {todaysRpeLogs.length === 0
-                      ? 'NO SESSIONS LOGGED YET'
-                      : `${respondedIds.size} of ${athletes.length} REPORTED \u00b7 ${rpeRate}% \u00b7 AVG ${avgRpe}`}
-                  </span>
-                </div>
-              </div>
-
-              {loadMetricsOpen && outliers.length > 0 && (
-                <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '16px', padding: '16px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#ef4444', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                    <AlertTriangle size={14} /> {outliers.length} OUTLIERS (RPE ≥ {settings.rpeHighThreshold})
-                  </span>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    {outliers.map(r => {
-                      const athlete = athletes.find(a => a.id === r.athlete_id);
-                      const initials = r.athlete_name ? r.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
-                      return (
-                        <div key={r.id} onClick={() => { setSelectedProfileId(r.athlete_id); fetchProfileData(r.athlete_id); setProfileEntryScreen?.(null); setScreen('profiles'); }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#ef4444', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
-                            {r.rpe}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--white)' }}>{r.athlete_name}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{athlete?.sport || 'General'}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {/* Every team's load at once, as a grid - matching the redesigned mockup's
-                  look (a coach scans all teams in one glance rather than switching a
-                  dropdown one at a time). Each tile's numbers are the exact same
-                  rpeBySport computation as before; only the layout changed. */}
-              {loadMetricsOpen && (rpeBySport.length === 0 ? (
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
-                  {rpeBySport.map(s => {
-                    const none = s.logCount === 0;
-                    const isHard = s.avg != null && s.avg >= settings.rpeHighThreshold;
-                    // Honest categorization of a real number (avg RPE), not a fabricated
-                    // metric - derived from the same rpeHighThreshold setting that already
-                    // decides "hard" elsewhere, with a moderate band two points below it.
-                    const loadLabel = none
-                      ? 'No Data'
-                      : isHard
-                        ? 'Heavy Load'
-                        : s.avg >= Math.max(0, settings.rpeHighThreshold - 2)
-                          ? 'Moderate'
-                          : 'Light / Recovery';
-                    return (
-                      <div
-                        key={s.sport}
-                        data-testid="rpe-sport-card"
-                        data-sport={s.sport}
-                        onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }}
-                        className="glow-card"
-                        title={`View ${s.sport} roster`}
-                        style={{
-                          padding: '20px',
-                          borderRadius: '18px',
-                          background: none ? 'rgba(255,255,255,0.02)' : (isHard ? 'rgba(239, 68, 68, 0.04)' : 'rgba(59, 130, 246, 0.04)'),
-                          border: none ? '1px solid rgba(255,255,255,0.08)' : (isHard ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(59, 130, 246, 0.25)'),
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '14px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          position: 'relative',
-                          overflow: 'hidden'
-                        }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                          <div>
-                            <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)', display: 'block', letterSpacing: '0.02em' }}>{s.sport}</span>
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                              {s.logCount === 0 ? `${s.rosterCount} Athletes Listed` : `${s.logCount} Session${s.logCount !== 1 ? 's' : ''} Logged`}
-                            </span>
-                          </div>
-                          {s.hard > 0 ? (
-                            <span style={{
-                              fontSize: '12px', fontWeight: 800, padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap',
-                              background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', letterSpacing: '0.04em',
-                            }}>
-                              {s.hard} HARD
-                            </span>
-                          ) : (
-                            <span style={{
-                              fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap',
-                              background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', letterSpacing: '0.03em',
-                            }}>
-                              {loadLabel}
-                            </span>
-                          )}
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TEAM AVG RPE</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: none ? 'var(--color-text-muted)' : (isHard ? '#ef4444' : '#60a5fa') }}>
-                              {none ? '\u2014' : s.avg.toFixed(1)} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>/ {settings.rpeScaleMax}</span>
-                            </span>
-                          </div>
-                          <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
-                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LOG RESPONSE RATE</span>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, color: 'var(--white)' }}>
-                              {s.pct}%
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* One bar per day this week - that day's real average RPE for
-                            the team, height scaled to rpeScaleMax and colored by the same
-                            hard/moderate/light thresholds used elsewhere on this card. A
-                            day nobody logged shows the same empty-bar treatment used when
-                            the whole team has no data, not a fake zero. */}
-                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '48px', padding: '0 2px' }} title={`${s.week.filter(d => d.count > 0).length} of the last 7 days logged`}>
-                          {s.week.map(day => {
-                            if (day.avg == null) {
-                              return <div key={day.date} className="chart-bar empty" style={{ flex: 1, maxWidth: '28px' }} />;
-                            }
-                            const barHeight = Math.max(4, Math.round((day.avg / settings.rpeScaleMax) * 44));
-                            const barColor = day.avg >= settings.rpeHighThreshold
-                              ? '#ef4444'
-                              : day.avg >= Math.max(0, settings.rpeHighThreshold - 2)
-                                ? 'var(--color-accent)'
-                                : '#3b82f6';
-                            const dayLabel = new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                            return (
-                              <div
-                                key={day.date}
-                                className="chart-bar"
-                                title={`${dayLabel}: avg RPE ${day.avg.toFixed(1)} (${day.count} logged)`}
-                                style={{ height: `${barHeight}px`, background: barColor, flex: 1, maxWidth: '28px' }}
-                              />
-                            );
-                          })}
-                        </div>
-
-                        <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%', width: `${s.pct}%`, borderRadius: '4px',
-                            background: isHard ? 'linear-gradient(90deg, #f87171 0%, #dc2626 100%)' : 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
-                            transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-                          }} />
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>Reported Today</span>
-                          <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--white)' }}>
-                            {s.responded}/{s.rosterCount} athletes
+        {/* Alert Athletes List */}
+        <div className="grid grid-cols-1 gap-space-xs">
+          {unresolved.length === 0 ? (
+            <div className="p-space-md rounded-xl bg-surface-container border border-[#2a313d] flex items-center gap-2 shadow-sm">
+              <CheckCircle size={20} className="text-status-success" />
+              <span className="font-body-md text-body-md text-on-surface">All athletes are currently within safe baseline and sleep limits.</span>
+            </div>
+          ) : (
+            unresolved.slice(0, 5).map(item => {
+              const initials = item.athlete_name ? item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
+              const status = alertStatusFor(item.alert_key);
+              const isUrgent = item.color === '#ef4444' || item.streak >= 2;
+              
+              return (
+                <div key={item.id} onClick={() => { setSelectedProfileId(item.athlete_id); fetchProfileData(item.athlete_id); setProfileEntryScreen?.(null); setScreen('profiles'); }} className={`p-space-md rounded-xl bg-surface-container hover:bg-surface-container-high border ${isUrgent ? 'border-error/40' : 'border-[#2a313d]'} transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-space-md shadow-sm cursor-pointer`}>
+                  <div className="flex items-start sm:items-center gap-space-md">
+                    <div className="w-12 h-12 rounded-lg bg-surface-container-high border border-[#2a313d] text-primary flex items-center justify-center font-headline-lg text-headline-lg shrink-0">
+                      {initials}
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-space-xs flex-wrap">
+                        <span className="font-headline-md text-headline-md uppercase text-on-surface tracking-wide">{item.athlete_name}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-surface-container-high border border-[#2a313d] font-label-sm text-label-sm text-on-surface-variant uppercase">{item.sport || 'General'}</span>
+                        
+                        <span className={`px-1.5 py-0.5 rounded ${isUrgent ? 'bg-error-container border-error/30 text-error' : 'bg-primary/15 border-primary/30 text-primary'} border font-label-sm text-label-sm uppercase font-bold flex items-center gap-1`}>
+                          {isUrgent && <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse"></span>}
+                          {item.type} {item.streak >= 2 && `(${item.streak}-DAY)`}
+                        </span>
+                        
+                        {status === 'acknowledged' && (
+                          <span className="px-1.5 py-0.5 rounded bg-surface-container-high border border-[#2a313d] text-amber-500 font-label-sm text-label-sm uppercase font-bold">
+                            ACKNOWLEDGED
                           </span>
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              ))}
-
-              {loadMetricsOpen && todaysRpeLogs.length === 0 && (
-                <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>
-                  No RPE logs recorded yet today.
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* 4. Full-Width Gamified Compliance Hub: WEIGH-INS REMAINING */}
-        <div className="card-glass glow-card" style={{ padding: '28px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '4px', background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)' }}>
-          <div
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <CheckCircle size={14} /> SESSION ACCOUNTABILITY TRACKER
-                </span>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: 'var(--white)', textTransform: 'uppercase', margin: '4px 0 0 0', letterSpacing: '0.03em' }}>
-                  WEIGH-INS REMAINING BY SPORT
-                </h3>
-              </div>
-            </div>
-            {(() => {
-              const totalAthletes = athletes.length;
-              const totalDone = athletes.filter(a => athletesRecordedToday.has(a.id)).length;
-              const allDone = totalAthletes > 0 && totalDone === totalAthletes;
-              return (
-                <div style={{
-                  padding: '8px 18px',
-                  borderRadius: '20px',
-                  background: allDone ? 'rgba(34, 197, 94, 0.15)' : 'rgba(184, 156, 91, 0.15)',
-                  border: allDone ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(184, 156, 91, 0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: allDone ? 'var(--status-success)' : 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {allDone ? '🎉 ALL TEAMS COMPLIANT' : `${totalDone} of ${totalAthletes} ROSTER CHECKED IN`}
-                  </span>
+                      <div className="flex items-center gap-space-md mt-1 font-body-sm text-body-sm text-on-surface-variant">
+                        <span>{item.message}</span>
+                        {item.action && (
+                          <span className={`${isUrgent ? 'text-error' : 'text-primary'} font-bold`}>{item.action}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-space-xs flex-wrap self-end lg:self-center">
+                    <button className="px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface font-label-md text-label-md uppercase transition-colors" onClick={(e) => { e.stopPropagation(); setScreen('alerts'); }}>
+                      Review
+                    </button>
+                  </div>
                 </div>
               );
-            })()}
-          </div>
-
-          {accountabilityOpen && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-            {(() => {
-              const allSports = Array.from(new Set(athletes.map(a => a.sport || 'General')));
-              if (allSports.length === 0) return <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', padding: '12px 0' }}>No sports active on roster.</span>;
-
-              return allSports.map((sport) => {
-                const sportAthletes = athletes.filter(a => (a.sport || 'General') === sport);
-                const doneCount = sportAthletes.filter(a => athletesRecordedToday.has(a.id)).length;
-                const countLeft = sportAthletes.length - doneCount;
-                const pct = sportAthletes.length > 0 ? Math.round((doneCount / sportAthletes.length) * 100) : 0;
-                const isDone = countLeft === 0 && sportAthletes.length > 0;
-                // A team that has never once logged a real weigh-in (only jump results, or
-                // nothing at all) will show "0 LEFT... forever" if treated the same as a
-                // team that just hasn't checked in yet TODAY. That reads as broken, not as
-                // "this team doesn't do body-weight tracking" - distinguish the two.
-                const sportAthleteIds = new Set(sportAthletes.map(a => a.id));
-                const hasEverWeighed = (reportData || []).some(r =>
-                  r.athlete_id && sportAthleteIds.has(r.athlete_id) && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r));
-                const neverTracked = sportAthletes.length > 0 && !hasEverWeighed;
-
-                return (
-                  <div key={sport} onClick={() => { setSelectedSportFilter(sport); setScreen('athletes'); }} className="glow-card" style={{
-                    padding: '20px',
-                    borderRadius: '18px',
-                    background: neverTracked ? 'rgba(255,255,255,0.015)' : (isDone ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255,255,255,0.025)'),
-                    border: neverTracked ? '1px dashed rgba(255,255,255,0.12)' : (isDone ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(255,255,255,0.08)'),
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '14px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--white)', display: 'block', letterSpacing: '0.02em' }}>{sport}</span>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)' }}>{sportAthletes.length} Athletes Listed</span>
-                      </div>
-                      <span style={{
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        padding: '4px 10px',
-                        borderRadius: '12px',
-                        background: neverTracked ? 'rgba(255,255,255,0.06)' : (isDone ? 'rgba(34, 197, 94, 0.15)' : 'rgba(249, 115, 22, 0.15)'),
-                        color: neverTracked ? 'var(--color-text-muted)' : (isDone ? 'var(--status-success)' : '#f97316'),
-                        letterSpacing: '0.04em'
-                      }}>
-                        {neverTracked ? 'NOT TRACKING WEIGH-INS' : (isDone ? 'DONE ✓' : `${countLeft} LEFT`)}
-                      </span>
-                    </div>
-
-                    {neverTracked ? (
-                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                        No weigh-ins logged for this team yet - not a compliance gap, just not started.
-                      </div>
-                    ) : (
-                      <>
-                        {/* Progress Bar */}
-                        <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%',
-                            width: `${pct}%`,
-                            borderRadius: '4px',
-                            background: isDone ? 'var(--status-success)' : 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
-                            transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-                          }} />
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 700 }}>
-                          <span style={{ color: 'var(--color-text-muted)' }}>Daily Compliance</span>
-                          <span style={{ color: 'var(--white)' }}>{pct}% ({doneCount}/{sportAthletes.length})</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              });
-            })()}
-          </div>}
-        </div>
-
+            })
+          )}
         </div>
       </div>
 
-      <style>{`
-        @media (max-width: 960px) {
-          .dashboard-load-accountability-row { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
+      {/* Split 2-Column Analytical Insights Grid */}
+      <div className="mt-space-lg grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
+        {/* Left Column: Load & Readiness */}
+        <div className="lg:col-span-6 flex flex-col gap-space-md">
+          <div className="p-space-md rounded-xl bg-surface-container border border-[#2a313d] shadow-sm flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between pb-space-xs">
+                <div className="flex items-center gap-space-xs">
+                  <span className="material-symbols-outlined text-primary text-base">monitoring</span>
+                  <span className="font-headline-md text-headline-md uppercase text-on-surface">TODAY'S INTERNAL TRAINING LOAD &amp; READINESS</span>
+                </div>
+                <span className="font-label-sm text-label-sm px-2 py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 uppercase font-bold">{allSports.length} TEAMS ACTIVE</span>
+              </div>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Aggregated Rated Perceived Exertion (sRPE) &amp; biometric exertion telemetry across training zones.</p>
+              
+              {/* RPE Distribution Visualization */}
+              <div className="mt-space-md grid grid-cols-2 gap-space-sm">
+                {rpeBySport.length === 0 ? (
+                  <div className="col-span-2 text-center text-dim font-body-md py-4">No sports active on roster.</div>
+                ) : (
+                  rpeBySport.map(s => {
+                    const none = s.logCount === 0;
+                    return (
+                      <div key={s.sport} onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }} className="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d] cursor-pointer hover:border-primary/50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <span className="font-label-sm text-label-sm text-on-surface-variant uppercase truncate" title={s.sport}>{s.sport}</span>
+                          <span className={`font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold ${s.isHard ? 'bg-error-container border-error/30 text-error' : (none ? 'bg-surface-container-high border-[#2a313d] text-dim' : 'bg-primary/20 border-primary/30 text-primary')}`}>
+                            RPE {none ? '--' : (s.avg ? s.avg.toFixed(1) : '--')}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-end gap-1 h-14">
+                           {(() => {
+                             const last7Days = Array.from({ length: 7 }, (_, i) => {
+                               const d = new Date();
+                               d.setDate(d.getDate() - (6 - i));
+                               return getCentralDateString(d);
+                             });
+                             const allRpeLogs = (reportData || []).filter(isRpeLog);
+                             const sportWeekLogs = allRpeLogs.filter(r => sportOf(r) === s.sport);
+                             return last7Days.map((dateStr, i) => {
+                               const dayLogs = sportWeekLogs.filter(r => r.created_at && getCentralDateString(new Date(r.created_at)) === dateStr);
+                               const dayAvg = dayLogs.length > 0 ? (dayLogs.reduce((acc, r) => acc + (r.rpe || 0), 0) / dayLogs.length) : null;
+                               
+                               if (dayAvg == null) {
+                                 return <div key={i} className="w-full bg-transparent rounded-sm h-2"></div>;
+                               }
+                               
+                               const pct = Math.min(100, (dayAvg / (settings.rpeScaleMax || 10)) * 100);
+                               const barColor = dayAvg >= settings.rpeHighThreshold ? 'bg-[#f87171]' : (dayAvg >= Math.max(0, settings.rpeHighThreshold - 2) ? 'bg-[#b89c5b]' : 'bg-[#172338]');
+                               return <div key={i} className={`w-full ${barColor} rounded-sm`} style={{ height: `${pct}%` }}></div>;
+                             });
+                           })()}
+                        </div>
+                        <span className="mt-1 block font-body-sm text-body-sm text-dim text-right">
+                          {none ? 'No Data' : (s.isHard ? 'Heavy Load' : 'Moderate/Recovery')} &middot; {s.rosterCount} Athletes
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Weigh-ins Remaining by Sport */}
+        <div className="lg:col-span-6 flex flex-col gap-space-md">
+          <div className="p-space-md rounded-xl bg-surface-container border border-[#2a313d] shadow-sm flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between pb-space-xs">
+                <div className="flex items-center gap-space-xs">
+                  <span className="material-symbols-outlined text-primary text-base">fact_check</span>
+                  <span className="font-headline-md text-headline-md uppercase text-on-surface">WEIGH-INS REMAINING BY SPORT</span>
+                </div>
+                <span className="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-bold">{athletesRecordedToday.size} OF {athletes.length} LOGGED</span>
+              </div>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Mandatory hydration &amp; baseline tracking accountability per athletic department directive.</p>
+              
+              {/* Sport Group Bars */}
+              <div className="mt-space-md flex flex-col gap-space-md">
+                {allSports.length === 0 ? (
+                   <span className="text-dim font-body-md py-4">No sports active on roster.</span>
+                ) : (
+                   allSports.map(sport => {
+                     const sportAthletes = athletes.filter(a => (a.sport || 'General') === sport);
+                     const doneCount = sportAthletes.filter(a => athletesRecordedToday.has(a.id)).length;
+                     const pct = sportAthletes.length > 0 ? Math.round((doneCount / sportAthletes.length) * 100) : 0;
+                     
+                     return (
+                      <div key={sport} className="flex flex-col gap-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setSelectedSportFilter(sport); setScreen('athletes'); }}>
+                        <div className="flex justify-between items-center text-on-surface font-label-md text-label-md">
+                          <span className="uppercase">{sport}</span>
+                          <span className={`font-mono font-semibold ${pct === 100 ? 'text-status-success' : (pct > 0 ? 'text-primary' : 'text-dim')}`}>
+                            {doneCount} of {sportAthletes.length} logged ({pct}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
+                          <div className={`${pct === 100 ? 'bg-status-success' : 'bg-primary'} h-3 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>
+                        </div>
+                      </div>
+                     );
+                   })
+                )}
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
