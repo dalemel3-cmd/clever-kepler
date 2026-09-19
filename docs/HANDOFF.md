@@ -2532,7 +2532,78 @@ release moves `scrollLeft` from 0 to 200, and a plain click on "Baseball"
 still applies that sport filter (confirmed via the button's own active/gold
 styling class appearing after the click).
 
-## 70. Next up
+## 70. Drag-scroll affordance was invisible; full regression-suite triage after the overhaul (v5.0.9)
+
+Follow-up to §69: the click-and-drag interaction worked, but nothing on
+screen told a coach these rows could be dragged - no scrollbar, no visual
+cue, just a bare row of pills. Added `DragScrollBar`, a small custom
+scrollbar component exported alongside `useDragScroll` from the same hook
+file (renamed `useDragScroll.js` -> `useDragScroll.jsx` since it now
+contains JSX - Vite/Rolldown reject JSX inside a plain `.js` file). It reads
+live scroll metrics (`scrollWidth`/`clientWidth`/`scrollLeft`, kept in state
+via a `scroll` listener and a `ResizeObserver`) to size and position a thin
+gold thumb under the row, hides itself entirely when the row doesn't
+overflow, and is itself draggable to scrub the row's `scrollLeft` directly.
+Wired under all three sport-pill rows (Quick Entry's roster filter, Lift
+Tracker's roster and leaderboard filters). Verified with a real drag
+gesture (`scrollLeft` moved from 0 to 17 after a 170px drag) and confirmed
+the thumb's bounding box renders at the expected width/position for a
+20-athlete, 7-sport roster.
+
+**Full regression-suite triage, same session.** The coach asked for the
+complete 40-file suite to be re-run after a container restart and every
+failure triaged - fix real bugs, confirm the rest are already-known test
+staleness rather than re-asserting that from memory. Re-ran the full suite
+against this build and checked every failing file's actual DOM/network
+behavior directly (not just re-reading old notes):
+
+- `entry-perf.js`'s `Add` button and `kiosk-search-pill.js`'s `All` button
+  timeouts are exact-name mismatches against real, intentional labels
+  (`+ Add Guest / Trial`, `All Roster`) - the buttons exist and work, the
+  test's `exact: true` selector doesn't match the fuller label.
+- `rpe.js`/`rpe-fixes.js` (`SAVE RPE`) and `rpe-settings.js` (`RPE Only`)
+  are the same already-documented button/label renames from §56-§58
+  (`CONFIRM & SYNC ATHLETE`, `Session RPE`) - confirmed by grepping the
+  current source, not reprinting the old note on faith.
+- `lift-tracker-redesign.js`'s `Recent Bencher` button timeout: the "Active
+  Today" recent-athlete cards are `<div onClick>`, not `<button>` elements,
+  so `getByRole('button', ...)` can never match them - a pre-existing
+  accessibility/test mismatch in code this session didn't touch, not a new
+  regression.
+- `dashboard-focus-and-sticky-lifts.js`'s "typing still filters the roster"
+  and the several roster-name-matching failures in `lift-tracker.js` /
+  `lift-leaderboard-sport-filter.js`: confirmed directly with a scripted
+  page read that `element.innerText` returns the CSS `text-transform:
+  uppercase` roster names as literally uppercase ("ROSTER ATHLETE 20"), so
+  a test's mixed-case regex against `innerText` never matches - the exact
+  "uppercase class breaks case-sensitive test matches" issue flagged as
+  known back in §58, reconfirmed against live rendering rather than assumed.
+- `rpe-dashboard.js`'s "2 of 5 REPORTED"/"40%" checks slice the page text
+  between `TODAY'S SESSION LOAD` and `SESSION ACCOUNTABILITY TRACKER` -
+  both headings were intentionally renamed in §54/§55, so the slice
+  indices are `-1` and the check reads garbage. Same known heading-rename
+  staleness, not new.
+- `lift-csv-export.js`'s "no visible text label" check is the Material
+  Symbols ligature-text issue from §58 (`element.innerText` sees the
+  literal word "download").
+- `profile-baseline-chart-agreement.js` still fails on its own
+  `addInitScript` called with too many arguments - a pre-existing
+  test-authoring bug (§57), unrelated to app code.
+- `data-integrity.js`'s `NET-FAIL` and `offline-recovery.js`'s queue checks
+  still look for a `Save Record & Complete` button that was renamed to
+  `CONFIRM & SYNC ATHLETE` back in §56 - same known stale selector.
+
+No new failures traced to this session's changes. Re-confirmed the specific
+overhaul items from earlier this session are all still present in source
+(not just documented as done): the fabricated "Digital Scale Rack"/Rice
+Lake copy and the fake progress bar/"Mark Block Complete" button stay
+removed, the "+ Add Guest / Trial" modal still exists and is wired to
+`handleCreateAthlete`, the Lift Tracker sidebar link is still gated on
+`enableLiftTracker`, Enter-to-save is still wired on both the weight and
+RPE inputs, and no `backdrop-blur` classes have crept back into the
+weigh-in/add-athlete modals.
+
+## 71. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

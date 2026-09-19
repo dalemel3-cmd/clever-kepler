@@ -2,7 +2,7 @@ import React from 'react';
 import { Search, X, Plus, Minus, CheckCircle, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
 import { parseAthleteMeta, getBaselinesMap, getSportColor } from '../../utils/athleteData';
-import { useDragScroll } from '../../hooks/useDragScroll';
+import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 import AthleteCard from './AthleteCard';
 
 export default function EntryScreen({
@@ -268,6 +268,7 @@ export default function EntryScreen({
               </button>
             ))}
           </div>
+          <DragScrollBar drag={sportPillDrag} className="mt-1" />
         </div>
 
         {/* Main Interaction Area */}

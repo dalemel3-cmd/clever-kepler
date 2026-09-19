@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, X, Minus, Plus, Pencil, Trash2, Check } from 'lucide-react';
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
-import { useDragScroll } from '../../hooks/useDragScroll';
+import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 
 // Estimated 1-rep max (Epley formula). Weight and reps are always stored as the raw
 // set an athlete actually did - this is only used to rank/compare sets logged at
@@ -418,6 +418,7 @@ export default function LiftScreen({
                 </button>
               ))}
             </div>
+            <DragScrollBar drag={rosterSportDrag} className="mt-1" />
           </div>
 
           {/* Live Weight Room Floor Section */}
@@ -653,6 +654,7 @@ export default function LiftScreen({
                     </button>
                   ))}
                 </div>
+                <DragScrollBar drag={leaderboardSportDrag} className="mt-1" />
               </div>
             </div>
 
