@@ -199,30 +199,30 @@ export default function GroupsScreen({
                 {/* Telemetry Matrix */}
                 <div className="grid grid-cols-4 gap-space-xs p-space-sm rounded-lg bg-midnight border border-card-border/60">
                   <div className="flex flex-col cursor-pointer hover:bg-card-border/40 rounded p-1" onClick={() => { setSelectedSportFilter(sport); setScreen('athletes'); }}>
-                    <span className="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Athletes</span>
+                    <span className="min-h-[2.4em] block font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Athletes</span>
                     <span className="font-metric-val text-metric-val text-text-headline">{sportAthletes.length}</span>
                     <span className="font-body-sm text-body-sm text-text-muted">Rostered</span>
                   </div>
                   <div className="flex flex-col cursor-pointer hover:bg-card-border/40 rounded p-1" onClick={() => { setTeamStatusSport(sport); setScreen('team-status'); }}>
-                    <span className="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
+                    <span className="min-h-[2.4em] block font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
                     <span className={`font-metric-val text-metric-val ${avgW > 0 ? 'text-antique-gold' : 'text-card-border'}`}>{avgW > 0 ? avgW : '--'}</span>
                     <span className="font-body-sm text-body-sm text-text-muted">Pounds</span>
                   </div>
                   {settings.enableRpe ? (
                     <div className="flex flex-col">
-                      <span className="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
+                      <span className="min-h-[2.4em] block font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
                       <span className={`font-metric-val text-metric-val ${avgRpe > 0 ? 'text-antique-gold' : 'text-card-border'}`}>{avgRpe > 0 ? avgRpe.toFixed(1) : '--'}</span>
                       <span className="font-body-sm text-body-sm text-text-muted">{avgRpe > 0 ? 'Active' : 'Unset'}</span>
                     </div>
                   ) : (
                     <div className="flex flex-col">
-                      <span className="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
+                      <span className="min-h-[2.4em] block font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg RPE</span>
                       <span className="font-metric-val text-metric-val text-card-border">--</span>
                       <span className="font-body-sm text-body-sm text-text-muted">Disabled</span>
                     </div>
                   )}
                   <div className="flex flex-col">
-                    <span className="font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Sleep</span>
+                    <span className="min-h-[2.4em] block font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Sleep</span>
                     <span className={`font-metric-val text-metric-val ${avgSleep > 0 ? 'text-slate-accent' : 'text-card-border'}`}>{avgSleep > 0 ? avgSleep.toFixed(1) : '--'}</span>
                     <span className="font-body-sm text-body-sm text-text-muted">Hours</span>
                   </div>

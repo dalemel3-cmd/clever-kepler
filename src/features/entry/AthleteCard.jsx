@@ -58,7 +58,7 @@ function AthleteCard({
             <span className="font-body-sm text-xs text-[#bcc1ca] truncate">{position ? position : sport} {grade ? `· ${grade}` : ''}</span>
           </div>
         </div>
-        <span className="font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+        <span className="flex-shrink-0 whitespace-nowrap font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
       </div>
       <div className="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
         <div className="flex items-center gap-2">

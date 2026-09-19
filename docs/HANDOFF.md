@@ -2283,7 +2283,43 @@ Symbols Google Fonts failure in this sandbox (§50) rendering the ligature
 name as text instead of a glyph - not reproducible with the font loaded, and
 the same architectural note about `lucide-react` applies.
 
-## 60. Next up
+## 60. Root cause of overflowing icons everywhere: an unlayered CSS rule (v4.50.0)
+
+Coach sent screenshots from production: the Dashboard's WEIGH-IN SYNC tile
+had its icon visibly cut off/overflowing its box, an athlete card's
+"Pending" badge looked cramped, and Sport Groups' 4-column metric grid had
+its numbers sitting at different heights across columns.
+
+**The icon issue was systemic, not local to that one tile.** `src/index.css`
+defines `.material-symbols-outlined { font-size: 24px; ... }` as a bare
+top-level rule - not inside `@layer base/components/utilities`. Tailwind v4
+compiles its own rules into named cascade layers, and an unlayered rule
+always wins over anything in a layer, regardless of selector specificity or
+source order. That meant `font-size: 24px` was overriding every single
+`text-sm`/`text-lg`/`text-xl`/`text-2xl`/`text-base` size utility applied to
+an icon anywhere in the app - confirmed directly: an icon with classes
+`material-symbols-outlined text-sm` (should compute to 14px) was actually
+rendering at a computed `24px`. Most places had enough padding to absorb the
+mismatch invisibly; the Dashboard tile's tight `flex items-center
+justify-between` row didn't, so the oversized icon visibly overflowed. Fixed
+by wrapping the rule in `@layer base`, letting Tailwind's utility layer (always
+higher priority than base) win the way each usage's own size class intends.
+Verified: the same icon now computes to 13px instead of 24px, and the
+Dashboard tile no longer overflows.
+
+**Two smaller, targeted fixes** from the same screenshots:
+- `AthleteCard.jsx`'s "Pending" badge had no `flex-shrink-0`/`whitespace-nowrap`,
+  so in a tight header row it could shrink or wrap instead of staying a
+  fixed, single-line pill next to the athlete's name.
+- `GroupsScreen.jsx`'s 4-column telemetry grid (Athletes/Avg Weight/Avg
+  RPE/Avg Sleep) had no fixed label height, so a two-word label that wrapped
+  ("Avg Weight" → "Avg" / "Weight") pushed its own number down a line
+  relative to the three single-line labels next to it, misaligning every
+  number in the row. Gave each label a `min-h-[2.4em] block` so all four
+  reserve identical vertical space regardless of whether their own text
+  wraps - verified with a screenshot showing all four numbers level.
+
+## 61. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

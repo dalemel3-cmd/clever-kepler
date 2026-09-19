@@ -28,20 +28,30 @@
    <span className="material-symbols-outlined">icon_name</span> in the app (added
    across AppHeader/AppSidebar/Dashboard/EntryScreen/GroupsScreen/LiftScreen/
    AthleteCard in the Tailwind refactor) renders as literal text - "grid_view",
-   "fitness_center", etc. - instead of an icon glyph. */
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  -webkit-font-smoothing: antialiased;
+   "fitness_center", etc. - instead of an icon glyph.
+   This must live in @layer base: a bare top-level rule sits outside Tailwind's
+   cascade layers entirely, which beats every layered utility regardless of
+   source order - font-size: 24px here was silently overriding every text-sm/
+   text-lg/text-xl/text-2xl size utility applied to an icon anywhere in the app,
+   forcing every icon to 24px and causing icons to overflow their containers in
+   tight layouts (dashboard stat tiles, card headers, etc). In @layer base,
+   Tailwind's utility layer (always higher priority) can override font-size
+   per instance the way each usage's own text-* class intends. */
+@layer base {
+  .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+  }
 }
 
 #root {
