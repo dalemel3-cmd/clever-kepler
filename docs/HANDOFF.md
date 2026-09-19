@@ -2332,7 +2332,31 @@ at-20 → major bump convention is unchanged. This release itself shipped no
 app behavior change - it's a version-only reset, called out explicitly in
 `VERSIONING.md`'s History table so it doesn't read as a phantom rewrite.
 
-## 62. Next up
+## 62. Icon line-height was still inflating tight containers (v5.0.1)
+
+Coach reported the Dashboard's WEIGH-IN SYNC tile icon was still visibly
+cut off/overflowing after `4.50.0`'s fix, with a screenshot showing the icon
+poking above the tile's top edge. `4.50.0` fixed the *font-size* half of the
+unlayered-CSS-rule bug (§60) - moving `.material-symbols-outlined` into
+`@layer base` let Tailwind's `text-sm`/`text-lg`/etc. utilities override its
+`font-size: 24px` as intended. But those same named utilities each carry
+their own paired *line-height* too (`text-sm` = 14px font-size / 20px
+line-height in Tailwind's default scale) - once font-size became
+overridable, the icon also picked up that utility's line-height, giving a
+14px glyph a 20px-tall inline box. In a stat tile with only a few pixels of
+padding around a small uppercase label, that extra ~6px of box height was
+enough to visibly cross the tile's edge, even though the icon's actual
+font-size was now correct.
+
+Fixed by adding `line-height: 1 !important` specifically (not font-size) to
+the base rule - every icon's box is now locked to exactly its own glyph
+height no matter which size utility sized it. Verified directly: the
+WEIGH-IN SYNC icon's computed line-height now equals its computed font-size
+(both 13px in the test fixture), and its bounding box no longer crosses its
+parent tile's top edge (confirmed via bounding-box comparison, not just a
+screenshot).
+
+## 63. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
