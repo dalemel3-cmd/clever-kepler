@@ -2419,7 +2419,21 @@ in full with room to spare; only an intentionally extreme test name (29
 characters) still truncates, which is the correct behavior for a genuine
 outlier rather than every normal name.
 
-## 66. Next up
+## 66. PENDING badge moved to its own row (v5.0.5)
+
+Follow-up to §65: instead of narrowing the truncation problem further, the
+coach asked to move "PENDING" off the name row entirely - onto its own line
+between the name/sport and the "TAP TO LOG" button. `AthleteCard.jsx`
+restructured: the avatar+name row is now its own flex row with nothing
+competing for width, wrapped together with the Pending badge in a
+`flex flex-col gap-2` group (so they sit close together at the top of the
+card rather than getting spread apart by the card's own `justify-between`),
+with "TAP TO LOG" unchanged below. Verified: a normal name ("Austin
+Bierman") now renders with room to spare, and even a deliberately extreme
+29-character test name shows significantly more of itself before
+truncating, since it no longer shares its line with the badge.
+
+## 67. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

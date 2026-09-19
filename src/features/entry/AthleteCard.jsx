@@ -48,17 +48,17 @@ function AthleteCard({
       className="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" 
       onClick={() => onSelect(athleteId)}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
           <div className="w-12 h-12 shrink-0 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-[#b89c5b] font-bold">
             {initials}
           </div>
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col min-w-0 flex-1">
             <span className="font-headline-md text-base text-white tracking-wide truncate">{displayName}</span>
             <span className="font-body-sm text-xs text-[#bcc1ca] truncate">{position ? position : sport} {grade ? `· ${grade}` : ''}</span>
           </div>
         </div>
-        <span className="flex-shrink-0 whitespace-nowrap font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
+        <span className="w-fit whitespace-nowrap font-label-sm text-[10px] px-1.5 py-0.5 rounded bg-[#061c41] border border-[#2a313d] text-[#bcc1ca] uppercase font-bold">Pending</span>
       </div>
       <div className="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
         <div className="flex items-center gap-2">
