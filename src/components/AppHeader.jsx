@@ -3,6 +3,7 @@ import React from 'react';
 export function AppHeader({
   isKioskMode,
   setIsKioskMode,
+  onActivateKioskMode,
   setScreen,
   isOnline,
   isRefreshing,
@@ -69,7 +70,7 @@ export function AppHeader({
                 <span className="material-symbols-outlined text-base">add</span>
                 <span>Log Set</span>
               </button>
-              <button onClick={() => { setIsKioskMode(true); setScreen('entry'); }} className="hidden md:flex items-center gap-1 px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-primary font-headline-md text-headline-md uppercase transition-colors">
+              <button onClick={onActivateKioskMode} className="hidden md:flex items-center gap-1 px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-primary font-headline-md text-headline-md uppercase transition-colors">
                 <span className="material-symbols-outlined text-base">sensors</span>
                 <span>Kiosk Mode</span>
               </button>

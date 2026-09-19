@@ -2433,7 +2433,48 @@ Bierman") now renders with room to spare, and even a deliberately extreme
 29-character test name shows significantly more of itself before
 truncating, since it no longer shares its line with the badge.
 
-## 67. Next up
+## 67. Athletes-tab sport filter was leaking into Kiosk Mode's roster (v5.0.6)
+
+Coach reported: filter Athletes down to one team, activate Kiosk Mode, and
+Kiosk Mode only shows that same team - searching for anyone on a different
+team says "athlete not found in roster," with nothing in the UI suggesting
+a filter is even active. Their own diagnosis was exactly right.
+
+**Root cause.** `selectedSportFilter` and `search` (`App.jsx` lines ~75-76)
+are single pieces of state shared across the Athletes tab, Profiles, *and*
+Quick Entry/Kiosk Mode - all three read the same `filteredAthletes` memo
+that applies both filters. `EntryScreen.jsx` has its own separate
+`localSportFilter` for narrowing the roster *within* Kiosk Mode (by design,
+confirmed by its own comment: "deliberately does NOT touch the shared
+selectedSportFilter") - but that comment only describes one direction. It
+never *writes* to the shared filter, but it still *reads* `filteredAthletes`,
+which the Athletes tab had already narrowed. A coach who filtered Athletes to
+Volleyball and then opened Kiosk Mode inherited that same narrowing with zero
+indication why - Kiosk Mode's own "All" pill still said "All," just over an
+already-shrunk roster.
+
+**Fix:** added `handleActivateKioskMode` in `App.jsx` - a single entry point
+that resets `selectedSportFilter` to `'ALL'` and `search` to `''` before
+flipping `isKioskMode` on and switching to the entry screen. Wired both real
+activation buttons (`AppHeader.jsx`'s "Kiosk Mode" and `AppSidebar.jsx`'s
+"ACTIVATE KIOSK MODE") through it instead of their own inline
+`setIsKioskMode`/`setScreen` calls.
+
+**Second bug found while tracing every activation path:** the sidebar's gold
+"ACTIVATE KIOSK MODE" button - a new element added in the Tailwind reskin,
+no pre-refactor equivalent existed to compare against - only ever called
+`setScreen('entry')`. It never called `setIsKioskMode(true)` at all, so
+clicking it just opened the ordinary (non-kiosk) Quick Entry screen with the
+full sidebar/header still showing, contradicting its own label. Fixed as
+part of the same `onActivateKioskMode` wiring.
+
+Verified end-to-end with a scripted repro of the coach's exact steps: filter
+Athletes to Volleyball, click the header's Kiosk Mode button - Kiosk Mode
+now shows both Volleyball and Baseball athletes. Repeated with the sidebar
+button (filtered to Baseball this time) with the same result, and confirmed
+it now genuinely enters Kiosk Mode (EXIT KIOSK button present).
+
+## 68. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

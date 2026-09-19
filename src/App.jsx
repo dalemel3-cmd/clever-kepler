@@ -248,6 +248,20 @@ export default function App() {
       }
     }), [athletes, search, selectedSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
   const [isKioskMode, setIsKioskMode] = useState(false);
+  // Entering Kiosk Mode must always start from the full roster - the Athletes
+  // tab's sport/search filters (selectedSportFilter, search) are shared state
+  // with Quick Entry's own roster query, so a coach who filtered Athletes down
+  // to one team and then activated Kiosk Mode was silently stuck seeing only
+  // that team there too, with no visible filter shown as the cause ("athlete
+  // not found in roster" when searching for anyone on a different team).
+  // Quick Entry already has its own independent sport-pill filter for
+  // narrowing within Kiosk Mode itself, so reset the shared ones on entry.
+  const handleActivateKioskMode = () => {
+    setSelectedSportFilter('ALL');
+    setSearch('');
+    setIsKioskMode(true);
+    setScreen('entry');
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('shiloh_sidebar_collapsed') === 'true'; } catch (e) { return false; }
   });
@@ -3020,12 +3034,13 @@ export default function App() {
       )}
       
 
-      {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} enableLiftTracker={settings.enableLiftTracker} />}
+      {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} enableLiftTracker={settings.enableLiftTracker} onActivateKioskMode={handleActivateKioskMode} />}
 
       <div className={`flex-1 min-w-0 ${isKioskMode ? "w-full" : (sidebarCollapsed ? "md:pl-20" : "md:pl-64")}`}>
         <AppHeader
           isKioskMode={isKioskMode}
           setIsKioskMode={setIsKioskMode}
+          onActivateKioskMode={handleActivateKioskMode}
           setScreen={setScreen}
           isOnline={isOnline}
           isRefreshing={isRefreshing}

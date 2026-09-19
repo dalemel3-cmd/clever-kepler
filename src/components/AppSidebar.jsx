@@ -1,7 +1,7 @@
 import React from 'react';
 import { APP_VERSION } from '../utils/athleteData';
 
-export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, enableLiftTracker }) {
+export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, enableLiftTracker, onActivateKioskMode }) {
   const handleNav = (newScreen) => (e) => {
     e.preventDefault();
     setScreen(newScreen);
@@ -55,7 +55,7 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coach
           </button>
         </div>
         <div className={collapsed ? 'px-space-sm pt-space-md' : 'px-space-md pt-space-md'}>
-          <button onClick={() => setScreen('entry')} title={collapsed ? 'Activate Kiosk Mode' : undefined} className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-primary hover:bg-primary-hover text-[#030a14] rounded-xl font-headline-md text-headline-md uppercase tracking-wider transition-colors shadow-md">
+          <button onClick={onActivateKioskMode} title={collapsed ? 'Activate Kiosk Mode' : undefined} className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-primary hover:bg-primary-hover text-[#030a14] rounded-xl font-headline-md text-headline-md uppercase tracking-wider transition-colors shadow-md">
             <span className="material-symbols-outlined text-[#030a14] text-lg">bolt</span>
             {!collapsed && 'ACTIVATE KIOSK MODE'}
           </button>
