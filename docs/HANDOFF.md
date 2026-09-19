@@ -2390,7 +2390,36 @@ even `1fr` distribution size each tile purely from the available space.
 Verified after the fix: 0px overlap, each tile a consistent ~119px wide with
 even gaps at 1440px.
 
-## 65. Next up
+## 65. Quick Entry card names overlapping the PENDING badge (v5.0.4)
+
+Coach sent a screenshot: "PENDING" badges overlapping athlete names on the
+Quick Entry roster grid ("Austin Bierman" rendered with its last letter cut
+by the badge's solid background), asking to make the cards bigger to fit.
+
+**First bug: truncation was silently broken.** `AthleteCard.jsx`'s name span
+already had `truncate`, and its immediate parent already had `min-w-0` - but
+the *grandparent* (`<div className="flex items-center gap-3">`, wrapping
+avatar + name/sport column) did not. A flex item without `min-w-0` refuses
+to shrink below its content's intrinsic width by default, so the ellipsis
+truncation two levels down never activated - the name just overflowed
+visually into the Pending badge's space instead of clipping with "…". Added
+`min-w-0` (and `flex-1`, so the group still grows to use the row's full
+available width rather than sitting at a cramped default size) to that
+wrapper.
+
+**That fix immediately exposed the real underlying problem:** at
+`xl:grid-cols-4`, roster cards were only ~226px wide - genuinely not enough
+room for a normal name plus the "PENDING" badge and 48px avatar, so even
+short names like "Austin Bierman" (114px of text) were truncating in a
+64px-wide slot. This wasn't a CSS bug, just too many columns for the
+available width. Moved the 4-column breakpoint from `xl` (1280px) to `2xl`
+(1536px) - common desktop widths (1280-1535px) now show 3 cards per row at
+~307px each instead of 4 at ~226px. Verified: "Austin Bierman" now renders
+in full with room to spare; only an intentionally extreme test name (29
+characters) still truncates, which is the correct behavior for a genuine
+outlier rather than every normal name.
+
+## 66. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

@@ -276,7 +276,7 @@ export default function EntryScreen({
                     </div>
                     <span className="font-label-md text-xs text-[#bcc1ca]">{loggedCount} of {sportAthletes.length} Checked In</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="athletes-grid">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4" id="athletes-grid">
                     {sportAthletes.map(a => {
                       const safeName = (a.name && String(a.name).trim()) || 'Unnamed Athlete';
                       return (

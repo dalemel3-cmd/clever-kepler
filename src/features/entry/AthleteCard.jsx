@@ -48,9 +48,9 @@ function AthleteCard({
       className="group relative bg-[#0a1120] hover:bg-[#061c41] border border-[#2a313d] transition-all duration-150 p-4 rounded-xl flex flex-col justify-between h-44 shadow-md cursor-pointer hover:shadow-xl active:scale-[0.98]" 
       onClick={() => onSelect(athleteId)}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-[#b89c5b] font-bold">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-12 h-12 shrink-0 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center font-headline-lg text-lg text-[#b89c5b] font-bold">
             {initials}
           </div>
           <div className="flex flex-col min-w-0">
