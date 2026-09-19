@@ -2372,7 +2372,25 @@ the icon can look like it sits higher/bigger than the text next to it.
 Nudged it down 1px (`relative top-[1px]`) as a visual polish, not a
 structural fix - there's no further "box" issue to chase here.
 
-## 64. Next up
+## 64. Dashboard stat tiles were overlapping, not just visually crowded (v5.0.3)
+
+Coach asked to "shift those boxes over to make it a flush layout" for the
+4-tile header row (Total Athletes/Sessions Today/Weigh-In Sync/Needs
+Attention). Measured each tile's actual bounding box rather than guess from
+a screenshot: at 1440px viewport, tile 1 ended at x=973.9 and tile 2 began
+at x=971.9 - a genuine 2px overlap, repeated at every tile boundary.
+
+Root cause: the grid is `grid-cols-2 sm:grid-cols-4` (`minmax(0, 1fr)`
+columns), but each tile also carried `min-w-[130px]`. At this container
+width the 4 columns computed to roughly 128-129px each - just under the
+tile's forced minimum - so every tile overflowed its own track by a couple
+pixels into its neighbor, rendering as a visible overlap rather than a clean
+shared border. Removed the fixed minimum (`min-w-0`), letting the grid's
+even `1fr` distribution size each tile purely from the available space.
+Verified after the fix: 0px overlap, each tile a consistent ~119px wide with
+even gaps at 1440px.
+
+## 65. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

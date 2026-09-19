@@ -83,19 +83,19 @@ export default function DashboardScreen({
 
         {/* Live Performance Metric Badges */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-space-sm">
-          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-0">
             <span className="font-label-sm text-label-sm text-dim uppercase tracking-wider">TOTAL ATHLETES</span>
             <div className="flex items-baseline gap-space-xs mt-1">
               <span className="font-metric-val text-metric-val text-on-surface">{athletes.length}</span>
             </div>
           </div>
-          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-0">
             <span className="font-label-sm text-label-sm text-dim uppercase tracking-wider">SESSIONS TODAY</span>
             <div className="flex items-baseline gap-space-xs mt-1">
               <span className="font-metric-val text-metric-val text-on-surface">{Math.max(todaySessions, executiveInsights?.todayCount || executiveInsights?.todayRecordedCount || 0)}</span>
             </div>
           </div>
-          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-0">
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-dim uppercase tracking-wider">WEIGH-IN SYNC</span>
               <span className="material-symbols-outlined text-sm text-primary relative top-[1px]">scale</span>
@@ -105,7 +105,7 @@ export default function DashboardScreen({
               <span className="font-label-sm text-label-sm text-dim">({athletesRecordedToday.size}/{athletes.length})</span>
             </div>
           </div>
-          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
+          <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-0">
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-error uppercase tracking-wider font-bold">NEEDS ATTENTION</span>
               {unresolvedCount > 0 && <span className="w-2 h-2 rounded-full bg-error animate-pulse"></span>}
