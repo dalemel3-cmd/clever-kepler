@@ -2319,7 +2319,20 @@ Dashboard tile no longer overflows.
   reserve identical vertical space regardless of whether their own text
   wraps - verified with a screenshot showing all four numbers level.
 
-## 61. Next up
+## 61. Version scheme change + reset to 5.0.0
+
+Coach asked to bump to `5.0.0` and, going forward, replace the old
+patch-vs-minor judgment call with a mechanical rule: every push bumps the
+patch number by one regardless of size (`X.Y.1` → `X.Y.2` → ... → `X.Y.9`),
+rolling to the next minor at `X.Y.9` → `X.(Y+1).0`. `VERSIONING.md` rewritten
+to document this as "the rule (as of 5.0.0)", with the pre-5.0.0 history
+(patch for fixes, minor for anything a coach would notice) kept as a note
+so old entries in the History table still make sense. The minor-rolls-over-
+at-20 → major bump convention is unchanged. This release itself shipped no
+app behavior change - it's a version-only reset, called out explicitly in
+`VERSIONING.md`'s History table so it doesn't read as a phantom rewrite.
+
+## 62. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

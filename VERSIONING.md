@@ -3,33 +3,42 @@
 Every push that changes the app bumps the version, so you can confirm at a glance
 that what's deployed is what you just shipped.
 
-## The rule
+## The rule (as of `5.0.0`)
 
-| Kind of push | Bump | Example |
-|---|---|---|
-| **Small** — bug fix, copy tweak, styling, perf, refactor with no new behavior | **Patch** — third number | `4.3.0` → `4.3.1` |
-| **Large** — new feature, new setting, schema change, or anything that changes how the app behaves | **Minor** — second number | `4.3.1` → `4.4.0` |
+Every push that changes the app bumps the **patch** number (third number) by
+one, regardless of how small or large the change is - no more judgment call
+between patch and minor:
 
-A minor bump resets the patch number to `0` (`4.3.7` → `4.4.0`, never `4.4.7`).
+`5.0.0` → `5.0.1` → `5.0.2` → ... → `5.0.9`
 
-### The minor number rolls over at 20
+### The patch number rolls over at 9
 
-The minor number does not climb forever. Once a minor bump would take it to `20`,
-bump the **major** number instead and reset minor and patch to `0`:
+Once a patch bump would take it to `10`, bump the **minor** number instead
+and reset patch to `0`:
 
-`4.19.0` → next feature → `5.0.0` (not `4.20.0`)
+`5.0.9` → next push → `5.1.0` (not `5.0.10`)
 
-This is the only thing that moves the major number in normal operation - it's a
-mechanical rollover, not a judgment call about how big the release is, so it needs no
-extra discussion when it happens. A release that breaks existing data or is a full
-rewrite is the other, rarer reason to bump major; that one *is* a deliberate call.
+This is a mechanical rollover, not a judgment call - it needs no discussion
+when it happens.
 
-Either way, a major bump always resets both minor and patch to `0`.
+### The minor number still rolls over at 20
 
-### Quick test for which one
-Ask: *"Would a coach notice something new or different in how the app works?"*
-- **No** → patch. It's a fix or an invisible improvement.
-- **Yes** → minor. It's a feature.
+Once a minor bump would take it to `20`, bump the **major** number instead
+and reset minor and patch to `0`:
+
+`5.19.x` → next push → `6.0.0` (not `5.20.0`)
+
+A release that breaks existing data or is a full rewrite is the other, rarer
+reason to bump major; that one *is* a deliberate call, made explicitly by the
+coach, not a mechanical rollover.
+
+### Pre-`5.0.0` history
+
+Versions before `5.0.0` used a different rule (patch for fixes, minor for
+anything a coach would notice) - see the History table below. `5.0.0` itself
+was a deliberate reset requested by the coach to start the new every-push
+patch-bump scheme on a clean major version, not a data-breaking or rewrite
+release.
 
 ## Where to change it
 
@@ -55,6 +64,7 @@ serving the cached build — close and reopen the app (or hard-refresh the tab).
 
 | Version | What shipped |
 |---|---|
+| `5.0.0` | Deliberate version reset at the coach's request, not a data-breaking or rewrite release. Starts the new versioning scheme: every push bumps the patch number by one (`5.0.0` → `5.0.1` → ... → `5.0.9`), rolling to the next minor at `5.0.9` → `5.1.0` instead of the old patch-vs-minor judgment call. No app behavior changed in this release - see `4.50.0` immediately below for the actual last set of fixes shipped |
 | `4.50.0` | Found the real root cause behind icons overflowing/getting cut off across the app: `.material-symbols-outlined`'s `font-size: 24px` in `src/index.css` was defined as a bare top-level rule, outside Tailwind's cascade layers - which meant it silently beat every `text-sm`/`text-lg`/`text-xl`/`text-2xl` sizing utility applied to an icon anywhere in the app, forcing every icon to 24px regardless of what size was intended. Wrapped it in `@layer base` so per-instance size utilities work as intended; fixed the Dashboard's WEIGH-IN SYNC tile icon overflowing its box as a direct result. Also: the "Pending" badge on Quick Entry athlete cards could wrap/shrink instead of staying on one line; and Sport Groups' 4-column metric grid (Athletes/Avg Weight/Avg RPE/Avg Sleep) had its numbers misaligned whenever a label wrapped to two lines ("Avg Weight") while its neighbors stayed on one - reserved consistent label height so all four numbers now sit level with each other regardless of label wrapping |
 | `4.49.0` | Mobile responsiveness audit after confirming v4.48.0 deployed correctly to production. Found and fixed a major regression: the reskinned sidebar had **no mobile breakpoint at all** - it always rendered at full width even on phones, on top of the still-present mobile bottom nav, leaving almost no usable screen. Restored the sidebar/header's responsive hide-below-768px behavior (matching the app's pre-existing `.sidebar`/`.bottom-nav` CSS convention) and gave the main content area the bottom padding it needs to clear the bottom nav bar. Also fixed two button rows (Quick Entry's Weight+Sleep/Sleep Only/Session RPE mode switcher, and Sport Groups' Bulk Baseline Studio button) that didn't wrap on narrow screens and were pushed off-screen entirely - a phone user could not reach "Session RPE" mode at all before this fix. Same fix applied to the top header's breadcrumb, which was pushing the "Log Set" button off-screen on every screen at phone width |
 | `4.48.0` (not yet pushed) | Full bug overhaul of the Tailwind reskin, file by file. Most significant: Quick Entry's **"+ Add Guest / Trial" button was completely non-functional** - the whole add-athlete modal had been dropped while the button still flipped the state that was supposed to open it, so tapping it silently did nothing; restored the full modal (name/sport/team/grade/position) and verified it actually saves. Also: removed a fabricated "Digital Scale Rack #02" hardware tile that claimed a real integrated scale brand ("Rice Lake Telemetry Link", auto-capture) which doesn't exist; removed a decorative fake progress bar and a non-functional "Mark Block Complete" button on Lift Tracker; restored the sidebar's Lift Tracker link being hidden when the feature is disabled in Settings (it always showed, dead-clicking to nothing); restored Enter-to-save on the weight/RPE kiosk inputs; and reverted a live `backdrop-blur` the reskin reintroduced on two kiosk modals, undoing a deliberate earlier performance fix for iPad responsiveness. Full 37-file regression suite re-run clean - every remaining failure traced to an intentional rename or the uppercase-CSS-name display change, not an app bug |
