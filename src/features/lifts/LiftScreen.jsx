@@ -39,6 +39,17 @@ const downloadCSV = (filename, headers, rows) => {
   URL.revokeObjectURL(url);
 };
 
+// Touch swipe already scrolls a horizontally-overflowing row natively on
+// iPad; a mouse's vertical wheel does nothing for one by default, so on
+// desktop these sport-pill rows looked frozen. Redirect vertical wheel
+// delta into horizontal scroll so a plain mouse wheel works too.
+const handleHorizontalWheelScroll = (e) => {
+  if (e.deltaY !== 0 && e.currentTarget.scrollWidth > e.currentTarget.clientWidth) {
+    e.currentTarget.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }
+};
+
 
 export default function LiftScreen({
   settings,
@@ -403,7 +414,7 @@ export default function LiftScreen({
               </div>
             </div>
             
-            <div className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none">
+            <div className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none" onWheel={handleHorizontalWheelScroll}>
               <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider whitespace-nowrap mr-1">GROUPS:</span>
               {['ALL', ...sports].map(sport => (
                 <button
@@ -638,7 +649,7 @@ export default function LiftScreen({
                   ))}
                 </select>
                 
-                <div className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none">
+                <div className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none" onWheel={handleHorizontalWheelScroll}>
                   {['ALL', ...sports].map(sport => (
                     <button
                       key={sport}

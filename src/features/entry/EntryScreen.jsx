@@ -250,7 +250,20 @@ export default function EntryScreen({
             </div>
           </div>
           
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          <div
+            className="flex items-center gap-1.5 overflow-x-auto pb-1"
+            style={{ scrollbarWidth: 'none' }}
+            onWheel={(e) => {
+              // Touch swipe already scrolls this row natively on iPad; a mouse's
+              // vertical wheel does nothing for a horizontally-scrolling row by
+              // default, so on desktop this row looked frozen. Redirect vertical
+              // wheel delta into horizontal scroll so a plain mouse wheel works too.
+              if (e.deltaY !== 0 && e.currentTarget.scrollWidth > e.currentTarget.clientWidth) {
+                e.currentTarget.scrollLeft += e.deltaY;
+                e.preventDefault();
+              }
+            }}
+          >
             {['All', ...sportsList].map(sport => (
               <button
                 key={sport}

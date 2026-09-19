@@ -2474,7 +2474,30 @@ now shows both Volleyball and Baseball athletes. Repeated with the sidebar
 button (filtered to Baseball this time) with the same result, and confirmed
 it now genuinely enters Kiosk Mode (EXIT KIOSK button present).
 
-## 68. Next up
+## 68. Sport-pill rows didn't scroll with a mouse on desktop (v5.0.7)
+
+Coach: "this slider works great on the ipad but does not slide on the PC
+version," referring to the horizontally-scrolling sport-filter pill row
+(Quick Entry's roster search: ALL ROSTER/BASEBALL/CHEER & DANCE/...).
+
+These rows use `overflow-x-auto` with the scrollbar hidden globally
+(`::-webkit-scrollbar { display: none }` / `scrollbar-none`, for a cleaner
+look than a visible scrollbar under a pill row). Touch swipe scrolls a
+horizontal-overflow container natively, which is why it worked on iPad. A
+desktop mouse's vertical wheel does not translate to horizontal scroll for
+a container by default, and with the scrollbar invisible there was nothing
+to click-drag either - pills past the visible edge were completely
+unreachable on desktop.
+
+Added an `onWheel` handler to each affected row - Quick Entry's roster
+sport filter (`EntryScreen.jsx`) and both of Lift Tracker's sport filters
+(the roster search bar and the leaderboard, `LiftScreen.jsx`, sharing one
+`handleHorizontalWheelScroll` helper) - that redirects vertical wheel delta
+into `scrollLeft`, only when the row actually overflows. Verified directly:
+dispatching a wheel event on the row moves `scrollLeft` from 0 to the
+expected offset.
+
+## 69. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
