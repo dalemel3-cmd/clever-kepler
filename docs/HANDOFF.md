@@ -2142,7 +2142,86 @@ signature mismatch inside the test file itself (`addInitScript` called with
 too many arguments) - a pre-existing test-authoring bug unrelated to this
 refactor or any app code, not something this pass touched.
 
-## 58. Next up
+## 58. Full bug overhaul of the Tailwind reskin (v4.48.0, not yet pushed)
+
+Coach asked for a complete pass: "we have a lot of bugs with different
+features. fix them all." Went file by file through every screen the Tailwind
+refactor touched (`App.jsx`, `AppSidebar.jsx`, `AppHeader.jsx`,
+`DashboardScreen.jsx`, `EntryScreen.jsx`, `GroupsScreen.jsx`,
+`LiftScreen.jsx`, `AthleteCard.jsx`), reading each in full rather than only
+reacting to test failures, since §51-§57 already showed the reskin's failure
+mode is silent - a prop or a whole modal gets dropped with nothing crashing
+and no visual sign anything is missing.
+
+**The big one: Quick Entry's "+ Add Guest / Trial" button did nothing.**
+`isAddingAthlete`/`newAthlete`/`handleCreateAthlete` were still being passed
+into `EntryScreen.jsx` as props, and both places that call `setIsAddingAthlete(true)`
+survived the reskin - but the entire pop-up form that used to render when
+`isAddingAthlete` was true had been deleted. A coach tapping that button on
+the kiosk saw nothing happen, with no error and no other way to add a
+walk-on/trial athlete from Quick Entry. Restored the full modal (Full Name,
+Sport with quick-pick chips, Team, Grade, Position, Cancel/Create & Log
+Weigh-In) in the current visual style, wired to the same `handleCreateAthlete`
+that was always there. Verified end-to-end with a scripted fill-and-submit
+that confirms a real `POST /rest/v1/athletes` fires with the entered data -
+not just that the modal opens.
+
+**Fabricated hardware claim removed.** The kiosk's status ticker had a tile
+reading "DIGITAL SCALE RACK #02 · 0.00 LBS TARE · Rice Lake Telemetry Link ·
+Auto-capture on steady state" - Rice Lake is a real industrial scale brand,
+and the copy claimed a live auto-capturing hardware integration that does not
+exist anywhere in this app (weight is always typed in via the numpad). Same
+category as the NFC wrist-tag and ACTIVE FLOOR content already removed in
+§51 - just missed because it was hand-written directly into this refactor
+rather than pulled from a Stitch mockup. Removed; the two remaining tiles now
+split the row evenly.
+
+**Two dead decorative elements removed** from Lift Tracker: a progress bar
+under each "Active Today" card explicitly commented `{/* A fake progress bar
+to match the UI visual */}` (always 100% filled, tied to no real metric), and
+a "Mark Block Complete" button in the roster header with no `onClick` and no
+"block" concept anywhere in the app's data model.
+
+**Lift Tracker's sidebar link ignored the feature flag.** The pre-refactor
+sidebar gated that link on `settings.enableLiftTracker && ...`; the reskinned
+`AppSidebar.jsx` never received `settings` at all and always rendered it. A
+coach who disabled Lift Tracker still saw the link, which led to a screen
+that gates itself off and renders nothing (`screen === 'lifts' &&
+settings.enableLiftTracker` in `App.jsx`) - a dead link with no explanation.
+Passed `enableLiftTracker` down from `App.jsx` and restored the gate.
+
+**A performance regression, not just a visual one.** `tests/entry-perf.js`
+exists specifically because a live `backdrop-filter: blur()` on a
+full-viewport modal overlay was making the kiosk feel sticky on the iPads
+this app runs on - recomputing a blur every frame is expensive, and the fix
+was to use a plain semi-transparent scrim instead. The reskin's weigh-in
+modal (and, transiently, the newly-restored add-athlete modal until this fix)
+had `backdrop-blur-md` back in its className. Removed from both.
+
+**Enter-to-save restored.** The weight and RPE numeric inputs had
+`onKeyDown` handlers pre-refactor so a coach with an external keyboard could
+press Enter instead of tapping Confirm; dropped in the reskin. Restored on
+both inputs.
+
+**Verified NOT a bug, left alone:** `tests/lift-csv-export.js`'s check that
+the export button "carries no visible text label" fails because Material
+Symbols icons are font ligatures - the DOM text content is literally the
+word "download" even though it renders as a small icon glyph, which
+`element.innerText` picks up regardless of font rendering. This is the same
+architectural concern already flagged to the coach as a follow-up
+(converting the ~58 Material Symbols usages back to `lucide-react`, which
+uses real SVGs with no text content) - not something to patch around inside
+this pass.
+
+Full 37-file regression suite re-run clean twice (once before, once after a
+container restart mid-session lost the first run's completion). Every
+remaining failure traces to an intentional rename (`AVG LB` → `Avg Weight`,
+`SESSION ACCOUNTABILITY TRACKER` → `WEIGH-INS REMAINING BY SPORT`, `TODAY'S
+SESSION LOAD` → `TODAY'S INTERNAL TRAINING LOAD & READINESS`) or the
+`uppercase` CSS class on athlete/roster names breaking case-sensitive test
+string matches - not an app regression.
+
+## 59. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

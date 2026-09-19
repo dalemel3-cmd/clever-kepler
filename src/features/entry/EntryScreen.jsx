@@ -182,7 +182,7 @@ export default function EntryScreen({
 
         {/* Status & Throughput Ticker Bar */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
-          <div className="md:col-span-4 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center justify-between shadow-md">
+          <div className="md:col-span-6 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center justify-between shadow-md">
             <div className="flex items-center gap-4">
               <div className="relative flex items-center justify-center w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d]">
                 <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
@@ -201,25 +201,8 @@ export default function EntryScreen({
                 <span className="font-body-sm text-xs text-[#bcc1ca]">Daily Operations · {filteredAthletes.length - athletesRecordedToday.size} athletes pending</span>
               </div>
             </div>
-            <span className="material-symbols-outlined text-[#bcc1ca] text-xl">contactless</span>
           </div>
-          <div className="md:col-span-5 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center justify-between shadow-md">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-[#061c41] border border-[#2a313d] flex items-center justify-center text-[#b89c5b]">
-                <span className="material-symbols-outlined text-2xl">scale</span>
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="font-headline-md text-base text-white tracking-wide">DIGITAL SCALE RACK #02</span>
-                  <span className="flex items-center gap-1 text-[#34d399] font-label-sm text-xs font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#34d399]"></span> 0.00 LBS TARE
-                  </span>
-                </div>
-                <span className="font-body-sm text-xs text-[#bcc1ca]">Rice Lake Telemetry Link · Auto-capture on steady state</span>
-              </div>
-            </div>
-          </div>
-          <div className="md:col-span-3 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center gap-2 justify-between shadow-md">
+          <div className="md:col-span-6 bg-[#0a1120] border border-[#2a313d] p-4 rounded-xl flex items-center gap-2 justify-between shadow-md">
             <div className="flex flex-col">
               <span className="font-label-md text-xs uppercase text-white font-bold tracking-wider">Touch Navigation</span>
               <span className="font-body-sm text-xs text-[#bcc1ca]">Tap name for manual pop-up keypad</span>
@@ -340,7 +323,7 @@ export default function EntryScreen({
 
         {/* Modal replacing old modal logic */}
         {entryAthleteId && selectedAthlete && (
-          <div className="fixed inset-0 bg-[#030a14]/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-[#030a14]/95 z-50 flex items-center justify-center p-4">
             <div className="bg-[#0a1120] border border-[#2a313d] rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
               {/* Modal Header */}
               <div className="bg-[#061c41] border-b border-[#2a313d] p-6 flex items-center justify-between">
@@ -377,6 +360,7 @@ export default function EntryScreen({
                         value={weightInput || ''}
                         onChange={(e) => setWeightInput(e.target.value.replace(/[^0-9.]/g, ''))}
                         onFocus={() => setFocusedField('weight')}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
                       />
                     </div>
                   </div>
@@ -413,6 +397,7 @@ export default function EntryScreen({
                         value={rpeInput || ''}
                         onChange={(e) => setRpeInput(e.target.value.replace(/[^0-9]/g, ''))}
                         onFocus={() => setFocusedField('rpe')}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
                       />
                     </div>
                     {settings?.rpeTrackDuration && (
@@ -467,6 +452,98 @@ export default function EntryScreen({
                 >
                   <span className="material-symbols-outlined font-bold">done_all</span>
                   <span>{saving ? 'SAVING...' : 'CONFIRM & SYNC ATHLETE'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Guest / Trial Athlete Modal */}
+        {isAddingAthlete && (
+          <div
+            className="fixed inset-0 bg-[#030a14]/95 z-[10001] flex items-center justify-center p-4 overflow-y-auto"
+            onClick={(e) => { if (e.target === e.currentTarget) setIsAddingAthlete(false); }}
+          >
+            <div className="bg-[#0a1120] border border-[#b89c5b]/40 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl flex flex-col gap-5 p-7 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between border-b border-[#2a313d] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-[#b89c5b]/15 border border-[#b89c5b] flex items-center justify-center text-[#b89c5b]">
+                    <User size={22} />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-xl font-bold text-white uppercase m-0 tracking-wide">New Athlete Profile</h3>
+                    <span className="font-body-sm text-xs text-[#bcc1ca]">Enter details to add to roster and log weigh-in</span>
+                  </div>
+                </div>
+                <button onClick={() => setIsAddingAthlete(false)} className="w-10 h-10 rounded-full bg-[#0a1120] hover:bg-[#030a14] border border-[#2a313d] text-white flex items-center justify-center" title="Close modal">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <span className="font-label-sm text-xs uppercase text-[#bcc1ca] tracking-wider font-semibold">Full Name *</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jordan Miller"
+                    className="h-12 px-4 rounded-xl bg-[#061c41] border border-[#2a313d] text-white font-body-md text-base font-semibold focus:outline-none focus:border-[#b89c5b] transition-colors"
+                    value={newAthlete.name}
+                    onChange={e => setNewAthlete({ ...newAthlete, name: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="font-label-sm text-xs uppercase text-[#bcc1ca] tracking-wider font-semibold">Sport *</span>
+                  <select
+                    value={newAthlete.sport || ''}
+                    onChange={e => setNewAthlete({ ...newAthlete, sport: e.target.value })}
+                    className="h-12 px-4 rounded-xl bg-[#061c41] border border-[#2a313d] text-white font-body-md text-sm font-semibold focus:outline-none focus:border-[#b89c5b] transition-colors"
+                  >
+                    <option value="">Select a sport...</option>
+                    {sportsList.map(sport => (
+                      <option key={sport} value={sport}>{sport.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {sportsList.map(sport => (
+                      <button
+                        key={sport}
+                        type="button"
+                        onClick={() => setNewAthlete({ ...newAthlete, sport })}
+                        className={`px-3 py-1.5 rounded-full font-label-sm text-[11px] font-bold transition-colors ${newAthlete.sport === sport ? 'bg-[#b89c5b] text-[#030a14] border border-[#b89c5b]' : 'bg-white/[0.03] text-[#bcc1ca] border border-white/10 hover:bg-white/[0.06]'}`}
+                      >
+                        {sport}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex-1 min-w-[140px] flex flex-col gap-1.5">
+                    <span className="font-label-sm text-xs uppercase text-[#bcc1ca] tracking-wider font-semibold">Team / Group</span>
+                    <input type="text" placeholder="e.g. Varsity" className="h-12 px-4 rounded-xl bg-[#061c41] border border-[#2a313d] text-white font-body-md text-base focus:outline-none focus:border-[#b89c5b] transition-colors" value={newAthlete.team || ''} onChange={e => setNewAthlete({ ...newAthlete, team: e.target.value })} />
+                  </div>
+                  <div className="flex-1 min-w-[120px] flex flex-col gap-1.5">
+                    <span className="font-label-sm text-xs uppercase text-[#bcc1ca] tracking-wider font-semibold">Grade</span>
+                    <input type="text" placeholder="e.g. Freshman" className="h-12 px-4 rounded-xl bg-[#061c41] border border-[#2a313d] text-white font-body-md text-base focus:outline-none focus:border-[#b89c5b] transition-colors" value={newAthlete.grade || ''} onChange={e => setNewAthlete({ ...newAthlete, grade: e.target.value })} />
+                  </div>
+                  <div className="flex-1 min-w-[120px] flex flex-col gap-1.5">
+                    <span className="font-label-sm text-xs uppercase text-[#bcc1ca] tracking-wider font-semibold">Position</span>
+                    <input type="text" placeholder="e.g. WR / PG" className="h-12 px-4 rounded-xl bg-[#061c41] border border-[#2a313d] text-white font-body-md text-base focus:outline-none focus:border-[#b89c5b] transition-colors" value={newAthlete.position || ''} onChange={e => setNewAthlete({ ...newAthlete, position: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-1">
+                <button onClick={() => setIsAddingAthlete(false)} className="flex-1 h-14 rounded-xl border border-white/20 text-white font-headline-md text-base uppercase tracking-wider transition-colors hover:bg-white/5">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateAthlete}
+                  disabled={!newAthlete.name || saving}
+                  className="flex-[2] h-14 rounded-xl bg-[#b89c5b] hover:bg-[#d1b87a] disabled:opacity-50 disabled:cursor-not-allowed text-[#030a14] font-headline-lg text-lg font-bold uppercase tracking-wider shadow-lg transition-colors"
+                >
+                  {saving ? 'Creating...' : 'Create & Log Weigh-In'}
                 </button>
               </div>
             </div>

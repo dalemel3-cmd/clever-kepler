@@ -461,10 +461,6 @@ export default function LiftScreen({
                             <span className="font-metric-val text-metric-val text-primary tracking-tight">{lastLog.weight_lbs}<span className="text-xs font-normal text-on-surface-variant ml-0.5">lbs</span></span>
                             <span className="font-label-md text-label-md text-on-surface">{lastLog.reps} reps</span>
                           </div>
-                          {/* A fake progress bar to match the UI visual */}
-                          <div className="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden mt-1">
-                            <div className="bg-primary h-full w-full"></div>
-                          </div>
                         </div>
                       </div>
                       
@@ -497,12 +493,6 @@ export default function LiftScreen({
                   ROSTER LOGS &amp; WORKOUT ASSIGNMENTS
                 </h2>
                 <span className="font-label-sm text-label-sm text-outline uppercase">{filteredAthletes.length} REGISTERED ATHLETES • SORTED BY VELOCITY / RECENCY</span>
-              </div>
-              <div className="flex items-center gap-space-xs">
-                <span className="font-label-sm text-label-sm text-on-surface-variant">BATCH ACTION:</span>
-                <button className="px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md uppercase transition-colors">
-                  Mark Block Complete
-                </button>
               </div>
             </div>
 

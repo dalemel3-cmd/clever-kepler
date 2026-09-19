@@ -1,7 +1,7 @@
 import React from 'react';
 import { APP_VERSION } from '../utils/athleteData';
 
-export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed }) {
+export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, enableLiftTracker }) {
   const handleNav = (newScreen) => (e) => {
     e.preventDefault();
     setScreen(newScreen);
@@ -74,7 +74,7 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coach
             <nav className="flex flex-col gap-1">
               {navItem('groups', 'shield', 'Sport Groups', null)}
               {navItem('athletes', 'group', 'Athletes', null)}
-              {navItem('lifts', 'fitness_center', 'Lift Tracker', null)}
+              {enableLiftTracker && navItem('lifts', 'fitness_center', 'Lift Tracker', null)}
             </nav>
           </div>
           <div className="flex flex-col">
