@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, X, Minus, Plus, Pencil, Trash2, Check } from 'lucide-react';
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
+import { useDragScroll } from '../../hooks/useDragScroll';
 
 // Estimated 1-rep max (Epley formula). Weight and reps are always stored as the raw
 // set an athlete actually did - this is only used to rank/compare sets logged at
@@ -37,17 +38,6 @@ const downloadCSV = (filename, headers, rows) => {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-};
-
-// Touch swipe already scrolls a horizontally-overflowing row natively on
-// iPad; a mouse's vertical wheel does nothing for one by default, so on
-// desktop these sport-pill rows looked frozen. Redirect vertical wheel
-// delta into horizontal scroll so a plain mouse wheel works too.
-const handleHorizontalWheelScroll = (e) => {
-  if (e.deltaY !== 0 && e.currentTarget.scrollWidth > e.currentTarget.clientWidth) {
-    e.currentTarget.scrollLeft += e.deltaY;
-    e.preventDefault();
-  }
 };
 
 
@@ -90,6 +80,8 @@ export default function LiftScreen({
   const [editWeight, setEditWeight] = React.useState('');
   const [editReps, setEditReps] = React.useState('');
   const [editSaving, setEditSaving] = React.useState(false);
+  const rosterSportDrag = useDragScroll();
+  const leaderboardSportDrag = useDragScroll();
 
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
 
@@ -414,7 +406,7 @@ export default function LiftScreen({
               </div>
             </div>
             
-            <div className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none" onWheel={handleHorizontalWheelScroll}>
+            <div ref={rosterSportDrag.ref} {...rosterSportDrag.dragHandlers} className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none cursor-grab active:cursor-grabbing select-none">
               <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider whitespace-nowrap mr-1">GROUPS:</span>
               {['ALL', ...sports].map(sport => (
                 <button
@@ -649,7 +641,7 @@ export default function LiftScreen({
                   ))}
                 </select>
                 
-                <div className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none" onWheel={handleHorizontalWheelScroll}>
+                <div ref={leaderboardSportDrag.ref} {...leaderboardSportDrag.dragHandlers} className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none cursor-grab active:cursor-grabbing select-none">
                   {['ALL', ...sports].map(sport => (
                     <button
                       key={sport}

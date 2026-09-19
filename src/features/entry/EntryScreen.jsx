@@ -2,6 +2,7 @@ import React from 'react';
 import { Search, X, Plus, Minus, CheckCircle, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
 import { parseAthleteMeta, getBaselinesMap, getSportColor } from '../../utils/athleteData';
+import { useDragScroll } from '../../hooks/useDragScroll';
 import AthleteCard from './AthleteCard';
 
 export default function EntryScreen({
@@ -76,6 +77,7 @@ export default function EntryScreen({
   // Quick Entry never surprises a coach who left another screen filtered differently.
   const [searchOverlayOpen, setSearchOverlayOpen] = React.useState(false);
   const [localSportFilter, setLocalSportFilter] = React.useState('All');
+  const sportPillDrag = useDragScroll();
 
   const closeSearchOverlay = () => {
     setSearch('');
@@ -251,18 +253,10 @@ export default function EntryScreen({
           </div>
           
           <div
-            className="flex items-center gap-1.5 overflow-x-auto pb-1"
+            ref={sportPillDrag.ref}
+            {...sportPillDrag.dragHandlers}
+            className="flex items-center gap-1.5 overflow-x-auto pb-1 cursor-grab active:cursor-grabbing select-none"
             style={{ scrollbarWidth: 'none' }}
-            onWheel={(e) => {
-              // Touch swipe already scrolls this row natively on iPad; a mouse's
-              // vertical wheel does nothing for a horizontally-scrolling row by
-              // default, so on desktop this row looked frozen. Redirect vertical
-              // wheel delta into horizontal scroll so a plain mouse wheel works too.
-              if (e.deltaY !== 0 && e.currentTarget.scrollWidth > e.currentTarget.clientWidth) {
-                e.currentTarget.scrollLeft += e.deltaY;
-                e.preventDefault();
-              }
-            }}
           >
             {['All', ...sportsList].map(sport => (
               <button

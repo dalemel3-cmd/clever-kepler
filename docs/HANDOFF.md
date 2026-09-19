@@ -2497,7 +2497,42 @@ into `scrollLeft`, only when the row actually overflows. Verified directly:
 dispatching a wheel event on the row moves `scrollLeft` from 0 to the
 expected offset.
 
-## 69. Next up
+## 69. Sport-pill "slider" needed click-and-drag, not just wheel scroll (v5.0.8)
+
+Follow-up to §68: coach said the fix still didn't work - "still no scroll
+feature." Their own word for the row, "slider," was the tell: a mouse user
+doesn't reach for the scroll wheel over a pill row that looks like a
+slider, they click and drag it sideways, the direct mouse equivalent of the
+touch swipe that already worked on iPad. The `onWheel` fix from §68 was
+real and still correct (verified again it does move `scrollLeft`), but it
+solves a different interaction than the one a "slider" invites someone to
+try.
+
+Added `src/hooks/useDragScroll.js` - a small reusable hook exposing a ref
+and a set of mouse handlers: `mousedown` records the start position and
+`scrollLeft`, `mousemove` (while pressed) moves `scrollLeft` to follow the
+cursor, `mouseup`/`mouseleave` end the drag. Kept the wheel redirect from
+§68 in the same hook so both interactions work. The one wrinkle: these rows
+are full of clickable sport-filter buttons, so a naive mousedown/mousemove/
+mouseup would also fire a button's `onClick` after every drag. Guarded with
+a `moved` flag and a small pixel threshold (6px) - only past that threshold
+does a capture-phase `onClick` handler swallow the click, so an intentional
+drag never accidentally re-selects whatever sport happened to be under the
+cursor when the mouse came back up, while a normal tap-to-select still
+works exactly as before.
+
+Wired into all three affected rows: Quick Entry's roster sport filter
+(`EntryScreen.jsx`) and both of Lift Tracker's sport filters (roster search
+and leaderboard, `LiftScreen.jsx`) - removed the standalone
+`handleHorizontalWheelScroll` helper from §68 in favor of the shared hook.
+Added `cursor-grab`/`active:cursor-grabbing` so the drag affordance is
+visible, and `select-none` so dragging doesn't select the pill labels'
+text. Verified both behaviors survive together: a simulated press-drag-
+release moves `scrollLeft` from 0 to 200, and a plain click on "Baseball"
+still applies that sport filter (confirmed via the button's own active/gold
+styling class appearing after the click).
+
+## 70. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
