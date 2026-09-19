@@ -3022,7 +3022,7 @@ export default function App() {
 
       {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} enableLiftTracker={settings.enableLiftTracker} />}
 
-      <div className={`flex-1 min-w-0 ${isKioskMode ? "w-full" : (sidebarCollapsed ? "pl-20" : "pl-64")}`}>
+      <div className={`flex-1 min-w-0 ${isKioskMode ? "w-full" : (sidebarCollapsed ? "md:pl-20" : "md:pl-64")}`}>
         <AppHeader
           isKioskMode={isKioskMode}
           setIsKioskMode={setIsKioskMode}
@@ -3035,7 +3035,7 @@ export default function App() {
           coachInitials={coachInitials}
           sidebarCollapsed={sidebarCollapsed}
         />
-        <main className="relative pt-16 w-full px-space-lg bg-surface h-screen overflow-y-auto" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+        <main className="relative pt-16 w-full px-space-lg bg-surface h-screen overflow-y-auto pb-[calc(70px+env(safe-area-inset-bottom))] md:pb-space-xl" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
 
           {(pullProgress > 10 || isRefreshing || showRefreshCelebration) && (
             <div style={{ position: 'sticky', top: 0, left: '50%', transform: 'translateX(0)', zIndex: 10000, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: '8px', paddingTop: '4px' }}>

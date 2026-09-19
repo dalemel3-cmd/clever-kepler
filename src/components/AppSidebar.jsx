@@ -38,7 +38,7 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coach
   ) : null;
 
   return (
-    <aside className={`fixed left-0 top-0 h-full ${collapsed ? 'w-20' : 'w-64'} bg-surface-container-low border-r border-[#2a313d]/60 z-50 flex flex-col justify-between overflow-y-auto overflow-x-hidden transition-[width] duration-200`}>
+    <aside className={`hidden md:flex fixed left-0 top-0 h-full ${collapsed ? 'w-20' : 'w-64'} bg-surface-container-low border-r border-[#2a313d]/60 z-50 flex-col justify-between overflow-y-auto overflow-x-hidden transition-[width] duration-200`}>
       <div className="flex flex-col">
         <div className={`relative bg-[#04142f] border-b border-[#2a313d]/50 flex items-center ${collapsed ? 'justify-center p-space-sm' : 'justify-between p-space-lg'}`}>
           {collapsed ? (

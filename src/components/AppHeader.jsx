@@ -13,7 +13,7 @@ export function AppHeader({
   sidebarCollapsed
 }) {
   return (
-    <header className={`fixed top-0 ${isKioskMode ? 'left-0' : (sidebarCollapsed ? 'left-20' : 'left-64')} right-0 h-16 bg-[#030a14]/85 backdrop-blur-xl border-b border-[#2a313d]/60 z-40 flex items-center justify-between px-space-lg transition-[left] duration-200`}>
+    <header className={`fixed top-0 left-0 ${isKioskMode ? '' : (sidebarCollapsed ? 'md:left-20' : 'md:left-64')} right-0 h-16 bg-[#030a14]/85 backdrop-blur-xl border-b border-[#2a313d]/60 z-40 flex items-center justify-between px-space-lg transition-[left] duration-200`}>
       {isKioskMode ? (
         <div className="flex flex-1 items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-space-md">
@@ -47,7 +47,7 @@ export function AppHeader({
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-space-md">
+          <div className="hidden sm:flex items-center gap-space-md">
             <div className="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
               <span>Shiloh Athletics</span>
               <span className="material-symbols-outlined text-sm text-dim">chevron_right</span>

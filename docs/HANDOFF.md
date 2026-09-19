@@ -2221,7 +2221,69 @@ SESSION LOAD` → `TODAY'S INTERNAL TRAINING LOAD & READINESS`) or the
 `uppercase` CSS class on athlete/roster names breaking case-sensitive test
 string matches - not an app regression.
 
-## 59. Next up
+## 59. Mobile responsiveness audit: sidebar had no breakpoint (v4.49.0)
+
+After confirming v4.48.0 deployed correctly to production (Vercel API showed
+the `hpd-app` project's latest production deployment at commit `8f929f5`,
+state READY), the coach asked for a formatting pass across PC and mobile -
+text fitting inside boxes, nothing overlapping, all display features
+accurate. Rebuilt the exact deployed commit locally and swept it with
+Playwright across five viewports (1440/1280/1024/768/390px) and five screens,
+checking for horizontal page overflow and, separately, any interactive
+element whose bounding box fell outside the viewport (excluding elements
+inside a deliberately horizontally-scrollable row, like the sport-filter
+chips).
+
+**The major find: the sidebar had no responsive breakpoint at all.**
+`src/styles.css` still carries the app's original convention - `.sidebar {
+display: none; }` by default, shown via `@media (min-width: 768px)`, with a
+`.bottom-nav` fixed bar taking over below that width (also still rendered
+in `App.jsx`, untouched by the reskin). But the reskinned `AppSidebar.jsx`
+is a plain `<aside>` that never adopted the `.sidebar` class - it always
+rendered at full width (`w-64`, or `w-20` collapsed), on every viewport. On
+a phone, that left both the sidebar AND the bottom nav on screen
+simultaneously, with the sidebar eating the vast majority of a ~390px-wide
+screen. Fixed by adding `hidden md:flex` to the `<aside>`, and changing
+`AppHeader.jsx`'s and `App.jsx`'s left-offset classes from unconditional
+`left-64`/`pl-64` to `md:left-64`/`md:pl-64` (defaulting to `left-0`/no
+padding below 768px) - matching the exact breakpoint the CSS already used.
+
+**A second, related gap:** the main content area lost the bottom padding
+`.scroll-area` used to provide specifically for the mobile bottom nav's 70px
+height plus safe-area inset - `<main>` now uses Tailwind utilities instead of
+that class, so nothing accounted for the bottom nav covering the last ~80px
+of every screen on mobile. Added `pb-[calc(70px+env(safe-area-inset-bottom))]
+md:pb-space-xl` to `<main>`.
+
+**Two real off-screen buttons found via the bounding-box scan, both the same
+root cause:** a parent row had `flex flex-wrap` but a *child* group of
+buttons inside it did not, so the child group behaved as one oversized flex
+item that overflowed instead of individually wrapping:
+1. Quick Entry's Weight+Sleep/Sleep Only/Session RPE segmented control -
+   the "Session RPE" button was completely off-screen and untappable on a
+   phone (right edge at x=498 in a 390px viewport). Added `flex-wrap` to the
+   segmented-control container.
+2. Sport Groups' "Bulk Team Baseline Studio" button, next to the date pill -
+   same fix.
+3. The top header's "Shiloh Athletics / Operations / SYSTEM READY"
+   breadcrumb group had no wrap either, pushing the "Log Set" button (the
+   header's one essential mobile action) off-screen on every single screen
+   at phone width. Hidden below `sm` (640px) rather than wrapped, since it's
+   redundant chrome once the screen's own title is visible below it - same
+   treatment "Kiosk Mode" already got at the `md` breakpoint.
+
+Re-scanned all five screens at 390px after the fixes: zero off-screen
+interactive elements, zero horizontal page overflow, confirmed at every
+tested viewport width from 390px to 1440px.
+
+**Confirmed NOT new bugs, same root cause as before:** icon boxes visually
+overflowing their fixed-size containers with long literal text
+(`fitness_center`, `assignment_turned_in`, `download`) are the Material
+Symbols Google Fonts failure in this sandbox (§50) rendering the ligature
+name as text instead of a glyph - not reproducible with the font loaded, and
+the same architectural note about `lucide-react` applies.
+
+## 60. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

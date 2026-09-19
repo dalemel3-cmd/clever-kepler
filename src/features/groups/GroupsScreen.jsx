@@ -40,7 +40,7 @@ export default function GroupsScreen({
             </p>
           </div>
           {/* Quick Action Pill Buttons */}
-          <div className="flex items-center gap-space-sm self-start sm:self-center">
+          <div className="flex items-center flex-wrap gap-space-sm self-start sm:self-center">
             <div className="flex items-center gap-space-xs px-space-md py-space-sm rounded-xl bg-card-surface border border-card-border text-text-body font-label-md text-label-md uppercase tracking-wider">
               <span className="material-symbols-outlined text-antique-gold text-base">calendar_today</span>
               <span>Date: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>

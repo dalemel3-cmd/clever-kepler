@@ -122,7 +122,7 @@ export default function EntryScreen({
           
           {/* Mode Selectors & Quick Action Hub */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center bg-[#0a1120] border border-[#2a313d] p-1 rounded-xl shadow-md">
+            <div className="flex items-center flex-wrap bg-[#0a1120] border border-[#2a313d] p-1 rounded-xl shadow-md">
               <button 
                 className={`mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'both' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
                 onClick={() => {
