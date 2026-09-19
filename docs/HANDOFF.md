@@ -2356,7 +2356,23 @@ WEIGH-IN SYNC icon's computed line-height now equals its computed font-size
 parent tile's top edge (confirmed via bounding-box comparison, not just a
 screenshot).
 
-## 63. Next up
+## 63. Confirmed the box no longer overflows; icon nudged for visual polish (v5.0.2)
+
+Coach sent a real production screenshot after `5.0.1` and said the icon
+still wasn't "filling out the edge of the box." Rather than guess again,
+measured the actual live behavior with a script: the icon's bounding box top
+sits 9px from the WEIGH-IN SYNC tile's border, the label text's top sits
+9.5px from the same border - functionally identical, and neither crosses the
+tile's edge. The box-overflow bug from §60/§62 is confirmed fixed.
+
+What's left is a font-rendering perception, not a layout bug: Material
+Symbols glyphs are typically drawn to fill more of their em-square than
+regular text glyphs do, so even at an identical, correctly-computed box size
+the icon can look like it sits higher/bigger than the text next to it.
+Nudged it down 1px (`relative top-[1px]`) as a visual polish, not a
+structural fix - there's no further "box" issue to chase here.
+
+## 64. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

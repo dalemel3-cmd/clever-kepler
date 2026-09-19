@@ -98,7 +98,7 @@ export default function DashboardScreen({
           <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-[130px]">
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-dim uppercase tracking-wider">WEIGH-IN SYNC</span>
-              <span className="material-symbols-outlined text-sm text-primary">scale</span>
+              <span className="material-symbols-outlined text-sm text-primary relative top-[1px]">scale</span>
             </div>
             <div className="flex items-baseline gap-space-xs mt-1">
               <span className="font-metric-val text-metric-val text-primary">{compliancePct}%</span>
