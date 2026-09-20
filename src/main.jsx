@@ -4,6 +4,9 @@ import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.jsx'
 import AuthGate from './auth/AuthGate.jsx'
+import { installGlobalErrorReporting, reportError } from './errorReporting.js'
+
+installGlobalErrorReporting()
 
 // Without this, vite-plugin-pwa falls back to a bare
 // `navigator.serviceWorker.register(...)` with no update-detection logic -
@@ -34,6 +37,10 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    reportError(error?.message || String(error), {
+      stack: error?.stack || errorInfo?.componentStack,
+      source: 'react-boundary',
+    });
     this.setState({
       hasError: true,
       error: error,

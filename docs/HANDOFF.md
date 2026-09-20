@@ -2666,7 +2666,58 @@ log now shows "Not enough check-ins yet (1/3)" and a `--` recovery score; an
 athlete with 3 logs still shows the full "Optimal Rest Standard" badge and a
 real percentage, unchanged from before this fix.
 
-## 73. Next up
+## 73. Real production error monitoring (v5.1.2)
+
+Coach asked whether an agent could monitor for bugs going forward, now that
+the app is in "polish everything we have" mode rather than active feature
+work. The app had zero error visibility until now - every bug this session
+found came from a coach noticing something looked wrong and sending a
+screenshot, never from the app itself surfacing a crash.
+
+**New `db/011_app_errors.sql`.** A plain triage table (`message`, `stack`,
+`source`, `url`, `user_agent`, `app_version`, `coach_email`, `created_at`) -
+deliberately no status/resolved workflow, since this is meant to be read and
+acted on, not tracked through a lifecycle. RLS follows the same
+`is_approved_coach()` gate as every other table (insert/select/delete, all
+coach-scoped) - locked in the same migration that creates it, per the
+standing rule.
+
+**New `src/errorReporting.js`**, wired into `main.jsx`:
+- `installGlobalErrorReporting()` attaches `window.onerror` and
+  `window.onunhandledrejection` listeners - the two error classes a React
+  `ErrorBoundary` structurally cannot see (anything thrown outside a render,
+  e.g. an event handler or a timer callback, and any rejected promise
+  nobody caught).
+- The existing top-level `ErrorBoundary` in `main.jsx` (already present,
+  previously just rendered a fallback screen and did nothing else) now also
+  calls `reportError()` from `componentDidCatch`, covering the third class:
+  actual render-time React crashes.
+- `reportError()` is fire-and-forget and always wrapped in its own
+  try/catch - reporting a bug must never itself throw or block the coach's
+  UI. Capped at 20 reports per browser session (`MAX_REPORTS_PER_SESSION`)
+  so a genuinely looping error (e.g. a bad render loop) can't flood the
+  table with hundreds of identical rows in seconds; a flat cap was chosen
+  over per-message dedup as simpler and good enough for a triage feed - the
+  first several occurrences of anything are already enough to diagnose it.
+
+Verified directly (not assumed): stubbed the network in Playwright and
+threw a synthetic `window.onerror` and a synthetic unhandled rejection,
+confirmed both actually reach `POST /rest/v1/app_errors` with the correct
+shape, including the signed-in coach's email and the running app version.
+
+**New daily Routine** ("HPD App - production error check", 9am Central,
+`trig_011nH3UqdiY4aPGyzk2qRpct`) checks `app_errors` for anything new each
+morning, tries to diagnose and fix real bugs found there (committing
+locally, never auto-pushing per this session's standing workflow), and
+only messages the coach if there's something worth reporting - silent on a
+clean night. **Caveat flagged to the coach directly, not glossed over:**
+the trigger's creation response warned it stores no MCP connectors, so
+there's a real chance tomorrow's first automated run can't reach the
+Supabase MCP tools it needs to query the table, depending on how the fired
+environment resolves tool access. Won't be certain this actually works
+end-to-end until it fires once for real.
+
+## 74. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
