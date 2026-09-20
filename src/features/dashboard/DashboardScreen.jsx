@@ -335,7 +335,12 @@ export default function DashboardScreen({
                                }
                                
                                const pct = Math.min(100, (dayAvg / (settings.rpeScaleMax || 10)) * 100);
-                               const barColor = dayAvg >= settings.rpeHighThreshold ? 'bg-[#f87171]' : (dayAvg >= Math.max(0, settings.rpeHighThreshold - 2) ? 'bg-[#b89c5b]' : 'bg-[#172338]');
+                               // A logged-but-moderate day used to render bg-[#172338], which is
+                               // nearly the same navy as this card's own bg-[#0e182a] - a team that
+                               // trained normally (RPE 4-6) looked identical to a team that logged
+                               // nothing at all. Given its own visible color so any real day always
+                               // shows, distinct from both the hard/gold tiers and the empty stub.
+                               const barColor = dayAvg >= settings.rpeHighThreshold ? 'bg-[#f87171]' : (dayAvg >= Math.max(0, settings.rpeHighThreshold - 2) ? 'bg-[#b89c5b]' : 'bg-[#3b82f6]/60');
                                return <div key={i} className={`w-full ${barColor} rounded-sm`} style={{ height: `${pct}%` }}></div>;
                              });
                            })()}

@@ -2603,7 +2603,40 @@ removed, the "+ Add Guest / Trial" modal still exists and is wired to
 RPE inputs, and no `backdrop-blur` classes have crept back into the
 weigh-in/add-athlete modals.
 
-## 71. Next up
+## 71. RPE trend bars: a real "hard" week and a "no data" week looked identical (v5.1.0)
+
+Coach sent a screenshot: WSOC's mini RPE trend bars on the Dashboard's readiness
+panel were blank/uncolored compared to MBB's, and said WSOC had actually logged
+RPE Monday, Wednesday, and Friday that week - asked why it wasn't showing.
+
+**Verified against the real database first, not assumed.** Queried the production
+`athletes`/`weigh_ins` tables directly: all 25 WSOC athletes carry a consistent
+`sport = 'WSOC'`, and the three days in question had real, correctly-tagged
+`session_type = 'rpe'` rows (18/15/16 logs respectively) with team averages of
+roughly 5.1-5.8 out of 10. So the data and the athlete-to-sport matching in
+`sportOf()` were both fine - ruled out before touching any code.
+
+**The actual bug was a color-contrast bug, not a logic bug.**
+`DashboardScreen.jsx`'s per-day trend bar only turns gold once that day's average
+RPE sits within 2 points of `settings.rpeHighThreshold` (default 8, so ≥6);
+anything below that rendered `bg-[#172338]` - a dark navy blue almost identical in
+luminance to the card's own background, `bg-[#0e182a]`. A team training at a
+completely normal RPE of 5-6 (WSOC's actual week) was rendered visually
+indistinguishable from a team that logged nothing at all, while a team whose
+week happened to average ≥6 (MBB) lit up gold and looked "normal" - purely a
+coincidence of that week's numbers, not a difference in whether the app tracked
+them.
+
+Gave the "logged but moderate" tier its own visible color (`bg-[#3b82f6]/60`, a
+muted blue) distinct from both the empty-day placeholder (a small transparent
+stub) and the existing gold/red tiers, so any day with a real log always renders
+visibly regardless of how moderate the average is. Verified directly: seeded a
+WSOC-shaped fixture (RPE ~5.5 on 3 of the last 7 days, nothing today) and
+confirmed exactly those 3 days render the new blue bar while the other 4 render
+the untouched empty-day stub - no change to the gold/red thresholds or to any
+other team's existing coloring.
+
+## 72. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
