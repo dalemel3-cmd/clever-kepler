@@ -86,6 +86,10 @@ export default function ProfilesScreen({
   const sleepOptimalAt = settings.sleepTargetHours;
   const sleepChartTarget = settings.sleepChartTargetHours;
   const sleepBand = (h) => (h >= sleepOptimalAt ? 'optimal' : h >= sleepDeficitBelow ? 'adequate' : 'deficit');
+  // A "trend" claim like "Optimal Rest Standard" needs more than one or two nights
+  // behind it - with sleep tracking barely used yet, a single stray log could call
+  // itself a "standard" the athlete hasn't actually established.
+  const MIN_SLEEP_SAMPLE = 3;
   // Post-Practice Sweat Loss and the Historical Log Ledger are two of the longest
   // cards on the page - collapsed behind a chevron by default, same pattern the
   // dashboard's Session Accountability Tracker already uses, so a coach lands on a
@@ -332,7 +336,7 @@ export default function ProfilesScreen({
   const maxSleep = sleepLogs.length > 0 ? Math.max(...sleepLogs.map(l => Number(l.sleep_hrs))) : '--';
   const deficitNights = sleepLogs.filter(l => Number(l.sleep_hrs) < sleepDeficitBelow).length;
   const recoveredNights = sleepLogs.filter(l => Number(l.sleep_hrs) >= sleepRecoveryAt).length;
-  const recoveryScore = sleepLogs.length > 0 ? Math.round((recoveredNights / sleepLogs.length) * 100) : null;
+  const recoveryScore = sleepLogs.length >= MIN_SLEEP_SAMPLE ? Math.round((recoveredNights / sleepLogs.length) * 100) : null;
   // Night-to-night trend, same up/down-vs-previous framing as the weight card above -
   // "did last night improve" is a different question from "what's the average", and a
   // coach glancing at the card wants both.
@@ -447,8 +451,8 @@ export default function ProfilesScreen({
                 {avgSleep} <span style={{ fontSize: '16px', color: 'var(--color-text-muted)' }}>hrs</span>
               </span>
             </div>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: avgSleep !== '--' && sleepBand(Number(avgSleep)) === 'optimal' ? 'var(--status-success)' : avgSleep !== '--' && sleepBand(Number(avgSleep)) === 'adequate' ? '#f59e0b' : 'var(--status-error)' }}>
-              {avgSleep !== '--' ? (sleepBand(Number(avgSleep)) === 'optimal' ? '🟢 Optimal Rest Standard' : sleepBand(Number(avgSleep)) === 'adequate' ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning') : 'No sleep data'}
+            <span style={{ fontSize: '12px', fontWeight: 700, color: sleepLogs.length >= MIN_SLEEP_SAMPLE && sleepBand(Number(avgSleep)) === 'optimal' ? 'var(--status-success)' : sleepLogs.length >= MIN_SLEEP_SAMPLE && sleepBand(Number(avgSleep)) === 'adequate' ? '#f59e0b' : 'var(--color-text-muted)' }}>
+              {sleepLogs.length >= MIN_SLEEP_SAMPLE ? (sleepBand(Number(avgSleep)) === 'optimal' ? '🟢 Optimal Rest Standard' : sleepBand(Number(avgSleep)) === 'adequate' ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning') : (avgSleep !== '--' ? `Not enough check-ins yet (${sleepLogs.length}/${MIN_SLEEP_SAMPLE})` : 'No sleep data')}
             </span>
             {sleepDelta != null && Math.abs(sleepDelta) >= 0.1 && (
               <span style={{ fontSize: '12px', fontWeight: 700, color: sleepDelta > 0 ? 'var(--status-success)' : 'var(--status-error)' }}>

@@ -2636,7 +2636,37 @@ confirmed exactly those 3 days render the new blue bar while the other 4 render
 the untouched empty-day stub - no change to the gold/red thresholds or to any
 other team's existing coloring.
 
-## 72. Next up
+## 72. Sleep "recovery" claims needed a minimum sample before speaking with confidence (v5.1.1)
+
+Coach flagged a real trust problem, separate from any data bug: body-weight
+tracking already correctly distinguishes "not tracking" from "0%" (§55), but
+sleep tracking is barely used by the program yet, and the Profile page's
+"AVERAGE SLEEP DURATION" card would call a single stray sleep log an
+"🟢 Optimal Rest Standard" - a confident, standard-setting claim built on a
+sample of one. Coach's words: it "will just be lying" once someone actually
+looks at that card while sleep data is this sparse.
+
+Checked every other sleep-derived label first, since a couple of these are
+already properly gated: the per-session table badges (added §57/58 area)
+already correctly show `--` instead of a false "Sleep Deficit Warning" when
+a specific session has no sleep entry, and the Recovery Index Score already
+returned `--` at exactly zero logs. The gap was specifically the *aggregate*
+badge and score treating "at least one log exists" as good enough to assert
+a trend, with no floor on sample size.
+
+Added `MIN_SLEEP_SAMPLE = 3` in `ProfilesScreen.jsx` and gated three things
+on it: the qualitative band text under "AVERAGE SLEEP DURATION" (now reads
+"Not enough check-ins yet (N/3)" below the threshold, in muted gray rather
+than the alarming red the "deficit" fallback color used to apply even to the
+no-data case), the Recovery Index percentage (was `> 0`, now `>= 3`), and its
+color coding. The raw average itself still displays as soon as there's at
+least one log - only the confident qualitative claim on top of it waits for
+a real sample. Verified with two fixtures: an athlete with exactly 1 sleep
+log now shows "Not enough check-ins yet (1/3)" and a `--` recovery score; an
+athlete with 3 logs still shows the full "Optimal Rest Standard" badge and a
+real percentage, unchanged from before this fix.
+
+## 73. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
