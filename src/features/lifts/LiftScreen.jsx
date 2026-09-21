@@ -364,6 +364,217 @@ export default function LiftScreen({
     setScreen('profiles');
   };
 
+  // The athlete/lift-entry panel itself, shared between two very different
+  // presentations: a coach's centered modal (unchanged) and Lift Kiosk Mode's
+  // pinned top-of-screen card. In kiosk mode this stays visible across multiple
+  // sets for the same athlete instead of popping up and closing per lift - the
+  // coach asked for the selected name to "hang out at the top... until the lift
+  // is over," which is also exactly where a future assigned-program view would
+  // slot in below the name once that feature exists.
+  const entryPanelInner = selectedAthlete && (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          {!isKioskMode && (
+            <div onClick={closeEntry} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginBottom: '8px' }} className="text-primary hover:text-primary-fixed transition-colors">
+              <ChevronLeft size={14} /> BACK
+            </div>
+          )}
+          <h3 className="font-display text-2xl font-bold text-on-surface uppercase m-0">{selectedAthlete.name}</h3>
+          <div className="font-label-sm text-label-sm text-on-surface-variant mt-1 uppercase">{selectedAthlete.sport || 'General'}</div>
+        </div>
+        {isKioskMode ? (
+          <button onClick={closeEntry} className="flex items-center gap-1.5 px-space-sm py-1.5 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface font-label-md text-label-md uppercase font-bold transition-colors">
+            <Check size={16} /> Done
+          </button>
+        ) : (
+          <button onClick={closeEntry} className="bg-transparent border-none text-on-surface-variant hover:text-on-surface cursor-pointer">
+            <X size={22} />
+          </button>
+        )}
+      </div>
+
+      {successMsg && (
+        <div className="px-4 py-3 rounded-xl bg-secondary-container/20 border border-secondary-container/40 text-secondary font-label-md text-label-md">
+          {successMsg}
+        </div>
+      )}
+
+      <div>
+        <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Lift</label>
+        <div className="flex gap-2 flex-wrap">
+          {liftTypes.map(lt => (
+            <button
+              key={lt}
+              type="button"
+              onClick={() => setLiftType(lt)}
+              className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${liftType === lt ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
+            >
+              {lt}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="min-w-0">
+          <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Weight (lbs)</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              aria-label="Decrease weight by 5"
+              onClick={() => setWeight(String(Math.max(0, (parseFloat(weight) || 0) - 5)))}
+              className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
+            >
+              <Minus size={16} />
+            </button>
+            <input
+              type="number"
+              step="5"
+              placeholder="245"
+              className="w-full min-w-0 h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-display text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary border border-transparent"
+              value={weight}
+              onChange={e => setWeight(e.target.value)}
+            />
+            <button
+              type="button"
+              aria-label="Increase weight by 5"
+              onClick={() => setWeight(String((parseFloat(weight) || 0) + 5))}
+              className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Reps</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              aria-label="Decrease reps by 1"
+              onClick={() => setReps(String(Math.max(1, (parseInt(reps, 10) || 1) - 1)))}
+              className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
+            >
+              <Minus size={16} />
+            </button>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              placeholder="5"
+              className="w-full min-w-0 h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-display text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary border border-transparent"
+              value={reps}
+              onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ''))}
+            />
+            <button
+              type="button"
+              aria-label="Increase reps by 1"
+              onClick={() => setReps(String((parseInt(reps, 10) || 0) + 1))}
+              className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={disableSave}
+        className={`h-12 rounded-xl font-headline-md text-headline-md uppercase flex items-center justify-center gap-2 transition-all ${disableSave ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary hover:bg-primary-fixed text-on-primary shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}
+      >
+        <Plus size={18} /> {saving ? 'Saving...' : 'Log Lift'}
+      </button>
+
+      {athleteRecentLifts.length > 0 && (
+        <div>
+          <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-3">Recent Lifts</div>
+          <div className={`flex flex-col gap-2 ${editingLiftId ? '' : 'max-h-48 overflow-y-auto'}`}>
+            {athleteRecentLifts.map(l => (
+              editingLiftId === l.id ? (
+                <div key={l.id} className="p-3 rounded-xl bg-primary-container/10 border border-primary/30 flex flex-col gap-3">
+                  <div className="flex gap-2 flex-wrap">
+                    {liftTypes.map(lt => (
+                      <button
+                        key={lt}
+                        type="button"
+                        onClick={() => setEditLiftType(lt)}
+                        className={`px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors ${editLiftType === lt ? 'bg-primary-container text-on-primary-container border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant border border-transparent'}`}
+                      >
+                        {lt}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      step="5"
+                      aria-label="Edit weight"
+                      className="h-10 px-3 rounded-lg bg-surface-container-highest text-on-surface font-label-lg font-bold border border-transparent focus:border-primary focus:outline-none"
+                      value={editWeight}
+                      onChange={e => setEditWeight(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      aria-label="Edit reps"
+                      className="h-10 px-3 rounded-lg bg-surface-container-highest text-on-surface font-label-lg font-bold border border-transparent focus:border-primary focus:outline-none"
+                      value={editReps}
+                      onChange={e => setEditReps(e.target.value.replace(/[^0-9]/g, ''))}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveEditLift}
+                      disabled={disableEditSave}
+                      className={`flex-1 h-9 rounded-lg font-label-md text-label-md font-bold flex items-center justify-center gap-1.5 ${disableEditSave ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary-fixed'}`}
+                    >
+                      <Check size={14} /> {editSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditLift}
+                      disabled={editSaving}
+                      className="px-3 h-9 rounded-lg font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteLift(l.id)}
+                      disabled={editSaving}
+                      className="px-3 h-9 rounded-lg font-label-md text-label-md bg-error-container/20 text-error hover:bg-error-container/40 border border-error/30 transition-colors flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div key={l.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-surface-container-highest">
+                  <span className="text-on-surface-variant font-label-md text-label-md truncate min-w-0">{l.lift_type}</span>
+                  <span className="text-on-surface font-label-md font-bold whitespace-nowrap">{l.weight_lbs} lbs × {l.reps}</span>
+                  <span className="text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap">{new Date(l.created_at).toLocaleDateString()}</span>
+                  <button
+                    type="button"
+                    onClick={() => startEditLift(l)}
+                    title="Edit this entry"
+                    className="p-1 text-on-surface-variant hover:text-on-surface transition-colors"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                </div>
+              )
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="flex flex-col w-full h-full overflow-y-auto pb-space-xl">
       {isKioskMode ? (
@@ -462,6 +673,12 @@ export default function LiftScreen({
 
       {(isKioskMode || view === 'log') && (
         <>
+          {isKioskMode && selectedAthlete && (
+            <div className="sticky top-0 z-20 mt-space-md p-space-md rounded-xl bg-surface-container-low border border-primary/40 shadow-lg flex flex-col gap-space-md">
+              {entryPanelInner}
+            </div>
+          )}
+
           {/* Search and Live Sport Chips */}
           <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl sticky top-0 z-10">
             <div className="relative w-full">
@@ -862,205 +1079,16 @@ export default function LiftScreen({
         </div>
       )}
 
-      {/* Modal Overlay */}
-      {selectedAthlete && createPortal(
+      {/* Athlete/lift-entry panel: a coach's centered modal, or (in kiosk mode)
+          pinned inline at the top of the screen - see entryPanelInner above. */}
+      {selectedAthlete && !isKioskMode && createPortal(
         <div
           className="modal-overlay animate-fade-in"
           style={{ position: 'fixed', inset: 0, zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.9)', overflowY: 'auto' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeEntry(); }}
         >
           <div className="card-glass glow-card animate-slide-up bg-surface-container-low shadow-lg" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid rgba(255, 193, 116, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div onClick={closeEntry} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginBottom: '8px' }} className="text-primary hover:text-primary-fixed transition-colors">
-                  <ChevronLeft size={14} /> BACK
-                </div>
-                <h3 className="font-display text-2xl font-bold text-on-surface uppercase m-0">{selectedAthlete.name}</h3>
-                <div className="font-label-sm text-label-sm text-on-surface-variant mt-1 uppercase">{selectedAthlete.sport || 'General'}</div>
-              </div>
-              <button onClick={closeEntry} className="bg-transparent border-none text-on-surface-variant hover:text-on-surface cursor-pointer">
-                <X size={22} />
-              </button>
-            </div>
-
-            {successMsg && (
-              <div className="px-4 py-3 rounded-xl bg-secondary-container/20 border border-secondary-container/40 text-secondary font-label-md text-label-md">
-                {successMsg}
-              </div>
-            )}
-
-            <div>
-              <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Lift</label>
-              <div className="flex gap-2 flex-wrap">
-                {liftTypes.map(lt => (
-                  <button
-                    key={lt}
-                    type="button"
-                    onClick={() => setLiftType(lt)}
-                    className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${liftType === lt ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
-                  >
-                    {lt}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="min-w-0">
-                <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Weight (lbs)</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    aria-label="Decrease weight by 5"
-                    onClick={() => setWeight(String(Math.max(0, (parseFloat(weight) || 0) - 5)))}
-                    className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <input
-                    type="number"
-                    step="5"
-                    placeholder="245"
-                    className="w-full min-w-0 h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-display text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary border border-transparent"
-                    value={weight}
-                    onChange={e => setWeight(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Increase weight by 5"
-                    onClick={() => setWeight(String((parseFloat(weight) || 0) + 5))}
-                    className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="min-w-0">
-                <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Reps</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    aria-label="Decrease reps by 1"
-                    onClick={() => setReps(String(Math.max(1, (parseInt(reps, 10) || 1) - 1)))}
-                    className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    placeholder="5"
-                    className="w-full min-w-0 h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-display text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary border border-transparent"
-                    value={reps}
-                    onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ''))}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Increase reps by 1"
-                    onClick={() => setReps(String((parseInt(reps, 10) || 0) + 1))}
-                    className="w-10 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant transition-colors flex items-center justify-center border border-surface-container-highest"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={disableSave}
-              className={`h-12 rounded-xl font-headline-md text-headline-md uppercase flex items-center justify-center gap-2 transition-all ${disableSave ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary hover:bg-primary-fixed text-on-primary shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}
-            >
-              <Plus size={18} /> {saving ? 'Saving...' : 'Log Lift'}
-            </button>
-
-            {athleteRecentLifts.length > 0 && (
-              <div>
-                <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-3">Recent Lifts</div>
-                <div className={`flex flex-col gap-2 ${editingLiftId ? '' : 'max-h-48 overflow-y-auto'}`}>
-                  {athleteRecentLifts.map(l => (
-                    editingLiftId === l.id ? (
-                      <div key={l.id} className="p-3 rounded-xl bg-primary-container/10 border border-primary/30 flex flex-col gap-3">
-                        <div className="flex gap-2 flex-wrap">
-                          {liftTypes.map(lt => (
-                            <button
-                              key={lt}
-                              type="button"
-                              onClick={() => setEditLiftType(lt)}
-                              className={`px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors ${editLiftType === lt ? 'bg-primary-container text-on-primary-container border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant border border-transparent'}`}
-                            >
-                              {lt}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="number"
-                            step="5"
-                            aria-label="Edit weight"
-                            className="h-10 px-3 rounded-lg bg-surface-container-highest text-on-surface font-label-lg font-bold border border-transparent focus:border-primary focus:outline-none"
-                            value={editWeight}
-                            onChange={e => setEditWeight(e.target.value)}
-                          />
-                          <input
-                            type="number"
-                            step="1"
-                            min="1"
-                            aria-label="Edit reps"
-                            className="h-10 px-3 rounded-lg bg-surface-container-highest text-on-surface font-label-lg font-bold border border-transparent focus:border-primary focus:outline-none"
-                            value={editReps}
-                            onChange={e => setEditReps(e.target.value.replace(/[^0-9]/g, ''))}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={handleSaveEditLift}
-                            disabled={disableEditSave}
-                            className={`flex-1 h-9 rounded-lg font-label-md text-label-md font-bold flex items-center justify-center gap-1.5 ${disableEditSave ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary-fixed'}`}
-                          >
-                            <Check size={14} /> {editSaving ? 'Saving...' : 'Save'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEditLift}
-                            disabled={editSaving}
-                            className="px-3 h-9 rounded-lg font-label-md text-label-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteLift(l.id)}
-                            disabled={editSaving}
-                            className="px-3 h-9 rounded-lg font-label-md text-label-md bg-error-container/20 text-error hover:bg-error-container/40 border border-error/30 transition-colors flex items-center gap-1.5"
-                          >
-                            <Trash2 size={14} /> Delete
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div key={l.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-surface-container-highest">
-                        <span className="text-on-surface-variant font-label-md text-label-md truncate min-w-0">{l.lift_type}</span>
-                        <span className="text-on-surface font-label-md font-bold whitespace-nowrap">{l.weight_lbs} lbs × {l.reps}</span>
-                        <span className="text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap">{new Date(l.created_at).toLocaleDateString()}</span>
-                        <button
-                          type="button"
-                          onClick={() => startEditLift(l)}
-                          title="Edit this entry"
-                          className="p-1 text-on-surface-variant hover:text-on-surface transition-colors"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      </div>
-                    )
-                  ))}
-                </div>
-              </div>
-            )}
+            {entryPanelInner}
           </div>
         </div>,
         document.body

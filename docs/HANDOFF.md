@@ -2768,7 +2768,56 @@ timestamps. Verified end-to-end: seeded 2 "Bench" sets and 1 "Squat" set on the
 same day, confirmed the preview correctly counted 2, and the resulting PATCH's
 `id=in.(...)` list contained exactly those 2 ids with the Squat set untouched.
 
-## 75. Next up
+## 75. Lift Kiosk Mode: pinned athlete card instead of a per-set modal (v5.1.4)
+
+Same-day follow-up to §74. Coach's exact words: "I want to be able to have my
+names be selected and just hang out at the top of the 'card' until the lift is
+over, then once we add the actual program feature the athlete will be
+pre-selected and they can see their workout below." Two distinct asks bundled
+together: (1) the selected athlete's identity should persist visually at the
+top of the screen across multiple sets, not live inside a modal that visually
+implies "one popup, one action, done" - and (2) whatever UI holds that
+persistent selection needs to be the same place a future assigned-workout list
+renders, once that feature exists.
+
+**Refactored, not rebuilt.** `handleSave` already kept the athlete selected
+after logging (only `weight`/`reps` reset, `entryAthleteId` untouched) -
+multi-set logging for one athlete already worked functionally in §74's modal.
+The actual gap was presentation: a `position: fixed` overlay modal reads as a
+transient interruption, not a home base a coach hands to an athlete for their
+whole set.
+
+Extracted the entry panel's JSX (name/sport header, lift-type pills,
+weight/reps steppers, Log Lift button, Recent Lifts list, inline edit/delete)
+into a single `entryPanelInner` expression, referenced by two completely
+different wrappers instead of two copies of ~200 lines of JSX:
+- **Non-kiosk (coach):** unchanged - the same centered `createPortal` modal,
+  same "BACK" chevron + X close button, same everything. Zero behavior change
+  here, verified directly.
+- **Kiosk:** no portal, no fixed overlay. Renders inline, `sticky top-0 z-20`,
+  as the first element inside the log view - above the search bar (itself
+  `sticky top-0 z-10`) and the tile grid, which **stays visible and tappable
+  the whole time** rather than disappearing behind a modal. The close button
+  is relabeled "Done" (icon: `Check`) instead of an X, since dismissing it now
+  means "finished this athlete's turn," not "cancel an accidental tap."
+
+Chose "reuse the existing global kiosk chrome, branch the wrapper" over
+"design a new kiosk-only component," since the coach's stated end goal (a
+future workout-program view rendering below the pinned name) is a smaller,
+additive change against this same `entryPanelInner` block than it would be
+against a modal that has to be torn down and rebuilt as an inline surface
+later anyway.
+
+Verified end-to-end with Playwright: selecting an athlete in kiosk mode shows
+the pinned card AND leaves the tile grid (including that same athlete's own
+tile) visible underneath; logging two different lifts back-to-back for the
+same athlete needs no re-tap and produces two correctly-attributed
+`lift_logs` rows; tapping "Done" clears the pinned card while the tile grid
+remains; and the coach's non-kiosk modal still renders as a centered popup
+with its original "BACK" label, confirming the shared-JSX refactor changed
+nothing for that path.
+
+## 76. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
