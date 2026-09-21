@@ -2905,7 +2905,27 @@ one's) with no roster grid visible; and the "×" button removes an athlete
 from the rack while leaving the other one's box untouched. Confirmed "Active
 Today" text is gone from both kiosk and non-kiosk views.
 
-## 78. Next up
+## 78. Fixed blank-screen bug when the rack empties out (v5.1.7)
+
+Coach: "when I exit out of the athletes it goes completely blank, have it
+return to the athletes page." Real bug in §77's rack model, not a vague
+report - reproduced immediately: with exactly one athlete in the rack,
+removing them (the "×" on their rack box) leaves `rackAthleteIds` empty
+*and* `showFindAthlete` still `false` (it only gets set back to `true` by
+the explicit "Add Another Athlete" toggle, which nobody had tapped). Both
+the "YOUR RACK" section (gated on `rackAthleteIds.length > 0`) and the
+roster grid (gated on `showFindAthlete`) disappeared at once - nothing left
+on screen to tap, no path back except leaving Lift Tracker and returning.
+
+Added a derived `gridVisible = !isKioskMode || showFindAthlete ||
+rackAthleteIds.length === 0`, used everywhere the grid's visibility used to
+check `showFindAthlete` alone - the grid now always shows whenever the rack
+has nobody in it, regardless of *how* it got empty (removed the last
+athlete, or a fresh kiosk session that never added anyone). Verified
+directly: with one athlete in the rack, tapping their box's "×" now
+re-shows the full "find your name" grid instead of a blank screen.
+
+## 79. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

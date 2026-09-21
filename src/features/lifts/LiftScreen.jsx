@@ -171,6 +171,11 @@ export default function LiftScreen({
     setRackAthleteIds(prev => prev.filter(x => x !== id));
     if (entryAthleteId === id) closeEntry();
   };
+  // An empty rack with the grid still hidden left the whole screen blank - nothing
+  // to tap and no way back short of leaving Lift Tracker entirely. Falls back to
+  // showing the grid whenever there's no one left in the rack to show boxes for,
+  // regardless of how it emptied out (removed the last one, or never added anyone).
+  const gridVisible = !isKioskMode || showFindAthlete || rackAthleteIds.length === 0;
 
   const filteredAthletes = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -746,7 +751,7 @@ export default function LiftScreen({
             </div>
           )}
 
-          {(!isKioskMode || showFindAthlete) && (
+          {gridVisible && (
             <>
               {/* Search and Live Sport Chips */}
               <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl sticky top-0 z-10">
@@ -785,7 +790,7 @@ export default function LiftScreen({
             </>
           )}
 
-          {(!isKioskMode || showFindAthlete) && (
+          {gridVisible && (
           /* Full Roster Log Section */
           <div className="flex flex-col gap-space-sm mt-space-xl">
             {!isKioskMode && (
