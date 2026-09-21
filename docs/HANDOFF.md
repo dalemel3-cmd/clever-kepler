@@ -2855,7 +2855,57 @@ athlete, confirmed the chart renders exactly 3 bars, the big number reads the
 last set's weight, "Best Today" reads the heaviest, and the final bar renders
 visibly gold rather than the black-fill bug caught in the first pass.
 
-## 77. Next up
+## 77. Lift Kiosk Mode: a multi-athlete "rack" instead of a single-picker grid (v5.1.6)
+
+Coach: "I want to be able to select multiple athletes per rack, also I do not
+need the active today portion of the page... you can select multiple athletes
+then it just pulls up their names in boxes and once they hit their names it
+will pop up the modal." Clarified three specifics before building (asked
+directly rather than guessing on a UX decision this consequential): tapping a
+rack box should reopen the persistent pinned card from §75/§76 (not revert to
+a modal), no cap on rack size, and - per the coach's own follow-up answer -
+selecting your name should take you to your own card without a pile of other
+athletes' names sitting on screen the whole time.
+
+**Removed entirely, per direct request:** the "Active Today" section
+(`recentAthletes`) and its "+1 Set" quick-repeat button, along with the
+now-orphaned `sessionTonnage`/`todaysLogs`/`repeatingId`/`handleQuickRepeat`
+that existed only to support it. Confirmed nothing else in the file
+referenced them before deleting - `todaysSetsForLift` (§76's chart) has its
+own independent today-filtering logic and was untouched.
+
+**New rack model**, kiosk-mode only (the coach's non-kiosk admin table and
+workflow are completely unchanged):
+- `rackAthleteIds` (array, no cap) - whoever has selected their own name this
+  kiosk session. Local component state, not persisted - a same-session
+  convenience, not a durable "who's assigned to this rack" record (that's a
+  bigger feature for whenever the actual program/assignment system exists).
+- `showFindAthlete` (boolean) - whether the full search+sport-filter+tile-grid
+  "find your name" section is visible. Starts `true` (rack is empty, someone
+  has to find themselves first); `openEntry()` now flips it to `false`
+  whenever kiosk mode adds someone to the rack, addressing the coach's "they
+  do not see a bunch of other athletes' names" concern directly instead of
+  leaving the full roster grid permanently on screen once a group is set.
+- A new "YOUR RACK" section (kiosk-only, shown once `rackAthleteIds.length >
+  0`) renders each selected athlete as a small named box with an "×" to drop
+  them from the rack (`removeFromRack`, which also closes their pinned card
+  if they're the one currently open) and an "Add Another Athlete" / "Hide
+  Roster" toggle that re-shows or re-hides the search+grid section.
+- Tapping a rack box calls the same `openEntry(id)` every other selection
+  path already used - no second code path for "reopen an existing rack
+  member" vs "select someone new," since both cases are identical from the
+  panel's point of view.
+
+Verified end-to-end with Playwright: the grid shows initially with an empty
+rack; selecting one athlete creates their rack box, hides the roster grid,
+and shows "Add Another Athlete"; using that toggle and selecting a second
+athlete grows the rack to two boxes without losing the first; re-tapping
+either rack box reopens that exact athlete's pinned card (not the other
+one's) with no roster grid visible; and the "×" button removes an athlete
+from the rack while leaving the other one's box untouched. Confirmed "Active
+Today" text is gone from both kiosk and non-kiosk views.
+
+## 78. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

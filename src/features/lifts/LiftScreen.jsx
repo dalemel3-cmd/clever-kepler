@@ -116,13 +116,6 @@ export default function LiftScreen({
   }, [reportData]);
 
   const todayStr = getCentralDateString();
-  // All of today's logged sets (not deduped by athlete) - drives both the
-  // "Today's session" recent row below and the session tonnage total.
-  const todaysLogs = React.useMemo(() => (
-    [...(liftLogs || [])]
-      .filter(l => l.created_at && getCentralDateString(new Date(l.created_at)) === todayStr)
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  ), [liftLogs, todayStr]);
 
   // Bulk-reassign a day's mislabeled lift type (e.g. a whole session logged as
   // "Bench" that should have been "Incline Bench") without touching the weight/reps
@@ -163,46 +156,20 @@ export default function LiftScreen({
     });
   };
 
-  // Total lbs lifted today across every athlete's every set (weight x reps,
-  // summed) - a quick "how much work got done today" number for the header,
-  // computed straight from today's real logs rather than tracked separately.
-  const sessionTonnage = React.useMemo(() => (
-    Math.round(todaysLogs.reduce((sum, l) => sum + (Number(l.weight_lbs) || 0) * (Number(l.reps) || 0), 0))
-  ), [todaysLogs]);
-
-  // Today's session: whoever this coach has already logged a lift for today,
-  // most-recently-logged first, capped at 8 - tapping one skips straight to their
-  // entry modal instead of re-finding them in the roster below. Keeps the full
-  // log (not just the lift type) so "+1 Set" can repeat the exact same set.
-  const recentAthletes = React.useMemo(() => {
-    const seen = new Set();
-    const out = [];
-    for (const l of todaysLogs) {
-      if (seen.has(l.athlete_id)) continue;
-      seen.add(l.athlete_id);
-      const athlete = athletes.find(a => a.id === l.athlete_id);
-      if (!athlete) continue;
-      out.push({ athlete, lastLift: l.lift_type, lastLog: l });
-      if (out.length >= 6) break; // Limit to 6 for grid layout 3x2
-    }
-    return out;
-  }, [todaysLogs, athletes]);
-
-  // Repeats an athlete's most recent set (same lift/weight/reps) with one tap,
-  // for the common case of back-to-back identical sets - no need to reopen the
-  // modal and retype the same numbers.
-  const [repeatingId, setRepeatingId] = React.useState(null);
-  const handleQuickRepeat = async (athlete, lastLog) => {
-    setRepeatingId(athlete.id);
-    await addLift({
-      athlete_id: athlete.id,
-      athlete_name: athlete.name,
-      sport: athlete.sport || '',
-      lift_type: lastLog.lift_type,
-      weight_lbs: Number(lastLog.weight_lbs),
-      reps: Number(lastLog.reps),
-    });
-    setRepeatingId(null);
+  // Kiosk mode's "rack": whoever has selected their own name this session, shown as
+  // small boxes so returning to log a second/third set doesn't mean re-finding your
+  // name in the full roster grid again. No cap - a rack station can rotate through
+  // as many athletes as are actually using it. Local to this screen's lifetime
+  // (not persisted) - it's a same-session convenience, not a durable assignment.
+  const [rackAthleteIds, setRackAthleteIds] = React.useState([]);
+  // Whether the full "find your name" grid is showing. Starts open (nobody's
+  // selected yet); once the rack has at least one person, it collapses behind an
+  // explicit "+ Add Another Athlete" toggle so the screen isn't just displaying
+  // the whole roster's names once a session is already underway.
+  const [showFindAthlete, setShowFindAthlete] = React.useState(true);
+  const removeFromRack = (id) => {
+    setRackAthleteIds(prev => prev.filter(x => x !== id));
+    if (entryAthleteId === id) closeEntry();
   };
 
   const filteredAthletes = React.useMemo(() => {
@@ -235,6 +202,13 @@ export default function LiftScreen({
     setReps('');
     setSuccessMsg('');
     setEditingLiftId(null);
+    if (isKioskMode) {
+      setRackAthleteIds(prev => (prev.includes(athleteId) ? prev : [...prev, athleteId]));
+      // Collapse the full roster grid once someone's actually selected - an athlete
+      // who's already found their own name doesn't need every other name on screen
+      // for the rest of the session.
+      setShowFindAthlete(false);
+    }
   };
 
   const closeEntry = () => {
@@ -728,101 +702,42 @@ export default function LiftScreen({
             </div>
           )}
 
-          {/* Search and Live Sport Chips */}
-          <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl sticky top-0 z-10">
-            <div className="relative w-full">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
-              <input
-                className="w-full bg-surface-container-lowest text-on-surface font-body-md text-body-md pl-10 pr-24 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-outline"
-                placeholder="Search athlete by name..."
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                {search ? (
-                  <button onClick={() => setSearch('')} className="px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm uppercase">Clear</button>
-                ) : (
-                  <span className="px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm">ESC TO CLEAR</span>
-                )}
-              </div>
-            </div>
-            
-            <div ref={rosterSportDrag.ref} {...rosterSportDrag.dragHandlers} className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none cursor-grab active:cursor-grabbing select-none">
-              <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider whitespace-nowrap mr-1">GROUPS:</span>
-              {['ALL', ...sports].map(sport => (
-                <button
-                  key={sport}
-                  onClick={() => setSportFilter(sport)}
-                  className={`sport-pill px-space-sm py-1 rounded font-label-md text-label-md whitespace-nowrap ${sportFilter === sport ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors'}`}
-                >
-                  {sport === 'ALL' ? 'All' : sport}
-                </button>
-              ))}
-            </div>
-            <DragScrollBar drag={rosterSportDrag} className="mt-1" />
-          </div>
-
-          {/* Live Weight Room Floor Section */}
-          {recentAthletes.length > 0 && (
-            <div className="flex flex-col gap-space-sm mt-space-lg">
+          {isKioskMode && rackAthleteIds.length > 0 && (
+            <div className="flex flex-col gap-space-sm mt-space-md">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-space-xs">
-                  <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">ACTIVE TODAY</span>
-                  <span className="text-on-surface-variant font-label-md text-label-md">• {recentAthletes.length} ATHLETES CURRENTLY LOGGED</span>
-                </div>
-                {sessionTonnage > 0 && (
-                  <div className="flex items-center gap-space-xs font-label-sm text-label-sm text-outline">
-                    <span className="w-2 h-2 rounded-full bg-secondary"></span>
-                    <span>{sessionTonnage.toLocaleString()} LBS LIFTED TODAY</span>
-                  </div>
-                )}
+                <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">YOUR RACK</span>
+                <button
+                  type="button"
+                  onClick={() => setShowFindAthlete(v => !v)}
+                  className="flex items-center gap-1.5 px-space-sm py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md uppercase transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base">{showFindAthlete ? 'close' : 'person_add'}</span>
+                  <span>{showFindAthlete ? 'Hide Roster' : 'Add Another Athlete'}</span>
+                </button>
               </div>
-
-              {/* Active Rack Station Carousel Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-space-sm">
-                {recentAthletes.map(({ athlete, lastLift, lastLog }) => {
+              <div className="flex flex-wrap gap-space-sm">
+                {rackAthleteIds.map(id => {
+                  const athlete = athletes.find(a => a.id === id);
+                  if (!athlete) return null;
                   return (
-                    <div key={athlete.id} className="flex flex-col justify-between p-space-sm bg-surface-container-low hover:bg-surface-container rounded-xl transition-all hover:-translate-y-0.5 shadow-sm group">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-start justify-between cursor-pointer" onClick={() => openEntry(athlete.id)}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded bg-primary-container/20 text-primary font-headline-md text-headline-md flex items-center justify-center">
-                              {initialsOf(athlete.name).slice(0, 2)}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-headline-md text-headline-md text-on-surface truncate uppercase">{athlete.name}</span>
-                              <span className="font-label-sm text-label-sm text-outline uppercase">{athlete.sport || 'GENERAL'}</span>
-                            </div>
-                          </div>
-                          {/* Could format lastLog.created_at more precisely if needed, here just keeping it short */}
-                          <span className="px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm">
-                            {new Date(lastLog.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                          </span>
-                        </div>
-                        
-                        <div className="p-2 rounded bg-surface-container-lowest flex flex-col gap-0.5 cursor-pointer" onClick={() => openEntry(athlete.id)}>
-                          <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">{lastLift}</span>
-                          <div className="flex items-baseline justify-between">
-                            <span className="font-metric-val text-metric-val text-primary tracking-tight">{lastLog.weight_lbs}<span className="text-xs font-normal text-on-surface-variant ml-0.5">lbs</span></span>
-                            <span className="font-label-md text-label-md text-on-surface">{lastLog.reps} reps</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <button 
-                        onClick={() => handleQuickRepeat(athlete, lastLog)}
-                        disabled={repeatingId === athlete.id}
-                        className="mt-2 w-full py-1.5 rounded bg-surface-container-high hover:bg-primary hover:text-on-primary font-label-md text-label-md uppercase text-primary transition-colors flex items-center justify-center gap-1"
+                    <div key={id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => openEntry(id)}
+                        className={`flex items-center gap-2 pl-2 pr-8 py-2 rounded-xl transition-colors ${entryAthleteId === id ? 'bg-primary-container border-2 border-primary' : 'bg-surface-container hover:bg-surface-container-high border border-transparent'}`}
                       >
-                        {repeatingId === athlete.id ? (
-                          <span>...</span>
-                        ) : (
-                          <>
-                            <span className="material-symbols-outlined text-sm">add</span>
-                            <span>+1 SET</span>
-                          </>
-                        )}
+                        <div className="w-8 h-8 rounded-full bg-surface-container-highest text-primary font-headline-md text-headline-md flex items-center justify-center shrink-0">
+                          {initialsOf(athlete.name).slice(0, 2)}
+                        </div>
+                        <span className="font-headline-md text-headline-md text-on-surface uppercase whitespace-nowrap">{athlete.name}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeFromRack(id); }}
+                        aria-label={`Remove ${athlete.name} from your rack`}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-surface-container-highest hover:bg-error-container text-on-surface-variant hover:text-error flex items-center justify-center"
+                      >
+                        <X size={12} />
                       </button>
                     </div>
                   );
@@ -831,7 +746,47 @@ export default function LiftScreen({
             </div>
           )}
 
-          {/* Full Roster Log Section */}
+          {(!isKioskMode || showFindAthlete) && (
+            <>
+              {/* Search and Live Sport Chips */}
+              <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl sticky top-0 z-10">
+                <div className="relative w-full">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
+                  <input
+                    className="w-full bg-surface-container-lowest text-on-surface font-body-md text-body-md pl-10 pr-24 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-outline"
+                    placeholder="Search athlete by name..."
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {search ? (
+                      <button onClick={() => setSearch('')} className="px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm uppercase">Clear</button>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm">ESC TO CLEAR</span>
+                    )}
+                  </div>
+                </div>
+
+                <div ref={rosterSportDrag.ref} {...rosterSportDrag.dragHandlers} className="flex items-center gap-space-xs overflow-x-auto pb-1 scrollbar-none cursor-grab active:cursor-grabbing select-none">
+                  <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider whitespace-nowrap mr-1">GROUPS:</span>
+                  {['ALL', ...sports].map(sport => (
+                    <button
+                      key={sport}
+                      onClick={() => setSportFilter(sport)}
+                      className={`sport-pill px-space-sm py-1 rounded font-label-md text-label-md whitespace-nowrap ${sportFilter === sport ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors'}`}
+                    >
+                      {sport === 'ALL' ? 'All' : sport}
+                    </button>
+                  ))}
+                </div>
+                <DragScrollBar drag={rosterSportDrag} className="mt-1" />
+              </div>
+            </>
+          )}
+
+          {(!isKioskMode || showFindAthlete) && (
+          /* Full Roster Log Section */
           <div className="flex flex-col gap-space-sm mt-space-xl">
             {!isKioskMode && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1015,6 +970,7 @@ export default function LiftScreen({
               </div>
             )}
           </div>
+          )}
         </>
       )}
 
