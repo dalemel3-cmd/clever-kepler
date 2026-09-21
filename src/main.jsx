@@ -4,7 +4,7 @@ import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.jsx'
 import AuthGate from './auth/AuthGate.jsx'
-import { installGlobalErrorReporting, reportError } from './errorReporting.js'
+import { installGlobalErrorReporting, reportError, handleIfStaleChunk } from './errorReporting.js'
 
 installGlobalErrorReporting()
 
@@ -37,10 +37,20 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    reportError(error?.message || String(error), {
+    const message = error?.message || String(error);
+    reportError(message, {
       stack: error?.stack || errorInfo?.componentStack,
       source: 'react-boundary',
     });
+
+    // A deploy replaces every lazy-loaded screen chunk with a new content-hashed
+    // filename - a tab that loaded its shell before (or across) a deploy fails to
+    // fetch a screen it hasn't opened yet with exactly this error. Recognized and
+    // auto-recovered here (see errorReporting.js) instead of leaving the coach
+    // stuck on this permanent error screen with no way out but a manual hard
+    // refresh.
+    if (handleIfStaleChunk(message)) return;
+
     this.setState({
       hasError: true,
       error: error,

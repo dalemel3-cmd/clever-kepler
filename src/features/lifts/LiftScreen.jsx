@@ -624,7 +624,7 @@ export default function LiftScreen({
             <div className="flex items-center gap-space-xs font-label-md text-label-md tracking-widest text-outline uppercase">
               <span>WORKSPACE</span>
               <span className="material-symbols-outlined text-xs">chevron_right</span>
-              <span className="text-primary font-bold">LIFT TRACKER &amp; WEIGHT ROOM FLOOR</span>
+              <span className="text-primary font-bold">LIFT TRACKER</span>
             </div>
           </div>
 
@@ -636,12 +636,9 @@ export default function LiftScreen({
                   <span className="material-symbols-outlined text-2xl">fitness_center</span>
                 </div>
                 <h1 className="font-headline-xl text-headline-xl tracking-tight text-on-surface uppercase">
-                  LIFT TRACKER &amp; WEIGHT ROOM FLOOR
+                  LIFT TRACKER
                 </h1>
               </div>
-              <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
-                Live athlete tracking, rack station load telemetrics, and rapid-fire set verification. Sorted dynamically by session engagement and velocity drops.
-              </p>
             </div>
 
             {/* Action Toolbar & Segmented View */}
@@ -665,20 +662,20 @@ export default function LiftScreen({
               </button>
               <button
                 onClick={openBulkEdit}
-                className="flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors"
-                title="Reassign a day's mislabeled lift type across every matching set at once"
+                className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors"
+                title="Bulk Edit: reassign a day's mislabeled lift type across every matching set at once"
+                aria-label="Bulk edit lift type"
               >
                 <span className="material-symbols-outlined text-lg">edit_note</span>
-                <span>BULK EDIT</span>
               </button>
               {onActivateLiftKioskMode && (
                 <button
                   onClick={onActivateLiftKioskMode}
-                  className="flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase bg-primary hover:bg-primary-fixed text-on-primary shadow-md transition-all active:scale-95"
-                  title="Hand the device to athletes to log their own sets"
+                  className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary hover:bg-primary-fixed text-on-primary shadow-md transition-all active:scale-95"
+                  title="Lift Kiosk Mode: hand the device to athletes to log their own sets"
+                  aria-label="Activate Lift Kiosk Mode"
                 >
                   <span className="material-symbols-outlined text-lg">sensors</span>
-                  <span>LIFT KIOSK MODE</span>
                 </button>
               )}
 

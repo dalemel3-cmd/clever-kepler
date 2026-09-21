@@ -51,13 +51,62 @@ export function installGlobalErrorReporting() {
       stack: event.error?.stack,
       source: 'window.onerror',
     });
+    handleIfStaleChunk(event.message);
   });
 
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
-    reportError(reason?.message || String(reason) || 'Unhandled promise rejection', {
+    const message = reason?.message || String(reason) || 'Unhandled promise rejection';
+    reportError(message, {
       stack: reason?.stack,
       source: 'unhandledrejection',
     });
+    handleIfStaleChunk(message);
   });
+}
+
+// A deploy replaces every lazy-loaded screen chunk with a new content-hashed
+// filename and deletes the old ones from the server - a tab that loaded its shell
+// before (or across) a deploy fails to fetch a screen it hasn't opened yet with
+// exactly this error. Before this fix, that was a dead end: the coach was stuck on
+// an error screen and a normal refresh didn't help, because the still-active old
+// service worker keeps serving its own cached shell (same stale chunk references)
+// regardless - only a hard refresh, which happens to bypass it, actually worked.
+const STALE_CHUNK_PATTERN = /dynamically imported module|loading chunk .* failed|importing a module script failed/i;
+export const isStaleChunkError = (message) => STALE_CHUNK_PATTERN.test(String(message || ''));
+
+const RELOAD_GUARD_KEY = 'hpd_stale_chunk_reload_at';
+
+// Forces the browser past the stale service worker entirely - unregistering it and
+// clearing its caches guarantees the next load fetches the current deployment's
+// real index.html and chunk hashes from the network, rather than hoping a plain
+// reload happens to bypass the SW the way a manual hard refresh does.
+async function forceFreshReload() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch (e) { /* best-effort - still reload even if cleanup partially failed */ }
+  window.location.reload();
+}
+
+// Returns true if this was recognized and a reload was triggered, so the caller
+// (the React ErrorBoundary, or a global handler) can skip rendering its own
+// fallback UI - the page is about to navigate away anyway.
+export function handleIfStaleChunk(message) {
+  if (!isStaleChunkError(message)) return false;
+  // Guard against a reload loop if the deployment is genuinely broken (not just
+  // stale) - only auto-reload once per 30s, then let the normal error path take
+  // over so a real problem doesn't just spin silently forever.
+  let lastReload = 0;
+  try { lastReload = Number(sessionStorage.getItem(RELOAD_GUARD_KEY)) || 0; } catch (e) {}
+  if (Date.now() - lastReload <= 30000) return false;
+  try { sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now())); } catch (e) {}
+  forceFreshReload();
+  return true;
 }

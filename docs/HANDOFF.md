@@ -2925,7 +2925,54 @@ athlete, or a fresh kiosk session that never added anyone). Verified
 directly: with one athlete in the rack, tapping their box's "×" now
 re-shows the full "find your name" grid instead of a blank screen.
 
-## 79. Next up
+## 79. Lift Tracker header cleanup + real fix for "have to hard refresh every time" (v5.1.8)
+
+**Header cleanup**, per direct request: `LiftScreen.jsx`'s title (both the
+breadcrumb and the `<h1>`) shortened from "LIFT TRACKER & WEIGHT ROOM FLOOR"
+to just "LIFT TRACKER," and the descriptive subtext paragraph beneath it
+removed entirely. The Bulk Edit and Lift Kiosk Mode buttons (added §74)
+changed from icon+label pills to icon-only squares matching the CSV export
+button's existing style (`w-10 h-10`, `aria-label` + `title` carrying the
+accessible name instead of visible text) - cleans up a toolbar that had
+grown to 5 buttons plus a segmented control.
+
+**The "have to hard refresh every time" bug - found via the error monitor
+from §73, not guessed.** Queried `app_errors` directly and found the exact
+cause: `"Failed to fetch dynamically imported module:
+.../AthletesScreen-B9eCfU1E.js"`, caught by the React ErrorBoundary. Every
+deploy gives every lazy-loaded screen a new content-hashed chunk filename and
+the old ones stop existing on the server - a tab that loaded its shell
+before (or across) a deploy fails exactly like this the first time it tries
+to open a screen it hasn't visited yet. Before this fix, `main.jsx`'s
+`ErrorBoundary` caught this and rendered a permanent plain "Something went
+wrong" screen with no recovery. **A normal refresh doesn't fix it** because
+the still-active old service worker's own `NavigationRoute` keeps
+intercepting navigation and re-serving its own cached shell (the same stale
+chunk references) regardless of what's actually on the server now - only a
+hard refresh, which happens to bypass the service worker, ever worked,
+which is exactly the coach's reported workaround.
+
+Added `isStaleChunkError()`/`handleIfStaleChunk()` to `errorReporting.js`,
+wired into all three error-catching paths (`window.onerror`,
+`unhandledrejection`, and the `ErrorBoundary`'s `componentDidCatch`) so it's
+caught regardless of whether the failure surfaces as a React render error or
+an unhandled promise rejection. On match, `forceFreshReload()` unregisters
+every service worker registration, clears every Cache Storage bucket, then
+reloads - guaranteeing the next load bypasses the stale worker entirely and
+fetches the current deployment's real `index.html` and chunk hashes, the
+same effective outcome as a manual hard refresh, done automatically. Guarded
+by a 30-second `sessionStorage` cooldown so a genuinely broken deployment
+(not just a stale chunk) doesn't loop-reload forever - after one attempt
+within that window it falls through to the normal error screen instead.
+
+Verified end-to-end with Playwright: stubbed `serviceWorker.getRegistrations`
+and `caches.keys`/`delete`, dispatched a synthetic `unhandledrejection` with
+the exact production error message, and confirmed all three steps fire in
+order - `unregister()` called, `caches.delete()` called, and the page
+actually reloads (the `sessionStorage` guard key gets set) - rather than the
+old dead-end error screen.
+
+## 80. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
