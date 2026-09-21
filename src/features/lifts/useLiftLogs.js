@@ -107,6 +107,27 @@ export function useLiftLogs() {
     }
   }, []);
 
+  // Reassigns a batch of already-logged sets to a different lift type in one shot,
+  // leaving their weight/reps/athlete/date untouched - for the common mislabel case
+  // (a whole session logged as "Bench" that should have been "Incline Bench") where
+  // deleting and re-logging every set by hand would also lose the original timestamps.
+  const bulkUpdateLiftType = useCallback(async (ids, newLiftType) => {
+    if (!ids || !ids.length || !newLiftType) return { ok: false, error: new Error('Nothing to update') };
+    const idSet = new Set(ids);
+    setRows(prev => {
+      const next = prev.map(r => (idSet.has(r.id) ? { ...r, lift_type: newLiftType } : r));
+      writeCache(next);
+      return next;
+    });
+    try {
+      const { error } = await supabase.from('lift_logs').update({ lift_type: newLiftType }).in('id', ids);
+      if (error) throw error;
+      return { ok: true, count: ids.length };
+    } catch (e) {
+      return { ok: false, error: e };
+    }
+  }, []);
+
   const deleteLift = useCallback(async (id) => {
     let removed = null;
     setRows(prev => {
@@ -127,5 +148,5 @@ export function useLiftLogs() {
     }
   }, [mergeRows]);
 
-  return { liftLogs: rows, addLift, updateLift, deleteLift };
+  return { liftLogs: rows, addLift, updateLift, deleteLift, bulkUpdateLiftType };
 }

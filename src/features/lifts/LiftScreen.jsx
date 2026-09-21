@@ -49,11 +49,14 @@ export default function LiftScreen({
   addLift,
   updateLift,
   deleteLift,
+  bulkUpdateLiftType,
   setConfirmModal,
   setSelectedProfileId,
   fetchProfileData,
   setProfileEntryScreen,
   setScreen,
+  isKioskMode,
+  onActivateLiftKioskMode,
 }) {
   const liftTypes = settings.liftTypes && settings.liftTypes.length ? settings.liftTypes : ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'];
 
@@ -119,6 +122,45 @@ export default function LiftScreen({
       .filter(l => l.created_at && getCentralDateString(new Date(l.created_at)) === todayStr)
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   ), [liftLogs, todayStr]);
+
+  // Bulk-reassign a day's mislabeled lift type (e.g. a whole session logged as
+  // "Bench" that should have been "Incline Bench") without touching the weight/reps
+  // already recorded, and without deleting-and-relogging every set by hand.
+  const [bulkEditOpen, setBulkEditOpen] = React.useState(false);
+  const [bulkDate, setBulkDate] = React.useState(todayStr);
+  const [bulkFromType, setBulkFromType] = React.useState('');
+  const [bulkToType, setBulkToType] = React.useState('');
+  const [bulkSaving, setBulkSaving] = React.useState(false);
+  const bulkMatches = React.useMemo(() => {
+    if (!bulkFromType) return [];
+    return (liftLogs || []).filter(l =>
+      l.lift_type === bulkFromType &&
+      l.created_at && getCentralDateString(new Date(l.created_at)) === bulkDate
+    );
+  }, [liftLogs, bulkFromType, bulkDate]);
+  const openBulkEdit = () => {
+    setBulkDate(todayStr);
+    setBulkFromType('');
+    setBulkToType('');
+    setBulkEditOpen(true);
+  };
+  const closeBulkEdit = () => setBulkEditOpen(false);
+  const handleBulkReassign = () => {
+    if (!bulkMatches.length || !bulkToType || bulkToType === bulkFromType) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reassign Lift Type',
+      message: `Change ${bulkMatches.length} logged set${bulkMatches.length !== 1 ? 's' : ''} from "${bulkFromType}" to "${bulkToType}" on ${bulkDate}? Weights and reps are kept exactly as recorded - only the lift type changes.`,
+      isDanger: false,
+      actionText: 'Reassign',
+      onConfirm: async () => {
+        setBulkSaving(true);
+        await bulkUpdateLiftType(bulkMatches.map(l => l.id), bulkToType);
+        setBulkSaving(false);
+        setBulkEditOpen(false);
+      },
+    });
+  };
 
   // Total lbs lifted today across every athlete's every set (weight x reps,
   // summed) - a quick "how much work got done today" number for the header,
@@ -324,67 +366,101 @@ export default function LiftScreen({
 
   return (
     <div className="flex flex-col w-full h-full overflow-y-auto pb-space-xl">
-      {/* Top Breadcrumb & Control Anchor */}
-      <div className="flex flex-wrap items-center justify-between gap-space-sm pt-space-md pb-space-sm">
-        <div className="flex items-center gap-space-xs font-label-md text-label-md tracking-widest text-outline uppercase">
-          <span>WORKSPACE</span>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-primary font-bold">LIFT TRACKER &amp; WEIGHT ROOM FLOOR</span>
-        </div>
-      </div>
-
-      {/* Hero Header & Action Toolbar */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-md py-space-sm">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-space-sm">
-            <div className="w-10 h-10 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary">
-              <span className="material-symbols-outlined text-2xl">fitness_center</span>
-            </div>
-            <h1 className="font-headline-xl text-headline-xl tracking-tight text-on-surface uppercase">
-              LIFT TRACKER &amp; WEIGHT ROOM FLOOR
-            </h1>
-          </div>
-          <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
-            Live athlete tracking, rack station load telemetrics, and rapid-fire set verification. Sorted dynamically by session engagement and velocity drops.
+      {isKioskMode ? (
+        /* Compact kiosk header: an athlete walking up to the rack needs "tap your
+           name," not the coach's admin toolbar (leaderboard, CSV export, view
+           toggles) or the descriptive copy meant for a coach reading a dashboard. */
+        <div className="flex flex-col gap-1 pt-space-md pb-space-sm">
+          <h1 className="font-headline-xl text-headline-xl tracking-tight text-on-surface uppercase">
+            LIFT TRACKER
+          </h1>
+          <p className="font-body-md text-body-md text-on-surface-variant">
+            Find your name below, then tap it to log your set.
           </p>
         </div>
-
-        {/* Action Toolbar & Segmented View */}
-        <div className="flex flex-wrap items-center gap-space-xs">
-          <button
-            onClick={() => setView('log')}
-            className={`flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase transition-all shadow-md active:scale-95 ${view === 'log' ? 'bg-primary-container hover:bg-primary text-on-primary-container' : 'bg-surface-container hover:bg-surface-container-high text-on-surface'}`}
-          >
-            <span className="material-symbols-outlined text-lg">add</span>
-            <span>LOG A LIFT / SET</span>
-          </button>
-          <button
-            onClick={() => setView('leaderboard')}
-            className={`flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase transition-colors ${view === 'leaderboard' ? 'bg-primary-container hover:bg-primary text-on-primary-container' : 'bg-surface-container hover:bg-surface-container-high text-on-surface'}`}
-          >
-            <span className="material-symbols-outlined text-lg text-primary">military_tech</span>
-            <span>LEADERBOARD</span>
-          </button>
-          <button onClick={handleExportCSV} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data" aria-label="Export all lift logs to CSV">
-            <span className="material-symbols-outlined text-lg">download</span>
-          </button>
-
-          {/* Segmented View Controller */}
-          <div className="flex items-center bg-surface-container-lowest p-1 rounded-lg gap-0.5 ml-1">
-            <button className="p-1.5 rounded text-primary bg-surface-container-high transition-colors" id="view-grid-btn" title="Station Grid View">
-              <span className="material-symbols-outlined text-lg">view_cozy</span>
-            </button>
-            <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-list-btn" title="Roster Table View">
-              <span className="material-symbols-outlined text-lg">format_list_bulleted</span>
-            </button>
-            <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-stream-btn" title="Live Velocity Stream">
-              <span className="material-symbols-outlined text-lg">timeline</span>
-            </button>
+      ) : (
+        <>
+          {/* Top Breadcrumb & Control Anchor */}
+          <div className="flex flex-wrap items-center justify-between gap-space-sm pt-space-md pb-space-sm">
+            <div className="flex items-center gap-space-xs font-label-md text-label-md tracking-widest text-outline uppercase">
+              <span>WORKSPACE</span>
+              <span className="material-symbols-outlined text-xs">chevron_right</span>
+              <span className="text-primary font-bold">LIFT TRACKER &amp; WEIGHT ROOM FLOOR</span>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {view === 'log' && (
+          {/* Hero Header & Action Toolbar */}
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-md py-space-sm">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-space-sm">
+                <div className="w-10 h-10 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary">
+                  <span className="material-symbols-outlined text-2xl">fitness_center</span>
+                </div>
+                <h1 className="font-headline-xl text-headline-xl tracking-tight text-on-surface uppercase">
+                  LIFT TRACKER &amp; WEIGHT ROOM FLOOR
+                </h1>
+              </div>
+              <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
+                Live athlete tracking, rack station load telemetrics, and rapid-fire set verification. Sorted dynamically by session engagement and velocity drops.
+              </p>
+            </div>
+
+            {/* Action Toolbar & Segmented View */}
+            <div className="flex flex-wrap items-center gap-space-xs">
+              <button
+                onClick={() => setView('log')}
+                className={`flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase transition-all shadow-md active:scale-95 ${view === 'log' ? 'bg-primary-container hover:bg-primary text-on-primary-container' : 'bg-surface-container hover:bg-surface-container-high text-on-surface'}`}
+              >
+                <span className="material-symbols-outlined text-lg">add</span>
+                <span>LOG A LIFT / SET</span>
+              </button>
+              <button
+                onClick={() => setView('leaderboard')}
+                className={`flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase transition-colors ${view === 'leaderboard' ? 'bg-primary-container hover:bg-primary text-on-primary-container' : 'bg-surface-container hover:bg-surface-container-high text-on-surface'}`}
+              >
+                <span className="material-symbols-outlined text-lg text-primary">military_tech</span>
+                <span>LEADERBOARD</span>
+              </button>
+              <button onClick={handleExportCSV} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data" aria-label="Export all lift logs to CSV">
+                <span className="material-symbols-outlined text-lg">download</span>
+              </button>
+              <button
+                onClick={openBulkEdit}
+                className="flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors"
+                title="Reassign a day's mislabeled lift type across every matching set at once"
+              >
+                <span className="material-symbols-outlined text-lg">edit_note</span>
+                <span>BULK EDIT</span>
+              </button>
+              {onActivateLiftKioskMode && (
+                <button
+                  onClick={onActivateLiftKioskMode}
+                  className="flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase bg-primary hover:bg-primary-fixed text-on-primary shadow-md transition-all active:scale-95"
+                  title="Hand the device to athletes to log their own sets"
+                >
+                  <span className="material-symbols-outlined text-lg">sensors</span>
+                  <span>LIFT KIOSK MODE</span>
+                </button>
+              )}
+
+              {/* Segmented View Controller */}
+              <div className="flex items-center bg-surface-container-lowest p-1 rounded-lg gap-0.5 ml-1">
+                <button className="p-1.5 rounded text-primary bg-surface-container-high transition-colors" id="view-grid-btn" title="Station Grid View">
+                  <span className="material-symbols-outlined text-lg">view_cozy</span>
+                </button>
+                <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-list-btn" title="Roster Table View">
+                  <span className="material-symbols-outlined text-lg">format_list_bulleted</span>
+                </button>
+                <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-stream-btn" title="Live Velocity Stream">
+                  <span className="material-symbols-outlined text-lg">timeline</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {(isKioskMode || view === 'log') && (
         <>
           {/* Search and Live Sport Chips */}
           <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl sticky top-0 z-10">
@@ -491,21 +567,78 @@ export default function LiftScreen({
 
           {/* Full Roster Log Section */}
           <div className="flex flex-col gap-space-sm mt-space-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h2 className="font-headline-lg text-headline-lg uppercase text-on-surface tracking-wide">
-                  ROSTER LOGS &amp; WORKOUT ASSIGNMENTS
-                </h2>
-                <span className="font-label-sm text-label-sm text-outline uppercase">{filteredAthletes.length} REGISTERED ATHLETES • SORTED BY VELOCITY / RECENCY</span>
+            {!isKioskMode && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="font-headline-lg text-headline-lg uppercase text-on-surface tracking-wide">
+                    ROSTER LOGS &amp; WORKOUT ASSIGNMENTS
+                  </h2>
+                  <span className="font-label-sm text-label-sm text-outline uppercase">{filteredAthletes.length} REGISTERED ATHLETES • SORTED BY VELOCITY / RECENCY</span>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Roster Table Container */}
             {filteredAthletes.length === 0 ? (
               <div className="bg-surface-container-low rounded-xl p-space-xl text-center text-on-surface-variant">
                 No athletes match "{search}".
               </div>
-            ) : (
+            ) : isKioskMode ? (
+              /* Big tap-target tile picker - an athlete walking up finds their own
+                 name by scanning tiles, not scrolling a dense admin table meant for
+                 a coach reading bodyweight/status/last-set columns at a desk.
+                 Tapping a tile opens the exact same lift-entry modal as the coach's
+                 own "LOG SET" action - only the way you get there differs. */
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-space-sm">
+                {pagedAthletes.map((a) => {
+                  const lastLog = lastLiftByAthlete.get(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => openEntry(a.id)}
+                      className="flex flex-col items-center justify-center gap-2 p-space-md rounded-xl bg-surface-container hover:bg-primary-container active:scale-[0.97] transition-all shadow-sm text-center"
+                    >
+                      <div className="w-14 h-14 rounded-full bg-surface-container-highest text-primary font-headline-lg text-headline-lg flex items-center justify-center">
+                        {initialsOf(a.name).slice(0, 2)}
+                      </div>
+                      <span className="font-headline-md text-headline-md text-on-surface uppercase leading-tight">{a.name}</span>
+                      <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">{a.sport || 'General'}</span>
+                      {lastLog && (
+                        <span className="font-label-sm text-label-sm text-outline">Last: {lastLog.lift_type} {lastLog.weight_lbs}×{lastLog.reps}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {isKioskMode && filteredAthletes.length > ROSTER_PAGE_SIZE && (
+              <div className="flex items-center justify-between p-space-md flex-wrap gap-2">
+                <span className="font-label-sm text-label-sm text-outline">
+                  Showing {rosterPage * ROSTER_PAGE_SIZE + 1}–{Math.min((rosterPage + 1) * ROSTER_PAGE_SIZE, filteredAthletes.length)} of {filteredAthletes.length}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRosterPage(p => Math.max(0, p - 1))}
+                    disabled={rosterPage === 0}
+                    className="px-3 py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest disabled:opacity-50 text-on-surface font-label-md text-label-md transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRosterPage(p => Math.min(rosterPageCount - 1, p + 1))}
+                    disabled={rosterPage >= rosterPageCount - 1}
+                    className="px-3 py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest disabled:opacity-50 text-on-surface font-label-md text-label-md transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!isKioskMode && filteredAthletes.length > 0 && (
               <div className="bg-surface-container-low rounded-xl overflow-hidden shadow-lg">
                 {/* Table Header Bar */}
                 <div className="grid grid-cols-12 px-space-md py-space-sm bg-surface-container-high text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
@@ -928,6 +1061,88 @@ export default function LiftScreen({
                 </div>
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {bulkEditOpen && createPortal(
+        <div
+          className="modal-overlay animate-fade-in"
+          style={{ position: 'fixed', inset: 0, zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.9)', overflowY: 'auto' }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeBulkEdit(); }}
+        >
+          <div className="card-glass glow-card animate-slide-up bg-surface-container-low shadow-lg" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid rgba(255, 193, 116, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h3 className="font-display text-2xl font-bold text-on-surface uppercase m-0">Bulk Edit Lift Type</h3>
+                <div className="font-label-sm text-label-sm text-on-surface-variant mt-1">Reassign a day's mislabeled sets - weights and reps stay exactly as logged.</div>
+              </div>
+              <button onClick={closeBulkEdit} className="bg-transparent border-none text-on-surface-variant hover:text-on-surface cursor-pointer">
+                <X size={22} />
+              </button>
+            </div>
+
+            <div>
+              <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Date</label>
+              <input
+                type="date"
+                value={bulkDate}
+                onChange={e => setBulkDate(e.target.value)}
+                className="w-full h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary border border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Currently logged as</label>
+              <div className="flex gap-2 flex-wrap">
+                {liftTypes.map(lt => (
+                  <button
+                    key={lt}
+                    type="button"
+                    onClick={() => setBulkFromType(lt)}
+                    className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${bulkFromType === lt ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
+                  >
+                    {lt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {bulkFromType && (
+              <div className="px-4 py-3 rounded-xl bg-surface-container-highest text-on-surface-variant font-label-md text-label-md">
+                {bulkMatches.length === 0
+                  ? `No "${bulkFromType}" sets logged on ${bulkDate}.`
+                  : `${bulkMatches.length} set${bulkMatches.length !== 1 ? 's' : ''} logged as "${bulkFromType}" on ${bulkDate}.`}
+              </div>
+            )}
+
+            {bulkFromType && bulkMatches.length > 0 && (
+              <div>
+                <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Change to</label>
+                <div className="flex gap-2 flex-wrap">
+                  {liftTypes.filter(lt => lt !== bulkFromType).map(lt => (
+                    <button
+                      key={lt}
+                      type="button"
+                      onClick={() => setBulkToType(lt)}
+                      className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${bulkToType === lt ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
+                    >
+                      {lt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleBulkReassign}
+              disabled={bulkSaving || !bulkFromType || !bulkToType || bulkMatches.length === 0}
+              className={`h-12 rounded-xl font-headline-md text-headline-md uppercase flex items-center justify-center gap-2 transition-all ${bulkSaving || !bulkFromType || !bulkToType || bulkMatches.length === 0 ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary hover:bg-primary-fixed text-on-primary shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}
+            >
+              {bulkSaving ? 'Reassigning...' : `Reassign ${bulkMatches.length || ''} Set${bulkMatches.length === 1 ? '' : 's'}`}
+            </button>
           </div>
         </div>,
         document.body

@@ -262,6 +262,13 @@ export default function App() {
     setIsKioskMode(true);
     setScreen('entry');
   };
+  // Lift Tracker's search/sport filters are already local to LiftScreen (not shared
+  // globally like Athletes/Quick Entry's), so there's no cross-screen filter to reset
+  // here - just hand the device over and land on the Lift Tracker screen itself.
+  const handleActivateLiftKioskMode = () => {
+    setIsKioskMode(true);
+    setScreen('lifts');
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('shiloh_sidebar_collapsed') === 'true'; } catch (e) { return false; }
   });
@@ -559,7 +566,7 @@ export default function App() {
   // Lift Tracker (Bench/Squat/Deadlift/etc.) - same lifted-to-App-level reasoning as
   // Speed & Power above, so Profiles can eventually read best-lift data without a
   // second realtime subscription to the same table.
-  const { liftLogs, addLift, updateLift, deleteLift } = useLiftLogs();
+  const { liftLogs, addLift, updateLift, deleteLift, bulkUpdateLiftType } = useLiftLogs();
 
   // Settings & PWA State
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
@@ -3326,11 +3333,14 @@ export default function App() {
                 addLift={addLift}
                 updateLift={updateLift}
                 deleteLift={deleteLift}
+                bulkUpdateLiftType={bulkUpdateLiftType}
                 setConfirmModal={setConfirmModal}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setProfileEntryScreen={setProfileEntryScreen}
                 setScreen={setScreen}
+                isKioskMode={isKioskMode}
+                onActivateLiftKioskMode={handleActivateLiftKioskMode}
               />
             )}
 

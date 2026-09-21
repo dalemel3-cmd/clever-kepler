@@ -2717,7 +2717,58 @@ Supabase MCP tools it needs to query the table, depending on how the fired
 environment resolves tool access. Won't be certain this actually works
 end-to-end until it fires once for real.
 
-## 74. Next up
+## 74. Lift Kiosk Mode + bulk lift-type reassignment (v5.1.3)
+
+Coach asked for two Lift Tracker features, inspired by how Perch.fit lets an
+athlete pre-select themselves before logging: "select the athlete before the
+lift... they roll in to the weight room and can pre-select their name... instead
+of having to scroll for their name."
+
+**Lift Kiosk Mode.** The gap wasn't the logging flow itself - clicking an
+athlete already opened a modal that's just "pick a lift type, log weight/reps,"
+functionally identical to what Perch.fit does. The gap was *finding your name*:
+the only roster view was the coach's dense admin table (search + sport filter +
+bodyweight/status/last-set columns + pagination), not something an athlete would
+want to use themselves standing at a rack.
+
+Reused the app's existing global `isKioskMode` flag (previously only wired to
+Quick Entry) rather than inventing a second kiosk concept - `App.jsx` already
+hides the sidebar/header/bottom-nav whenever it's true, regardless of which
+`screen` is active, so a new `handleActivateLiftKioskMode` just sets
+`isKioskMode` and `screen: 'lifts'`. Unlike Quick Entry's kiosk activation (§ on
+the Athletes-filter-leak fix), Lift Tracker's `search`/`sportFilter` are already
+local component state, not shared globally, so there was no cross-screen filter
+to reset.
+
+In `LiftScreen.jsx`, `isKioskMode` now swaps: the coach's hero header/action
+toolbar (LOG A LIFT, LEADERBOARD, CSV export, the segmented view buttons) for a
+one-line "find your name, tap it" header; and the dense roster **table** for a
+big-tile grid (name, sport, initials avatar, last lift as a light hint) - same
+search bar and sport-pill filter above it either way, same `openEntry()` on tap
+opening the identical lift-entry modal a coach's "LOG SET" button always used.
+A "LIFT KIOSK MODE" button in the normal (non-kiosk) toolbar activates it;
+`AppHeader`'s existing "EXIT KIOSK" button (already generic, not tied to Quick
+Entry) works unchanged. Verified the full flow end-to-end with Playwright: kiosk
+activation hides the sidebar and coach toolbar, the tile grid renders and is
+tappable, the resulting `POST /rest/v1/lift_logs` carries the correct
+athlete/lift/weight/reps, and exiting kiosk restores the sidebar.
+
+**Bulk Edit lift type.** New `bulkUpdateLiftType(ids, newLiftType)` in
+`useLiftLogs.js`, alongside the existing single-row `updateLift` - updates local
+state for every matching id and issues one
+`supabase.from('lift_logs').update({lift_type}).in('id', ids)` call rather than
+one request per row. A new "BULK EDIT" button opens a modal: pick a date, pick
+the currently-logged (wrong) lift type, see a live count of exactly how many
+sets match, pick the correct lift type, confirm through the same
+`setConfirmModal` pattern every other destructive-ish action in this app uses.
+Weight/reps/athlete/timestamp are never touched - only `lift_type`. Fixes the
+common real case (a whole session logged under the wrong lift name) without
+deleting and re-logging every set by hand, which would also lose the original
+timestamps. Verified end-to-end: seeded 2 "Bench" sets and 1 "Squat" set on the
+same day, confirmed the preview correctly counted 2, and the resulting PATCH's
+`id=in.(...)` list contained exactly those 2 ids with the Squat set untouched.
+
+## 75. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows
