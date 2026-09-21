@@ -2817,7 +2817,45 @@ remains; and the coach's non-kiosk modal still renders as a centered popup
 with its original "BACK" label, confirming the shared-JSX refactor changed
 nothing for that path.
 
-## 76. Next up
+## 76. Per-set bar chart in the entry panel, minus the VBT metrics (v5.1.5)
+
+Coach sent a screenshot of Perch.fit's workout screen (a VBT app - bar-speed
+sensor readings per rep, a "Set Avg" velocity stat, a target-zone band) and
+asked for "something like this without the VBT metrics that could be filled
+with the actual lift maybe."
+
+Added, inside `entryPanelInner` (so both the coach's modal and Lift Kiosk
+Mode's pinned card get it):
+- A big current-value readout - the most recent set's weight/reps, in the
+  same visual weight Perch gives its velocity number - plus a smaller "Best
+  Today" stat on the right (the heaviest set logged today for this lift),
+  mirroring Perch's "Set Avg" position without inventing a metric this app
+  can't actually measure.
+- A `recharts` `BarChart`, one bar per set logged **today** for whichever
+  lift is currently selected (`todaysSetsForLift`, sorted oldest-first so
+  bars read left-to-right as "Set 1, Set 2, Set 3...") - the same "bar per
+  rep" visual Perch uses, except the bar height is the real weight lifted,
+  not a bar-speed sensor reading this app has no hardware for. The most
+  recent set's bar is highlighted gold (`#b89c5b`, matching the app's
+  existing accent color used elsewhere in this file), earlier sets a muted
+  blue (`#60a5fa`, the same blue `ProfilesScreen`'s sleep chart already
+  uses) - confirmed a plain `var(--color-primary)` renders as solid black
+  here, since that CSS custom property isn't actually defined anywhere in
+  this codebase despite `bg-primary`-style Tailwind utility classes existing;
+  fixed by using the same literal hex the rest of this file already hardcodes
+  for gold accents rather than a CSS variable that doesn't exist.
+- The chart is keyed off `liftType` (not a separate "which exercise" picker),
+  so switching the lift-type pill immediately swaps which exercise's sets it
+  shows - exactly the "Back Squat ▾" exercise-scoping behavior in Perch's
+  screenshot, reusing the pill selector this screen already had rather than
+  adding a second control that does the same job.
+
+Verified end-to-end: seeded three ascending Squat sets (225→275→315) for one
+athlete, confirmed the chart renders exactly 3 bars, the big number reads the
+last set's weight, "Best Today" reads the heaviest, and the final bar renders
+visibly gold rather than the black-fill bug caught in the first pass.
+
+## 77. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

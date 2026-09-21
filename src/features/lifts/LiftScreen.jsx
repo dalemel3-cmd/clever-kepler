@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, X, Minus, Plus, Pencil, Trash2, Check } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 
@@ -344,6 +345,22 @@ export default function LiftScreen({
       .slice(0, 8);
   }, [liftLogs, selectedAthlete]);
 
+  // Today's sets for whichever lift is currently selected, oldest first (set 1, set
+  // 2, ...) - the same "bar per rep-set" idea a VBT app like Perch shows, except the
+  // bar height is the actual weight lifted rather than a bar-speed sensor reading,
+  // since this app has no such hardware.
+  const todaysSetsForLift = React.useMemo(() => {
+    if (!selectedAthlete || !liftType) return [];
+    return (liftLogs || [])
+      .filter(l => l.athlete_id === selectedAthlete.id && l.lift_type === liftType &&
+        l.created_at && getCentralDateString(new Date(l.created_at)) === todayStr)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .map((l, i) => ({ set: i + 1, weight: Number(l.weight_lbs) || 0, reps: l.reps }));
+  }, [liftLogs, selectedAthlete, liftType, todayStr]);
+  const bestSetToday = todaysSetsForLift.length
+    ? Math.max(...todaysSetsForLift.map(s => s.weight))
+    : null;
+
   const leaderboardRows = React.useMemo(() => {
     const roster = leaderboardSportFilter === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === leaderboardSportFilter);
     const rosterIds = new Set(roster.map(a => a.id));
@@ -397,6 +414,38 @@ export default function LiftScreen({
       {successMsg && (
         <div className="px-4 py-3 rounded-xl bg-secondary-container/20 border border-secondary-container/40 text-secondary font-label-md text-label-md">
           {successMsg}
+        </div>
+      )}
+
+      {todaysSetsForLift.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-end justify-between">
+            <div className="flex flex-col">
+              <span className="font-display text-4xl font-extrabold text-on-surface leading-none">
+                {todaysSetsForLift[todaysSetsForLift.length - 1].weight}<span className="text-lg font-bold text-on-surface-variant ml-1">lbs</span>
+              </span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mt-1">
+                Last Set • {todaysSetsForLift[todaysSetsForLift.length - 1].reps} reps
+              </span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="font-display text-xl font-bold text-primary leading-none">{bestSetToday} lbs</span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mt-1">Best Today</span>
+            </div>
+          </div>
+          <div style={{ height: '110px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={todaysSetsForLift} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+                <XAxis dataKey="set" stroke="rgba(255,255,255,0.3)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(s) => `Set ${s}`} />
+                <YAxis hide domain={[0, (max) => Math.ceil((max || 1) * 1.15)]} />
+                <Bar dataKey="weight" radius={[6, 6, 0, 0]}>
+                  {todaysSetsForLift.map((s, i) => (
+                    <Cell key={i} fill={i === todaysSetsForLift.length - 1 ? '#b89c5b' : '#60a5fa'} fillOpacity={0.9} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 
