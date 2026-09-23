@@ -2972,7 +2972,38 @@ order - `unregister()` called, `caches.delete()` called, and the page
 actually reloads (the `sessionStorage` guard key gets set) - rather than the
 old dead-end error screen.
 
-## 80. Next up
+## 80. Maintenance pass: bundle split, stale-closure fixes, data-error reporting, cleanup (v5.1.9)
+
+From a lint + Supabase-advisor review.
+
+- **Bundle split** (`vite.config.js`): `build.rolldownOptions.output.codeSplitting.groups`
+  puts React (`react-vendor`) and Supabase (`supabase-vendor`) in their own chunks. The
+  main app chunk went from 555 kB to 157 kB, and because vendor code rarely changes, a
+  deploy now only invalidates the app chunk. `normalizeName` moved to
+  `src/features/analytics/normalizeName.js` (re-exported from `plyomatImport.js`) so
+  `usePerformanceTests` no longer drags the whole importer into the main bundle.
+- **Stale closures in App.jsx**: the mount-once realtime/online effect called
+  `fetchReportData` and `syncOfflineCache` from the first render's closure. Both now go
+  through latest-value refs (`fetchReportDataRef`, new `syncOfflineCacheRef`), as does
+  the profile loader effect (`fetchProfileDataRef`). Same pattern `ensureReportWindow`
+  already used.
+- **Data-error reporting**: new `reportDataError(err, source)` in `errorReporting.js`.
+  It logs server-rejected Supabase calls to `app_errors` and skips offline/network
+  failures, which the local caches already handle. Wired into every fetch/write in
+  `useLiftLogs`, `usePerformanceTests`, and the profile history fetch. Sources look like
+  `lift_logs:write`, so the daily error routine will now see these.
+- **Dead code**: ~100 unused `catch (e)` bindings became `catch {`; unused imports
+  removed; deleted `getLast7DaysActivity`, `renderSidebarItem`, `downloadCSV`/`csvCell`
+  (Reports), the unused team/grade/position lists, `showTeamSummary`, and
+  `chronicAvgWeeklyLoad`. Fixed an always-true expression in `tests/rpe.js`'s exit code.
+  Unused props and state in Settings/Entry were left alone. They are harmless and are
+  part of the component contracts.
+- **db/012_index_tuning.sql** (applied): added `plyomat_sync_state_last_synced_by_idx`
+  and dropped `alert_status_status_idx`, because the app never filters alert_status by
+  status. The other "unused" indexes (the FK indexes and `app_errors.created_at`) are
+  kept on purpose; the migration file explains why.
+
+## 81. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

@@ -85,7 +85,7 @@ export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebr
       // Only a fully (non-partial) fetched sync gets to advance the checkpoint - a
       // partial one must not skip the tail it never actually retrieved.
       setPendingFetchedThrough(res.partial ? null : res.fetchedThrough);
-    } catch (err) {
+    } catch {
       setError("Couldn't reach the sync service. Check your connection and try again.");
     }
     setBusy(false);

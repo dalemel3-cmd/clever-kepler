@@ -157,7 +157,7 @@ let athleteInserts = [];
     const t = performance.now();
     let frames = 0, long = 0;
     const obs = new PerformanceObserver((l) => { long += l.getEntries().length; });
-    try { obs.observe({ entryTypes: ['longtask'] }); } catch (e) {}
+    try { obs.observe({ entryTypes: ['longtask'] }); } catch {}
     const step = () => { frames++; if (performance.now() - t < 6000) requestAnimationFrame(step); else res({ frames, longTasks: long, fps: (frames / 6).toFixed(1) }); };
     requestAnimationFrame(step);
   }));

@@ -165,7 +165,7 @@ export const loadSettings = () => {
   let stored = null;
   try {
     stored = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY));
-  } catch (e) {}
+  } catch {}
 
   // One-time migration from the original three-threshold store so existing
   // installs keep the values their coaches already configured.
@@ -173,7 +173,7 @@ export const loadSettings = () => {
     try {
       const legacy = JSON.parse(localStorage.getItem(LEGACY_THRESHOLDS_KEY));
       if (legacy && typeof legacy === 'object') stored = legacy;
-    } catch (e) {}
+    } catch {}
   }
 
   return normalizeSettings(stored);
@@ -200,7 +200,7 @@ export const saveSettings = (settings) => {
 export const getAppHost = () => {
   try {
     return window.location.host || 'this site';
-  } catch (e) {
+  } catch {
     return 'this site';
   }
 };

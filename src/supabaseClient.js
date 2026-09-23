@@ -22,13 +22,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export const SIGNED_IN_BEFORE_KEY = 'hpd_signed_in_before'
 
 export const markSignedInBefore = () => {
-  try { localStorage.setItem(SIGNED_IN_BEFORE_KEY, '1') } catch (e) { /* private mode */ }
+  try { localStorage.setItem(SIGNED_IN_BEFORE_KEY, '1') } catch { /* private mode */ }
 }
 
 export const hasSignedInBefore = () => {
-  try { return localStorage.getItem(SIGNED_IN_BEFORE_KEY) === '1' } catch (e) { return false }
+  try { return localStorage.getItem(SIGNED_IN_BEFORE_KEY) === '1' } catch { return false }
 }
 
 export const clearSignedInBefore = () => {
-  try { localStorage.removeItem(SIGNED_IN_BEFORE_KEY) } catch (e) { /* private mode */ }
+  try { localStorage.removeItem(SIGNED_IN_BEFORE_KEY) } catch { /* private mode */ }
 }

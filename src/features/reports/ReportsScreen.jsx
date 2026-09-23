@@ -4,21 +4,6 @@ import { getAthleteBaseline, getCentralDateString, isPostPracticeLog, isRpeLog }
 
 const LOG_TABLE_PAGE_SIZE = 250;
 
-// CSV escape/format helper shared by every export in this screen.
-const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-const downloadCSV = (filename, headers, rows) => {
-  const csvContent = [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
 export default function ReportsScreen({
   settings,
   reportData,
@@ -219,7 +204,6 @@ export default function ReportsScreen({
     : [];
 
   // Toggles
-  const showTeamSummary = reportMode === 'quick' || enabledMetrics.teamSummary;
   const showAcuteSweatLoss = reportMode === 'quick' || enabledMetrics.acuteSweatLoss;
   const showDehydration = reportMode === 'quick' || enabledMetrics.dehydration;
   const showSleepDeficit = reportMode === 'quick' || enabledMetrics.sleepDeficit;

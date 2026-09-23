@@ -77,7 +77,7 @@ export default function LoginScreen({ offlineNotice }) {
       }
       markSignedInBefore();
       // onAuthStateChange in AuthGate takes it from here.
-    } catch (err) {
+    } catch {
       setError('Cannot reach the server. Check the connection and try again.');
       setBusy(false);
     }
@@ -116,7 +116,7 @@ export default function LoginScreen({ offlineNotice }) {
         return;
       }
       // Session exists: AuthGate re-resolves and shows the pending-approval screen.
-    } catch (err) {
+    } catch {
       setError('Cannot reach the server. Check the connection and try again.');
       setBusy(false);
     }

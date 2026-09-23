@@ -26,7 +26,7 @@ export async function stubAuth(page) {
     try {
       localStorage.setItem('hpd_auth', JSON.stringify(session));
       localStorage.setItem('hpd_signed_in_before', '1');
-    } catch (e) { /* private mode */ }
+    } catch { /* private mode */ }
   }, FAKE_SESSION);
 }
 

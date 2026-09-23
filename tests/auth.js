@@ -97,7 +97,7 @@ const check = (label, actual, expected) => {
     try {
       localStorage.setItem('hpd_auth', JSON.stringify(s));
       localStorage.setItem('hpd_signed_in_before', '1');
-    } catch (e) {}
+    } catch {}
   }, makeSession());
 
   const routeWith = (page, opts) => page.route(SUPA, async (route) => {
@@ -298,7 +298,7 @@ const check = (label, actual, expected) => {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await stubAuthLocal(page);
-    await page.addInitScript(() => { try { localStorage.setItem('hpd_approved', '1'); } catch (e) {} });
+    await page.addInitScript(() => { try { localStorage.setItem('hpd_approved', '1'); } catch {} });
     await routeWith(page, { coachesError: true });
     await page.goto(APP, { waitUntil: 'load' });
     // Longer than the approval-check timeout, so the fallback has resolved.

@@ -54,7 +54,7 @@ export default function AuthGate({ children }) {
       } else {
         setStatus('pending');
       }
-    } catch (e) {
+    } catch {
       setStatus(hasSignedInBefore() ? 'in' : 'out');
     }
   }, []);

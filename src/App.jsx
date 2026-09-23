@@ -1,11 +1,11 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Users, User, Plus, Shield, ChevronLeft, Minus, CheckCircle, X, Download, Lock, Unlock, Wifi, WifiOff, AlertTriangle, Activity, FileText, Printer, Trash2, Upload, Sliders, Filter, Zap, CheckSquare, Square, Settings, Smartphone, RefreshCw, HardDrive, Check, Copy, Share2, Search, Grid, Trophy, TrendingUp, TrendingDown, Clock, Droplet, Flame, ArrowUpRight, MoreHorizontal, Database, Target, BarChart3, Dumbbell } from 'lucide-react';
+import { Users, User, Plus, Shield, CheckCircle, X, Download, AlertTriangle, Activity, FileText, Upload, Sliders, Zap, Settings, Smartphone, RefreshCw, Check, Copy, Share2, Grid, MoreHorizontal, Target, Dumbbell } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
+import { reportDataError } from './errorReporting';
 import './styles.css';
 import { AppSidebar } from './components/AppSidebar';
 import { AppHeader } from './components/AppHeader';
 import { Confetti } from './components/Confetti';
-import { KioskNumpad } from './components/KioskNumpad';
 const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
 import { useAlertStatus } from './features/alerts/useAlertStatus';
 import { usePerformanceTests } from './features/analytics/usePerformanceTests';
@@ -45,7 +45,7 @@ import {
   isRpeLog,
   computeAcuteChronicLoad
 } from './utils/athleteData';
-import { loadSettings, saveSettings, DEFAULT_SETTINGS, getAppHost } from './settings';
+import { loadSettings, saveSettings, DEFAULT_SETTINGS } from './settings';
 
 const getLastName = (fullName) => {
   if (!fullName) return '';
@@ -270,12 +270,12 @@ export default function App() {
     setScreen('lifts');
   };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('shiloh_sidebar_collapsed') === 'true'; } catch (e) { return false; }
+    try { return localStorage.getItem('shiloh_sidebar_collapsed') === 'true'; } catch { return false; }
   });
   const toggleSidebarCollapsed = () => {
     setSidebarCollapsed(prev => {
       const next = !prev;
-      try { localStorage.setItem('shiloh_sidebar_collapsed', String(next)); } catch (e) {}
+      try { localStorage.setItem('shiloh_sidebar_collapsed', String(next)); } catch {}
       return next;
     });
   };
@@ -309,7 +309,7 @@ export default function App() {
       // switched on, instead of staying where the coach left it.
       localStorage.setItem('shiloh_kiosk_track_mode', 'both');
       return 'both';
-    } catch (e) { return 'both'; }
+    } catch { return 'both'; }
   });
 
   // Same guard for a live change: switching RPE off in Settings drops any kiosk that is
@@ -317,7 +317,7 @@ export default function App() {
   React.useEffect(() => {
     if (!settings.enableRpe && kioskTrackMode === 'rpe') {
       setKioskTrackMode('both');
-      try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch (e) {}
+      try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch {}
     }
   }, [settings.enableRpe, kioskTrackMode]);
 
@@ -372,7 +372,7 @@ export default function App() {
           }
         }
       });
-    } catch (e) {}
+    } catch {}
     return recordedSet;
   }, [reportData]);
 
@@ -410,7 +410,7 @@ export default function App() {
           allLogs.push(rec);
         }
       });
-    } catch (e) {}
+    } catch {}
 
     const todayLogs = allLogs.filter(r => {
       if (!r.created_at) return false;
@@ -535,7 +535,7 @@ export default function App() {
       try {
         const { data, error } = await supabase.from('plyomat_sync_state').select('last_synced_at').eq('id', true).single();
         if (!error && data) setPlyomatLastSyncedAt(data.last_synced_at);
-      } catch (e) { /* offline or not yet migrated - panel treats null the same as "never synced" */ }
+      } catch { /* offline or not yet migrated - panel treats null the same as "never synced" */ }
     })();
   }, []);
 
@@ -549,7 +549,7 @@ export default function App() {
       // {ok:false,error:{code,message}} payload from the raw Response on `error.context`
       // so the panel can show Plyomat's actual reason, not a generic network failure.
       if (error.context && typeof error.context.json === 'function') {
-        try { return await error.context.json(); } catch (e) { /* fall through to throw */ }
+        try { return await error.context.json(); } catch { /* fall through to throw */ }
       }
       throw error;
     }
@@ -577,7 +577,7 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [unsyncedQueueCount, setUnsyncedQueueCount] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch(e) { return 0; }
+    try { return JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch { return 0; }
   });
 
   useEffect(() => {
@@ -593,7 +593,7 @@ export default function App() {
       try {
         const q = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
         setUnsyncedQueueCount(q.length);
-      } catch(e) {}
+      } catch {}
     };
     checkQueue();
 
@@ -623,22 +623,22 @@ export default function App() {
               });
               if (isDuplicate) return prev;
               const merged = [incoming, ...prev].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-              try { localStorage.setItem('shiloh_reports', JSON.stringify(merged)); } catch(e){}
+              try { localStorage.setItem('shiloh_reports', JSON.stringify(merged)); } catch {}
               return merged;
             });
             setTodaySessions(prev => prev + 1);
           }
           // Immediately fetch latest cloud records to reconcile screen within milliseconds!
-          fetchReportData(true);
+          fetchReportDataRef.current(true);
           fetchAthletes();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'weigh_ins' }, () => {
           pollIdleStreak.current = 0;
-          fetchReportData(true);
+          fetchReportDataRef.current(true);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, () => {
           fetchAthletes();
-          fetchReportData(true);
+          fetchReportDataRef.current(true);
         })
         .subscribe((status) => {
           // Channel health drives the poll cadence: when the WebSocket is alive the
@@ -678,7 +678,7 @@ export default function App() {
           return;
         }
         pollIdleStreak.current = 0;
-        fetchReportData(true); // refreshes probeFingerprint from the full result
+        fetchReportDataRef.current(true); // refreshes probeFingerprint from the full result
       } catch (e) {
         // Server unreachable: leave the fingerprint alone so recovery triggers a fetch.
         console.warn("Cloud probe failed:", e);
@@ -699,7 +699,7 @@ export default function App() {
       setCloudStatus(prev => (prev === next ? prev : next));
 
       if (!navigator.onLine) return;
-      syncOfflineCache();
+      syncOfflineCacheRef.current();
       // Skip the display refresh when the tab is hidden (nothing to paint) - the
       // offline queue sync above still runs so records keep uploading.
       if (document.hidden) return;
@@ -715,7 +715,7 @@ export default function App() {
     const handleFocusRefresh = () => {
       if (document.hidden) return;
       pollIdleStreak.current = 0;
-      fetchReportData(true);
+      fetchReportDataRef.current(true);
       fetchAthletes();
     };
     window.addEventListener('focus', handleFocusRefresh);
@@ -725,8 +725,8 @@ export default function App() {
       setIsOnline(true);
       setCloudStatus('reconnecting');
       pollIdleStreak.current = 0;
-      syncOfflineCache();
-      fetchReportData(true);
+      syncOfflineCacheRef.current();
+      fetchReportDataRef.current(true);
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -749,7 +749,7 @@ export default function App() {
     return () => {
       clearInterval(autoSyncInterval);
       if (channel && typeof supabase.removeChannel === 'function') {
-        try { supabase.removeChannel(channel); } catch(e){}
+        try { supabase.removeChannel(channel); } catch {}
       }
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -758,7 +758,7 @@ export default function App() {
       window.removeEventListener('focus', handleFocusRefresh);
       document.removeEventListener('visibilitychange', handleFocusRefresh);
     };
-  }, []);
+  }, [effectiveWindowDays]); // stable (ref-backed useCallback) - listed only to satisfy the lint rule
 
   const handleInstallApp = async () => {
     if (deferredInstallPrompt) {
@@ -831,7 +831,7 @@ export default function App() {
     // Signing out on a device that still holds unsynced weigh-ins would strand them:
     // the queue can only upload while authenticated. Warn before that happens.
     let pending = 0;
-    try { pending = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch (e) {}
+    try { pending = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch {}
     setConfirmModal({
       isOpen: true,
       title: pending > 0 ? `Sign Out With ${pending} Unsynced ${pending === 1 ? 'Log' : 'Logs'}?` : 'Sign Out',
@@ -877,9 +877,9 @@ export default function App() {
 
   const handleExportDiagnostics = () => {
     let rawOffline = null, rawReports = null, rawRoster = null;
-    try { rawOffline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins')); } catch(e){}
-    try { rawReports = JSON.parse(localStorage.getItem('shiloh_reports')); } catch(e){}
-    try { rawRoster = JSON.parse(localStorage.getItem('shiloh_roster')); } catch(e){}
+    try { rawOffline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins')); } catch {}
+    try { rawReports = JSON.parse(localStorage.getItem('shiloh_reports')); } catch {}
+    try { rawRoster = JSON.parse(localStorage.getItem('shiloh_roster')); } catch {}
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
       version: APP_VERSION,
@@ -929,7 +929,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchReportData();
+    fetchReportDataRef.current();
   }, []);
 
   // Pushes classifications this device only knows about locally (baseline markers and
@@ -1000,7 +1000,7 @@ export default function App() {
       try {
         const cached = JSON.parse(localStorage.getItem('shiloh_reports') || '[]');
         if (cached && Array.isArray(cached)) onlineData = cached;
-      } catch (e) {
+      } catch {
         console.warn("Local cache empty or invalid.");
       }
     }
@@ -1040,7 +1040,7 @@ export default function App() {
         }
         return item;
       });
-    } catch (e) {}
+    } catch {}
 
     merged.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
@@ -1057,7 +1057,7 @@ export default function App() {
       setReportData(merged);
       try {
         localStorage.setItem('shiloh_reports', serialized);
-      } catch (e) {}
+      } catch {}
     }
     setReportLoading(false);
   };
@@ -1146,7 +1146,7 @@ export default function App() {
             const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
             vault.unshift({ saved_at: new Date().toISOString(), record: rec, synced: success });
             localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
-          } catch(e) {}
+          } catch {}
         }
 
         if (success) {
@@ -1190,6 +1190,10 @@ export default function App() {
       syncInFlight.current = false;
     }
   };
+  // Same latest-value ref as fetchReportDataRef - the realtime/online listeners are
+  // registered once on mount, so they must not hold the first render's closure.
+  const syncOfflineCacheRef = React.useRef(syncOfflineCache);
+  syncOfflineCacheRef.current = syncOfflineCache;
 
   const getRecoveredLocalData = () => {
     const findings = [];
@@ -1220,7 +1224,7 @@ export default function App() {
           }
         }
       });
-    } catch (e) {}
+    } catch {}
 
     // 2. Check cached reports
     try {
@@ -1236,7 +1240,7 @@ export default function App() {
           }
         });
       }
-    } catch (e) {}
+    } catch {}
 
     // 3. Scan ALL localStorage keys just in case data was archived or cached elsewhere
     try {
@@ -1257,11 +1261,11 @@ export default function App() {
                   }
                 }
               });
-            } catch (err) {}
+            } catch {}
           }
         }
       }
-    } catch (e) {}
+    } catch {}
 
     return findings.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
   };
@@ -1284,7 +1288,7 @@ export default function App() {
         if (r.id) cloudIds.add(r.id);
         if (r.athlete_id && r.created_at) cloudKeys.add(`${r.athlete_id}_${new Date(r.created_at).getTime()}`);
       });
-    } catch (e) {}
+    } catch {}
 
     for (const rec of logs) {
       if (rec.id && cloudIds.has(rec.id)) { skippedCount++; continue; }
@@ -1336,7 +1340,7 @@ export default function App() {
   };
 
   const tryParseLocalStorage = (key) => {
-    try { return JSON.parse(localStorage.getItem(key)) || null; } catch (e) { return localStorage.getItem(key) || null; }
+    try { return JSON.parse(localStorage.getItem(key)) || null; } catch { return localStorage.getItem(key) || null; }
   };
 
   const handleImportDiagnosticsFile = async (e) => {
@@ -1438,13 +1442,13 @@ export default function App() {
             baseline_log_id: lid
           };
         });
-        try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch(e) {}
+        try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch {}
         setAthletes(decodedAthletes);
         localStorage.setItem('shiloh_roster', JSON.stringify(decodedAthletes));
       } else {
         throw error;
       }
-    } catch (err) {
+    } catch {
       console.warn("Supabase fetch failed. Loading local cache.");
       try {
         const cached = JSON.parse(localStorage.getItem('shiloh_roster'));
@@ -1457,7 +1461,7 @@ export default function App() {
           setAthletes([]);
           showToast('📡 Offline with no cached roster on this device yet.\nRoster will appear after the first successful cloud sync.', 'info');
         }
-      } catch (e) {
+      } catch {
         console.warn("No local roster cache while offline - showing empty roster.");
         setAthletes([]);
       }
@@ -1471,7 +1475,7 @@ export default function App() {
       if (typeof fetchAthletes === 'function') await fetchAthletes();
       if (typeof fetchReportData === 'function') await fetchReportData(true);
       if (typeof syncOfflineCache === 'function') syncOfflineCache();
-      try { broadcastDeviceSync({ type: 'MANUAL_REFRESH' }); } catch(e) {}
+      try { broadcastDeviceSync({ type: 'MANUAL_REFRESH' }); } catch {}
     } catch (e) {
       console.warn("Manual refresh warning:", e);
     } finally {
@@ -1589,9 +1593,6 @@ export default function App() {
     () => Array.from(new Set([...(settings.sportsList || []), ...athletes.map(a => a.sport).filter(Boolean)])).sort(),
     [settings.sportsList, athletes]
   );
-  const teamsList = Array.from(new Set(athletes.map(a => a.team).filter(Boolean)));
-  const gradesList = Array.from(new Set(athletes.map(a => a.grade).filter(Boolean)));
-  const positionsList = Array.from(new Set(athletes.map(a => a.position).filter(Boolean)));
 
   // Profiles' "ALL PROFILES / NAME" back chevron: return to Weigh-In Status (with its
   // sport + sort intact) if that's where this profile was opened from, otherwise fall
@@ -1685,7 +1686,7 @@ export default function App() {
       const updatedBaselineDate = new Date().toISOString();
       setAthletes(prev => {
         const updated = prev.map(a => a.id === selectedAthlete.id ? { ...a, baseline_date: updatedBaselineDate, baseline_weight: weightVal } : a);
-        try { localStorage.setItem('shiloh_roster', JSON.stringify(updated)); } catch (e) {}
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(updated)); } catch {}
         return updated;
       });
       try {
@@ -1698,7 +1699,7 @@ export default function App() {
         map[selectedAthlete.id] = { log_id: null, weight_lbs: Number(weightVal), date_str: updatedBaselineDate };
         localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
         invalidateAthleteDataCache('shiloh_baselines_map');
-      } catch (e) {}
+      } catch {}
     }
 
     // Write to Permanent Local Hardware Vault as bulletproof fallback protection
@@ -1706,7 +1707,7 @@ export default function App() {
       const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
       vault.unshift({ saved_at: new Date().toISOString(), record });
       localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
-    } catch(e) {}
+    } catch {}
 
     // Optimistic UI updates right away regardless of network connectivity
     if (existingRecord) {
@@ -1812,7 +1813,7 @@ export default function App() {
       const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
       vault.unshift({ saved_at: new Date().toISOString(), record: newRec });
       localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
-    } catch (e) {}
+    } catch {}
 
     // 3. Sync with live Supabase database
     try {
@@ -1857,7 +1858,7 @@ export default function App() {
         offline.push({ action: 'insert', record: newRec, queue_id: 'q_' + Date.now() });
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(offline));
         setUnsyncedQueueCount(offline.length);
-      } catch (e) {}
+      } catch {}
     } finally {
       manualSaveInFlight.current = false;
     }
@@ -1889,7 +1890,7 @@ export default function App() {
       const vault = JSON.parse(localStorage.getItem('shiloh_permanent_vault') || '[]');
       vault.unshift({ saved_at: new Date().toISOString(), record: { ...merged, id: logId }, is_edit: true });
       localStorage.setItem('shiloh_permanent_vault', JSON.stringify(vault.slice(0, 1000)));
-    } catch (e) {}
+    } catch {}
 
     // 3. Sync the correction to the live Supabase row
     try {
@@ -1931,7 +1932,7 @@ export default function App() {
         offline.push({ action: 'update', id: logId, record: updatedRec, queue_id: 'q_' + Date.now() });
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(offline));
         setUnsyncedQueueCount(offline.length);
-      } catch (e) {}
+      } catch {}
     }
   };
 
@@ -1996,7 +1997,7 @@ export default function App() {
       map[athleteId] = { log_id: logId, weight_lbs: Number(weightVal), date_str: dateStr };
       localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
         invalidateAthleteDataCache('shiloh_baselines_map');
-    } catch (e) {}
+    } catch {}
 
     // 1b. Persist the baseline flag on the weigh_ins rows themselves so every device
     // (not just this one) sees which log is the active baseline marker.
@@ -2015,12 +2016,12 @@ export default function App() {
 
     const nextAthletes = athletes.map(a => a.id === athleteId ? { ...a, baseline_weight: Number(weightVal), baseline_date: dateStr, baseline_log_id: logId, raw_position: updatedMeta } : a);
     setAthletes(nextAthletes);
-    try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch (e) {}
+    try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch {}
     try {
       if (isValidUuid(athleteId) && targetAthlete) {
         await supabase.from('athletes').update({ position: updatedMeta }).eq('id', athleteId);
       }
-    } catch (e) {}
+    } catch {}
 
     // 3. Broadcast real-time cloud baseline updates to all network terminals
     try {
@@ -2068,7 +2069,7 @@ export default function App() {
       });
       localStorage.setItem('shiloh_baselines_map', JSON.stringify(map));
         invalidateAthleteDataCache('shiloh_baselines_map');
-    } catch (e) {}
+    } catch {}
 
     // 1b. Persist the baseline flag on the weigh_ins rows themselves so every device sees it.
     try {
@@ -2091,13 +2092,13 @@ export default function App() {
           if (isValidUuid(a.id)) {
             await supabase.from('athletes').update({ position: newMeta }).eq('id', a.id);
           }
-        } catch(e) {}
+        } catch {}
         return { ...a, baseline_weight: Number(matchingLog.weight_lbs), baseline_date: matchingLog.created_at, baseline_log_id: matchingLog.id, raw_position: newMeta };
       }
       return a;
     }));
     setAthletes(nextAthletes);
-    try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch (e) {}
+    try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch {}
 
     // 3. Broadcast real-time team baseline synchronization across network terminals
     try {
@@ -2188,7 +2189,7 @@ export default function App() {
           const next = [...prev, createdAthlete];
           try {
             localStorage.setItem('shiloh_roster', JSON.stringify(next));
-          } catch (e) {}
+          } catch {}
           return next;
         });
         if (screen === 'entry') {
@@ -2216,6 +2217,7 @@ export default function App() {
     setScreen('athletes');
   };
 
+  const fetchProfileDataRef = React.useRef(null);
   const fetchProfileData = async (id) => {
     // Instantly pre-populate from local reportData for snappy zero-delay transitions
     const localData = reportData
@@ -2234,6 +2236,7 @@ export default function App() {
         .eq('athlete_id', id)
         .order('created_at', { ascending: false })
         .limit(settingsRef.current.profileHistoryLimit);
+      if (error) reportDataError(error, 'weigh_ins:profile-fetch');
       let pData = data ? [...data].reverse() : localData;
       try {
         const persistedMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
@@ -2241,7 +2244,7 @@ export default function App() {
         if (p && p.log_id) {
           pData = pData.map(item => ({ ...item, is_baseline: !!item.is_baseline || item.id === p.log_id }));
         }
-      } catch(e) {}
+      } catch {}
       setProfileData(pData);
     } catch {
       console.warn("Could not fetch profile data online, using local data");
@@ -2252,14 +2255,15 @@ export default function App() {
         if (p && p.log_id) {
           pData = pData.map(item => ({ ...item, is_baseline: !!item.is_baseline || item.id === p.log_id }));
         }
-      } catch(e) {}
+      } catch {}
       setProfileData(pData);
     }
   };
+  fetchProfileDataRef.current = fetchProfileData;
 
   useEffect(() => {
     if (selectedProfileId && screen === 'profiles') {
-      fetchProfileData(selectedProfileId);
+      fetchProfileDataRef.current(selectedProfileId);
     }
   }, [selectedProfileId, screen]);
 
@@ -2293,7 +2297,7 @@ export default function App() {
       }
       setAthletes(prev => {
         const next = prev.map(a => a.id === editingAthleteId ? { ...a, ...localPatch } : a);
-        try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch(e){}
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch {}
         return next;
       });
       setIsAddingAthlete(false);
@@ -2381,34 +2385,6 @@ export default function App() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const getLast7DaysActivity = () => {
-    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    const result = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dayStr = days[d.getDay()];
-      
-      // We compare based on local date string prefix if possible, 
-      // but since created_at is UTC in DB, let's just do a simple string match for now
-      // or properly check if date falls in that day
-      const startOfDay = new Date(d);
-      const endOfDay = new Date(d);
-      endOfDay.setDate(endOfDay.getDate() + 1);
-      
-      const count = reportData.filter(r => {
-        const recordDate = new Date(r.created_at);
-        return recordDate >= startOfDay && recordDate < endOfDay;
-      }).length;
-      
-      result.push({ day: dayStr, count });
-    }
-    return result;
   };
 
   // Consecutive-day streak lookup per athlete+type, used to escalate alert severity
@@ -2873,20 +2849,6 @@ export default function App() {
     });
     return list;
   }, [athletes, reportData, baselineExpiryDays]);
-
-  const renderSidebarItem = (key, icon, label) => {
-    const active = screen === key;
-    return (
-      <div onClick={() => { setScreen(key); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
-           style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', cursor: 'pointer',
-                    background: active ? 'rgba(255,255,255,0.02)' : 'transparent',
-                    borderLeft: active ? '4px solid var(--color-accent)' : '4px solid transparent',
-                    color: active ? 'var(--white)' : 'var(--color-text-muted)', transition: 'all 0.2s' }}>
-        {icon}
-        <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em' }}>{label}</span>
-      </div>
-    );
-  };
 
   const navItem = (key, icon, label) => {
     const active = screen === key && !showMobileMore;

@@ -27,7 +27,7 @@ export function reportError(message, { stack, source } = {}) {
       try {
         const { data } = await supabase.auth.getSession();
         coachEmail = data?.session?.user?.email || null;
-      } catch (e) { /* best-effort only */ }
+      } catch { /* best-effort only */ }
 
       await supabase.from('app_errors').insert([{
         message: String(message).slice(0, 2000),
@@ -38,7 +38,7 @@ export function reportError(message, { stack, source } = {}) {
         app_version: APP_VERSION,
         coach_email: coachEmail,
       }]);
-    } catch (e) { /* never let error reporting itself break anything */ }
+    } catch { /* never let error reporting itself break anything */ }
   })();
 }
 
@@ -91,7 +91,7 @@ async function forceFreshReload() {
       const keys = await caches.keys();
       await Promise.all(keys.map(k => caches.delete(k)));
     }
-  } catch (e) { /* best-effort - still reload even if cleanup partially failed */ }
+  } catch { /* best-effort - still reload even if cleanup partially failed */ }
   window.location.reload();
 }
 
@@ -104,9 +104,21 @@ export function handleIfStaleChunk(message) {
   // stale) - only auto-reload once per 30s, then let the normal error path take
   // over so a real problem doesn't just spin silently forever.
   let lastReload = 0;
-  try { lastReload = Number(sessionStorage.getItem(RELOAD_GUARD_KEY)) || 0; } catch (e) {}
+  try { lastReload = Number(sessionStorage.getItem(RELOAD_GUARD_KEY)) || 0; } catch {}
   if (Date.now() - lastReload <= 30000) return false;
-  try { sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now())); } catch (e) {}
+  try { sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now())); } catch {}
   forceFreshReload();
   return true;
+}
+
+// Data-layer failures (a Supabase read/write the server rejected - RLS, a bad column,
+// a constraint) used to be returned to the caller and never logged anywhere. Offline /
+// network failures are skipped on purpose: they're expected on a flaky gym Wi-Fi and
+// already handled by the local cache, so logging them would just bury real errors.
+export function reportDataError(err, source) {
+  if (!err) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const message = err.message || String(err);
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(message)) return;
+  reportError(message, { stack: err.stack || (err.code ? `code ${err.code}` : undefined), source });
 }

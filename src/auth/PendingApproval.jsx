@@ -9,7 +9,7 @@ export default function PendingApproval({ email, onRecheck, rechecking }) {
   const signOut = async () => {
     clearSignedInBefore();
     clearApprovalCache();
-    try { await supabase.auth.signOut(); } catch (e) { /* offline: local state already cleared */ }
+    try { await supabase.auth.signOut(); } catch { /* offline: local state already cleared */ }
   };
 
   return (

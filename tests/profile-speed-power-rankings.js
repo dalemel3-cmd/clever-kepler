@@ -69,7 +69,7 @@ const newPage = async (browser, opts = {}) => {
       if (method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(opts.perfTests !== undefined ? opts.perfTests : perfTests) });
       if (method === 'PATCH' || method === 'DELETE') {
         let body = null;
-        try { body = req.postDataJSON(); } catch (e) {}
+        try { body = req.postDataJSON(); } catch {}
         page.writes.push({ method, url, body });
         return route.fulfill({ status: 204, headers: hdrs, body: '' });
       }

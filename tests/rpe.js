@@ -68,7 +68,7 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
       try {
         const prev = JSON.parse(localStorage.getItem('hpd_settings') || '{}');
         localStorage.setItem('hpd_settings', JSON.stringify({ ...prev, ...s }));
-      } catch (e) { /* first-run: nothing stored yet */ }
+      } catch { /* first-run: nothing stored yet */ }
     }, SEED_SETTINGS);
     page.writes = [];
     page.errors = [];
@@ -223,5 +223,5 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
 
   console.log(`\n${fail === 0 ? 'ALL RPE PROBES PASSED' : 'RPE PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
   await browser.close();
-  process.exit(fail === 0 ? 1 && 0 : 1);
+  process.exit(fail === 0 ? 0 : 1);
 })();

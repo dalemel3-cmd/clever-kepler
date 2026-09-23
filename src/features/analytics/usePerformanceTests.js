@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
-import { normalizeName as normKey } from './plyomatImport';
+import { reportDataError } from '../../errorReporting';
+import { normalizeName as normKey } from './normalizeName';
 
 const CACHE_KEY = 'shiloh_performance_tests';
 
 const readCache = () => {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); } catch { return []; }
 };
 const writeCache = (rows) => {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(rows)); } catch (e) {}
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(rows)); } catch {}
 };
 
 // Speed & Power test results (10yd fly, laser time; Plyomat rows later). Deliberately
@@ -36,8 +37,9 @@ export function usePerformanceTests() {
     (async () => {
       try {
         const { data, error } = await supabase.from('performance_tests').select('*').order('created_at', { ascending: false });
-        if (!error && data && mounted.current) mergeRows(data);
-      } catch (e) { /* offline - the cache already loaded from localStorage covers this */ }
+        if (error) reportDataError(error, 'performance_tests:fetch');
+        else if (data && mounted.current) mergeRows(data);
+      } catch { /* offline - the cache already loaded from localStorage covers this */ }
     })();
 
     let channel;
@@ -48,12 +50,12 @@ export function usePerformanceTests() {
           if (payload.new && Object.keys(payload.new).length) mergeRows([payload.new]);
         })
         .subscribe();
-    } catch (e) {}
+    } catch {}
 
     return () => {
       mounted.current = false;
       if (channel && typeof supabase.removeChannel === 'function') {
-        try { supabase.removeChannel(channel); } catch (e) {}
+        try { supabase.removeChannel(channel); } catch {}
       }
     };
   }, [mergeRows]);
@@ -92,6 +94,7 @@ export function usePerformanceTests() {
       }
       return { ok: true };
     } catch (e) {
+      reportDataError(e, 'performance_tests:write');
       // Optimistic row stays visible; nothing else to reconcile offline for a feature
       // this lightly used yet - unlike weigh-ins there is no offline queue for this table.
       return { ok: false, error: e };
@@ -112,6 +115,7 @@ export function usePerformanceTests() {
       if (error) throw error;
       return { ok: true };
     } catch (e) {
+      reportDataError(e, 'performance_tests:write');
       return { ok: false, error: e };
     }
   }, []);
@@ -129,6 +133,7 @@ export function usePerformanceTests() {
       if (error) throw error;
       return { ok: true };
     } catch (e) {
+      reportDataError(e, 'performance_tests:write');
       // Put the optimistically-removed row back rather than leaving the UI showing a
       // delete that didn't actually happen.
       if (removed) mergeRows([removed]);
@@ -201,6 +206,7 @@ export function usePerformanceTests() {
 
       return { ok: true, testsWritten: written.length, athletesCreated };
     } catch (e) {
+      reportDataError(e, 'performance_tests:write');
       return { ok: false, error: e.message || String(e) };
     }
   }, [mergeRows]);
@@ -221,6 +227,7 @@ export function usePerformanceTests() {
       if (error) throw error;
       return { ok: true };
     } catch (e) {
+      reportDataError(e, 'performance_tests:write');
       return { ok: false, error: e.message || String(e) };
     }
   }, []);

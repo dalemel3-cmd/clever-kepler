@@ -4,10 +4,10 @@ import { supabase } from '../../supabaseClient';
 const CACHE_KEY = 'shiloh_alert_status';
 
 const readCache = () => {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch (e) { return {}; }
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch { return {}; }
 };
 const writeCache = (map) => {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(map)); } catch (e) {}
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(map)); } catch {}
 };
 
 // Lifecycle state for alert cards: open -> acknowledged -> resolved (or open -> resolved
@@ -33,7 +33,7 @@ export function useAlertStatus() {
       try {
         const { data, error } = await supabase.from('alert_status').select('*');
         if (!error && data && mounted.current) mergeRows(data);
-      } catch (e) { /* offline - fall back to cache already loaded */ }
+      } catch { /* offline - fall back to cache already loaded */ }
     })();
 
     let channel;
@@ -44,12 +44,12 @@ export function useAlertStatus() {
           if (payload.new && Object.keys(payload.new).length) mergeRows([payload.new]);
         })
         .subscribe();
-    } catch (e) {}
+    } catch {}
 
     return () => {
       mounted.current = false;
       if (channel && typeof supabase.removeChannel === 'function') {
-        try { supabase.removeChannel(channel); } catch (e) {}
+        try { supabase.removeChannel(channel); } catch {}
       }
     };
   }, [mergeRows]);
@@ -69,7 +69,7 @@ export function useAlertStatus() {
     mergeRows([optimistic]);
     try {
       await supabase.from('alert_status').upsert(optimistic, { onConflict: 'alert_key' });
-    } catch (e) {
+    } catch {
       // Optimistic local state already applied; the realtime/refetch cycle will
       // reconcile once connectivity returns. Nothing else to do offline.
     }

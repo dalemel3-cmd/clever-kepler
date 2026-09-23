@@ -10,6 +10,7 @@
 // "done" would have been worse than no importer at all.
 
 import { TEAM_VARIANT_DEFAULTS } from './testVariants.js';
+import { normalizeName } from './normalizeName.js';
 
 // A Plyomat-imported jump row needs the same technique tag a manually-logged one gets
 // (see db/007 and testVariants.js) - otherwise every future import would land as
@@ -142,11 +143,7 @@ export const testTypeForRow = (row) => METRIC_TEST_TYPE[String(row['Primary Metr
 
 // --- Name matching ----------------------------------------------------------------
 
-export const normalizeName = (s) => String(s || '')
-  .toLowerCase()
-  .replace(/[^a-z\s]/g, '')   // drop punctuation; "KJ" vs "K.J." should not differ
-  .replace(/\s+/g, ' ')
-  .trim();
+export { normalizeName };
 
 // Levenshtein edit distance, normalized to a 0-1 similarity.
 //

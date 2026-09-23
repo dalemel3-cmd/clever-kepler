@@ -139,7 +139,7 @@ export default function DashboardScreen({
             <button
               onClick={() => {
                 setKioskTrackMode('both');
-                try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch (e) {}
+                try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch {}
                 setUnweighedOnlyFilter(true);
                 setScreen('entry');
               }}
@@ -155,7 +155,7 @@ export default function DashboardScreen({
             <button
               onClick={() => {
                 setKioskTrackMode('rpe');
-                try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch (e) {}
+                try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch {}
                 setUnweighedOnlyFilter(false);
                 setScreen('entry');
               }}

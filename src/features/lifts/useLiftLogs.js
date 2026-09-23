@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
+import { reportDataError } from '../../errorReporting';
 
 const CACHE_KEY = 'shiloh_lift_logs';
 
 const readCache = () => {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); } catch { return []; }
 };
 const writeCache = (rows) => {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(rows)); } catch (e) {}
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(rows)); } catch {}
 };
 
 // Weight-room lift logs (Bench, Squat, Deadlift, Hang Clean, Power Clean, plus
@@ -34,8 +35,9 @@ export function useLiftLogs() {
     (async () => {
       try {
         const { data, error } = await supabase.from('lift_logs').select('*').order('created_at', { ascending: false });
-        if (!error && data && mounted.current) mergeRows(data);
-      } catch (e) { /* offline - the cache already loaded from localStorage covers this */ }
+        if (error) reportDataError(error, 'lift_logs:fetch');
+        else if (data && mounted.current) mergeRows(data);
+      } catch { /* offline - the cache already loaded from localStorage covers this */ }
     })();
 
     let channel;
@@ -46,12 +48,12 @@ export function useLiftLogs() {
           if (payload.new && Object.keys(payload.new).length) mergeRows([payload.new]);
         })
         .subscribe();
-    } catch (e) {}
+    } catch {}
 
     return () => {
       mounted.current = false;
       if (channel && typeof supabase.removeChannel === 'function') {
-        try { supabase.removeChannel(channel); } catch (e) {}
+        try { supabase.removeChannel(channel); } catch {}
       }
     };
   }, [mergeRows]);
@@ -84,6 +86,7 @@ export function useLiftLogs() {
       }
       return { ok: true };
     } catch (e) {
+      reportDataError(e, 'lift_logs:write');
       // Optimistic row stays visible; nothing else to reconcile offline for a feature
       // this lightly used yet - unlike weigh-ins there is no offline queue for this table.
       return { ok: false, error: e };
@@ -103,6 +106,7 @@ export function useLiftLogs() {
       if (error) throw error;
       return { ok: true };
     } catch (e) {
+      reportDataError(e, 'lift_logs:write');
       return { ok: false, error: e };
     }
   }, []);
@@ -124,6 +128,7 @@ export function useLiftLogs() {
       if (error) throw error;
       return { ok: true, count: ids.length };
     } catch (e) {
+      reportDataError(e, 'lift_logs:write');
       return { ok: false, error: e };
     }
   }, []);
@@ -141,6 +146,7 @@ export function useLiftLogs() {
       if (error) throw error;
       return { ok: true };
     } catch (e) {
+      reportDataError(e, 'lift_logs:write');
       // Put the optimistically-removed row back rather than leaving the UI showing a
       // delete that didn't actually happen.
       if (removed) mergeRows([removed]);

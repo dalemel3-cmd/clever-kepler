@@ -8,11 +8,11 @@ const cacheApproved = (yes) => {
   try {
     if (yes) localStorage.setItem(APPROVED_CACHE_KEY, '1');
     else localStorage.removeItem(APPROVED_CACHE_KEY);
-  } catch (e) { /* private mode */ }
+  } catch { /* private mode */ }
 };
 
 export const wasApproved = () => {
-  try { return localStorage.getItem(APPROVED_CACHE_KEY) === '1'; } catch (e) { return false; }
+  try { return localStorage.getItem(APPROVED_CACHE_KEY) === '1'; } catch { return false; }
 };
 
 export const clearApprovalCache = () => cacheApproved(false);
@@ -69,7 +69,7 @@ export async function checkApproval(userId) {
     const approved = !!(data && data.approved);
     cacheApproved(approved);
     return approved ? 'approved' : 'pending';
-  } catch (e) {
+  } catch {
     return 'unknown';
   }
 }

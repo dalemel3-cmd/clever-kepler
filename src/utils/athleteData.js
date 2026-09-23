@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.1.8';
+export const APP_VERSION = 'v5.1.9';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -114,7 +114,7 @@ const readCachedJson = (key) => {
   try {
     const parsed = JSON.parse(localStorage.getItem(key));
     if (parsed && typeof parsed === 'object') value = parsed;
-  } catch (e) {}
+  } catch {}
   jsonCache.set(key, { at: now, value });
   return value;
 };
@@ -138,7 +138,7 @@ export const parseAthleteMeta = (posStr) => {
         bd: parsed.bd,
         lid: parsed.lid
       };
-    } catch(e) {
+    } catch {
       return { pos: posStr };
     }
   }
@@ -168,7 +168,7 @@ export const isPostPracticeLog = (rec) => {
       const prefix = String(rec.created_at).slice(0, 16);
       if (ppMap[`${rec.athlete_id}_${prefix}`]) return true;
     }
-  } catch(e) {}
+  } catch {}
   return false;
 };
 
@@ -186,7 +186,7 @@ export const markLogAsPostPractice = (rec) => {
     }
     localStorage.setItem('shiloh_post_practice_logs', JSON.stringify(ppMap));
     invalidateAthleteDataCache('shiloh_post_practice_logs');
-  } catch(e) {}
+  } catch {}
 };
 
 export const getAthleteBaseline = (athlete, allLogs = []) => {
@@ -208,7 +208,7 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
       baseDate = dVal ? (!isNaN(new Date(dVal).getTime()) ? new Date(dVal).toLocaleDateString() : dVal) : seasonStartDisplay();
       return { weight_lbs: baseWeight, date_str: baseDate, id: baseLogId };
     }
-  } catch(e) {}
+  } catch {}
 
   // Only filter + sort the full log list when no override exists.
   const athleteRecords = allLogs

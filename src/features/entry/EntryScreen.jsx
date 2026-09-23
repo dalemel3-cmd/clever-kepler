@@ -1,7 +1,6 @@
 import React from 'react';
-import { Search, X, Plus, Minus, CheckCircle, User } from 'lucide-react';
+import { X, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
-import { parseAthleteMeta, getBaselinesMap, getSportColor } from '../../utils/athleteData';
 import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 import AthleteCard from './AthleteCard';
 
@@ -129,7 +128,7 @@ export default function EntryScreen({
                 className={`mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'both' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
                 onClick={() => {
                   setKioskTrackMode('both');
-                  try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch(e) {}
+                  try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch {}
                   setFocusedField('weight');
                 }}
               >
@@ -140,7 +139,7 @@ export default function EntryScreen({
                 className={`mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'sleep_only' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
                 onClick={() => {
                   setKioskTrackMode('sleep_only');
-                  try { localStorage.setItem('shiloh_kiosk_track_mode', 'sleep_only'); } catch(e) {}
+                  try { localStorage.setItem('shiloh_kiosk_track_mode', 'sleep_only'); } catch {}
                   setFocusedField('sleep');
                 }}
               >
@@ -153,7 +152,7 @@ export default function EntryScreen({
                   onClick={() => {
                     setKioskTrackMode('rpe');
                     setFocusedField('rpe');
-                    try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch(e) {}
+                    try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch {}
                   }}
                 >
                   <span className="material-symbols-outlined text-base">speed</span>

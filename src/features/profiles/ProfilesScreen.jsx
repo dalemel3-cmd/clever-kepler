@@ -356,7 +356,6 @@ export default function ProfilesScreen({
     now: todayMs,
   });
   const acuteLoad = acLoad.acuteLoad;
-  const chronicAvgWeeklyLoad = acLoad.chronicAvgWeeklyLoad;
   const acRatio = acLoad.ratio != null ? acLoad.ratio.toFixed(2) : '--';
   const avgRpeNum = recentRpe.length > 0 ? (recentRpe.reduce((sum, l) => sum + (l.rpe || 0), 0) / recentRpe.length).toFixed(1) : '--';
   const isDangerSpike = acRatio !== '--' && Number(acRatio) >= settings.rpeLoadSpikeRatio;

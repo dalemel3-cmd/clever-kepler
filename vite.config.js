@@ -4,6 +4,21 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    rolldownOptions: {
+      output: {
+        // Vendor code changes far less often than app code - splitting it out
+        // means a deploy only invalidates the (small) app chunk, and the
+        // browser/service worker keeps React and Supabase cached across deploys.
+        codeSplitting: {
+          groups: [
+            { name: 'react-vendor', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: 'supabase-vendor', test: /node_modules[\\/](@supabase|iceberg-js|tslib)[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
