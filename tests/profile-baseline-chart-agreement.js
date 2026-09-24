@@ -44,11 +44,11 @@ const logs = [
   await stubAuth(page);
   // Seed the override map exactly as "Make Baseline Marker" would have written it -
   // pointing at the 170 lb log, not the is_baseline-flagged 190 lb one.
-  await page.addInitScript((athId, logId) => {
+  await page.addInitScript(({ athId, logId }) => {
     localStorage.setItem('shiloh_baselines_map', JSON.stringify({
       [athId]: { log_id: logId, weight_lbs: 170, date_str: new Date(Date.now() - 10 * 864e5).toISOString() }
     }));
-  }, uuid(1), uuid(51));
+  }, { athId: uuid(1), logId: uuid(51) });
   await page.route(SUPA, async (route) => {
     const req = route.request(); const url = req.url(); const method = req.method();
     const hdrs = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };

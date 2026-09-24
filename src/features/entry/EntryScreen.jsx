@@ -3,6 +3,7 @@ import { X, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
 import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 import AthleteCard from './AthleteCard';
+import { isPlausibleWeight, parseWeightInput } from '../../utils/athleteData';
 
 export default function EntryScreen({
   settings,
@@ -58,6 +59,24 @@ export default function EntryScreen({
   // kiosk modal feel sticky on an iPad. Only the open athlete and the data itself can
   // change the answer.
   const selectedAthleteId = selectedAthlete ? selectedAthlete.id : null;
+  // Mirrors handleSave's own guards (App.jsx), which silently ignore an incomplete or
+  // out-of-bounds entry. Disabling the button makes that visible instead of a tap that
+  // does nothing - the pre-redesign modal did this too.
+  const canSave = !saving && (
+    kioskTrackMode === 'sleep_only' ? parseFloat(sleepInput) > 0
+    : kioskTrackMode === 'rpe' ? (parseFloat(rpeInput) > 0 && parseFloat(rpeInput) <= (settings.rpeScaleMax || 10) && !!rpeLabelInput
+        && (!settings.rpeTrackDuration || parseFloat(rpeDurationInput) > 0))
+    : isPlausibleWeight(parseWeightInput(weightInput))
+  );
+
+  // Escape closes the weigh-in modal (keyboard / desktop use; the kiosk iPad uses the X).
+  React.useEffect(() => {
+    if (!entryAthleteId) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setEntryAthleteId(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [entryAthleteId, setEntryAthleteId]);
+
   const lastLoggedWeight = React.useMemo(() => {
     if (!selectedAthleteId) return null;
     // A single reduce beats filter+sort: one pass, and it parses a Date only for rows
@@ -108,7 +127,7 @@ export default function EntryScreen({
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 font-label-md text-xs uppercase tracking-wider text-[#bcc1ca]">
               <span className="text-[#b89c5b] font-bold">KIOSK MODE</span>
-              <span className="material-symbols-outlined text-sm">chevron_right</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm">chevron_right</span>
               <span className="text-white font-semibold">
                 {kioskTrackMode === 'sleep_only' ? 'SLEEP & RECOVERY ONLY' : (kioskTrackMode === 'rpe' ? 'SESSION RPE ONLY' : 'RAPID WEIGH-IN & SLEEP ENTRY')}
               </span>
@@ -132,7 +151,7 @@ export default function EntryScreen({
                   setFocusedField('weight');
                 }}
               >
-                <span className="material-symbols-outlined text-base">scale</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-base">scale</span>
                 <span>Weight + Sleep</span>
               </button>
               <button 
@@ -143,7 +162,7 @@ export default function EntryScreen({
                   setFocusedField('sleep');
                 }}
               >
-                <span className="material-symbols-outlined text-base">bedtime</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-base">bedtime</span>
                 <span>Sleep Only</span>
               </button>
               {settings?.enableRpe && (
@@ -155,7 +174,7 @@ export default function EntryScreen({
                     try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch {}
                   }}
                 >
-                  <span className="material-symbols-outlined text-base">speed</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-base">speed</span>
                   <span>Session RPE</span>
                 </button>
               )}
@@ -164,7 +183,7 @@ export default function EntryScreen({
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#2a313d] font-headline-md text-sm uppercase transition-colors shadow-sm ${isBaselineTestingMode ? 'bg-[#d1b87a] text-[#061c41]' : 'bg-[#061c41] hover:bg-[#0a1120] text-[#d1b87a]'}`}
               onClick={() => setIsBaselineTestingMode(!isBaselineTestingMode)}
             >
-              <span className="material-symbols-outlined text-base">tune</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-base">tune</span>
               <span>Baseline Mode (PIN)</span>
             </button>
             <button 
@@ -175,7 +194,7 @@ export default function EntryScreen({
               }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold tracking-wider transition-all hover:bg-[#d1b87a] shadow-md active:scale-95"
             >
-              <span className="material-symbols-outlined text-base font-bold">person_add</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-base font-bold">person_add</span>
               <span>+ Add Guest / Trial</span>
             </button>
           </div>
@@ -190,7 +209,7 @@ export default function EntryScreen({
                   <path className="text-[#2a313d]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.5" />
                   <path className="text-[#34d399]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray={`${filteredAthletes.length > 0 ? (athletesRecordedToday.size / filteredAthletes.length) * 100 : 0}, 100`} strokeLinecap="round" strokeWidth="3.5" />
                 </svg>
-                <span className="material-symbols-outlined text-[#34d399] absolute text-base">check_circle</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-[#34d399] absolute text-base">check_circle</span>
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
@@ -218,7 +237,7 @@ export default function EntryScreen({
         <div className="bg-[#0a1120] border border-[#2a313d] rounded-xl p-4 mb-6 flex flex-col gap-4 shadow-md">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
             <div className="relative flex-1 max-w-xl">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#bcc1ca] text-lg">search</span>
+              <span aria-hidden="true" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#bcc1ca] text-lg">search</span>
               <input
                 className="w-full pl-10 pr-4 py-2 bg-[#061c41] border border-[#2a313d] rounded-lg text-white font-body-md text-sm placeholder:text-[#bcc1ca] focus:outline-none focus:border-[#b89c5b] transition-colors"
                 id="athlete-search"
@@ -230,7 +249,7 @@ export default function EntryScreen({
               />
               {search && (
                 <button className="absolute right-3 top-1/2 -translate-y-1/2 text-[#bcc1ca] hover:text-white" onClick={closeSearchOverlay}>
-                  <span className="material-symbols-outlined text-sm">close</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">close</span>
                 </button>
               )}
             </div>
@@ -320,7 +339,7 @@ export default function EntryScreen({
                   }}
                   className="px-6 py-3 bg-[#b89c5b] text-[#030a14] font-headline-md font-bold uppercase rounded-xl flex items-center gap-2"
                 >
-                  <span className="material-symbols-outlined">add</span>
+                  <span aria-hidden="true" className="material-symbols-outlined">add</span>
                   Add {search ? `"${search}"` : 'New Athlete'}
                 </button>
               </div>
@@ -345,8 +364,8 @@ export default function EntryScreen({
                     </span>
                   </div>
                 </div>
-                <button className="w-10 h-10 rounded-full bg-[#0a1120] hover:bg-[#030a14] border border-[#2a313d] text-white flex items-center justify-center" onClick={() => setEntryAthleteId(null)}>
-                  <span className="material-symbols-outlined text-lg">close</span>
+                <button className="w-10 h-10 rounded-full bg-[#0a1120] hover:bg-[#030a14] border border-[#2a313d] text-white flex items-center justify-center" onClick={() => setEntryAthleteId(null)} aria-label="Close" title="Close modal">
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">close</span>
                 </button>
               </div>
               
@@ -453,11 +472,11 @@ export default function EntryScreen({
               </div>
 
                 <button
-                  className="w-full py-3 mt-2 rounded-xl bg-[#b89c5b] hover:bg-[#d1b87a] text-[#030a14] font-headline-lg text-base uppercase tracking-wider font-bold flex items-center justify-center gap-2 shadow-xl active:scale-[0.98] transition-transform"
+                  className="w-full py-3 mt-2 rounded-xl bg-[#b89c5b] hover:bg-[#d1b87a] text-[#030a14] font-headline-lg text-base uppercase tracking-wider font-bold flex items-center justify-center gap-2 shadow-xl active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                   onClick={() => handleSave(isBaselineTestingMode && kioskTrackMode === 'both')}
-                  disabled={saving}
+                  disabled={!canSave}
                 >
-                  <span className="material-symbols-outlined font-bold">done_all</span>
+                  <span aria-hidden="true" className="material-symbols-outlined font-bold">done_all</span>
                   <span>{saving ? 'SAVING...' : 'CONFIRM & SYNC ATHLETE'}</span>
                 </button>
               </div>

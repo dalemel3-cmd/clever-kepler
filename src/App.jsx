@@ -46,6 +46,7 @@ import {
   getCentralDateString,
   getCentralTimeString,
   isPlausibleWeight,
+  parseWeightInput,
   getBaselinesMap,
   invalidateAthleteDataCache,
   configureProgramContext,
@@ -1541,7 +1542,7 @@ export default function App() {
     // Ref-based guard: double-taps on the kiosk Save button were creating duplicate
     // records (React state alone can't block two clicks landing in the same JS task).
     if (kioskSaveInFlight.current || saving) return;
-    if (kioskTrackMode !== 'sleep_only' && kioskTrackMode !== 'rpe' && !isPlausibleWeight(parseFloat(weightInput))) return;
+    if (kioskTrackMode !== 'sleep_only' && kioskTrackMode !== 'rpe' && !isPlausibleWeight(parseWeightInput(weightInput))) return;
     if (kioskTrackMode === 'sleep_only' && (!sleepInput || sleepInput === '' || parseFloat(sleepInput) <= 0)) return;
     // Duration is only required when the program is tracking it; the scale ceiling comes
     // from settings, not a hardcoded 10, so raising rpeScaleMax actually raises the cap.
@@ -1575,7 +1576,7 @@ export default function App() {
     
     kioskSaveInFlight.current = true;
     setSaving(true);
-    const weightVal = (kioskTrackMode !== 'sleep_only' && kioskTrackMode !== 'rpe' && isPlausibleWeight(parseFloat(weightInput))) ? parseFloat(weightInput) : null;
+    const weightVal = (kioskTrackMode !== 'sleep_only' && kioskTrackMode !== 'rpe' && isPlausibleWeight(parseWeightInput(weightInput))) ? parseWeightInput(weightInput) : null;
     const record = {
       athlete_id: selectedAthlete.id,
       athlete_name: selectedAthlete.name,
@@ -2375,10 +2376,11 @@ export default function App() {
       )}
       
 
-      {!isKioskMode && <AppSidebar screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} enableLiftTracker={settings.enableLiftTracker} onActivateKioskMode={handleActivateKioskMode} />}
+      {!isKioskMode && <AppSidebar cloudStatus={cloudStatus} screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} enableLiftTracker={settings.enableLiftTracker} onActivateKioskMode={handleActivateKioskMode} />}
 
       <div className={`flex-1 min-w-0 ${isKioskMode ? "w-full" : (sidebarCollapsed ? "md:pl-20" : "md:pl-64")}`}>
         <AppHeader
+          cloudStatus={cloudStatus}
           isKioskMode={isKioskMode}
           setIsKioskMode={setIsKioskMode}
           onActivateKioskMode={handleActivateKioskMode}
@@ -2391,7 +2393,7 @@ export default function App() {
           coachInitials={coachInitials}
           sidebarCollapsed={sidebarCollapsed}
         />
-        <main className="relative pt-16 w-full px-space-lg bg-surface h-screen overflow-y-auto pb-[calc(70px+env(safe-area-inset-bottom))] md:pb-space-xl" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+        <main data-scroll-root className="relative pt-16 w-full px-space-lg bg-surface h-screen overflow-y-auto pb-[calc(70px+env(safe-area-inset-bottom))] md:pb-space-xl" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
 
           {(pullProgress > 10 || isRefreshing || showRefreshCelebration) && (
             <div style={{ position: 'sticky', top: 0, left: '50%', transform: 'translateX(0)', zIndex: 10000, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: '8px', paddingTop: '4px' }}>

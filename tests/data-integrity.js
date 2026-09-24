@@ -4,6 +4,7 @@
 // All Supabase traffic is intercepted - these tests never touch the real database.
 /* Focused probes: null-name crash, baseline-metadata wipe on edit, leaderboard corruption, real offline queue. */
 import { chromium } from 'playwright';
+import './lib/expect-log.js';
 import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
 // CHROMIUM_PATH lets CI point at a preinstalled browser; otherwise Playwright's own.
@@ -115,7 +116,7 @@ const logs = [
     await page.waitForTimeout(400);
     await page.locator('text=Meta Baseline').first().click(); await page.waitForTimeout(600);
     await page.locator('input[aria-label="Body weight (lbs)"]').fill('190.0');
-    await page.getByRole('button', { name: /Save Record & Complete|Save as regular entry/ }).first().click().catch(() => {});
+    await page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first().click().catch(() => {});
     await page.waitForTimeout(2000);
     const q1 = await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length);
     console.log(`[D:NET-FAIL] queue after save during connection failure: ${q1} (1 expected)`);

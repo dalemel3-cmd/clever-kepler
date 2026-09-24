@@ -81,20 +81,26 @@ const newPage = async (browser, viewport = { width: 1280, height: 900 }) => {
   return page;
 };
 
+// The header also has a "Log Set" button (it goes to the kiosk), so row buttons
+// must be scoped to the athlete's own card.
+const rowLogSet = (page, name) => page.locator('div, li, tr')
+  .filter({ has: page.getByText(name, { exact: true }) })
+  .filter({ has: page.getByRole('button', { name: /Log Set/i }) })
+  .last().getByRole('button', { name: /Log Set/i });
+
 (async () => {
   const browser = await chromium.launch(LAUNCH_OPTS);
 
-  console.log('\n[A] Today\'s session recent row shows who was logged today, jumps to their modal');
+  // The separate "Today's session" recent row was removed in the Tailwind redesign;
+  // the roster row itself is now the entry point.
+  console.log('\n[A] Tapping an athlete in the roster jumps straight into their entry modal');
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
-    const body = await page.locator('body').innerText();
-    check('"Today\'s session" section is present', /Today's session/i.test(body));
-    check('the athlete logged today appears in the recent row', /Recent Bencher/.test(body));
-    check('an athlete not logged today is not in the recent-row count (1 logged)', /1 logged/i.test(body), body.match(/Today's session[\s\S]{0,20}/)?.[0]);
-    await page.getByRole('button', { name: /Recent Bencher/i }).first().click();
+    check('the athlete appears in the roster', /Recent Bencher/i.test(await page.locator('body').innerText()));
+    await page.getByText(/Recent Bencher/i).first().click();
     await page.waitForTimeout(600);
-    check('clicking the recent card jumps straight into that athlete\'s entry modal', /Recent Bencher/.test(await page.locator('body').innerText()) && (await page.getByRole('button', { name: 'Bench', exact: true }).count()) > 0);
+    check('tapping the row opens that athlete\'s entry modal', /Recent Bencher/i.test(await page.locator('body').innerText()) && (await page.getByRole('button', { name: 'Bench', exact: true }).count()) > 0);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
@@ -103,12 +109,12 @@ const newPage = async (browser, viewport = { width: 1280, height: 900 }) => {
     const page = await newPage(browser);
     await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
     const body = await page.locator('body').innerText();
-    check('a recent weigh-in weight shows on the row', /172\.5 lbs/.test(body), body.match(/Recent Bencher[\s\S]{0,60}/)?.[0]);
+    check('a recent weigh-in weight shows on the row', /172\.5 lbs/.test(body), body.match(/Recent Bencher[\s\S]{0,60}/i)?.[0]);
     // Badges render with CSS text-transform: uppercase, so innerText reads back
     // "CURRENT"/"STALE" even though the JSX literal is mixed-case - match
     // case-insensitively rather than the source casing.
-    check('logged-3-days-ago athlete reads Current', /Current Squatter[\s\S]{0,80}Current/i.test(body), body.match(/Current Squatter[\s\S]{0,80}/)?.[0]);
-    check('logged-30-days-ago athlete reads Stale', /Stale Lifter[\s\S]{0,80}Stale/i.test(body), body.match(/Stale Lifter[\s\S]{0,80}/)?.[0]);
+    check('logged-3-days-ago athlete reads Current', /Current Squatter[\s\S]{0,80}Current/i.test(body), body.match(/Current Squatter[\s\S]{0,80}/i)?.[0]);
+    check('logged-30-days-ago athlete reads Stale', /Stale Lifter[\s\S]{0,80}Stale/i.test(body), body.match(/Stale Lifter[\s\S]{0,80}/i)?.[0]);
     // v4.37.0: a never-logged athlete now gets its own distinct badge (not lumped
     // into "Stale"). The 30 filler athletes never logged either, so their badges
     // also read "Never Logged" - getByText('Never Logged') alone is ambiguous
@@ -128,18 +134,14 @@ const newPage = async (browser, viewport = { width: 1280, height: 900 }) => {
     await page.getByRole('button', { name: 'Volleyball', exact: true }).click();
     await page.waitForTimeout(400);
     let body = await page.locator('body').innerText();
-    // The "Today's session" recent row is intentionally NOT scoped to the group filter
-    // (a coach's recent activity stays visible regardless of which group they're
-    // browsing) - so only the roster list below "Filter by group" should be checked.
-    // The section label renders with CSS text-transform: uppercase, so innerText
-    // reads back "FILTER BY GROUP" - search case-insensitively for the split point.
-    const rosterList = body.slice(body.search(/filter by group/i));
-    check('Volleyball filter shows the Volleyball athlete', /Volley Athlete/.test(rosterList), rosterList.slice(0, 300));
-    check('Volleyball filter hides Football athletes from the roster list', !/Current Squatter/.test(rosterList) && !/Stale Lifter/.test(rosterList), rosterList.slice(0, 200));
+    // With the "Today's session" row gone, the whole page is the roster.
+    const rosterList = body;
+    check('Volleyball filter shows the Volleyball athlete', /Volley Athlete/i.test(rosterList), rosterList.slice(0, 300));
+    check('Volleyball filter hides Football athletes from the roster list', !/Current Squatter/i.test(rosterList) && !/Stale Lifter/i.test(rosterList), rosterList.slice(0, 200));
     await page.getByRole('button', { name: 'All', exact: true }).click();
     await page.waitForTimeout(400);
     body = await page.locator('body').innerText();
-    check('"All" clears the filter, showing every sport again', /Recent Bencher/.test(body) && /Volley Athlete/.test(body));
+    check('"All" clears the filter, showing every sport again', /Recent Bencher/i.test(body) && /Volley Athlete/i.test(body));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
@@ -147,10 +149,12 @@ const newPage = async (browser, viewport = { width: 1280, height: 900 }) => {
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
-    await page.getByText('Stale Lifter', { exact: true }).locator('..').locator('..').getByRole('button', { name: /Log Set/i }).click();
+    // The innermost element holding both the name and a LOG SET button is that
+    // athlete's own card/row, whatever the view layout.
+    await rowLogSet(page, 'Stale Lifter').click();
     await page.waitForTimeout(600);
     const body = await page.locator('body').innerText();
-    check('the modal opened for the row\'s athlete', /Stale Lifter/.test(body) && (await page.getByRole('button', { name: 'Deadlift', exact: true }).count()) > 0, body.slice(0, 200));
+    check('the modal opened for the row\'s athlete', /Stale Lifter/i.test(body) && (await page.getByRole('button', { name: 'Deadlift', exact: true }).count()) > 0, body.slice(0, 200));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
@@ -165,18 +169,18 @@ const newPage = async (browser, viewport = { width: 1280, height: 900 }) => {
     // a portal onto <body>, outside .scroll-area entirely, to sidestep it.
     const page = await newPage(browser);
     await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
-    const scrollBefore = await page.evaluate(() => document.querySelector('.scroll-area')?.scrollTop ?? -1);
-    await page.evaluate(() => { const el = document.querySelector('.scroll-area'); if (el) el.scrollTop = 1400; });
+    const scrollBefore = await page.evaluate(() => document.querySelector('[data-scroll-root]')?.scrollTop ?? -1);
+    await page.evaluate(() => { const el = document.querySelector('[data-scroll-root]'); if (el) el.scrollTop = 1400; });
     await page.waitForTimeout(300);
-    const scrolledTo = await page.evaluate(() => document.querySelector('.scroll-area')?.scrollTop ?? -1);
+    const scrolledTo = await page.evaluate(() => document.querySelector('[data-scroll-root]')?.scrollTop ?? -1);
     check('the roster container actually scrolled before opening the modal', scrolledTo > 200, `scrollTop=${scrolledTo}`);
 
-    await page.getByRole('button', { name: /Log Set/i }).first().click();
+    await rowLogSet(page, 'Current Squatter').click();
     await page.waitForTimeout(500);
     const modalBox = await page.locator('.modal-overlay').boundingBox();
     check('the modal overlay covers the top of the current viewport', modalBox !== null && modalBox.y <= 1, `modalBox=${JSON.stringify(modalBox)}`);
     check('the modal is rendered outside the scrolling roster container (portal escaped it)',
-      await page.evaluate(() => !document.querySelector('.scroll-area')?.contains(document.querySelector('.modal-overlay'))));
+      await page.evaluate(() => !document.querySelector('[data-scroll-root]')?.contains(document.querySelector('.modal-overlay'))));
     const weightInput = page.getByPlaceholder('245');
     check('the weight input is visible without any further scrolling', await weightInput.isVisible());
 
@@ -202,7 +206,7 @@ const newPage = async (browser, viewport = { width: 1280, height: 900 }) => {
     // Current Squatter has a full 8-row "Recent Lifts" history in the modal, which is
     // what actually pushes the card taller than this viewport - a fresh athlete with
     // no history was too short to reproduce the clipping reliably.
-    await page.getByText('Current Squatter', { exact: true }).locator('..').locator('..').getByRole('button', { name: /Log Set/i }).click();
+    await rowLogSet(page, 'Current Squatter').click();
     await page.waitForTimeout(500);
     const viewport = page.viewportSize();
     const cardBox = await page.locator('.card-glass.glow-card.animate-slide-up').boundingBox();

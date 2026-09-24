@@ -5,6 +5,7 @@
 /* v4.3.0 probes: adaptive sync egress, focus refresh, honest status, no mock athletes,
    ghost weight placeholder, typed WIPE confirm, toast-instead-of-alert. */
 import { chromium } from 'playwright';
+import './lib/expect-log.js';
 import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
 // CHROMIUM_PATH lets CI point at a preinstalled browser; otherwise Playwright's own.
@@ -105,7 +106,7 @@ const logs = [
     const box = page.locator('input[aria-label="Body weight (lbs)"]');
     const val = await box.inputValue();
     const ph = await box.getAttribute('placeholder');
-    const saveDisabled = await page.getByRole('button', { name: /Save Record & Complete|Save as regular entry/ }).first().isDisabled();
+    const saveDisabled = await page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first().isDisabled();
     console.log(`[GHOST] value="${val}" (empty expected), placeholder="${ph}" ("199" expected), save disabled=${saveDisabled} (true expected)`);
     await ctx.close();
   }

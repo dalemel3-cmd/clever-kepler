@@ -1,5 +1,5 @@
 import { X, Zap } from 'lucide-react';
-import { centralWallTimeToISO, isPlausibleWeight, markLogAsPostPractice } from '../../utils/athleteData';
+import { centralWallTimeToISO, isPlausibleWeight, markLogAsPostPractice, parseWeightInput } from '../../utils/athleteData';
 
 // Coach manual / post-practice weigh-in + RPE entry form. Split out of App.jsx;
 // form state (manualEntryForm) still lives in App and is passed in.
@@ -263,7 +263,7 @@ export function ManualEntryModal({
                   showToast('Enter a valid session duration in minutes.', 'error');
                   return;
                 }
-              } else if (!isPlausibleWeight(parseFloat(manualEntryForm.weight))) {
+              } else if (!isPlausibleWeight(parseWeightInput(manualEntryForm.weight))) {
                 showToast('Select an athlete and enter a valid body weight (0–1000 lbs).', 'error');
                 return;
               }

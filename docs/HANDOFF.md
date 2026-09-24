@@ -3052,7 +3052,47 @@ Changes:
   history. The timeframe filter only narrows the session counts and the list.
 - Test: `tests/reports-cleanup.js` (16 probes).
 
-## 83. Next up
+## 83. Test suite repaired, and the real bugs it had been hiding (v5.2.2)
+
+About 13 test files had been failing since the Tailwind redesign. Five more only
+printed "value (expected)" lines and always exited 0, so nobody noticed when they broke.
+
+**App fixes found along the way**
+- **Honest connection status.** The header's "SYSTEM READY" pill and the sidebar's
+  "● Cloud Live" were both hardcoded. `AppHeader`/`AppSidebar` now receive
+  `cloudStatus` from App's heartbeat: live, reconnecting or offline, with a shared
+  `cloudPill()` helper in AppHeader.jsx. The kiosk pill reads RECONNECTING… when the
+  server isn't answering.
+- **Strict weight parsing.** `parseWeightInput()` in athleteData.js accepts only a plain
+  decimal number. Before this, `parseFloat("1.2.3")` saved as 1.2 lbs. It's used by
+  `handleSave`, the kiosk `canSave` check and the manual-entry modal.
+- **Kiosk Confirm button** is disabled again until the entry is valid (`canSave` in
+  EntryScreen mirrors `handleSave`'s guards). Before this, an invalid tap silently did
+  nothing.
+- The weigh-in modal close button has `aria-label="Close"`, and Escape closes the modal.
+- All decorative `material-symbols-outlined` spans are `aria-hidden="true"`. The one
+  exception is the `athlete-done-badge`, which tests read. Without this, ligature text
+  like "add" or "chevron_left" leaked into button names and screen-reader output.
+- `<main>` carries `data-scroll-root`, a style-free hook for the scroll container. The
+  old `.scroll-area` class also carried padding, so it was not reused.
+
+**Test infrastructure**
+- `tests/lib/expect-log.js`: import it and every `name=value (expected expected)` pair
+  in the console output is compared, with a non-zero exit on any mismatch. It's used by
+  sync-and-ux, data-integrity, offline-recovery and stress. settings-live was converted
+  to explicit `check()` calls.
+- Common staleness patterns, in case future redesigns break tests again:
+  - CSS `text-transform: uppercase` changes `innerText`, so match names
+    case-insensitively.
+  - Button labels changed (for example "Add" became "+ Add Guest / Trial", and "SAVE
+    RPE" became "CONFIRM & SYNC ATHLETE").
+  - The header has its own "Log Set" button, so scope row buttons to the athlete's card.
+  - `page.route` keeps answering under `ctx.setOffline(true)`, so offline probes must
+    abort REST calls themselves.
+- Run the suite with `CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+  and a preview server on :4173.
+
+## 84. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

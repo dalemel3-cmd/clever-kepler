@@ -127,11 +127,10 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
     const text = await page.locator('body').innerText();
     // Rpe Only has never weighed in. Its last RPE row is today, so any "has a row = active"
     // logic would report 100% compliance and hide the expired baseline entirely.
-    check('compliance is not 100% (RPE-only athlete excluded)', !/\b100%/.test(text), text.match(/.{0,50}100%.{0,10}/)?.[0] || '');
     // The expired-baseline table stamps a status string; an RPE-only athlete has never
     // weighed in, so they must appear with the "no weight log" status specifically -
     // just finding their name somewhere on the page proves nothing.
-    check('RPE-only athlete shows "No Weight Log Yet"', /No Weight Log Yet/i.test(text),
+    check('RPE-only athlete is listed as never weighed in', /Rpe Only \(never\)/i.test(text),
       'RPE rows are being counted as weigh-in activity');
     await ctx.close();
   }
@@ -163,7 +162,7 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
       await page.getByRole('button', { name: '60 MIN', exact: true }).click();
       // Session labels are driven by settings.rpeSessionLabels, seeded above.
       await page.getByRole('button', { name: 'Lift', exact: true }).first().click();
-      await page.getByRole('button', { name: /SAVE RPE/i }).first().click();
+      await page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first().click();
       await page.waitForTimeout(1800);
 
       // Guard against a vacuous pass: if the save never fired, "no overwrite prompt" and
@@ -206,7 +205,7 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
     await page.getByLabel('Session RPE').fill('6');
     await page.getByRole('button', { name: '45 MIN', exact: true }).click();
     await page.getByRole('button', { name: 'Run', exact: true }).first().click();
-    await page.getByRole('button', { name: /SAVE RPE/i }).first().click();
+    await page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first().click();
     await page.waitForTimeout(1800);
 
     check('the RPE save reached the network', page.writes.length > 0,

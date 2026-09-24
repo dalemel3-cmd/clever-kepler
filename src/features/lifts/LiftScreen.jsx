@@ -623,7 +623,7 @@ export default function LiftScreen({
           <div className="flex flex-wrap items-center justify-between gap-space-sm pt-space-md pb-space-sm">
             <div className="flex items-center gap-space-xs font-label-md text-label-md tracking-widest text-outline uppercase">
               <span>WORKSPACE</span>
-              <span className="material-symbols-outlined text-xs">chevron_right</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-xs">chevron_right</span>
               <span className="text-primary font-bold">LIFT TRACKER</span>
             </div>
           </div>
@@ -633,7 +633,7 @@ export default function LiftScreen({
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-space-sm">
                 <div className="w-10 h-10 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary">
-                  <span className="material-symbols-outlined text-2xl">fitness_center</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-2xl">fitness_center</span>
                 </div>
                 <h1 className="font-headline-xl text-headline-xl tracking-tight text-on-surface uppercase">
                   LIFT TRACKER
@@ -647,18 +647,18 @@ export default function LiftScreen({
                 onClick={() => setView('log')}
                 className={`flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase transition-all shadow-md active:scale-95 ${view === 'log' ? 'bg-primary-container hover:bg-primary text-on-primary-container' : 'bg-surface-container hover:bg-surface-container-high text-on-surface'}`}
               >
-                <span className="material-symbols-outlined text-lg">add</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-lg">add</span>
                 <span>LOG A LIFT / SET</span>
               </button>
               <button
                 onClick={() => setView('leaderboard')}
                 className={`flex items-center gap-1.5 px-space-md py-space-sm rounded-lg font-headline-md text-headline-md uppercase transition-colors ${view === 'leaderboard' ? 'bg-primary-container hover:bg-primary text-on-primary-container' : 'bg-surface-container hover:bg-surface-container-high text-on-surface'}`}
               >
-                <span className="material-symbols-outlined text-lg text-primary">military_tech</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-lg text-primary">military_tech</span>
                 <span>LEADERBOARD</span>
               </button>
               <button onClick={handleExportCSV} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data" aria-label="Export all lift logs to CSV">
-                <span className="material-symbols-outlined text-lg">download</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-lg">download</span>
               </button>
               <button
                 onClick={openBulkEdit}
@@ -666,7 +666,7 @@ export default function LiftScreen({
                 title="Bulk Edit: reassign a day's mislabeled lift type across every matching set at once"
                 aria-label="Bulk edit lift type"
               >
-                <span className="material-symbols-outlined text-lg">edit_note</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-lg">edit_note</span>
               </button>
               {onActivateLiftKioskMode && (
                 <button
@@ -675,20 +675,20 @@ export default function LiftScreen({
                   title="Lift Kiosk Mode: hand the device to athletes to log their own sets"
                   aria-label="Activate Lift Kiosk Mode"
                 >
-                  <span className="material-symbols-outlined text-lg">sensors</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">sensors</span>
                 </button>
               )}
 
               {/* Segmented View Controller */}
               <div className="flex items-center bg-surface-container-lowest p-1 rounded-lg gap-0.5 ml-1">
                 <button className="p-1.5 rounded text-primary bg-surface-container-high transition-colors" id="view-grid-btn" title="Station Grid View">
-                  <span className="material-symbols-outlined text-lg">view_cozy</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">view_cozy</span>
                 </button>
                 <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-list-btn" title="Roster Table View">
-                  <span className="material-symbols-outlined text-lg">format_list_bulleted</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">format_list_bulleted</span>
                 </button>
                 <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-stream-btn" title="Live Velocity Stream">
-                  <span className="material-symbols-outlined text-lg">timeline</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">timeline</span>
                 </button>
               </div>
             </div>
@@ -713,7 +713,7 @@ export default function LiftScreen({
                   onClick={() => setShowFindAthlete(v => !v)}
                   className="flex items-center gap-1.5 px-space-sm py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md uppercase transition-colors"
                 >
-                  <span className="material-symbols-outlined text-base">{showFindAthlete ? 'close' : 'person_add'}</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-base">{showFindAthlete ? 'close' : 'person_add'}</span>
                   <span>{showFindAthlete ? 'Hide Roster' : 'Add Another Athlete'}</span>
                 </button>
               </div>
@@ -753,7 +753,7 @@ export default function LiftScreen({
               {/* Search and Live Sport Chips */}
               <div className="flex flex-col gap-space-sm mt-space-md p-space-md bg-surface-container-low rounded-xl sticky top-0 z-10">
                 <div className="relative w-full">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
+                  <span aria-hidden="true" className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xl">search</span>
                   <input
                     className="w-full bg-surface-container-lowest text-on-surface font-body-md text-body-md pl-10 pr-24 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-outline"
                     placeholder="Search athlete by name..."
@@ -936,7 +936,7 @@ export default function LiftScreen({
                             className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface" 
                             title="View Athlete Dashboard"
                           >
-                            <span className="material-symbols-outlined text-base">visibility</span>
+                            <span aria-hidden="true" className="material-symbols-outlined text-base">visibility</span>
                           </button>
                         </div>
                       </div>
@@ -981,7 +981,7 @@ export default function LiftScreen({
           <div className="bg-surface-container-low rounded-xl overflow-hidden shadow-lg">
             <div className="p-space-md border-b border-surface-container-high flex flex-col gap-space-sm">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-xl">military_tech</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-primary text-xl">military_tech</span>
                 <span className="font-headline-lg text-headline-lg text-on-surface uppercase tracking-wide">
                   {leaderboardLift} Leaderboard
                 </span>

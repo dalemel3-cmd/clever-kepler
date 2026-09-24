@@ -62,10 +62,10 @@ function AthleteCard({
       </div>
       <div className="flex items-center justify-between mt-4 p-2.5 bg-[#061c41] group-hover:bg-[#b89c5b] group-hover:text-[#030a14] border border-[#2a313d] group-hover:border-[#b89c5b] text-[#b89c5b] rounded-lg transition-colors">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-xl">scale</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-xl">scale</span>
           <span className="font-headline-md text-sm uppercase tracking-wider font-bold">Tap to Log</span>
         </div>
-        <span className="material-symbols-outlined text-base">arrow_forward</span>
+        <span aria-hidden="true" className="material-symbols-outlined text-base">arrow_forward</span>
       </div>
     </div>
   );

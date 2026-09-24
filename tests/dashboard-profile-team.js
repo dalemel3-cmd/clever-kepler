@@ -80,19 +80,19 @@ const newPage = async (browser) => {
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2200);
-    check('header visible', (await page.getByText('SESSION ACCOUNTABILITY TRACKER').count()) > 0);
+    check('header visible', (await page.getByText('WEIGH-INS REMAINING BY SPORT').count()) > 0);
     // "Daily Compliance" only appears inside this card's per-sport grid - unlike
     // "Athletes Listed", which a different always-visible dashboard panel also uses,
     // so it doesn't give a false pass/fail regardless of layout.
     let body = await page.locator('body').innerText();
-    check('per-sport detail visible immediately, with no expand step', /Daily Compliance/.test(body));
+    check('per-sport detail visible immediately, with no expand step', /\d+ of \d+ logged \(\d+%\)/.test(body));
     // Wrestling (No Weight Athlete) has RPE logs but has never once logged a real
     // weigh-in - it should read as "not tracking weigh-ins", not a permanent "1 LEFT"
     // that never clears (v4.22.1).
     check('a team with zero weigh-ins ever reads as "not tracking", not a stuck compliance gap',
       /NOT TRACKING WEIGH-INS/.test(body), body.match(/Wrestling[\s\S]{0,120}/)?.[0] || '');
     check('a team with real weigh-ins still shows the normal compliance badge',
-      /Football[\s\S]{0,80}(LEFT|DONE)/.test(body), body.match(/Football[\s\S]{0,80}/)?.[0] || '');
+      /Football[\s\S]{0,80}\d+ of \d+ logged \(\d+%\)/i.test(body), body.match(/Football[\s\S]{0,80}/)?.[0] || '');
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
@@ -128,7 +128,7 @@ const newPage = async (browser) => {
     const page = await newPage(browser);
     await page.goto(`${APP}/#groups`); await page.waitForTimeout(2200);
     const body = await page.locator('body').innerText();
-    check('AVG LB metric still present', /AVG LB/.test(body));
+    check('Avg Weight metric still present', /AVG WEIGHT/i.test(body));
     check('AVG RPE metric present (RPE enabled)', /AVG RPE/.test(body));
     check('AVG SLEEP metric present', /AVG SLEEP/.test(body));
     // Wrestling never logs weight, only RPE/sleep - it must not show a permanent "--"

@@ -4,6 +4,7 @@
 // All Supabase traffic is intercepted - these tests never touch the real database.
 /* Recovery probe: queued record survives 500s, then auto-uploads when server recovers. */
 import { chromium } from 'playwright';
+import './lib/expect-log.js';
 import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
 // CHROMIUM_PATH lets CI point at a preinstalled browser; otherwise Playwright's own.
@@ -43,7 +44,7 @@ const athletes = [{ id: uuid(1), name: 'Rec Overy', sport: 'Football', team: 'V'
   await page.goto(`${APP}/#entry`); await page.waitForTimeout(1500);
   await page.locator('text=Rec Overy').first().click(); await page.waitForTimeout(500);
   await page.locator('input[aria-label="Body weight (lbs)"]').fill('210.0');
-  await page.getByRole('button', { name: /Save Record & Complete|Save as regular entry/ }).first().click().catch(() => {});
+  await page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first().click().catch(() => {});
   await page.waitForTimeout(8000); // server down: save fails, heartbeat retries fail
   const qDown = await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length);
   console.log(`[RECOVERY] queue while server down (post-save +8s): ${qDown} (1 expected)`);

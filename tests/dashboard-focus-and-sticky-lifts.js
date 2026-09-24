@@ -65,9 +65,9 @@ const newPage = async (browser, viewport) => {
     const body = await page.locator('body').innerText();
     check('"Start today\'s session" heading is gone', !/Start today's session/i.test(body));
     check('"Not Yet Weighed In" subtext line is gone', !/Athlete\(s\) Not Yet Weighed In/i.test(body));
-    check('a compact status marker still names the pending count', /NOT YET WEIGHED IN/i.test(body));
+    check('a compact status marker still names the pending count', /\d+ athletes awaiting pre\/post mass check/i.test(body));
     check('Start Weigh-Ins button is still present', await page.getByRole('button', { name: /Start Weigh-Ins/i }).count() > 0);
-    check('Session RPE button is still present', await page.getByRole('button', { name: /^Session RPE$/i }).count() > 0);
+    check('Session RPE button is still present', await page.getByRole('button', { name: /^Session RPE Entry$/i }).count() > 0);
     check('Post-Practice button is still present', await page.getByRole('button', { name: /Post-Practice/i }).count() > 0);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
@@ -76,7 +76,7 @@ const newPage = async (browser, viewport) => {
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2000);
-    check('header visible', (await page.getByText('INTERNAL LOAD METRICS').count()) > 0);
+    check('header visible', (await page.getByText(/INTERNAL TRAINING LOAD/).count()) > 0);
     check('team cards visible immediately, with no expand step', (await page.locator('[data-testid="rpe-sport-card"]').count()) > 0);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
@@ -98,7 +98,7 @@ const newPage = async (browser, viewport) => {
     await search.fill('Roster Athlete 20');
     await page.waitForTimeout(400);
     const body = await page.locator('body').innerText();
-    check('typing still filters the roster after scrolling', /Roster Athlete 20/.test(body) && !/Roster Athlete 1$/m.test(body));
+    check('typing still filters the roster after scrolling', /Roster Athlete 20/i.test(body) && !/Roster Athlete 1$/im.test(body), (body.match(/.*Roster Athlete.*/gi) || []).slice(0, 8).join(' || '));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

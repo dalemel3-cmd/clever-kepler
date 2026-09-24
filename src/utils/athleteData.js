@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.2.1';
+export const APP_VERSION = 'v5.2.2';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -97,6 +97,10 @@ export const configureWeightBounds = (min, max) => {
 };
 export const isPlausibleWeight = (w) => typeof w === 'number' && !isNaN(w) && w > WEIGHT_BOUNDS.min && w <= WEIGHT_BOUNDS.max;
 export const getWeightBounds = () => ({ ...WEIGHT_BOUNDS });
+// Strict numeric parse for typed weights: parseFloat("1.2.3") is 1.2 and
+// parseFloat("20O") is 20, which silently saved garbage entries as real weigh-ins.
+// Only a plain decimal number is accepted; anything else is NaN (fails isPlausibleWeight).
+export const parseWeightInput = (s) => (/^\s*\d+(\.\d+)?\s*$/.test(String(s ?? '')) ? Number(s) : NaN);
 
 // ---- Cached localStorage JSON reads ----
 // Hot paths (alert scans, baseline lookups, post-practice checks) used to JSON.parse

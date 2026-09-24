@@ -148,12 +148,13 @@ const newPage = async (browser, opts = {}) => {
     // High Rep Athlete's 225x8 (est ~285) should outrank Heavy Single's 275x1 (est 275)
     // despite the lower raw weight - proves the ranking uses the Epley estimate, not
     // just the heaviest number logged.
-    const highRepIdx = body.indexOf('High Rep Athlete');
-    const heavySingleIdx = body.indexOf('Heavy Single');
+    const upperBody = body.toUpperCase(); // names render uppercase via CSS text-transform
+    const highRepIdx = upperBody.indexOf('HIGH REP ATHLETE');
+    const heavySingleIdx = upperBody.indexOf('HEAVY SINGLE');
     check('both athletes appear on the Squat leaderboard', highRepIdx >= 0 && heavySingleIdx >= 0, body.slice(0, 300));
     check('High Rep Athlete (est. 285) ranks above Heavy Single (est. 275)', highRepIdx >= 0 && heavySingleIdx >= 0 && highRepIdx < heavySingleIdx,
       'a lower estimated 1RM ranked above a higher one');
-    check('shows the actual best set, not just the estimate', /225 lbs.*8/.test(body), body.slice(0, 400));
+    check('shows the actual best set, not just the estimate', /best: 225\s*[×x]\s*8/i.test(body), (body.match(/.{0,60}225.{0,60}/gi) || []).join(' || '));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

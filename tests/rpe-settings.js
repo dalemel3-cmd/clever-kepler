@@ -66,7 +66,7 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
     const MOJIBAKE = /[Γ≡ƒ∩╠╝╤║]/;
     check('no mojibake characters on the entry screen', !MOJIBAKE.test(text),
       (text.match(/.{0,25}[Γ≡ƒ∩].{0,25}/) || [''])[0]);
-    check('the scale emoji renders', text.includes('⚖️'), 'Weight + Sleep label lost its emoji');
+    check('the Weight + Sleep mode label renders', /Weight \+ Sleep/i.test(text), 'Weight + Sleep label missing');
     await ctx.close();
   }
 
@@ -141,7 +141,7 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
   {
     const { ctx, page } = await newPage({ settings: { enableRpe: true } });
     await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(1800);
-    const rpeBtn = page.getByRole('button', { name: /^Session RPE$/ });
+    const rpeBtn = page.getByRole('button', { name: /^Session RPE Entry$/ });
     check('dashboard banner offers Session RPE', await rpeBtn.count() > 0,
       'only Start Weigh-Ins / Post-Practice were available');
     if (await rpeBtn.count()) {
@@ -150,14 +150,15 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
       check('it lands on the kiosk in RPE mode', /session RPE/i.test(body), body.slice(0, 120));
     }
 
-    // The per-athlete modal must offer the same choice.
+    // The kiosk's mode picker (redesigned entry screen) must offer the same choice,
+    // and the athlete modal must then show only the RPE field.
     await page.goto(`${APP}/#entry`); await page.waitForTimeout(1500);
+    const kioskRpe = page.getByRole('button', { name: /^Session RPE$/ });
+    check('kiosk mode picker offers Session RPE', await kioskRpe.count() > 0);
+    await kioskRpe.first().click(); await page.waitForTimeout(500);
     await page.getByText('Test Athlete').first().click(); await page.waitForTimeout(1200);
-    check('athlete modal offers RPE Only', await page.getByRole('button', { name: /RPE Only/i }).count() > 0);
-    await page.getByRole('button', { name: /RPE Only/i }).first().click(); await page.waitForTimeout(700);
     const modal = await page.locator('body').innerText();
-    check('modal header shows Session RPE Only', /Session RPE Only/i.test(modal));
-    check('body weight field is hidden in RPE Only', !/BODY WEIGHT/i.test(modal),
+    check('body weight field is hidden in RPE mode', !/LIVE METRIC CAPTURE/i.test(modal),
       'a scale field is shown that the save discards');
     check('RPE field is shown', /SESSION RPE \(1-/i.test(modal));
     await ctx.close();

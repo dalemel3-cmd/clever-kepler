@@ -26,7 +26,7 @@ export default function GroupsScreen({
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-space-xs font-label-md text-label-md uppercase tracking-wider text-text-muted">
               <span>Workspace</span>
-              <span className="material-symbols-outlined text-sm text-text-muted">chevron_right</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm text-text-muted">chevron_right</span>
               <span className="text-antique-gold font-bold">Sport Groups</span>
             </div>
             <h1 className="font-display text-headline-xl text-text-headline uppercase tracking-wide flex items-center gap-space-sm">
@@ -42,14 +42,14 @@ export default function GroupsScreen({
           {/* Quick Action Pill Buttons */}
           <div className="flex items-center flex-wrap gap-space-sm self-start sm:self-center">
             <div className="flex items-center gap-space-xs px-space-md py-space-sm rounded-xl bg-card-surface border border-card-border text-text-body font-label-md text-label-md uppercase tracking-wider">
-              <span className="material-symbols-outlined text-antique-gold text-base">calendar_today</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-antique-gold text-base">calendar_today</span>
               <span>Date: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
             </div>
             <button
               onClick={() => setShowBulkBaselineStudio(!showBulkBaselineStudio)}
               className="flex items-center gap-space-xs px-space-md py-space-sm rounded-xl bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider font-bold shadow-lg transition-all duration-150 active:scale-95"
             >
-              <span className="material-symbols-outlined text-lg">bolt</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-lg">bolt</span>
               <span>{showBulkBaselineStudio ? 'Close Baseline Studio' : 'Bulk Team Baseline Studio'}</span>
             </button>
           </div>
@@ -60,7 +60,7 @@ export default function GroupsScreen({
         <div className="mb-space-lg p-space-lg bg-card-surface border border-antique-gold/40 rounded-xl flex flex-col gap-space-md animate-slide-up shadow-md">
           <div className="flex items-center gap-space-md">
             <div className="w-11 h-11 rounded-xl bg-antique-gold/20 border border-antique-gold flex items-center justify-center text-antique-gold shadow-[0_0_12px_rgba(184,156,91,0.3)]">
-              <span className="material-symbols-outlined text-2xl">trending_up</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-2xl">trending_up</span>
             </div>
             <div>
               <h3 className="font-display text-headline-lg font-bold m-0 text-antique-gold uppercase tracking-wide">
@@ -141,7 +141,7 @@ export default function GroupsScreen({
                   disabled={!selectedDateObj}
                   className={`mt-4 sm:mt-0 flex items-center gap-space-xs px-space-md py-space-sm rounded-xl font-headline-md text-headline-md uppercase tracking-wider font-bold shadow transition-all duration-150 ${selectedDateObj ? 'bg-antique-gold hover:bg-gold-hover text-antique-dark shadow-[0_0_15px_rgba(184,156,91,0.4)] active:scale-95 cursor-pointer' : 'bg-card-border text-text-muted cursor-not-allowed'}`}
                 >
-                  <span className="material-symbols-outlined text-lg">check_circle</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">check_circle</span>
                   <span>Set All of {activeSport.toUpperCase()} To {selectedDateObj ? selectedDateObj.date : 'Date'}</span>
                 </button>
               </div>
@@ -237,21 +237,21 @@ export default function GroupsScreen({
                   onClick={(e) => { e.stopPropagation(); setSelectedSportFilter(sport); setScreen('athletes'); }}
                   className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-collegiate-blue hover:bg-collegiate-blue/80 text-text-headline border border-card-border font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap"
                 >
-                  <span className="material-symbols-outlined text-lg">badge</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">badge</span>
                   <span>View Roster</span>
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); setTeamStatusSport(sport); setScreen('team-status'); }}
                   className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors shadow font-bold whitespace-nowrap"
                 >
-                  <span className="material-symbols-outlined text-lg">assignment_turned_in</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">assignment_turned_in</span>
                   <span>Weigh-In Status</span>
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); setBulkBaselineSport(sport); setBulkBaselineDate(''); setShowBulkBaselineStudio(true); }}
                   className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-transparent hover:bg-card-surface text-text-muted border border-card-border font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap"
                 >
-                  <span className="material-symbols-outlined text-lg">tune</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">tune</span>
                   <span>Set Team Baselines</span>
                 </button>
               </div>
@@ -273,7 +273,7 @@ export default function GroupsScreen({
           <div className="mt-space-xl p-space-md rounded-xl bg-card-surface border border-card-border flex flex-wrap items-center justify-between gap-space-md">
             <div className="flex items-center gap-space-md">
               <div className="flex items-center gap-space-xs text-antique-gold">
-                <span className="material-symbols-outlined text-xl">hub</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-xl">hub</span>
                 <span className="font-headline-md text-headline-md uppercase tracking-wider text-text-headline">Department Overview</span>
               </div>
               <div className="hidden sm:flex items-center gap-space-md font-label-md text-label-md text-text-muted border-l border-card-border pl-space-md">

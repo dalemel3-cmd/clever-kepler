@@ -4,6 +4,7 @@
 // All Supabase traffic is intercepted - these tests never touch the real database.
 /* HPD App stress test — intercepts ALL Supabase traffic (no prod writes). */
 import { chromium } from 'playwright';
+import './lib/expect-log.js';
 import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 
 // CHROMIUM_PATH lets CI point at a preinstalled browser; otherwise Playwright's own.
@@ -70,6 +71,7 @@ logs.push({
 });
 console.log(`mock: ${athletes.length} athletes, ${logs.length} logs`);
 
+let simulatedOffline = false;
 const inserted = [];   // captured POST bodies
 let athleteInserts = [];
 
@@ -93,6 +95,9 @@ let athleteInserts = [];
     const hdrs = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...hdrs, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (url.includes('/realtime/')) return route.abort();
+    // page.route keeps answering even under ctx.setOffline(true), so the offline probe
+    // has to fail REST calls itself or the "offline" save just succeeds against the stub.
+    if (simulatedOffline && url.includes('/rest/v1/')) return route.abort('internetdisconnected');
     if (isAuthRoute(url)) return fulfillAuth(route, url, h);
     if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ approved: true }]) });
     if (url.includes('/rest/v1/athletes')) {
@@ -178,9 +183,9 @@ let athleteInserts = [];
   const wVal = await weightBox.inputValue();
   console.log(`[ENTRY] numpad typed -> weight="${wVal}"`);
   const preInserts = inserted.length;
-  await page.getByRole('button', { name: /Save Record & Complete|Save as regular entry/ }).first().click();
+  await page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first().click();
   await page.waitForTimeout(1500);
-  console.log(`[ENTRY] save -> weigh_in POSTs: ${inserted.length - preInserts}, payload=${JSON.stringify(inserted[inserted.length - 1] || null)}`);
+  console.log(`[ENTRY] save -> weigh_in POSTs=${inserted.length - preInserts} (1 expected), payload=${JSON.stringify(inserted[inserted.length - 1] || null)}`);
 
   // ---------- 4. double-click save race ----------
   await page.getByPlaceholder('Search athletes by name...').fill('Athlete4 ');
@@ -188,10 +193,10 @@ let athleteInserts = [];
   await page.locator('text=Athlete4 Test4').first().click(); await page.waitForTimeout(500);
   await page.locator('input[aria-label="Body weight (lbs)"]').fill('222.2');
   const pre2 = inserted.length;
-  const saveBtn = page.getByRole('button', { name: /Save Record & Complete|Save as regular entry/ }).first();
+  const saveBtn = page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first();
   await saveBtn.evaluate((el) => { el.click(); el.click(); }); // 2 clicks in one JS task = before re-render
   await page.waitForTimeout(1800);
-  console.log(`[RACE] double-click save -> ${inserted.length - pre2} POSTs (1 expected)`);
+  console.log(`[RACE] double-click save -> POSTs=${inserted.length - pre2} (1 expected)`);
 
   // ---------- 5. weird values ----------
   const weird = async (label, val) => {
@@ -202,14 +207,14 @@ let athleteInserts = [];
     await page.locator('text=Athlete6 Test6').first().click(); await page.waitForTimeout(400);
     await page.locator('input[aria-label="Body weight (lbs)"]').fill(val);
     const pre = inserted.length;
-    const btn = page.getByRole('button', { name: /Save Record & Complete|Save as regular entry/ }).first();
+    const btn = page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first();
     await btn.click().catch(() => {});
     await page.waitForTimeout(900);
     // dismiss possible overwrite confirm
     const conf = page.getByRole('button', { name: /Override Log/ });
     if (await conf.count()) { await conf.click(); await page.waitForTimeout(900); }
     const posted = inserted.slice(pre).map((p) => p.weight_lbs);
-    console.log(`[WEIRD] weight "${label}" -> POSTs: ${JSON.stringify(posted)}`);
+    console.log(`[WEIRD] weight "${label}" -> POSTs=${JSON.stringify(posted)} ([] expected)`);
     await page.keyboard.press('Escape').catch(() => {});
     const x = page.locator('button[title="Close modal"]');
     if (await x.count()) await x.first().click().catch(() => {});
@@ -220,7 +225,7 @@ let athleteInserts = [];
 
   // ---------- 6. manual entry modal: cleared date crash probe ----------
   await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(600);
-  await page.getByRole('button', { name: /Post-Practice \/ Manual Log/ }).click();
+  await page.getByRole('button', { name: /Manual Post-Practice Log/i }).click();
   await page.waitForTimeout(500);
   await page.locator('input[type="date"]').fill('');           // clear the date
   await page.locator('input[type="number"]').fill('201.5');
@@ -234,28 +239,34 @@ let athleteInserts = [];
   const preNeg = inserted.length;
   await page.getByRole('button', { name: /SAVE MANUAL RECORD/ }).click().catch(() => {});
   await page.waitForTimeout(800);
-  console.log(`[MANUAL] weight -50 accepted? POSTs: ${JSON.stringify(inserted.slice(preNeg).map((p) => p.weight_lbs))}`);
+  console.log(`[MANUAL] weight -50 -> POSTs=${JSON.stringify(inserted.slice(preNeg).map((p) => p.weight_lbs))} ([] expected)`);
   const closeX = page.locator('div').filter({ hasText: 'COACH MANUAL LOG STUDIO' }).getByRole('button').first();
   await closeX.click().catch(() => {});
 
   // ---------- 7. offline queue behavior ----------
-  await ctx.setOffline(true);
+  // Load the screen first, then drop the network: navigating while offline has no
+  // page to load (the service worker isn't guaranteed to be controlling yet), so the
+  // save below never ran and the probe measured nothing.
+  // Reload (not just a hash change) so the Manual Log modal from step 6 is closed -
+  // it otherwise stays open over the kiosk's confirm button.
   await page.goto(`${APP}/#entry`).catch(() => {});
-  await page.waitForTimeout(600);
+  await page.reload().catch(() => {});
+  await page.waitForTimeout(1500);
+  await ctx.setOffline(true); simulatedOffline = true;
   await ensureSearchOpen(page);
   await page.getByPlaceholder('Search athletes by name...').fill('Athlete8 ');
   await page.waitForTimeout(350);
   await page.locator('text=Athlete8 Test8').first().click(); await page.waitForTimeout(400);
   await page.locator('input[aria-label="Body weight (lbs)"]').fill('215.0');
-  await page.getByRole('button', { name: /Save Record & Complete|Save as regular entry/ }).first().click().catch(() => {});
+  await page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).first().click().catch(() => {});
   await page.waitForTimeout(1200);
   const queued = await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length);
-  console.log(`[OFFLINE] queued after offline save: ${queued}`);
-  await ctx.setOffline(false);
+  console.log(`[OFFLINE] queued after offline save=${queued} (1 expected)`);
+  await ctx.setOffline(false); simulatedOffline = false;
   const preSync = inserted.length;
   await page.waitForTimeout(7000); // let 5s heartbeat sync
   const queuedAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length);
-  console.log(`[OFFLINE] back online -> queue=${queuedAfter}, synced POSTs=${inserted.length - preSync}`);
+  console.log(`[OFFLINE] back online -> queue=${queuedAfter} (0 expected), synced=${inserted.length - preSync} (1 expected)`);
 
   // ---------- 8. failing-server queue-drop probe ----------
   // queue one record, then make weigh_ins POST return 500 and watch the queue
@@ -295,7 +306,7 @@ let athleteInserts = [];
     }
   }
   const mem = await page.evaluate(() => (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null));
-  console.log(`[SOAK] 150 screen switches in ${((Date.now() - soakT) / 1000).toFixed(1)}s, newErrors=${pageErrors.length - preSoakErr}, heap=${mem}MB`);
+  console.log(`[SOAK] 150 screen switches in ${((Date.now() - soakT) / 1000).toFixed(1)}s, newErrors=${pageErrors.length - preSoakErr} (0 expected), heap=${mem}MB`);
 
   // ---------- 10. reports with full table open ----------
   await page.goto(`${APP}/#reports`); await page.waitForTimeout(1500);

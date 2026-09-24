@@ -98,7 +98,7 @@ export default function DashboardScreen({
           <div className="bg-surface-container p-space-sm rounded-lg border border-[#2a313d] flex flex-col justify-between shadow-sm min-w-0">
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-dim uppercase tracking-wider">WEIGH-IN SYNC</span>
-              <span className="material-symbols-outlined text-sm text-primary relative top-[1px]">scale</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary relative top-[1px]">scale</span>
             </div>
             <div className="flex items-baseline gap-space-xs mt-1">
               <span className="font-metric-val text-metric-val text-primary">{compliancePct}%</span>
@@ -122,7 +122,7 @@ export default function DashboardScreen({
       <div className="mt-space-md p-space-md bg-surface-container rounded-xl border border-[#2a313d] shadow-md flex flex-wrap items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md">
           <div className="w-10 h-10 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
-            <span className="material-symbols-outlined text-2xl">fitness_center</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-2xl">fitness_center</span>
           </div>
           <div>
             <div className="flex items-center gap-space-xs">
@@ -145,9 +145,9 @@ export default function DashboardScreen({
               }}
               className="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-primary text-[#030a14] hover:bg-primary-hover transition-all shadow-sm font-headline-md text-headline-md uppercase"
             >
-              <span className="material-symbols-outlined text-base">bolt</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-base">bolt</span>
               <span>Start Weigh-Ins ({unrecordedAthletes.length} remaining)</span>
-              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm">arrow_forward</span>
             </button>
           )}
 
@@ -161,7 +161,7 @@ export default function DashboardScreen({
               }}
               className="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-tertiary font-headline-md text-headline-md uppercase transition-colors"
             >
-              <span className="material-symbols-outlined text-base">speed</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-base">speed</span>
               <span>Session RPE Entry</span>
             </button>
           )}
@@ -180,7 +180,7 @@ export default function DashboardScreen({
             }}
             className="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-on-surface font-headline-md text-headline-md uppercase transition-colors"
           >
-            <span className="material-symbols-outlined text-base">post_add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-base">post_add</span>
             <span>+ Manual Post-Practice Log</span>
           </button>
         </div>
@@ -191,7 +191,7 @@ export default function DashboardScreen({
         <div className="flex items-center justify-between flex-wrap gap-space-xs">
           <div className="flex items-center gap-space-sm">
             <div className="flex items-center gap-1.5 px-space-sm py-1 rounded bg-error-container border border-error/30 text-error font-label-md text-label-md uppercase">
-              <span className="material-symbols-outlined text-sm">notification_important</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm">notification_important</span>
               <span>URGENT NEEDS ATTENTION ({unresolved.length} ATHLETES)</span>
             </div>
             <span className="font-body-sm text-body-sm text-dim hidden sm:inline">Athletes flagged by the system</span>
@@ -199,7 +199,7 @@ export default function DashboardScreen({
           <div className="flex items-center gap-space-sm">
             {unresolved.length > 0 && (
               <button onClick={() => setScreen('alerts')} className="px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high border border-[#2a313d] font-label-md text-label-md uppercase text-primary transition-colors flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">send</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">send</span>
                 <span>View All In Alerts</span>
               </button>
             )}
@@ -269,7 +269,7 @@ export default function DashboardScreen({
             <div>
               <div className="flex items-center justify-between pb-space-xs">
                 <div className="flex items-center gap-space-xs">
-                  <span className="material-symbols-outlined text-primary text-base">monitoring</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-primary text-base">monitoring</span>
                   <span className="font-headline-md text-headline-md uppercase text-on-surface">TODAY'S INTERNAL TRAINING LOAD &amp; READINESS</span>
                 </div>
                 <span className="font-label-sm text-label-sm px-2 py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 uppercase font-bold">
@@ -363,7 +363,7 @@ export default function DashboardScreen({
             <div>
               <div className="flex items-center justify-between pb-space-xs">
                 <div className="flex items-center gap-space-xs">
-                  <span className="material-symbols-outlined text-primary text-base">fact_check</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-primary text-base">fact_check</span>
                   <span className="font-headline-md text-headline-md uppercase text-on-surface">WEIGH-INS REMAINING BY SPORT</span>
                 </div>
                 <span className="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-bold">{athletesRecordedToday.size} OF {athletes.length} LOGGED</span>

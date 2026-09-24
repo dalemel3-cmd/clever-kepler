@@ -1,7 +1,7 @@
 import React from 'react';
 import { APP_VERSION } from '../utils/athleteData';
 
-export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, enableLiftTracker, onActivateKioskMode }) {
+export function AppSidebar({ cloudStatus, screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, enableLiftTracker, onActivateKioskMode }) {
   const handleNav = (newScreen) => (e) => {
     e.preventDefault();
     setScreen(newScreen);
@@ -14,7 +14,7 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coach
       return (
         <a aria-current="page" href="#" onClick={handleNav(id)} title={collapsed ? label : undefined} className={`${base} bg-primary text-[#030a14] font-bold shadow-sm`}>
           <div className="flex items-center gap-space-sm">
-            <span className="material-symbols-outlined text-xl text-[#030a14]">{icon}</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-xl text-[#030a14]">{icon}</span>
             {!collapsed && <span className="font-label-lg text-label-lg">{label}</span>}
           </div>
           {!collapsed && badge}
@@ -24,7 +24,7 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coach
     return (
       <a href="#" onClick={handleNav(id)} title={collapsed ? label : undefined} className={`${base} text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface`}>
         <div className="flex items-center gap-space-sm">
-          <span className="material-symbols-outlined text-xl">{icon}</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-xl">{icon}</span>
           {!collapsed && <span className="font-label-lg text-label-lg">{label}</span>}
         </div>
         {!collapsed && badge}
@@ -51,12 +51,12 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coach
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className={`flex items-center justify-center w-7 h-7 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors ${collapsed ? 'absolute -right-3 top-4 bg-surface-container-low border border-[#2a313d]/60' : ''}`}
           >
-            <span className="material-symbols-outlined text-lg">{collapsed ? 'chevron_right' : 'chevron_left'}</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-lg">{collapsed ? 'chevron_right' : 'chevron_left'}</span>
           </button>
         </div>
         <div className={collapsed ? 'px-space-sm pt-space-md' : 'px-space-md pt-space-md'}>
           <button onClick={onActivateKioskMode} title={collapsed ? 'Activate Kiosk Mode' : undefined} className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-primary hover:bg-primary-hover text-[#030a14] rounded-xl font-headline-md text-headline-md uppercase tracking-wider transition-colors shadow-md">
-            <span className="material-symbols-outlined text-[#030a14] text-lg">bolt</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-[#030a14] text-lg">bolt</span>
             {!collapsed && 'ACTIVATE KIOSK MODE'}
           </button>
         </div>
@@ -99,7 +99,7 @@ export function AppSidebar({ screen, setScreen, getDailyAlerts, coachName, coach
         </div>
         {!collapsed && (
           <div className="mt-space-sm pt-space-xs flex items-center justify-between font-label-sm text-label-sm text-dim">
-            <span><span className="text-secondary">●</span> Cloud Live {APP_VERSION}</span>
+            <span><span className={cloudStatus === 'live' ? 'text-secondary' : cloudStatus === 'offline' ? 'text-error' : 'text-[#f59e0b]'}>●</span> {cloudStatus === 'live' ? 'Cloud Live' : cloudStatus === 'offline' ? 'Offline' : 'Reconnecting'} {APP_VERSION}</span>
             <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
           </div>
         )}

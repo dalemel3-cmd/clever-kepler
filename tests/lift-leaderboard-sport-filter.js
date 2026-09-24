@@ -65,8 +65,8 @@ const newPage = async (browser) => {
     await page.getByLabel('Lift', { exact: true }).selectOption('Squat');
     await page.waitForTimeout(300);
     const body = await page.locator('body').innerText();
-    check('Football Squatter appears under All', /Football Squatter/.test(body));
-    check('Volleyball Squatter also appears under All', /Volleyball Squatter/.test(body));
+    check('Football Squatter appears under All', /Football Squatter/i.test(body));
+    check('Volleyball Squatter also appears under All', /Volleyball Squatter/i.test(body));
     check('an "All" filter pill exists and reads active by default', await page.getByRole('button', { name: 'All', exact: true }).count() > 0);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
@@ -81,8 +81,8 @@ const newPage = async (browser) => {
     await page.getByRole('button', { name: 'Football', exact: true }).click();
     await page.waitForTimeout(400);
     const body = await page.locator('body').innerText();
-    check('Football Squatter still shows', /Football Squatter/.test(body));
-    check('Volleyball Squatter is filtered out', !/Volleyball Squatter/.test(body), body.slice(0, 300));
+    check('Football Squatter still shows', /Football Squatter/i.test(body));
+    check('Volleyball Squatter is filtered out', !/Volleyball Squatter/i.test(body), body.slice(0, 300));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

@@ -64,7 +64,7 @@ const openSearch = async (page) => {
     check('Football section header is visible', /FOOTBALL/.test(body));
     check('Baseball section header is visible', /BASEBALL/.test(body));
     check('both athletes appear as cards', /Pill Athlete/.test(body) && /Other Athlete/.test(body));
-    check('nobody is logged yet (0 of 2 today)', /0.{0,2}of.{0,2}2.{0,2}today/i.test(body), body.slice(0, 200));
+    check('nobody is checked in yet (0 of 1 per sport)', (body.match(/0 of 1 Checked In/gi) || []).length === 2, body.slice(0, 200));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
@@ -94,7 +94,7 @@ const openSearch = async (page) => {
     await page.locator('[data-testid="athlete-card"]').first().click();
     await page.waitForTimeout(700);
     const body = await page.locator('body').innerText();
-    check('the entry modal opened for the right athlete', /Pill Athlete/.test(body) && /BODY WEIGHT/i.test(body), body.slice(0, 200));
+    check('the entry modal opened for the right athlete', /Pill Athlete/.test(body) && /LIVE METRIC CAPTURE/i.test(body), body.slice(0, 200));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
@@ -106,7 +106,7 @@ const openSearch = async (page) => {
     await page.getByPlaceholder('Search athletes by name...').fill('Nobody Here');
     await page.waitForTimeout(400);
     const body = await page.locator('body').innerText();
-    check('offers to add the searched name', /Add "Nobody Here" & Log Weight/i.test(body), body.slice(0, 200));
+    check('offers to add the searched name', /Add "Nobody Here"/i.test(body), body.slice(0, 200));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
@@ -119,7 +119,7 @@ const openSearch = async (page) => {
     let body = await page.locator('body').innerText();
     check('Football athlete still shows', /Pill Athlete/.test(body));
     check('Baseball athlete is filtered out', !/Other Athlete/.test(body), body.slice(0, 200));
-    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await page.getByRole('button', { name: 'All Roster', exact: true }).click();
     await page.waitForTimeout(400);
     body = await page.locator('body').innerText();
     check('"All" restores both athletes', /Pill Athlete/.test(body) && /Other Athlete/.test(body));

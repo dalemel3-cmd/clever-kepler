@@ -100,12 +100,12 @@ const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHigh
   console.log('\n[C] Response rate counts athletes, not rows (panel-wide roll-up)');
   const text = await page.locator('body').innerText();
   const loadPanel = text.slice(
-    text.indexOf('TODAY\'S SESSION LOAD'),
+    text.indexOf('TODAY\'S INTERNAL TRAINING LOAD'),
     text.indexOf('SESSION ACCOUNTABILITY TRACKER') > 0 ? text.indexOf('SESSION ACCOUNTABILITY TRACKER') : undefined
   );
   // 2 of 5 athletes reported = 40%. Counting the 3 log rows would give 60%.
   check('header roll-up reports 2 of 5', /2 of 5 REPORTED/i.test(loadPanel),
-    (loadPanel.match(/TODAY'S SESSION LOAD[\s\S]{0,120}/) || [''])[0].replace(/\n/g, ' | '));
+    (loadPanel.match(/TODAY'S INTERNAL TRAINING LOAD[\s\S]{0,120}/) || [''])[0].replace(/\n/g, ' | '));
   check('header roll-up rate is 40%, not 60%', /40%/.test(loadPanel) && !/60%/.test(loadPanel));
 
   console.log('\n[D] Clicking a team\'s card navigates to that team\'s roster');

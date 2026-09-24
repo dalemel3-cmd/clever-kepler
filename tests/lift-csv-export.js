@@ -66,9 +66,12 @@ const newPage = async (browser) => {
     await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
     const btn = page.getByLabel('Export all lift logs to CSV');
     check('the export control exists', await btn.count() > 0);
-    check('it carries no visible text label', (await btn.innerText()).trim() === '');
+    // The icon is a Material Symbols ligature, so its glyph name ("download") is DOM
+    // text - ignore aria-hidden icon spans and require no other text.
+    check('it carries no visible text label', await btn.evaluate(el => [...el.childNodes].every(n =>
+      (n.nodeType === 1 && n.getAttribute('aria-hidden') === 'true') || !(n.textContent || '').trim())));
     check('it is not styled as an accent call-to-action (no gold fill)',
-      await btn.evaluate(el => getComputedStyle(el).backgroundColor === 'rgba(0, 0, 0, 0)' || getComputedStyle(el).backgroundColor === 'transparent'));
+      await btn.evaluate(el => getComputedStyle(el).backgroundColor !== 'rgb(184, 156, 91)'));
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

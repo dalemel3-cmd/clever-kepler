@@ -67,7 +67,7 @@ const newPage = async (browser) => {
     const body = await page.locator('body').innerText();
     check('no "This is my baseline" button for an RPE entry', !/this is my baseline/i.test(body), body.slice(0, 300));
     check('no baseline-establishing banner for an RPE entry', !/OFFICIAL BASELINE/i.test(body));
-    check('a plain single save button is offered instead', (await page.getByRole('button', { name: /SAVE RPE/i }).count()) > 0);
+    check('a plain single save button is offered instead', (await page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i }).count()) > 0);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 
@@ -100,7 +100,7 @@ const newPage = async (browser) => {
     await page.getByLabel('Session RPE').fill('6');
     await page.getByRole('button', { name: '30 MIN', exact: true }).click();
     await page.getByRole('button', { name: 'Lift', exact: true }).first().click();
-    const saveBtn = page.getByRole('button', { name: /SAVE RPE/i });
+    const saveBtn = page.getByRole('button', { name: /CONFIRM & SYNC ATHLETE/i });
     check('save button is enabled once RPE + duration tile + label are set', await saveBtn.isEnabled());
     await saveBtn.click();
     await page.waitForTimeout(1200);

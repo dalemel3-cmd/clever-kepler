@@ -118,7 +118,7 @@ for (const a of athletes) {
   // stays open and covers the ADD ATHLETE button.
   await page.reload();
   await page.waitForTimeout(2200);
-  await page.getByRole('button', { name: 'Add', exact: true }).first().click();
+  await page.getByRole('button', { name: /Add Guest \/ Trial/i }).first().click();
   await page.waitForTimeout(1000);
   const addOpen = await page.getByText(/NEW ATHLETE PROFILE/i).count();
   check('add-athlete modal opened', addOpen > 0);
