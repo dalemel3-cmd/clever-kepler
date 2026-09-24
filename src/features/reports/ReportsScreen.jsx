@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2, Download, TrendingUp, User, Users } from 'lucide-react';
+import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2, Download, User } from 'lucide-react';
+import { SessionLoadSection } from './SessionLoadSection';
 import { getAthleteBaseline, getCentralDateString, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 const LOG_TABLE_PAGE_SIZE = 250;
@@ -34,8 +35,6 @@ export default function ReportsScreen({
   setShowReportsLogAccordion,
   handleMakeDateBaselineMarker,
   handleDeleteWeighIn,
-  getWeeklyAlerts,
-  getMonthlyAlerts,
   alertStatusMap
 }) {
   // Incremental rendering for the raw log table - with months of data it was mounting
@@ -157,43 +156,6 @@ export default function ReportsScreen({
   const topGains = [...gains].sort((a,b) => b.diff - a.diff).slice(0, 5);
   const topDrops = [...gains].sort((a,b) => a.diff - b.diff).slice(0, 5);
 
-  // 6. Team/Roster Rollups — compliance (logged within baseline expiry window) & 7-day
-  // participation, broken out per sport program. This is the "monthly staff meeting" view,
-  // not something anyone needs to see every day.
-  // Compliance and participation both mean "checked in on the scale / for sleep", not
-  // "produced any row at all". A Session RPE entry is a training-load report, so counting
-  // it here would show a program at 100% compliance in a week nobody weighed in.
-  const isCheckIn = (r) => !isRpeLog(r) && ((r.weight_lbs && Number(r.weight_lbs) > 0) || (r.sleep_hrs != null && Number(r.sleep_hrs) > 0));
-  const rollupAthletes = reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter);
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const bySport = new Map();
-  rollupAthletes.forEach(a => {
-    const sport = a.sport || 'Unassigned';
-    if (!bySport.has(sport)) bySport.set(sport, { sport, total: 0, compliant: 0, participatedThisWeek: 0, alerts: 0 });
-    const bucket = bySport.get(sport);
-    bucket.total += 1;
-
-    const aRecs = reportData.filter(r => r.athlete_id === a.id && isCheckIn(r)).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
-    if (aRecs.length > 0) {
-      const gapDays = Math.floor((now - new Date(aRecs[0].created_at)) / (1000 * 60 * 60 * 24));
-      if (gapDays < baselineExpiryDays) bucket.compliant += 1;
-      if (aRecs.some(r => new Date(r.created_at) >= sevenDaysAgo)) bucket.participatedThisWeek += 1;
-    }
-    bucket.alerts += reportData.filter(r => r.athlete_id === a.id && new Date(r.created_at) >= sevenDaysAgo && (
-      (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold)
-    )).length;
-  });
-  const sportRollups = Array.from(bySport.values()).sort((a, b) => (a.compliant / a.total) - (b.compliant / b.total));
-  const overallCompliance = rollupAthletes.length ? Math.round((rollupAthletes.filter(a => {
-    const aRecs = reportData.filter(r => r.athlete_id === a.id && isCheckIn(r));
-    if (aRecs.length === 0) return false;
-    const latest = aRecs.reduce((m, r) => new Date(r.created_at) > new Date(m.created_at) ? r : m);
-    return Math.floor((now - new Date(latest.created_at)) / (1000 * 60 * 60 * 24)) < baselineExpiryDays;
-  }).length / rollupAthletes.length) * 100) : 0;
-  const overallParticipation = rollupAthletes.length ? Math.round((rollupAthletes.filter(a =>
-    reportData.some(r => r.athlete_id === a.id && isCheckIn(r) && new Date(r.created_at) >= sevenDaysAgo)
-  ).length / rollupAthletes.length) * 100) : 0;
-
   // 7. Case-file: full alert lifecycle history for a single selected athlete (audit trail —
   // when each alert fired, and whether/when/who resolved it).
   const caseFileAthlete = reportAthleteFilter !== 'ALL' ? athletes.find(a => a.id === reportAthleteFilter) : null;
@@ -210,8 +172,7 @@ export default function ReportsScreen({
   const showExpiredBaselines = reportMode === 'quick' || enabledMetrics.expiredBaselines;
   const showLeaderboard = reportMode === 'custom' && enabledMetrics.weightLeaderboard;
   const showRawLogs = reportMode === 'custom' ? enabledMetrics.rawLogs : true;
-  const showTrends = reportMode === 'quick' || enabledMetrics.trends;
-  const showTeamRollups = reportMode === 'quick' || enabledMetrics.teamRollups;
+  const showSessionLoad = settings.enableRpe && (reportMode === 'quick' || enabledMetrics.sessionLoad !== false);
 
   const toggleMetric = (key) => {
     setEnabledMetrics(prev => ({ ...prev, [key]: !prev[key] }));
@@ -401,13 +362,11 @@ export default function ReportsScreen({
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
               {[
-                { key: 'teamSummary', label: 'Team Readiness Summary', desc: 'Overview stats & readiness scores' },
                 { key: 'acuteSweatLoss', label: 'Acute Sweat Loss', desc: 'Post-practice negative sweat drop' },
                 { key: 'dehydration', label: 'Dehydration Roster', desc: `Athletes down more than ${dehydrationThreshold} lbs` },
                 { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: `Athletes logging <${sleepThreshold}h sleep` },
                 { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
-                { key: 'trends', label: 'Trend Analysis', desc: 'Week-over-week & 30-day risk trends' },
-                { key: 'teamRollups', label: 'Team Rollups', desc: 'Compliance & participation by sport' },
+                ...(settings.enableRpe ? [{ key: 'sessionLoad', label: 'Session Load', desc: 'Per-athlete RPE load & A:C ratio' }] : []),
                 { key: 'rawLogs', label: 'Log History Table', desc: 'Chronological weigh-in table' },
               ].map(item => {
                 const isSelected = enabledMetrics[item.key];
@@ -597,43 +556,36 @@ export default function ReportsScreen({
             </div>
           )}
 
-          {/* Section 4: Expired Baselines Roster */}
+          {/* Section 4: Expired Baselines - a compact per-sport name list rather than a
+              full-width table. It's a housekeeping to-do, not an alert, so it shouldn't take
+              more room on the printed handout than the alerts above it. */}
           {showExpiredBaselines && (
-            <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid var(--color-accent)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Shield size={20} style={{ color: 'var(--color-accent)' }} />
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    EXPIRED BASELINE AUDIT (&gt;{baselineExpiryDays} DAYS INACTIVE)
+            <div className="card-glass" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid var(--color-accent)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Shield size={16} style={{ color: 'var(--color-accent)' }} />
+                  <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Baseline needed (no weigh-in in {baselineExpiryDays}+ days)
                   </h3>
                 </div>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)' }}>{expiredBaselinesList.length} ATHLETES NEED BASELINE</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)' }}>{expiredBaselinesList.length} ATHLETES</span>
               </div>
-
               {expiredBaselinesList.length === 0 ? (
-                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>All active athletes have logged weight within the last {baselineExpiryDays} days!</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Everyone has weighed in within the last {baselineExpiryDays} days.</div>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ background: 'rgba(59, 130, 246, 0.1)', borderBottom: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                        <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)' }}>ATHLETE</th>
-                        <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)' }}>SPORT / TEAM</th>
-                        <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)' }}>INACTIVITY STATUS</th>
-                        <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)' }}>LAST LOGGED DATE</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {expiredBaselinesList.map((item, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '12px 16px', fontWeight: 700 }}>{item.athlete_name}</td>
-                          <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.sport} &middot; {item.team}</td>
-                          <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: 'var(--color-accent)' }}>{item.status}</td>
-                          <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.last_date || 'N/A'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {Object.entries(expiredBaselinesList.reduce((acc, item) => {
+                    const key = item.sport || 'Unassigned';
+                    (acc[key] = acc[key] || []).push(item);
+                    return acc;
+                  }, {})).sort(([a], [b]) => a.localeCompare(b)).map(([sport, items]) => (
+                    <div key={sport} style={{ fontSize: '12px', lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 800, color: 'var(--color-accent)' }}>{sport} ({items.length}):</span>{' '}
+                      <span style={{ color: 'var(--color-text-muted)' }}>
+                        {items.map(item => `${item.athlete_name} (${item.last_date ? item.status.replace(' Days Inactive', 'd') : 'never'})`).join(', ')}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -680,158 +632,16 @@ export default function ReportsScreen({
             </div>
           )}
 
-          {/* Section 5b: Trend Analysis — the retrospective view Alerts intentionally
-              doesn't do: week-over-week alert volume plus a 30-day risk heat map, so staff
-              can see whether things are trending better or worse, not just today's snapshot. */}
-          {showTrends && (
-            <div className="card-glass glow-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <TrendingUp size={20} style={{ color: 'var(--color-accent)' }} />
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>TREND ANALYSIS</h3>
-              </div>
-
-              <div>
-                <h4 style={{ margin: '0 0 16px 0', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Past 7 Days — Categorized Alert Volume</h4>
-                <div style={{ height: '220px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px' }}>
-                  {(() => {
-                    const weekData = getWeeklyAlerts();
-                    const maxCount = Math.max(...weekData.map(d => d.count), 1);
-                    return weekData.map((item, i) => {
-                      const totalHeightPx = Math.max((item.count / maxCount) * 170, 6);
-                      const weightHeightPx = item.count > 0 ? (item.weightCount / item.count) * totalHeightPx : 0;
-                      const sleepHeightPx = item.count > 0 ? (item.sleepCount / item.count) * totalHeightPx : 0;
-                      return (
-                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: item.count > 0 ? 'var(--white)' : 'var(--color-text-muted)' }}>{item.count}</span>
-                          </div>
-                          <div style={{ width: '100%', maxWidth: '44px', height: `${totalHeightPx}px`, background: 'var(--navy-800)', borderRadius: '6px', overflow: 'hidden', display: 'flex', flexDirection: 'column-reverse', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            {weightHeightPx > 0 && <div style={{ height: `${weightHeightPx}px`, background: 'var(--status-error)', width: '100%' }} title={`Mass Loss Alerts: ${item.weightCount}`} />}
-                            {sleepHeightPx > 0 && <div style={{ height: `${sleepHeightPx}px`, background: '#f59e0b', width: '100%' }} title={`Sleep Alerts: ${item.sleepCount}`} />}
-                            {item.count === 0 && <div style={{ height: '100%', background: 'var(--navy-600)', width: '100%' }} />}
-                          </div>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)' }}>{item.day}</span>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px' }}>
-                <h4 style={{ margin: '0 0 16px 0', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>30-Day Risk & Deficit Heat Map</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '6px' }}>
-                  {getMonthlyAlerts().map((item, i) => {
-                    let bgColor = 'var(--navy-800)';
-                    if (item.count > 0 && item.count <= 2) bgColor = 'rgba(245, 158, 11, 0.35)';
-                    if (item.count > 2) bgColor = 'rgba(239, 68, 68, 0.5)';
-                    return (
-                      <div key={i} title={`${item.dayOfMonth}: ${item.count} alerts`} style={{ aspectRatio: '1', background: bgColor, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>
-                        {item.dayOfMonth}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '20px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: 'var(--status-error)', borderRadius: '3px' }}/> 💧 Mass Loss / Dehydration</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', background: '#f59e0b', borderRadius: '3px' }}/> 🌙 CNS / Low Sleep Deficits</div>
-              </div>
-            </div>
-          )}
-
-          {/* Section 5c: Team/Roster Rollups — compliance & participation per sport program,
-              the "monthly staff meeting" view rather than a live status. */}
-          {showTeamRollups && (
-            <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #10b981' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Users size={20} style={{ color: '#10b981' }} />
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>TEAM & ROSTER ROLLUPS</h3>
-              </div>
-
-              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#10b981' }}>{overallCompliance}%</div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Baseline Compliance</div>
-                </div>
-                <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-accent)' }}>{overallParticipation}%</div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>7-Day Participation</div>
-                </div>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(16, 185, 129, 0.08)', borderBottom: '1px solid rgba(16, 185, 129, 0.25)' }}>
-                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>SPORT PROGRAM</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>ROSTER SIZE</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>COMPLIANCE</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>7-DAY PARTICIPATION</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, color: '#10b981' }}>SLEEP ALERTS (7D)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sportRollups.map((row, i) => {
-                      const compliancePct = row.total ? Math.round((row.compliant / row.total) * 100) : 0;
-                      const participationPct = row.total ? Math.round((row.participatedThisWeek / row.total) * 100) : 0;
-                      const isTrendingWorse = compliancePct < 70 || participationPct < 70;
-                      return (
-                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '10px 14px', fontWeight: 700 }}>{row.sport}{isTrendingWorse && <span style={{ marginLeft: '8px', fontSize: '10px', color: 'var(--status-error)', fontWeight: 800 }}>⚠ NEEDS ATTENTION</span>}</td>
-                          <td style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--color-text-muted)' }}>{row.total}</td>
-                          <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: compliancePct < 70 ? 'var(--status-error)' : '#10b981' }}>{compliancePct}%</td>
-                          <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: participationPct < 70 ? 'var(--status-error)' : 'var(--color-accent)' }}>{participationPct}%</td>
-                          <td style={{ padding: '10px 14px', fontSize: '13px', color: '#f59e0b', fontWeight: 700 }}>{row.alerts}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
           {/* Section 5d: Session Load Analytics (RPE) */}
-          {settings.enableRpe && (
-            <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #ef4444' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Activity size={20} style={{ color: '#ef4444' }} />
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>SESSION LOAD ANALYTICS</h3>
-              </div>
-              
-              {(() => {
-                const rpeLogs = filteredLogs.filter(isRpeLog);
-                const totalLogs = rpeLogs.length;
-                const totalLoad = rpeLogs.reduce((sum, l) => sum + ((l.rpe || 0) * (l.session_minutes || 0)), 0);
-                const avgRpe = totalLogs > 0 ? (rpeLogs.reduce((sum, l) => sum + (l.rpe || 0), 0) / totalLogs).toFixed(1) : 0;
-                
-                const uniqueAthletes = new Set(rpeLogs.map(l => l.athlete_id)).size;
-                const avgAthleteLoad = uniqueAthletes > 0 ? (totalLoad / uniqueAthletes).toFixed(0) : 0;
-
-                return (
-                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                    <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#ef4444' }}>{totalLogs}</div>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Total RPE Sessions</div>
-                    </div>
-                    <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                      <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-accent)' }}>{avgRpe}</div>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Average Session RPE</div>
-                    </div>
-                    <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>{totalLoad} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 600 }}>AU</span></div>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Cumulative Load (AU)</div>
-                    </div>
-                    <div style={{ padding: '14px 20px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>{avgAthleteLoad} <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 600 }}>AU</span></div>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Avg Load per Athlete</div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
+          {showSessionLoad && (
+            <SessionLoadSection
+              athletes={filteredAthletes}
+              reportData={reportData}
+              filteredLogs={filteredLogs}
+              settings={settings}
+              scopeLabel={caseFileAthlete ? caseFileAthlete.name : (reportSportFilter === 'ALL' ? 'All Sports' : reportSportFilter)}
+              singleAthlete={caseFileAthlete}
+            />
           )}
 
           {/* Section 6: Chronological Raw Log Table - excluded from Export to PDF (see

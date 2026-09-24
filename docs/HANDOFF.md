@@ -3003,7 +3003,56 @@ From a lint + Supabase-advisor review.
   status. The other "unused" indexes (the FK indexes and `app_errors.created_at`) are
   kept on purpose; the migration file explains why.
 
-## 81. Next up
+## 81. App.jsx split up (v5.2.0)
+
+App.jsx went from 4,052 to about 2,800 lines, with no behavior change. All state and
+handlers still live in App. The extracted pieces receive what they use as props, under
+the same names App uses, so the moved code reads the same as before.
+
+- `src/components/MobileMoreMenu.jsx`: the bottom-nav "More" sheet
+- `src/components/modals/`: `RecoveryModal`, `InstallModal`, `ConfirmDialog`,
+  `ExpiredBaselinesModal`, `ManualEntryModal`
+- `src/features/alerts/NegativeSweatDropCards.jsx`. App keeps a thin
+  `renderNegativeSweatDropCards(forceShow, maxAgeDays)` wrapper, so the Alerts and
+  Reports call sites are unchanged.
+- `src/features/alerts/useAlertFeeds.jsx`: the streak lookup plus the daily, weekly and
+  monthly alert feeds. It returns `{ dailyAlerts, getDailyAlerts, getWeeklyAlerts,
+  getMonthlyAlerts }`.
+- `src/features/alerts/useExpiredBaselines.js` and
+  `src/features/dashboard/useExecutiveInsights.js`: memoized derivations.
+
+The hooks are called at the same position in App as the useMemos they replaced, so the
+hook order is unchanged.
+
+Next natural steps if App.jsx needs to shrink further: move the weigh-in data layer
+(`fetchReportData` / `syncOfflineCache` / offline queue, about 400 lines) into a
+`useWeighIns` hook, and move the athlete CRUD handlers into `useAthletes`. Both are
+riskier because they own state that many screens read, so they were left out of this
+pass.
+
+## 82. Reports cleanup (v5.2.1)
+
+The coach uses Reports mainly to print off important alerts and hand them to coaches.
+Changes:
+
+- **Removed** Trend Analysis (the weekly alert bars and the 30-day heat map) and Team &
+  Roster Rollups. The coach said neither was feeding any decision. `getWeeklyAlerts` and
+  `getMonthlyAlerts` were deleted from `useAlertFeeds`, along with the rollup math in
+  ReportsScreen. The unused `teamSummary`, `trends` and `teamRollups` metric toggles
+  were removed too, and a `sessionLoad` toggle was added to the Custom builder.
+- **Expired baselines are now compact.** Each sport gets one line of names with how long
+  each athlete has been inactive, or "never". The full table is gone. It's a
+  housekeeping to-do, so it shouldn't outweigh the alerts on the printed handout.
+- **Session Load** moved to `src/features/reports/SessionLoadSection.jsx` and now
+  respects the sport and athlete filters. With a team selected, it shows one row per
+  athlete, sorted by A:C ratio: at or above `rpeLoadSpikeRatio` is red, under 0.8 is
+  amber (underloaded), and a summary line reports the spike count. With one athlete
+  selected, it shows that athlete's A:C ratio, 7-day load, chronic weekly average,
+  average RPE and session list. The A:C ratio always uses the athlete's full RPE
+  history. The timeframe filter only narrows the session counts and the list.
+- Test: `tests/reports-cleanup.js` (16 probes).
+
+## 83. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

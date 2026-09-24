@@ -1,11 +1,21 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Users, User, Plus, Shield, CheckCircle, X, Download, AlertTriangle, Activity, FileText, Upload, Sliders, Zap, Settings, Smartphone, RefreshCw, Check, Copy, Share2, Grid, MoreHorizontal, Target, Dumbbell } from 'lucide-react';
+import { Users, User, Plus, Shield, CheckCircle, RefreshCw, MoreHorizontal } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import { reportDataError } from './errorReporting';
 import './styles.css';
 import { AppSidebar } from './components/AppSidebar';
 import { AppHeader } from './components/AppHeader';
 import { Confetti } from './components/Confetti';
+import { MobileMoreMenu } from './components/MobileMoreMenu';
+import { RecoveryModal } from './components/modals/RecoveryModal';
+import { InstallModal } from './components/modals/InstallModal';
+import { ConfirmDialog } from './components/modals/ConfirmDialog';
+import { ExpiredBaselinesModal } from './components/modals/ExpiredBaselinesModal';
+import { ManualEntryModal } from './components/modals/ManualEntryModal';
+import { NegativeSweatDropCards } from './features/alerts/NegativeSweatDropCards';
+import { useAlertFeeds } from './features/alerts/useAlertFeeds';
+import { useExpiredBaselines } from './features/alerts/useExpiredBaselines';
+import { useExecutiveInsights } from './features/dashboard/useExecutiveInsights';
 const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
 import { useAlertStatus } from './features/alerts/useAlertStatus';
 import { usePerformanceTests } from './features/analytics/usePerformanceTests';
@@ -33,17 +43,14 @@ import {
   encodeAthleteMeta,
   isPostPracticeLog,
   markLogAsPostPractice,
-  getAthleteBaseline,
   getCentralDateString,
   getCentralTimeString,
-  centralWallTimeToISO,
   isPlausibleWeight,
   getBaselinesMap,
   invalidateAthleteDataCache,
   configureProgramContext,
   configureWeightBounds,
   isRpeLog,
-  computeAcuteChronicLoad
 } from './utils/athleteData';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from './settings';
 
@@ -394,100 +401,7 @@ export default function App() {
   }, [buildRecordedTodaySet, todaySessions, kioskTrackMode]);
 
   // Executive Insights & 24h Deltas calculation
-  const executiveInsights = React.useMemo(() => {
-    void todaySessions; // Trigger re-computation when sessions are logged
-    const now = new Date();
-    const todayCentralStr = getCentralDateString(now);
-    const yesterdayCentralStr = getCentralDateString(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-
-    // Merge online and offline records for calculation
-    let allLogs = [...(reportData || [])];
-    try {
-      const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
-      offline.forEach(item => {
-        const rec = item.record || item;
-        if (rec && rec.athlete_id && rec.created_at) {
-          allLogs.push(rec);
-        }
-      });
-    } catch {}
-
-    const todayLogs = allLogs.filter(r => {
-      if (!r.created_at) return false;
-      return getCentralDateString(new Date(r.created_at)) === todayCentralStr;
-    });
-
-    const yesterdayLogs = allLogs.filter(r => {
-      if (!r.created_at) return false;
-      return getCentralDateString(new Date(r.created_at)) === yesterdayCentralStr;
-    });
-
-    // 1. Compliance & Momentum
-    const totalAthletes = Math.max(athletes.length, 1);
-    const todayRecordedIds = new Set(todayLogs.map(r => r.athlete_id));
-    const yesterdayRecordedIds = new Set(yesterdayLogs.map(r => r.athlete_id));
-    
-    const todayCompliancePct = Math.round((todayRecordedIds.size / totalAthletes) * 100);
-    const yesterdayCompliancePct = Math.round((yesterdayRecordedIds.size / totalAthletes) * 100);
-    const complianceDelta = todayCompliancePct - yesterdayCompliancePct;
-
-    // 2. Recovery & Sleep Quality Index
-    const todaySleepLogs = todayLogs.filter(r => r.sleep_hrs && !isNaN(parseFloat(r.sleep_hrs)));
-    const yesterdaySleepLogs = yesterdayLogs.filter(r => r.sleep_hrs && !isNaN(parseFloat(r.sleep_hrs)));
-    
-    const todayAvgSleep = todaySleepLogs.length 
-      ? (todaySleepLogs.reduce((acc, r) => acc + parseFloat(r.sleep_hrs), 0) / todaySleepLogs.length).toFixed(1)
-      : null;
-    const yesterdayAvgSleep = yesterdaySleepLogs.length 
-      ? (yesterdaySleepLogs.reduce((acc, r) => acc + parseFloat(r.sleep_hrs), 0) / yesterdaySleepLogs.length).toFixed(1)
-      : null;
-    
-    const sleepDelta = (todayAvgSleep !== null && yesterdayAvgSleep !== null) 
-      ? (parseFloat(todayAvgSleep) - parseFloat(yesterdayAvgSleep)).toFixed(1)
-      : null;
-
-    // 3. (removed) A "Hydration & Mass Stability Watch" list was computed here and never
-    // rendered anywhere - dead weight that still cost an O(todayLogs x allLogs) scan on
-    // every dashboard render. It also compared raw weights without excluding
-    // post-practice sweat checks or RPE rows, so had anything ever displayed it, it would
-    // have re-introduced the false-dehydration bug class documented in HANDOFF §5. The
-    // live dehydration alerts (dailyAlerts, below) are the real, correctly-filtered path.
-
-    // 4. Sport Group Leaderboard
-    const sportStats = {};
-    athletes.forEach(a => {
-      const s = (a.sport || 'General').toUpperCase();
-      if (!sportStats[s]) sportStats[s] = { total: 0, loggedToday: 0 };
-      sportStats[s].total += 1;
-      if (todayRecordedIds.has(a.id)) {
-        sportStats[s].loggedToday += 1;
-      }
-    });
-
-    const leaderboard = Object.keys(sportStats).map(sport => {
-      const stats = sportStats[sport];
-      const pct = Math.round((stats.loggedToday / Math.max(stats.total, 1)) * 100);
-      return {
-        sport,
-        loggedToday: stats.loggedToday,
-        total: stats.total,
-        percentage: pct
-      };
-    }).sort((a, b) => b.percentage - a.percentage || b.loggedToday - a.loggedToday);
-
-    return {
-      todayCompliancePct,
-      yesterdayCompliancePct,
-      complianceDelta,
-      todayAvgSleep,
-      yesterdayAvgSleep,
-      sleepDelta,
-      leaderboard,
-      sportLeaderboard: leaderboard,
-      todayCount: todayLogs.length,
-      todayRecordedCount: todayRecordedIds.size
-    };
-  }, [reportData, athletes, todaySessions]);
+  const executiveInsights = useExecutiveInsights({ athletes, reportData, todaySessions });
 
   const [reportLoading, setReportLoading] = useState(false);
   const [bulkBaselineSport, setBulkBaselineSport] = useState('Football');
@@ -499,15 +413,13 @@ export default function App() {
   const [reportRangeEnd, setReportRangeEnd] = useState('');
   const [reportAthleteFilter, setReportAthleteFilter] = useState('ALL'); // athlete_id or 'ALL', drives the case-file view
   const [enabledMetrics, setEnabledMetrics] = useState({
-    teamSummary: true,
     acuteSweatLoss: true,
     dehydration: true,
     sleepDeficit: true,
     expiredBaselines: true,
     weightLeaderboard: true,
     rawLogs: true,
-    trends: true,
-    teamRollups: true
+    sessionLoad: true
   });
 
   // Roster State
@@ -2390,242 +2302,7 @@ export default function App() {
   // Consecutive-day streak lookup per athlete+type, used to escalate alert severity
   // (an athlete flagged 4 days running reads very differently from a first-time flag).
   // Scans back up to 45 days from a per-day flag set so DAILY alert cards can show it.
-  const alertStreakLookup = React.useMemo(() => {
-    const athleteById = new Map(athletes.map(a => [a.id, a]));
-    const baselineByAthlete = new Map();
-    const baselineFor = (athleteId, athlete) => {
-      if (!baselineByAthlete.has(athleteId)) {
-        baselineByAthlete.set(athleteId, getAthleteBaseline(athlete || { id: athleteId, athlete_id: athleteId }, reportData));
-      }
-      return baselineByAthlete.get(athleteId);
-    };
-    const byDay = new Map(); // 'YYYY-MM-DD' -> Set of 'athleteId|type'
-    reportData.forEach(r => {
-      if (!r.athlete_id) return;
-      const key = getCentralDateString(new Date(r.created_at));
-      if (!byDay.has(key)) byDay.set(key, new Set());
-      const flags = byDay.get(key);
-      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) flags.add(r.athlete_id + '|sleep');
-      // A day counts toward an RPE streak when the athlete reported a hard session, so the
-      // load-spike card can show "3rd straight day" the same way the other alert types do.
-      if (isRpeLog(r) && r.rpe != null && Number(r.rpe) >= settings.rpeHighThreshold) flags.add(r.athlete_id + '|rpe');
-      if (r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r)) {
-        const athlete = athleteById.get(r.athlete_id);
-        const baseInfo = baselineFor(r.athlete_id, athlete);
-        if (baseInfo && baseInfo.id !== r.id && baseInfo.weight_lbs) {
-          const drop = baseInfo.weight_lbs - Number(r.weight_lbs);
-          if (drop > dehydrationThreshold) flags.add(r.athlete_id + '|weight');
-        }
-      }
-    });
-    return (athleteId, type) => {
-      let streak = 0;
-      const d = new Date();
-      for (let i = 0; i < 45; i++) {
-        const flags = byDay.get(getCentralDateString(d));
-        if (flags && flags.has(athleteId + '|' + type)) { streak++; d.setDate(d.getDate() - 1); }
-        else break;
-      }
-      return streak;
-    };
-  }, [reportData, athletes, dehydrationThreshold, sleepThreshold, settings.rpeHighThreshold]);
-
-  // Shared by getWeeklyAlerts/getMonthlyAlerts below - previously each of these ran
-  // its own baseline lookup (custom baseline map, then athlete.baseline_weight) that
-  // didn't match the canonical getAthleteBaseline() resolution dailyAlerts/the
-  // Dehydration Roster use (which also falls back to explicit is_baseline logs, the
-  // season-start weigh-in, and finally an inferred log). That mismatch meant Trends
-  // routinely under-counted or zeroed out days that Alerts/Reports correctly flagged,
-  // making the weekly bars and 30-day heat map read as flat/meaningless. Also now
-  // excludes post-practice sweat-check logs from the weight comparison, matching the
-  // dehydration-detection fix already applied everywhere else.
-  const weightAlertOnDay = (r, athleteById, baselineByAthlete) => {
-    if (!r.weight_lbs || Number(r.weight_lbs) <= 0 || isPostPracticeLog(r)) return false;
-    const athlete = athleteById.get(r.athlete_id);
-    if (!baselineByAthlete.has(r.athlete_id)) {
-      baselineByAthlete.set(r.athlete_id, getAthleteBaseline(athlete || { id: r.athlete_id, athlete_id: r.athlete_id }, reportData));
-    }
-    const baseInfo = baselineByAthlete.get(r.athlete_id);
-    if (!baseInfo || !baseInfo.weight_lbs || baseInfo.id === r.id) return false;
-    const drop = baseInfo.weight_lbs - Number(r.weight_lbs);
-    return drop > dehydrationThreshold;
-  };
-
-  const getWeeklyAlerts = () => {
-    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    const result = [];
-    const today = new Date();
-    // Hoisted out of the per-day x per-record loops: these used to run
-    // athletes.find + a localStorage JSON.parse for every record of every day.
-    const athleteById = new Map(athletes.map(a => [a.id, a]));
-    const baselineByAthlete = new Map();
-    // Bucket each record's Central date once instead of re-deriving it 7 times.
-    const byDay = new Map();
-    reportData.forEach(r => {
-      const key = getCentralDateString(new Date(r.created_at));
-      if (!byDay.has(key)) byDay.set(key, []);
-      byDay.get(key).push(r);
-    });
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dayCentralStr = getCentralDateString(d);
-      const dayStr = days[d.getDay()];
-
-      let sleepCount = 0;
-      let weightCount = 0;
-      (byDay.get(dayCentralStr) || []).forEach(r => {
-        if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) sleepCount++;
-        if (weightAlertOnDay(r, athleteById, baselineByAthlete)) weightCount++;
-      });
-      result.push({ day: dayStr, count: sleepCount + weightCount, sleepCount, weightCount, date: d });
-    }
-    return result;
-  };
-
-  const getMonthlyAlerts = () => {
-    const result = [];
-    const today = new Date();
-    // Same hoisting as getWeeklyAlerts - this loop used to be 30 days x every record,
-    // with an athletes.find and a localStorage JSON.parse inside the inner loop.
-    const athleteById = new Map(athletes.map(a => [a.id, a]));
-    const baselineByAthlete = new Map();
-    const byDay = new Map();
-    reportData.forEach(r => {
-      const key = getCentralDateString(new Date(r.created_at));
-      if (!byDay.has(key)) byDay.set(key, []);
-      byDay.get(key).push(r);
-    });
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dayCentralStr = getCentralDateString(d);
-
-      let count = 0;
-      let hasWeight = false;
-      let hasSleep = false;
-      (byDay.get(dayCentralStr) || []).forEach(r => {
-        if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) { count++; hasSleep = true; }
-        if (weightAlertOnDay(r, athleteById, baselineByAthlete)) { count++; hasWeight = true; }
-      });
-      result.push({ count, hasWeight, hasSleep, date: d, dayOfMonth: parseInt(dayCentralStr.slice(8, 10), 10) });
-    }
-    return result;
-  };
-
-  // Memoized: the sidebar badge, mobile nav, and Alerts screen each call this per
-  // render (previously recomputing a full baseline scan 3-5x per frame).
-  const dailyAlerts = React.useMemo(() => {
-    const now = Date.now();
-    const alerts = [];
-
-    const todaysRecords = reportData.filter(r => {
-      return (now - new Date(r.created_at).getTime()) <= 24 * 60 * 60 * 1000;
-    });
-
-    const athleteById = new Map(athletes.map(a => [a.id, a]));
-    const baselineByAthlete = new Map();
-    const baselineFor = (athleteId, athlete) => {
-      if (!baselineByAthlete.has(athleteId)) {
-        baselineByAthlete.set(athleteId, getAthleteBaseline(athlete || { id: athleteId, athlete_id: athleteId }, reportData));
-      }
-      return baselineByAthlete.get(athleteId);
-    };
-
-    todaysRecords.forEach(r => {
-      const athlete = athleteById.get(r.athlete_id);
-      const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
-
-      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
-        const streak = alertStreakLookup(r.athlete_id, 'sleep');
-        alerts.push({
-          id: r.id + '_sleep',
-          alert_key: r.id + '_sleep',
-          athlete_id: r.athlete_id,
-          athlete_name: r.athlete_name,
-          sport: r.sport,
-          type: 'LOW SLEEP DEFICIT',
-          color: '#f59e0b',
-          icon: <Activity size={22} />,
-          message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged today`,
-          action: '🌙 MONITOR CNS LOAD',
-          streak,
-          magnitude: sleepThreshold - Number(r.sleep_hrs)
-        });
-      }
-
-      const baseInfo = baselineFor(r.athlete_id, athlete);
-      const activeBaseline = baseInfo ? { id: baseInfo.id, weight_lbs: baseInfo.weight_lbs } : null;
-      const baselineDateStr = baseInfo ? baseInfo.date_str : 'Established';
-
-      if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
-        const drop = activeBaseline.weight_lbs - r.weight_lbs;
-        const dropPercent = drop / activeBaseline.weight_lbs;
-        if (drop > dehydrationThreshold) {
-          const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
-          const streak = alertStreakLookup(r.athlete_id, 'weight');
-          alerts.push({
-            id: r.id + '_weight',
-            alert_key: r.id + '_weight',
-            athlete_id: r.athlete_id,
-            athlete_name: r.athlete_name,
-            sport: r.sport,
-            type: 'DEHYDRATION RISK',
-            color: 'var(--status-error)',
-            icon: <AlertTriangle size={22} />,
-            message: `${r.sport}${positionStr} · -${drop.toFixed(1)} lbs drop (-${(dropPercent*100).toFixed(1)}% vs Baseline: ${activeBaseline.weight_lbs} lbs on ${baselineDateStr})`,
-            action: recommendation,
-            streak,
-            magnitude: drop
-          });
-        }
-      }
-    });
-
-    if (settings.enableRpe) {
-      const todaysRpeLogs = todaysRecords.filter(isRpeLog);
-      const athleteIdsWithRpeToday = [...new Set(todaysRpeLogs.map(r => r.athlete_id))];
-
-      athleteIdsWithRpeToday.forEach(athleteId => {
-        const athlete = athleteById.get(athleteId);
-        if (!athlete) return;
-        
-        const athleteLogs = reportData.filter(l => l.athlete_id === athleteId && isRpeLog(l));
-        // Shared with the athlete profile card - see computeAcuteChronicLoad for why the
-        // two screens must not carry their own copies of this.
-        const { acuteLoad, chronicAvgWeeklyLoad, ratio: acRatio } = computeAcuteChronicLoad(athleteLogs, {
-          chronicWeeks: settings.rpeChronicWeeks,
-          trackDuration: settings.rpeTrackDuration,
-          now,
-        });
-
-        // A null ratio means there is not enough history for a chronic baseline yet.
-        if (acRatio != null) {
-          if (acRatio >= settings.rpeLoadSpikeRatio) {
-            const streak = alertStreakLookup(athleteId, 'rpe');
-            alerts.push({
-              id: `${athleteId}_rpe_spike`,
-              alert_key: `${athleteId}_rpe_spike`,
-              athlete_id: athleteId,
-              athlete_name: athlete.name,
-              sport: athlete.sport,
-              type: 'ACUTE LOAD SPIKE',
-              color: '#ef4444',
-              icon: <Target size={22} />,
-              message: `${athlete.sport || 'General'} · A:C Ratio spiked to ${acRatio.toFixed(2)}x (Acute: ${acuteLoad} vs Chronic: ${chronicAvgWeeklyLoad.toFixed(0)})`,
-              action: '⚠️ MONITOR TRAINING VOLUME',
-              streak,
-              magnitude: acRatio
-            });
-          }
-        }
-      });
-    }
-
-    return alerts.sort((a, b) => (b.streak - a.streak) || (b.magnitude - a.magnitude));
-  }, [reportData, athletes, dehydrationThreshold, sleepThreshold, alertStreakLookup, settings]);
-
-  const getDailyAlerts = () => dailyAlerts;
+  const { dailyAlerts, getDailyAlerts } = useAlertFeeds({ athletes, dehydrationThreshold, reportData, settings, sleepThreshold });
 
   // Badge/sort count: alerts a coach hasn't actioned yet (open or acknowledged-but-not-resolved
   // still count so the badge doesn't disappear the moment someone glances at it).
@@ -2635,220 +2312,23 @@ export default function App() {
   // (settings.postPracticeLookbackDays) with a tighter window - Alerts passes its own
   // short settings.alertsAcuteWindowHours so a sweat-loss card doesn't linger on the
   // live "today" screen for a full week.
-  const renderNegativeSweatDropCards = (forceShow = false, maxAgeDays = null) => {
-    const list = [];
-    const now = new Date();
-    const shouldShowEmpty = forceShow || screen === 'reports';
-    const effectiveMaxAgeDays = maxAgeDays != null ? maxAgeDays : settings.postPracticeLookbackDays;
-
-    athletes.forEach(ath => {
-      const athLogs = reportData.filter(r => (r.athlete_id === ath.id || (r.athlete_name && r.athlete_name.trim().toLowerCase() === ath.name.trim().toLowerCase())) && r.weight_lbs && Number(r.weight_lbs) > 0);
-      const ppLogs = athLogs.filter(r => isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-      if (ppLogs.length === 0) return;
-
-      const latestPP = ppLogs[ppLogs.length - 1];
-      const daysOld = (now - new Date(latestPP.created_at)) / (1000 * 60 * 60 * 24);
-      if (daysOld > effectiveMaxAgeDays && !shouldShowEmpty) return;
-
-      const normalLogs = athLogs.filter(r => !isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-      const ppDate = new Date(latestPP.created_at);
-      const ppDateCentralStr = getCentralDateString(ppDate);
-
-      const sameDayLogs = normalLogs.filter(wl => getCentralDateString(new Date(wl.created_at)) === ppDateCentralStr);
-      
-      let bWeight = null;
-      if (sameDayLogs.length > 0) {
-        bWeight = parseFloat(sameDayLogs[sameDayLogs.length - 1].weight_lbs);
-      } else {
-        const priorLogs = normalLogs.filter(wl => new Date(wl.created_at) <= ppDate);
-        if (priorLogs.length > 0) {
-          bWeight = parseFloat(priorLogs[priorLogs.length - 1].weight_lbs);
-        } else {
-          const baseInfo = getAthleteBaseline(ath, reportData);
-          bWeight = baseInfo ? parseFloat(baseInfo.weight_lbs) : (ath.baseline_weight ? parseFloat(ath.baseline_weight) : (normalLogs.length ? parseFloat(normalLogs[normalLogs.length - 1].weight_lbs) : null));
-        }
-      }
-      
-      const pWeight = parseFloat(latestPP.weight_lbs);
-      const drop = bWeight ? (bWeight - pWeight) : 0;
-      
-      if (drop > 0) {
-        const pctLoss = bWeight && bWeight > 0 ? ((drop / bWeight) * 100) : 0;
-        const fluidOz = Math.round(drop * settings.fluidOzPerLb);
-        const isSevere = drop >= settings.severeSweatLbs || pctLoss >= settings.severeSweatPct;
-        
-        list.push({
-          athlete: ath,
-          log: latestPP,
-          pDate: new Date(latestPP.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          pTime: new Date(latestPP.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          pWeight,
-          bWeight,
-          drop,
-          pctLoss,
-          fluidOz: fluidOz > 0 ? fluidOz : settings.minFluidOz,
-          isSevere
-        });
-      }
-    });
-
-    list.sort((a, b) => b.drop - a.drop);
-
-    if (list.length === 0 && !shouldShowEmpty) return null;
-
-    return (
-      <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '4px solid #ef4444', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#ef4444', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-              ⚡ ACUTE EXERTIONAL MONITORING
-            </div>
-            <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: '#fff', textTransform: 'uppercase' }}>
-              POST-PRACTICE SWEAT LOSS & HYDRATION ALERTS (IN THE NEGATIVE)
-            </h3>
-            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-              Athletes experiencing acute weight loss during practice sessions requiring urgent fluid replacement before tomorrow.
-            </span>
-          </div>
-          <span style={{ padding: '6px 12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '8px', fontSize: '12px', fontWeight: 800 }}>
-            {list.length} {list.length === 1 ? 'ATHLETE IN NEGATIVE' : 'ATHLETES IN NEGATIVE'}
-          </span>
-        </div>
-
-        {list.length === 0 ? (
-          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
-            Clean! No athletes currently showing acute post-practice sweat loss in the negative.
-          </div>
-        ) : (
-          <>
-            {/* Screen View: Interactive Cards */}
-            <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-              {list.map((item, idx) => (
-                <div 
-                  key={item.log.id || idx} 
-                  onClick={() => {
-                    setSelectedProfileId(item.athlete.id);
-                    fetchProfileData(item.athlete.id);
-                    setScreen('profiles');
-                  }}
-                  style={{ 
-                    padding: '18px 24px', 
-                    borderRadius: '16px', 
-                    background: 'rgba(0, 0, 0, 0.45)', 
-                    border: item.isSevere ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(255,255,255,0.1)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between', 
-                    flexWrap: 'wrap', 
-                    gap: '16px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  className="hover-card"
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: '160px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-                          {item.athlete.name}
-                        </span>
-                        {item.athlete.position && (
-                          <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.1)', color: 'var(--color-accent)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                            {item.athlete.position}
-                          </span>
-                        )}
-                      </div>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block' }}>
-                        {item.pDate} · {item.pTime}
-                      </span>
-                    </div>
-                    <div style={{ height: '36px', width: '1px', background: 'rgba(255,255,255,0.1)' }} />
-                    <div>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Pre-Practice / Morning</span>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: 'var(--color-text-muted)' }}>{item.bWeight} lbs</span>
-                    </div>
-                    <div style={{ fontSize: '20px', color: 'var(--color-text-muted)', fontWeight: 800 }}>➔</div>
-                    <div>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Post-Practice Weight</span>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, color: '#fff' }}>{item.pWeight} lbs</span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                    <div>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block' }}>Acute Sweat Drop</span>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: '#ef4444' }}>
-                        -{item.drop.toFixed(1)} lbs (-{item.pctLoss.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div style={{ padding: '8px 16px', borderRadius: '12px', background: item.drop >= 5 ? 'rgba(239, 68, 68, 0.2)' : item.drop > 2 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: item.drop >= 5 ? '1px solid rgba(239, 68, 68, 0.4)' : item.drop > 2 ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: item.drop >= 5 ? '#ef4444' : item.drop > 2 ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
-                      💧 Rx: Drink {item.fluidOz} oz fluids before tomorrow
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* PDF Print Table: Dedicated sharp table for exported PDF documents */}
-            <div className="only-print" style={{ display: 'none', width: '100%', marginTop: '8px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: 'rgba(239, 68, 68, 0.1)', borderBottom: '2px solid #ef4444' }}>
-                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>ATHLETE</th>
-                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>SPORT / POS</th>
-                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>PRE-PRACTICE</th>
-                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>POST-PRACTICE</th>
-                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>SWEAT DROP</th>
-                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>HYDRATION Rx (BEFORE TOMORROW)</th>
-                    <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 800, color: '#ef4444' }}>LOG DATE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.map((item, idx) => (
-                    <tr key={item.log.id || idx} style={{ borderBottom: '1px solid #cbd5e1' }}>
-                      <td style={{ padding: '10px 14px', fontWeight: 800 }}>{item.athlete.name}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12px' }}>{item.athlete.sport || 'N/A'}{item.athlete.position ? ` (${item.athlete.position})` : ''}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700 }}>{item.bWeight} lbs</td>
-                      <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: '#ef4444' }}>{item.pWeight} lbs</td>
-                      <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 800, color: '#ef4444' }}>
-                        -{item.drop.toFixed(1)} lbs (-{item.pctLoss.toFixed(1)}%)
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 800, color: '#ef4444' }}>
-                        💧 Drink {item.fluidOz} oz fluids
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: '12px' }}>{item.pDate} · {item.pTime}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
+  const renderNegativeSweatDropCards = (forceShow = false, maxAgeDays = null) => (
+    <NegativeSweatDropCards
+      forceShow={forceShow}
+      maxAgeDays={maxAgeDays}
+      athletes={athletes}
+      fetchProfileData={fetchProfileData}
+      reportData={reportData}
+      screen={screen}
+      setScreen={setScreen}
+      setSelectedProfileId={setSelectedProfileId}
+      settings={settings}
+    />
+  );
 
   // Athletes with no logs, or none within the expiry window - backs the expired-baselines
   // modal (which previously referenced this list without it being defined => crash).
-  const expiredBaselinesList = React.useMemo(() => {
-    const list = [];
-    const nowMs = Date.now();
-    athletes.forEach(a => {
-      const aRecs = reportData
-        .filter(r => r.athlete_id === a.id && r.created_at)
-        .sort((x, y) => new Date(x.created_at) - new Date(y.created_at));
-      if (aRecs.length === 0) {
-        list.push({ id: a.id, athlete_name: a.name, sport: a.sport, last_weigh_in_date: null });
-      } else {
-        const lastLog = aRecs[aRecs.length - 1];
-        const gapDays = Math.floor((nowMs - new Date(lastLog.created_at).getTime()) / (1000 * 60 * 60 * 24));
-        if (gapDays >= baselineExpiryDays) {
-          list.push({ id: a.id, athlete_name: a.name, sport: a.sport, last_weigh_in_date: new Date(lastLog.created_at).toLocaleDateString() });
-        }
-      }
-    });
-    return list;
-  }, [athletes, reportData, baselineExpiryDays]);
+  const expiredBaselinesList = useExpiredBaselines({ athletes, baselineExpiryDays, reportData });
 
   const navItem = (key, icon, label) => {
     const active = screen === key && !showMobileMore;
@@ -2884,122 +2364,14 @@ export default function App() {
       )}
 
       {showRecoveryModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-          <div className="card-glass glow-card" style={{ width: '100%', maxWidth: '950px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: 'rgba(13, 27, 46, 0.98)', border: '2px solid #ef4444', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 0 50px rgba(239, 68, 68, 0.35)' }}>
-            <div style={{ padding: '24px 28px', background: 'rgba(239, 68, 68, 0.12)', borderBottom: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <span style={{ fontSize: '32px' }}>🚨</span>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    EMERGENCY DATA RECOVERY & STORAGE AUDIT STATION
-                  </h2>
-                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
-                    Scanning iPad local databases, offline queues, and memory caches for weigh-in logs...
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRecoveryModal(false)}
-                style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '8px 16px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
-              >
-                ✕ Close Window
-              </button>
-            </div>
-
-            <div style={{ padding: '24px 28px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '16px 20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TOTAL RECOVERABLE LOGS FOUND ON IPAD</div>
-                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#10b981' }}>{getRecoveredLocalData().length} Records Identified</div>
-                </div>
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <label
-                    className="btn-primary glow-card"
-                    style={{ background: 'rgba(59, 130, 246, 0.25)', color: '#60a5fa', border: '1px solid #60a5fa', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                  >
-                    <Upload size={18} /> 📂 IMPORT DIAGNOSTICS OR BACKUP FILE (.JSON / .CSV)
-                    <input
-                      type="file"
-                      accept=".json,.csv,.txt"
-                      onChange={handleImportDiagnosticsFile}
-                      style={{ display: 'none' }}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={downloadRecoveredJSON}
-                    className="btn-primary"
-                    style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                  >
-                    <Download size={18} /> 📥 DOWNLOAD RECOVERED DATA (JSON)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={forceUploadRecoveredData}
-                    disabled={recoverySyncing}
-                    className="btn-primary glow-card"
-                    style={{ background: '#10b981', color: '#000', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                  >
-                    <RefreshCw size={18} style={{ animation: recoverySyncing ? 'spin 1s linear infinite' : 'none' }} />
-                    {recoverySyncing ? '⚡ FORCE UPLOADING TO CLOUD...' : '⚡ FORCE UPLOAD TO CLOUD SERVER'}
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.65)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Recovered Log Directory ({getRecoveredLocalData().filter(r => new Date(r.created_at).toDateString() === new Date().toDateString()).length} recorded today):
-              </div>
-
-              <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '12px 16px' }}>Athlete Name</th>
-                      <th style={{ padding: '12px 16px' }}>Weight / Sleep</th>
-                      <th style={{ padding: '12px 16px' }}>Date & Time</th>
-                      <th style={{ padding: '12px 16px' }}>Storage Source</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getRecoveredLocalData().map((rec, idx) => {
-                      const isToday = new Date(rec.created_at).toDateString() === new Date().toDateString();
-                      return (
-                        <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: isToday ? 'rgba(16, 185, 129, 0.08)' : 'transparent' }}>
-                          <td style={{ padding: '12px 16px', fontWeight: 700, color: '#fff' }}>
-                            {rec.athlete_name || 'ID: ' + rec.athlete_id}
-                            {isToday && <span style={{ marginLeft: '8px', fontSize: '10px', background: '#10b981', color: '#000', padding: '2px 8px', borderRadius: '10px', fontWeight: 800 }}>🔥 TODAY</span>}
-                          </td>
-                          <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--color-accent)' }}>
-                            {rec.weight_lbs ? `${rec.weight_lbs} lbs` : '—'} &middot; {rec.sleep_hrs !== undefined ? `${rec.sleep_hrs} hrs` : '—'}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.8)' }}>
-                            {rec.created_at ? new Date(rec.created_at).toLocaleString() : 'N/A'}
-                          </td>
-                          <td style={{ padding: '12px 16px' }}>
-                            <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '6px', color: '#ccc', fontFamily: 'monospace' }}>
-                              {rec.source_key}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {getRecoveredLocalData().length === 0 && (
-                      <tr>
-                        <td colSpan="4" style={{ padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
-                          No cached or offline weigh-in records found in the current browser domain storage.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div style={{ padding: '16px 28px', background: 'rgba(0,0,0,0.4)', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '12px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-              💡 PRO TIP: If you do not see today's logs above, verify that you did not switch between Safari Browser Tabs and a standalone Home Screen Icon App (PWAs on iPad have separate isolated storage from regular Safari tabs).
-            </div>
-          </div>
-        </div>
+        <RecoveryModal
+          downloadRecoveredJSON={downloadRecoveredJSON}
+          forceUploadRecoveredData={forceUploadRecoveredData}
+          getRecoveredLocalData={getRecoveredLocalData}
+          handleImportDiagnosticsFile={handleImportDiagnosticsFile}
+          recoverySyncing={recoverySyncing}
+          setShowRecoveryModal={setShowRecoveryModal}
+        />
       )}
       
 
@@ -3214,8 +2586,6 @@ export default function App() {
                 setShowReportsLogAccordion={setShowReportsLogAccordion}
                 handleMakeDateBaselineMarker={handleMakeDateBaselineMarker}
                 handleDeleteWeighIn={handleDeleteWeighIn}
-                getWeeklyAlerts={getWeeklyAlerts}
-                getMonthlyAlerts={getMonthlyAlerts}
                 alertStatusMap={alertStatusMap}
               />
             )}
@@ -3375,639 +2745,66 @@ export default function App() {
 
           {/* Glassmorphic Centered "More" Tools & Analytics Modal */}
           {showMobileMore && (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(3, 10, 20, 0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-                 onClick={() => setShowMobileMore(false)}>
-              <div className="card-glass animate-slide-up" 
-                   onClick={e => e.stopPropagation()} 
-                   style={{ width: '100%', maxWidth: '540px', maxHeight: '88vh', overflowY: 'auto', padding: '28px', background: 'var(--navy-950)', borderRadius: '24px', border: '1px solid var(--color-accent)', boxShadow: '0 16px 48px rgba(0, 0, 0, 0.7), 0 0 24px rgba(184, 156, 91, 0.25)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.15)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
-                      <Sliders size={18} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--white)' }}>MORE TOOLS & ANALYTICS</h3>
-                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Tap to switch workspace section</span>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowMobileMore(false)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '8px', borderRadius: '50%' }}>
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  {settings.enableLiftTracker && (
-                    <div onClick={() => { setScreen('lifts'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
-                         className="card-glass glow-card"
-                         style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'lifts' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'lifts' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Dumbbell size={24} style={{ color: 'var(--color-accent)' }} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>LIFT TRACKER</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Log Bench, Squat, Deadlift & more</div>
-                      </div>
-                    </div>
-                  )}
-                  <div onClick={() => { setScreen('groups'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
-                       className="card-glass glow-card"
-                       style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'groups' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'groups' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Grid size={24} style={{ color: 'var(--color-accent)' }} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>TEAMS</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Team comparison averages</div>
-                    </div>
-                  </div>
-
-                  <div onClick={() => { setScreen('alerts'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
-                       className="card-glass glow-card"
-                       style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'alerts' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'alerts' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <AlertTriangle size={24} style={{ color: unresolvedDailyAlertsCount > 0 ? '#ef4444' : 'var(--color-accent)' }} />
-                      {unresolvedDailyAlertsCount > 0 && (
-                        <span style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>
-                          {unresolvedDailyAlertsCount}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>Alerts & Deficits</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Rest warnings & fluctuations</div>
-                    </div>
-                  </div>
-
-                  <div onClick={() => { setScreen('reports'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
-                       className="card-glass glow-card"
-                       style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'reports' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'reports' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <FileText size={24} style={{ color: 'var(--color-accent)' }} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>Reports & CSV</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Export database & spreadsheets</div>
-                    </div>
-                  </div>
-
-                  <div onClick={() => { setScreen('settings'); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
-                       className="card-glass glow-card"
-                       style={{ padding: '16px', borderRadius: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px', background: screen === 'settings' ? 'rgba(184, 156, 91, 0.15)' : 'rgba(255,255,255,0.03)', border: screen === 'settings' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Settings size={24} style={{ color: 'var(--color-accent)' }} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--white)' }}>System Settings</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Admin configuration & cache</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '4px', padding: '14px 16px', borderRadius: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-950)', fontWeight: 800, fontSize: '12px' }}>{coachInitials}</div>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--white)' }}>{settings.coachName}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{settings.organizationName}</div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.15)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>{APP_VERSION}</span>
-                </div>
-
-              </div>
-            </div>
+            <MobileMoreMenu
+              coachInitials={coachInitials}
+              screen={screen}
+              setIsAddingAthlete={setIsAddingAthlete}
+              setProfileEntryScreen={setProfileEntryScreen}
+              setSaved={setSaved}
+              setScreen={setScreen}
+              setSelectedProfileId={setSelectedProfileId}
+              setShowMobileMore={setShowMobileMore}
+              settings={settings}
+              unresolvedDailyAlertsCount={unresolvedDailyAlertsCount}
+            />
           )}
         </>
       )}
 
       {showInstallModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(3, 10, 20, 0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div className="card-glass glow-card animate-slide-up" style={{ width: '100%', maxWidth: '520px', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--color-accent)', boxShadow: '0 8px 32px rgba(184, 156, 91, 0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
-                  <Smartphone size={26} />
-                </div>
-                <div>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: 0, color: 'var(--white)' }}>INSTALL APP</h2>
-                  <span style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 700 }}>1-TAP STANDALONE NATIVE APP</span>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowInstallModal(false)}
-                style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '8px', borderRadius: '50%' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-              Tap below to install {settings.programName} directly onto your device:
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              
-              {/* Actionable Box 1: Android & Laptop / Desktop */}
-              <div className="card-glass glow-card" style={{ padding: '18px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🤖 / 💻</span> Android & Desktop (Chrome / Edge)
-                </div>
-
-                <button 
-                  onClick={handleInstallApp}
-                  className="btn-primary"
-                  style={{ width: '100%', height: '44px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  <Download size={18} /> LAUNCH NATIVE INSTALL PROMPT
-                </button>
-
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-                  Triggers browser system 1-click install dialog directly.
-                </div>
-              </div>
-
-              {/* Actionable Box 2: iPhone & iPad (Safari) */}
-              <div className="card-glass glow-card" style={{ padding: '18px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid rgba(184, 156, 91, 0.3)' }}>
-                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🍎</span> iPhone & iPad (Safari)
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    onClick={handleShareApp}
-                    className="btn-primary"
-                    style={{ flex: 1, height: '44px', fontSize: '12px', background: 'var(--navy-800)', border: '1px solid var(--color-accent)', color: 'var(--white)' }}
-                  >
-                    <Share2 size={16} /> OPEN SAFARI SHARE MENU
-                  </button>
-                  <button 
-                    onClick={handleCopyLink}
-                    style={{ height: '44px', padding: '0 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    {copiedLinkToast ? <Check size={16} style={{ color: 'var(--status-success)' }} /> : <Copy size={16} />}
-                    {copiedLinkToast ? 'COPIED!' : 'COPY LINK'}
-                  </button>
-                </div>
-
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
-                  In Safari Share sheet, select <strong>"Add to Home Screen"</strong> to place app icon.
-                </div>
-              </div>
-
-            </div>
-
-            <button 
-              onClick={() => setShowInstallModal(false)}
-              className="btn-primary"
-              style={{ width: '100%', height: '48px', fontSize: '14px', marginTop: '4px' }}
-            >
-              DONE / CLOSE
-            </button>
-          </div>
-        </div>
+        <InstallModal
+          copiedLinkToast={copiedLinkToast}
+          handleCopyLink={handleCopyLink}
+          handleInstallApp={handleInstallApp}
+          handleShareApp={handleShareApp}
+          setShowInstallModal={setShowInstallModal}
+          settings={settings}
+        />
       )}
 
       {/* Custom Universal Confirm Dialog Modal */}
       {confirmModal.isOpen && (
-        <div className="modal-overlay animate-fade-in" style={{ zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.95)' }}>
-          <div className="card-glass glow-card" style={{ maxWidth: '440px', width: '100%', padding: '28px', borderRadius: '20px', border: confirmModal.isDanger ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid var(--color-accent)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: confirmModal.isDanger ? 'rgba(239, 68, 68, 0.15)' : 'rgba(184, 156, 91, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: confirmModal.isDanger ? 'var(--status-error)' : 'var(--color-accent)' }}>
-                <AlertTriangle size={24} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--white)', fontFamily: 'var(--font-display)' }}>{confirmModal.title || 'Confirm Action'}</h3>
-            </div>
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>{confirmModal.message}</p>
-            {confirmModal.requireText && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--status-error)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Type "{confirmModal.requireText}" to confirm this cannot be undone:
-                </span>
-                <input
-                  type="text"
-                  autoFocus
-                  className="input-glass"
-                  placeholder={confirmModal.requireText}
-                  value={confirmTypedText}
-                  onChange={e => setConfirmTypedText(e.target.value)}
-                  style={{ height: '46px', padding: '0 16px', fontSize: '16px', fontWeight: 800, letterSpacing: '0.1em', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.5)', textTransform: 'uppercase' }}
-                />
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '4px' }}>
-              <button
-                onClick={() => { setConfirmTypedText(''); setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' }); }}
-                style={{ padding: '12px 24px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--white)', fontSize: '14px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
-              >
-                Cancel
-              </button>
-              <button
-                disabled={!!confirmModal.requireText && confirmTypedText.trim().toUpperCase() !== confirmModal.requireText.toUpperCase()}
-                onClick={() => {
-                  if (confirmModal.requireText && confirmTypedText.trim().toUpperCase() !== confirmModal.requireText.toUpperCase()) return;
-                  if (confirmModal.onConfirm) confirmModal.onConfirm();
-                  setConfirmTypedText('');
-                  setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' });
-                }}
-                style={{ padding: '12px 24px', borderRadius: '10px', background: confirmModal.isDanger ? 'var(--status-error)' : 'var(--color-accent)', color: confirmModal.isDanger ? '#fff' : 'var(--navy-950)', border: 'none', fontSize: '14px', fontWeight: 800, cursor: 'pointer', boxShadow: confirmModal.isDanger ? '0 0 15px rgba(239, 68, 68, 0.3)' : '0 0 15px rgba(184, 156, 91, 0.3)', transition: 'all 0.2s', opacity: (!!confirmModal.requireText && confirmTypedText.trim().toUpperCase() !== confirmModal.requireText.toUpperCase()) ? 0.4 : 1 }}
-              >
-                {confirmModal.actionText || 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          confirmModal={confirmModal}
+          confirmTypedText={confirmTypedText}
+          setConfirmModal={setConfirmModal}
+          setConfirmTypedText={setConfirmTypedText}
+        />
       )}
 
       {/* Expired Baselines Drill-down Modal */}
       {showExpiredBaselinesModal && (
-        <div className="modal-overlay animate-fade-in" style={{ zIndex: 2500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.95)' }}>
-          <div className="card-glass glow-card" style={{ maxWidth: '640px', width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', borderRadius: '20px', border: '1px solid var(--color-accent)', boxShadow: '0 20px 50px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
-            <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(184, 156, 91, 0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
-                  <Shield size={22} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--color-accent)', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>EXPIRED BASELINES (&gt;{baselineExpiryDays} DAYS)</h3>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{expiredBaselinesList.length} Athletes require baseline weight verification</div>
-                </div>
-              </div>
-              <button onClick={() => setShowExpiredBaselinesModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--white)', cursor: 'pointer', padding: '4px' }}>
-                <X size={24} />
-              </button>
-            </div>
-
-            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-              {expiredBaselinesList.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
-                  ✔ All active roster athletes have recorded an updated weight within the past {baselineExpiryDays} days!
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {expiredBaselinesList.map(a => (
-                    <div key={a.id} style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--white)' }}>{a.athlete_name}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Sport: {a.sport || 'N/A'} | Last Weigh-In: {a.last_weigh_in_date || 'Never'}</div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setShowExpiredBaselinesModal(false);
-                          setSearch(a.athlete_name);
-                          setScreen('athletes');
-                        }}
-                        style={{ padding: '8px 14px', background: 'rgba(184, 156, 91, 0.15)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
-                      >
-                        Inspect Profile ➔
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.2)' }}>
-              <button onClick={() => setShowExpiredBaselinesModal(false)} className="btn-primary" style={{ padding: '10px 24px', fontSize: '14px', borderRadius: '10px' }}>
-                Close Window
-              </button>
-            </div>
-          </div>
-        </div>
+        <ExpiredBaselinesModal
+                baselineExpiryDays={baselineExpiryDays}
+          expiredBaselinesList={expiredBaselinesList}
+          setScreen={setScreen}
+          setSearch={setSearch}
+          setShowExpiredBaselinesModal={setShowExpiredBaselinesModal}
+        />
       )}
 
       {/* Coach Manual / Post-Practice Entry Modal */}
       {showManualEntryModal && (
-        <div className="modal-overlay animate-fade-in" style={{ zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.95)' }}>
-          <div className="card-glass glow-card" style={{ maxWidth: '540px', width: '100%', borderRadius: '24px', border: '1px solid rgba(96, 165, 250, 0.4)', boxShadow: '0 20px 60px rgba(0,0,0,0.8)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {/* Header */}
-            <div style={{ padding: '24px 28px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.6) 100%)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(96, 165, 250, 0.2)', border: '1px solid rgba(96, 165, 250, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa' }}>
-                  <Zap size={24} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    {manualEntryForm.editingLogId ? 'EDIT LOG ENTRY' : 'COACH MANUAL LOG STUDIO'}
-                  </h3>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                    {manualEntryForm.editingLogId ? 'Correct the date, time, weight, or Session RPE on this existing log' : "Log acute post-practice weights without altering morning baseline trends"}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowManualEntryModal(false);
-                  setManualEntryForm(p => ({ ...p, editingLogId: null, weight: '', rpe: '', rpeDuration: '', rpeLabel: '', successMsg: '' }));
-                }}
-                style={{ background: 'transparent', border: 'none', color: 'var(--white)', cursor: 'pointer', padding: '4px' }}
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            {/* Form Content */}
-            <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {manualEntryForm.successMsg && (
-                <div className="animate-fade-in" style={{ padding: '14px 20px', borderRadius: '14px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', color: '#4ade80', fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span>🎉</span>
-                  <span>{manualEntryForm.successMsg}</span>
-                </div>
-              )}
-
-              {/* Session Type Switch */}
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button
-                  type="button"
-                  onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'post_practice', successMsg: '' }))}
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    borderRadius: '14px',
-                    border: manualEntryForm.sessionType === 'post_practice' ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
-                    background: manualEntryForm.sessionType === 'post_practice' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
-                    color: manualEntryForm.sessionType === 'post_practice' ? '#fff' : 'var(--color-text-muted)',
-                    fontWeight: 800,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px'
-                  }}
-                >
-                  <span>⚡ Post-Practice Sweat Check</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'morning', successMsg: '' }))}
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    borderRadius: '14px',
-                    border: manualEntryForm.sessionType === 'morning' ? '2px solid #d4af37' : '1px solid rgba(255,255,255,0.1)',
-                    background: manualEntryForm.sessionType === 'morning' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.02)',
-                    color: manualEntryForm.sessionType === 'morning' ? '#fff' : 'var(--color-text-muted)',
-                    fontWeight: 800,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px'
-                  }}
-                >
-                  <span>☀️ Morning / Baseline Correction</span>
-                </button>
-                {settings.enableRpe && (
-                  <button
-                    type="button"
-                    onClick={() => setManualEntryForm(p => ({ ...p, sessionType: 'rpe', successMsg: '' }))}
-                    style={{
-                      flex: 1,
-                      padding: '12px 16px',
-                      borderRadius: '14px',
-                      border: manualEntryForm.sessionType === 'rpe' ? '2px solid #a78bfa' : '1px solid rgba(255,255,255,0.1)',
-                      background: manualEntryForm.sessionType === 'rpe' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(255,255,255,0.02)',
-                      color: manualEntryForm.sessionType === 'rpe' ? '#fff' : 'var(--color-text-muted)',
-                      fontWeight: 800,
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    <span>🎯 Session RPE</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Athlete Selector */}
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Select Athlete</label>
-                <select
-                  className="input-glass"
-                  value={manualEntryForm.athleteId}
-                  onChange={e => setManualEntryForm(p => ({ ...p, athleteId: e.target.value, successMsg: '' }))}
-                  style={{ width: '100%', height: '46px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '15px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}
-                >
-                  <option value="" disabled>-- Select Roster Athlete --</option>
-                  {athletes.slice().sort((a,b) => a.name.localeCompare(b.name)).map(a => (
-                    <option key={a.id} value={a.id}>{a.name} ({a.sport || 'Athlete'})</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Date & Time Selectors */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Date</label>
-                  <input
-                    type="date"
-                    className="input-glass"
-                    value={manualEntryForm.date}
-                    onChange={e => setManualEntryForm(p => ({ ...p, date: e.target.value, successMsg: '' }))}
-                    style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '14px', border: '1px solid rgba(255,255,255,0.2)' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Time</label>
-                  <input
-                    type="time"
-                    className="input-glass"
-                    value={manualEntryForm.time}
-                    onChange={e => setManualEntryForm(p => ({ ...p, time: e.target.value, successMsg: '' }))}
-                    style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '14px', border: '1px solid rgba(255,255,255,0.2)' }}
-                  />
-                </div>
-              </div>
-
-              {manualEntryForm.sessionType === 'rpe' ? (
-                /* Session RPE fields - what the athlete actually entered on the kiosk:
-                   the RPE rating, how long the session ran, and its label, so a coach
-                   can see and correct a mis-entered value rather than only weight. */
-                <>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Session RPE (1–{settings.rpeScaleMax})</label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      max={settings.rpeScaleMax}
-                      placeholder="7"
-                      className="input-glass"
-                      value={manualEntryForm.rpe}
-                      onChange={e => setManualEntryForm(p => ({ ...p, rpe: e.target.value.replace(/[^0-9]/g, ''), successMsg: '' }))}
-                      style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(167, 139, 250, 0.4)' }}
-                    />
-                  </div>
-                  {settings.rpeTrackDuration && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Session Duration (minutes)</label>
-                      <input
-                        type="number"
-                        step="1"
-                        min="1"
-                        placeholder="60"
-                        className="input-glass"
-                        value={manualEntryForm.rpeDuration}
-                        onChange={e => setManualEntryForm(p => ({ ...p, rpeDuration: e.target.value.replace(/[^0-9]/g, ''), successMsg: '' }))}
-                        style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(167, 139, 250, 0.4)' }}
-                      />
-                    </div>
-                  )}
-                  {(settings.rpeSessionLabels || []).length > 0 && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Session Label</label>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {settings.rpeSessionLabels.map(lbl => (
-                          <button
-                            key={lbl}
-                            type="button"
-                            onClick={() => setManualEntryForm(p => ({ ...p, rpeLabel: lbl, successMsg: '' }))}
-                            style={{
-                              padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-                              border: manualEntryForm.rpeLabel === lbl ? '2px solid #a78bfa' : '1px solid rgba(255,255,255,0.15)',
-                              background: manualEntryForm.rpeLabel === lbl ? 'rgba(167, 139, 250, 0.2)' : 'rgba(255,255,255,0.02)',
-                              color: manualEntryForm.rpeLabel === lbl ? '#fff' : 'var(--color-text-muted)',
-                            }}
-                          >
-                            {lbl}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                /* Body Weight with quick tailored incrementers */
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Body Weight (lbs)</label>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <input
-                      type="number"
-                      step="0.1"
-                      placeholder="210.5"
-                      className="input-glass"
-                      value={manualEntryForm.weight}
-                      onChange={e => setManualEntryForm(p => ({ ...p, weight: e.target.value, successMsg: '' }))}
-                      style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(96, 165, 250, 0.4)' }}
-                    />
-                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-1</button>
-                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-.1</button>
-                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+.1</button>
-                    <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+1</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  const isRpeTab = manualEntryForm.sessionType === 'rpe';
-                  const rpeNum = parseFloat(manualEntryForm.rpe);
-                  const durationNum = parseInt(manualEntryForm.rpeDuration, 10);
-
-                  if (!manualEntryForm.athleteId) {
-                    showToast('Select an athlete.', 'error');
-                    return;
-                  }
-                  if (isRpeTab) {
-                    if (!(rpeNum > 0 && rpeNum <= settings.rpeScaleMax)) {
-                      showToast(`Enter a valid RPE (1–${settings.rpeScaleMax}).`, 'error');
-                      return;
-                    }
-                    if (settings.rpeTrackDuration && !(durationNum > 0)) {
-                      showToast('Enter a valid session duration in minutes.', 'error');
-                      return;
-                    }
-                  } else if (!isPlausibleWeight(parseFloat(manualEntryForm.weight))) {
-                    showToast('Select an athlete and enter a valid body weight (0–1000 lbs).', 'error');
-                    return;
-                  }
-                  const ath = athletes.find(a => a.id === manualEntryForm.athleteId);
-                  // Interpret the picked date/time as Central (program) wall-clock time; a
-                  // cleared/invalid date used to throw an uncaught RangeError here.
-                  const dateTimeStr = centralWallTimeToISO(manualEntryForm.date, manualEntryForm.time);
-                  if (!dateTimeStr) {
-                    showToast('Select a valid date and time for this log.', 'error');
-                    return;
-                  }
-                  const isEditing = !!manualEntryForm.editingLogId;
-                  const rec = isRpeTab ? {
-                    id: isEditing ? manualEntryForm.editingLogId : 'manual_' + Date.now(),
-                    athlete_id: manualEntryForm.athleteId,
-                    athlete_name: ath ? ath.name : 'Unknown',
-                    sport: ath ? ath.sport : '',
-                    weight_lbs: 0,
-                    sleep_hrs: 0,
-                    created_at: dateTimeStr,
-                    session_type: 'rpe',
-                    rpe: rpeNum,
-                    session_minutes: settings.rpeTrackDuration ? durationNum : null,
-                    session_label: manualEntryForm.rpeLabel || null,
-                  } : {
-                    id: isEditing ? manualEntryForm.editingLogId : 'manual_' + Date.now(),
-                    athlete_id: manualEntryForm.athleteId,
-                    athlete_name: ath ? ath.name : 'Unknown',
-                    sport: ath ? ath.sport : '',
-                    weight_lbs: parseFloat(manualEntryForm.weight),
-                    sleep_hrs: 0,
-                    created_at: dateTimeStr,
-                    session_type: manualEntryForm.sessionType
-                  };
-
-                  if (rec.session_type === 'post_practice') {
-                    markLogAsPostPractice(rec);
-                  }
-
-                  if (isEditing) {
-                    handleUpdateManualLog(manualEntryForm.editingLogId, rec);
-                  } else {
-                    handleSaveManualLog(rec);
-                  }
-                  setManualEntryForm(p => ({
-                    ...p,
-                    weight: isEditing ? p.weight : '',
-                    rpe: isEditing ? p.rpe : '',
-                    rpeDuration: isEditing ? p.rpeDuration : '',
-                    rpeLabel: isEditing ? p.rpeLabel : '',
-                    successMsg: isEditing
-                      ? (isRpeTab
-                          ? `Saved changes to ${rec.athlete_name}'s Session RPE log (RPE ${rec.rpe}${rec.session_minutes ? `, ${rec.session_minutes} min` : ''}, ${manualEntryForm.date} ${manualEntryForm.time}).`
-                          : `Saved changes to ${rec.athlete_name}'s ${rec.session_type === 'post_practice' ? 'post-practice' : 'morning'} log (${rec.weight_lbs} lbs, ${manualEntryForm.date} ${manualEntryForm.time}).`)
-                      : (isRpeTab
-                          ? `Successfully recorded Session RPE (${rec.rpe}) for ${rec.athlete_name}!`
-                          : `Successfully recorded ${manualEntryForm.sessionType === 'post_practice' ? 'Post-Practice' : 'Morning'} weight (${rec.weight_lbs} lbs) for ${rec.athlete_name}!`)
-                  }));
-                }}
-                style={{
-                  height: '52px',
-                  borderRadius: '16px',
-                  background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '16px',
-                  fontWeight: 800,
-                  letterSpacing: '0.05em',
-                  cursor: 'pointer',
-                  boxShadow: '0 8px 25px rgba(37, 99, 235, 0.4)',
-                  transition: 'all 0.2s',
-                  marginTop: '10px'
-                }}
-              >
-                {manualEntryForm.editingLogId ? 'SAVE CHANGES ➔' : 'SAVE MANUAL RECORD ➔'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ManualEntryModal
+          athletes={athletes}
+          handleSaveManualLog={handleSaveManualLog}
+          handleUpdateManualLog={handleUpdateManualLog}
+          manualEntryForm={manualEntryForm}
+          setManualEntryForm={setManualEntryForm}
+          setShowManualEntryModal={setShowManualEntryModal}
+          settings={settings}
+          showToast={showToast}
+        />
       )}
     </div>
   );
