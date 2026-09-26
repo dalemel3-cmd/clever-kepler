@@ -151,20 +151,6 @@ export default function DashboardScreen({
             </button>
           )}
 
-          {settings.enableRpe && (
-            <button
-              onClick={() => {
-                setKioskTrackMode('rpe');
-                try { localStorage.setItem('shiloh_kiosk_track_mode', 'rpe'); } catch {}
-                setUnweighedOnlyFilter(false);
-                setScreen('entry');
-              }}
-              className="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-tertiary font-headline-md text-headline-md uppercase transition-colors"
-            >
-              <span aria-hidden="true" className="material-symbols-outlined text-base">speed</span>
-              <span>Session RPE Entry</span>
-            </button>
-          )}
 
           <button
             onClick={() => {

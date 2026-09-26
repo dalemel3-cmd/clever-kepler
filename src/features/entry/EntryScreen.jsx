@@ -6,6 +6,8 @@ import AthleteCard from './AthleteCard';
 import { isPlausibleWeight, parseWeightInput } from '../../utils/athleteData';
 
 export default function EntryScreen({
+  entrySportFilter,
+  clearEntrySportFilter,
   settings,
   kioskTrackMode,
   setKioskTrackMode,
@@ -94,7 +96,12 @@ export default function EntryScreen({
   // selectedSportFilter that AthletesScreen/ProfilesScreen read, so switching sports on
   // Quick Entry never surprises a coach who left another screen filtered differently.
   const [searchOverlayOpen, setSearchOverlayOpen] = React.useState(false);
-  const [localSportFilter, setLocalSportFilter] = React.useState('All');
+  // Opened from a Teams card's "Weigh-In Status": start filtered to that sport, then
+  // clear the hand-off so the next ordinary visit opens on All.
+  const [localSportFilter, setLocalSportFilter] = React.useState(entrySportFilter || 'All');
+  React.useEffect(() => {
+    if (entrySportFilter && clearEntrySportFilter) clearEntrySportFilter();
+  }, [entrySportFilter, clearEntrySportFilter]);
   const sportPillDrag = useDragScroll();
 
   const closeSearchOverlay = () => {

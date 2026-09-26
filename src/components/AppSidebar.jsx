@@ -1,18 +1,24 @@
 import React from 'react';
 import { APP_VERSION } from '../utils/athleteData';
+import { NAV_GROUPS, groupForScreen } from '../navigation';
 
-export function AppSidebar({ cloudStatus, screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, enableLiftTracker, onActivateKioskMode }) {
+export function AppSidebar({ cloudStatus, screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, onActivateKioskMode }) {
   const handleNav = (newScreen) => (e) => {
     e.preventDefault();
     setScreen(newScreen);
   };
 
+  // Items are groups (see navigation.js); a group is active when the current screen
+  // is any of its screens, and clicking it opens the group's first screen.
+  const activeGroup = groupForScreen(screen);
   const navItem = (id, icon, label, badge) => {
-    const isActive = screen === id;
+    const group = NAV_GROUPS.find(g => g.id === id);
+    const isActive = activeGroup?.id === id;
+    const target = group.screens[0].screen;
     const base = collapsed ? 'flex items-center justify-center px-space-sm py-space-sm rounded-lg transition-colors' : 'flex items-center justify-between px-space-sm py-space-sm rounded-lg transition-colors';
     if (isActive) {
       return (
-        <a aria-current="page" href="#" onClick={handleNav(id)} title={collapsed ? label : undefined} className={`${base} bg-primary text-[#030a14] font-bold shadow-sm`}>
+        <a aria-current="page" href="#" onClick={handleNav(target)} title={collapsed ? label : undefined} className={`${base} bg-primary text-[#030a14] font-bold shadow-sm`}>
           <div className="flex items-center gap-space-sm">
             <span aria-hidden="true" className="material-symbols-outlined text-xl text-[#030a14]">{icon}</span>
             {!collapsed && <span className="font-label-lg text-label-lg">{label}</span>}
@@ -22,7 +28,7 @@ export function AppSidebar({ cloudStatus, screen, setScreen, getDailyAlerts, coa
       );
     }
     return (
-      <a href="#" onClick={handleNav(id)} title={collapsed ? label : undefined} className={`${base} text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface`}>
+      <a href="#" onClick={handleNav(target)} title={collapsed ? label : undefined} className={`${base} text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface`}>
         <div className="flex items-center gap-space-sm">
           <span aria-hidden="true" className="material-symbols-outlined text-xl">{icon}</span>
           {!collapsed && <span className="font-label-lg text-label-lg">{label}</span>}
@@ -61,30 +67,9 @@ export function AppSidebar({ cloudStatus, screen, setScreen, getDailyAlerts, coa
           </button>
         </div>
         <div className={`${collapsed ? 'px-space-sm' : 'px-space-md'} pt-space-lg flex flex-col gap-space-md`}>
-          <div className="flex flex-col">
-            {!collapsed && <span className="px-space-sm pb-space-xs font-label-sm text-label-sm text-dim uppercase tracking-widest">DAILY OPERATIONS</span>}
-            <nav className="flex flex-col gap-1">
-              {navItem('dashboard', 'grid_view', 'Dashboard', screen === 'dashboard' ? <span className="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-[#030a14]/25 text-[#030a14] font-bold">Live</span> : null)}
-              {navItem('entry', 'touch_app', 'Quick Entry / Kiosk', null)}
-              {navItem('alerts', 'notifications', 'Alerts', alertsBadge)}
-            </nav>
-          </div>
-          <div className="flex flex-col">
-            {!collapsed && <span className="px-space-sm pb-space-xs font-label-sm text-label-sm text-dim uppercase tracking-widest">ROSTER & TEAMS</span>}
-            <nav className="flex flex-col gap-1">
-              {navItem('groups', 'shield', 'Sport Groups', null)}
-              {navItem('athletes', 'group', 'Athletes', null)}
-              {enableLiftTracker && navItem('lifts', 'fitness_center', 'Lift Tracker', null)}
-            </nav>
-          </div>
-          <div className="flex flex-col">
-            {!collapsed && <span className="px-space-sm pb-space-xs font-label-sm text-label-sm text-dim uppercase tracking-widest">INSIGHTS</span>}
-            <nav className="flex flex-col gap-1">
-              {navItem('analytics', 'monitoring', 'Analytics & RPE', null)}
-              {navItem('reports', 'description', 'Reports', null)}
-              {navItem('settings', 'settings', 'Settings', null)}
-            </nav>
-          </div>
+          <nav className="flex flex-col gap-1">
+            {NAV_GROUPS.map(g => navItem(g.id, g.icon, g.label, g.id === 'today' ? alertsBadge : null))}
+          </nav>
         </div>
       </div>
       <div className={`${collapsed ? 'p-space-sm' : 'p-space-md'} bg-[#04142f] border-t border-[#2a313d]/50 mt-space-lg`}>

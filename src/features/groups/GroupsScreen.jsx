@@ -14,7 +14,7 @@ export default function GroupsScreen({
   setSelectedSportFilter,
   setScreen,
   showToast,
-  setTeamStatusSport,
+  openWeighInStatus,
   settings
 }) {
   return (
@@ -32,7 +32,7 @@ export default function GroupsScreen({
             <h1 className="font-display text-headline-xl text-text-headline uppercase tracking-wide flex items-center gap-space-sm">
               Sport Groups & Readiness
               <span className="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-collegiate-blue text-antique-gold border border-antique-gold/30 tracking-widest font-bold">
-                {sportsList.length} SQUAD{sportsList.length !== 1 ? 'S' : ''} TRACKED
+                {(() => { const n = sportsList.filter(sp => athletes.some(a => (a.sport || '').toLowerCase() === sp.toLowerCase())).length; return `${n} SQUAD${n !== 1 ? 'S' : ''} TRACKED`; })()}
               </span>
             </h1>
             <p className="font-body-md text-body-md text-text-body max-w-2xl">
@@ -150,6 +150,23 @@ export default function GroupsScreen({
         </div>
       )}
 
+      {/* Roster cleanup (v5.3.0): athletes with no sport never appear in any team card,
+          so surface them here until someone assigns one on the Athletes screen. */}
+      {(() => {
+        const noSport = athletes.filter(a => !(a.sport || '').trim());
+        if (noSport.length === 0) return null;
+        return (
+          <div className="flex flex-wrap items-center gap-space-sm p-space-md rounded-xl bg-card-surface border border-antique-gold/40 text-text-body">
+            <span aria-hidden="true" className="material-symbols-outlined text-antique-gold">person_alert</span>
+            <span className="font-label-md text-label-md uppercase tracking-wider text-antique-gold font-bold">{noSport.length} athlete{noSport.length === 1 ? '' : 's'} with no sport:</span>
+            <span className="font-body-md text-body-md">{noSport.map(a => a.name).join(', ')}</span>
+            <button onClick={() => setScreen('athletes')} className="ml-auto px-space-md py-1.5 rounded-lg border border-antique-gold text-antique-gold font-label-md text-label-md uppercase tracking-wider hover:bg-antique-gold/10">
+              Assign on Athletes
+            </button>
+          </div>
+        );
+      })()}
+
       {/* 3x2 High Impact Team Readiness Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-space-lg w-full">
         {sportsList.filter(sport => athletes.some(a => (a.sport || '').toLowerCase() === sport.toLowerCase())).map(sport => {
@@ -203,7 +220,7 @@ export default function GroupsScreen({
                     <span className="font-metric-val text-metric-val text-text-headline">{sportAthletes.length}</span>
                     <span className="font-body-sm text-body-sm text-text-muted">Rostered</span>
                   </div>
-                  <div className="flex flex-col cursor-pointer hover:bg-card-border/40 rounded p-1" onClick={() => { setTeamStatusSport(sport); setScreen('team-status'); }}>
+                  <div className="flex flex-col cursor-pointer hover:bg-card-border/40 rounded p-1" onClick={() => openWeighInStatus(sport)}>
                     <span className="min-h-[2.4em] block font-label-sm text-label-sm text-text-muted uppercase tracking-widest">Avg Weight</span>
                     <span className={`font-metric-val text-metric-val ${avgW > 0 ? 'text-antique-gold' : 'text-card-border'}`}>{avgW > 0 ? avgW : '--'}</span>
                     <span className="font-body-sm text-body-sm text-text-muted">Pounds</span>
@@ -241,7 +258,7 @@ export default function GroupsScreen({
                   <span>View Roster</span>
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setTeamStatusSport(sport); setScreen('team-status'); }}
+                  onClick={(e) => { e.stopPropagation(); openWeighInStatus(sport); }}
                   className="w-full flex items-center justify-center gap-space-xs py-space-sm px-space-md bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider rounded-lg transition-colors shadow font-bold whitespace-nowrap"
                 >
                   <span aria-hidden="true" className="material-symbols-outlined text-lg">assignment_turned_in</span>

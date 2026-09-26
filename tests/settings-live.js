@@ -145,7 +145,7 @@ const logs = [
   const after = await page.evaluate(() => JSON.parse(localStorage.getItem('hpd_settings')));
   check('[RESET] dehydration back to 2', after.dehydrationThreshold === 2);
   check('[RESET] org back to default', after.organizationName === 'Shiloh Athletics');
-  check('[RESET] sports list restored', (after.sportsList || []).length === 14, `len=${(after.sportsList || []).length}`);
+  check('[RESET] sports list restored', (after.sportsList || []).length === 12, `len=${(after.sportsList || []).length}`);
 
   // 11. Corrupt settings must not brick the app
   await page.evaluate(() => localStorage.setItem('hpd_settings', '{"dehydrationThreshold":"banana","sleepThreshold":-99,"sportsList":"notanarray"}'));

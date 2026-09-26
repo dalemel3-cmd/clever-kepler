@@ -1,9 +1,6 @@
-import { useState } from 'react';
-import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Trash2, Download, User } from 'lucide-react';
+import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Download, User } from 'lucide-react';
 import { SessionLoadSection } from './SessionLoadSection';
 import { getAthleteBaseline, getCentralDateString, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
-
-const LOG_TABLE_PAGE_SIZE = 250;
 
 export default function ReportsScreen({
   settings,
@@ -31,15 +28,8 @@ export default function ReportsScreen({
   renderNegativeSweatDropCards,
   dehySortBy,
   setDehySortBy,
-  showReportsLogAccordion,
-  setShowReportsLogAccordion,
-  handleMakeDateBaselineMarker,
-  handleDeleteWeighIn,
   alertStatusMap
 }) {
-  // Incremental rendering for the raw log table - with months of data it was mounting
-  // thousands of DOM rows at once, which crawls on older iPads.
-  const [visibleLogRows, setVisibleLogRows] = useState(LOG_TABLE_PAGE_SIZE);
 
   // 1. Filter logs
   let filteredLogs = [...reportData];
@@ -171,7 +161,6 @@ export default function ReportsScreen({
   const showSleepDeficit = reportMode === 'quick' || enabledMetrics.sleepDeficit;
   const showExpiredBaselines = reportMode === 'quick' || enabledMetrics.expiredBaselines;
   const showLeaderboard = reportMode === 'custom' && enabledMetrics.weightLeaderboard;
-  const showRawLogs = reportMode === 'custom' ? enabledMetrics.rawLogs : true;
   const showSessionLoad = settings.enableRpe && (reportMode === 'quick' || enabledMetrics.sessionLoad !== false);
 
   const toggleMetric = (key) => {
@@ -367,7 +356,6 @@ export default function ReportsScreen({
                 { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: `Athletes logging <${sleepThreshold}h sleep` },
                 { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
                 ...(settings.enableRpe ? [{ key: 'sessionLoad', label: 'Session Load', desc: 'Per-athlete RPE load & A:C ratio' }] : []),
-                { key: 'rawLogs', label: 'Log History Table', desc: 'Chronological weigh-in table' },
               ].map(item => {
                 const isSelected = enabledMetrics[item.key];
                 return (
@@ -644,113 +632,6 @@ export default function ReportsScreen({
             />
           )}
 
-          {/* Section 6: Chronological Raw Log Table - excluded from Export to PDF (see
-              print-summary-only rules in styles.css): it's the whole point of the on-screen
-              report, but a 300+ row table isn't "summary" material for a printed handout, and
-              it's what was single-handedly blowing the PDF out to a dozen pages. Still fully
-              visible/scrollable on screen, and available via Settings > Export CSV. */}
-          {showRawLogs && (
-            <div className="card-glass no-print" style={{ overflow: 'hidden' }}>
-              <div
-                onClick={() => setShowReportsLogAccordion(!showReportsLogAccordion)}
-                className="no-print"
-                style={{ padding: '16px 24px', borderBottom: showReportsLogAccordion ? '1px solid var(--color-border)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', transition: 'background 0.2s' }}
-                title="Click to expand or compress the table view"
-              >
-                <span style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📑 CHRONOLOGICAL WEIGH-IN LOG HISTORY ({filteredLogs.length} RECORDS)</span>
-                </span>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.15)', padding: '4px 12px', borderRadius: '8px', border: '1px solid var(--color-accent)' }}>
-                  {showReportsLogAccordion ? '▼ HIDE TABLE' : '▲ SHOW TABLE'}
-                </span>
-              </div>
-
-              <div className="only-print" style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'none' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>
-                  CHRONOLOGICAL WEIGH-IN LOG HISTORY ({filteredLogs.length} RECORDS)
-                </span>
-              </div>
-
-              {showReportsLogAccordion && (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)' }}>
-                        <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>ATHLETE</th>
-                        <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>SPORT / TEAM</th>
-                        <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST WEIGHT</th>
-                        <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LATEST SLEEP</th>
-                        {settings.enableRpe && <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>RPE / LOAD</th>}
-                        <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)' }}>LOG DATE</th>
-                        <th style={{ padding: '16px', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', width: '60px' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredLogs.slice(0, visibleLogRows).map(log => (
-                        <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '16px', fontWeight: 600 }}>{log.athlete_name}</td>
-                          <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>{log.sport || 'N/A'}</td>
-                          <td style={{ padding: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>
-                            {log.weight_lbs && Number(log.weight_lbs) > 0 ? `${log.weight_lbs} lbs` : <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600 }}>{isRpeLog(log) ? '🎯 Session RPE' : '😴 Sleep Only'}</span>}
-                          </td>
-                          <td style={{ padding: '16px', fontWeight: 700, color: (log.sleep_hrs != null && log.sleep_hrs > 0 && log.sleep_hrs < sleepThreshold) ? 'var(--status-error)' : 'var(--color-text)' }}>
-                            {log.sleep_hrs ? `${log.sleep_hrs} hrs` : '-'}
-                          </td>
-                          {settings.enableRpe && (
-                            <td style={{ padding: '16px', fontWeight: 700 }}>
-                              {log.rpe != null ? (
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                                  <span style={{ color: log.rpe >= settings.rpeHighThreshold ? '#ef4444' : '#60a5fa' }}>{log.rpe}</span>
-                                  {log.session_minutes && <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>({log.rpe * log.session_minutes} AU)</span>}
-                                </div>
-                              ) : '-'}
-                            </td>
-                          )}
-                          <td style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                            {new Date(log.created_at).toLocaleDateString()}
-                          </td>
-                            <td style={{ padding: '16px', textAlign: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                {log.weight_lbs && Number(log.weight_lbs) > 0 ? (
-                                  log.is_baseline ? (
-                                    <span style={{ fontSize: '10px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '4px 10px', borderRadius: '12px', fontWeight: 800, whiteSpace: 'nowrap' }}>
-                                      ⭐ BASELINE
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleMakeDateBaselineMarker(log.id, log.athlete_id, log.weight_lbs, new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), log.athlete_name)}
-                                      className="no-print"
-                                      style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}
-                                      title={`Make this specific date the official baseline marker for ${log.athlete_name || 'this athlete'} only. To set a baseline for a whole team/sport at once, use Bulk Team Baseline Studio under Teams & Rosters.`}
-                                    >
-                                      📍 MAKE BASELINE
-                                    </button>
-                                  )
-                                ) : null}
-                                <button onClick={() => handleDeleteWeighIn(log.id)} className="no-print" style={{ background: 'transparent', border: 'none', color: 'var(--status-error)', cursor: 'pointer', padding: '4px' }}>
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {filteredLogs.length > visibleLogRows && (
-                    <div className="no-print" style={{ padding: '14px', display: 'flex', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                      <button
-                        type="button"
-                        onClick={() => setVisibleLogRows(v => v + LOG_TABLE_PAGE_SIZE)}
-                        style={{ padding: '10px 24px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.15)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}
-                      >
-                        ▼ SHOW {Math.min(LOG_TABLE_PAGE_SIZE, filteredLogs.length - visibleLogRows)} MORE ({filteredLogs.length - visibleLogRows} remaining)
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>

@@ -3092,7 +3092,48 @@ printed "value (expected)" lines and always exited 0, so nobody noticed when the
 - Run the suite with `CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
   and a preview server on :4173.
 
-## 84. Next up
+## 84. Cleanup and condense: 9 tabs to 5, duplicates removed, roster cleanup (v5.2.3)
+
+The coach asked for no new features and no layout changes, just less redundancy. The
+look is unchanged. Only the navigation and some duplicates were removed.
+
+- **`src/navigation.js`** is the single source for the 5 groups (`NAV_GROUPS`). The
+  sidebar, the new `src/components/SubTabs.jsx` switcher and the phone bottom nav all
+  read from it.
+  - Screens keep their old ids (`dashboard`, `alerts`, `entry`, `lifts`, and so on), so
+    hash links still work.
+  - A group is active when the current screen is any of its screens. `profiles` counts
+    as part of Teams.
+  - The Lifts sub-tab respects `settings.enableLiftTracker`.
+- **Removed as duplicates:**
+  - The header's "Log Set" button (which actually opened weigh-ins) and its "Kiosk Mode"
+    button. The sidebar's Activate Kiosk Mode stays.
+  - The Dashboard's Session RPE shortcut. RPE mode is in the Log screen's picker.
+  - `features/team-status/`. The Teams card's "Weigh-In Status" now calls
+    `openWeighInStatus(sport)`, which opens the kiosk pre-filtered through
+    `entrySportFilter`, and the filter clears after one use.
+  - The Reports raw log table (it was never printed). History lives on each profile and
+    in the CSV export.
+  - `MobileMoreMenu` (the phone More sheet).
+- **Session load** stays in three places on purpose: Dashboard = today, Analytics = the
+  history chart, Reports = the per-athlete table the coach asked for in v5.2.1.
+- **Roster:**
+  - `sportsList` default drops VBB and SOCC. `normalizeSettings` maps saved lists
+    (VBB becomes Volleyball, SOCC becomes WSOC). No athlete or record used either name.
+  - **Archive:** `db/013_athletes_archived_at.sql` (applied) adds a nullable
+    `athletes.archived_at`. App keeps `athletesAll` in state, and `athletes` is the
+    active subset, so archived athletes drop out of every screen with no per-screen
+    filtering. `handleArchiveAthlete(id, archive)` sets or clears the column. The
+    Athletes edit form has "Archive Athlete (keeps history)", and the list has
+    Show archived / Restore.
+  - The Teams (By Sport) view flags athletes with no sport (5 in production), and its
+    "N squads tracked" count now shows only sports that actually have athletes.
+- The coach-view plan is parked in `docs/plans/coach-view.md`.
+- Test: `tests/nav-cleanup.js` (30 probes). All 39 test files pass.
+- **Pending from the coach:** a roster export (name, grade, sport) to match against the
+  app.
+
+## 85. Next up
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

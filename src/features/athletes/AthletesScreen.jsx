@@ -79,6 +79,8 @@ export default function AthletesScreen({
   handleCreateAthlete,
   saving,
   handleDeleteAthlete,
+  handleArchiveAthlete,
+  archivedAthletes = [],
   handleSelectAthleteForEntry,
 }) {
   // Per-athlete computed rows: logs, badge/tone, and the one metric that matters
@@ -112,6 +114,7 @@ export default function AthletesScreen({
   }), [rows]);
 
   const [selectedAthleteId, setSelectedAthleteId] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
   const selectedId = selectedAthleteId && sortedRows.some(r => r.athlete.id === selectedAthleteId)
     ? selectedAthleteId
     : (sortedRows[0]?.athlete.id ?? null);
@@ -194,6 +197,17 @@ export default function AthletesScreen({
               {saving ? 'Saving...' : (editingAthleteId ? 'Save Changes' : 'Create Athlete')}
             </button>
 
+            {editingAthleteId && handleArchiveAthlete && (
+              <button
+                onClick={() => handleArchiveAthlete(editingAthleteId, true)}
+                disabled={saving}
+                title="Hide from every roster and report but keep all their history. Restore anytime from Archived."
+                style={{ height: '56px', background: 'transparent', color: 'var(--color-accent)', border: '1px solid rgba(184, 156, 91, 0.4)', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer' }}
+              >
+                Archive Athlete (keeps history)
+              </button>
+            )}
+
             {editingAthleteId && (
               <button
                 onClick={handleDeleteAthlete}
@@ -216,7 +230,7 @@ export default function AthletesScreen({
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>WORKSPACE &middot; ATHLETES</div>
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>ATHLETES</h1>
           <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-            One list, not two - select an athlete to open their profile on the right, no separate Profiles screen to reconcile.
+            Select an athlete to open their profile.
           </div>
         </div>
         <button
@@ -227,6 +241,37 @@ export default function AthletesScreen({
           <Plus size={18} strokeWidth={2.5} /> Add Athlete
         </button>
       </div>
+
+      {archivedAthletes.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setShowArchived(v => !v)}
+            aria-expanded={showArchived}
+            style={{ alignSelf: 'flex-start', background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}
+          >
+            {showArchived ? 'Hide' : 'Show'} archived ({archivedAthletes.length})
+          </button>
+          {showArchived && (
+            <div className="bg-slate-900 rounded-2xl border border-white/10 p-4 flex flex-col gap-1">
+              {archivedAthletes.map(a => (
+                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '8px 4px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{a.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport || 'No sport'} &middot; archived {new Date(a.archived_at).toLocaleDateString()}</div>
+                  </div>
+                  <button
+                    onClick={() => handleArchiveAthlete(a.id, false)}
+                    disabled={saving}
+                    style={{ background: 'transparent', border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '20px', alignItems: 'start' }} className="athletes-layout">
         {/* LEFT: consolidated list */}

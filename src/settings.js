@@ -76,7 +76,7 @@ export const DEFAULT_SETTINGS = {
   // --- Roster ---
   // Sports offered in pickers. Sports actually present on the roster are merged in
   // automatically, so this list is only the suggestions shown before anyone is added.
-  sportsList: ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'SOCC', 'Softball', 'Tennis', 'Track & Field', 'VBB', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'],
+  sportsList: ['Baseball', 'Cheer & Dance', 'Football', 'Golf', 'MBB', 'Softball', 'Tennis', 'Track & Field', 'Volleyball', 'WBB', 'WSOC', 'Wrestling'],
 
   // --- RPE & Training Load ---
   // On by default (v4.27.0) - this and the two flags below used to default off, which
@@ -157,6 +157,12 @@ export const normalizeSettings = (raw) => {
         out[key] = coerce(key, raw[key], DEFAULT_SETTINGS[key]);
       }
     });
+  }
+  // Retired duplicate sport names (v5.3.0 roster cleanup): VBB is Volleyball and SOCC
+  // is WSOC. Saved settings on existing devices still carry them, so map them here.
+  if (Array.isArray(out.sportsList)) {
+    const RENAMED = { VBB: 'Volleyball', SOCC: 'WSOC' };
+    out.sportsList = [...new Set(out.sportsList.map(s => RENAMED[s] || s))];
   }
   return out;
 };

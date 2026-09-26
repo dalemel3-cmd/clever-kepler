@@ -141,14 +141,9 @@ const athletes = [{ id: uuid(1), name: 'Test Athlete', sport: 'Football', team: 
   {
     const { ctx, page } = await newPage({ settings: { enableRpe: true } });
     await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(1800);
-    const rpeBtn = page.getByRole('button', { name: /^Session RPE Entry$/ });
-    check('dashboard banner offers Session RPE', await rpeBtn.count() > 0,
-      'only Start Weigh-Ins / Post-Practice were available');
-    if (await rpeBtn.count()) {
-      await rpeBtn.first().click(); await page.waitForTimeout(1500);
-      const body = await page.locator('body').innerText();
-      check('it lands on the kiosk in RPE mode', /session RPE/i.test(body), body.slice(0, 120));
-    }
+    // v5.3.0: the Dashboard no longer duplicates the RPE entry point - Session RPE
+    // lives in the Log screen's mode picker, checked below.
+    check('dashboard no longer duplicates the Session RPE entry', await page.getByRole('button', { name: /^Session RPE Entry$/ }).count() === 0);
 
     // The kiosk's mode picker (redesigned entry screen) must offer the same choice,
     // and the athlete modal must then show only the RPE field.

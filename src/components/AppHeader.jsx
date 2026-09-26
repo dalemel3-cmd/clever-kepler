@@ -75,17 +75,9 @@ export function AppHeader({
                 no input, no keyboard shortcut, no search logic behind it. Real
                 athlete search already lives on the Athletes/Lift Tracker/Kiosk
                 screens themselves; removed rather than ship a fake control. */}
-            <div className="flex items-center gap-space-xs">
-              <button onClick={() => setScreen('entry')} className="flex items-center gap-1 px-space-sm py-1.5 rounded bg-primary text-[#030a14] hover:bg-primary-hover font-headline-md text-headline-md uppercase transition-all shadow-sm">
-                <span aria-hidden="true" className="material-symbols-outlined text-base">add</span>
-                <span>Log Set</span>
-              </button>
-              <button onClick={onActivateKioskMode} className="hidden md:flex items-center gap-1 px-space-sm py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest border border-[#2a313d] text-primary font-headline-md text-headline-md uppercase transition-colors">
-                <span aria-hidden="true" className="material-symbols-outlined text-base">sensors</span>
-                <span>Kiosk Mode</span>
-              </button>
-            </div>
-            
+            {/* The header's own "Log Set" (which actually opened weigh-ins, not lifts)
+                and "Kiosk Mode" buttons duplicated the sidebar's Kiosk button and the
+                Log tab - removed in the v5.3.0 cleanup. */}
             <div className="w-8 h-8 rounded-full bg-primary text-[#030a14] flex items-center justify-center font-bold text-xs border border-[#2a313d]">
               {coachInitials || 'HP'}
             </div>

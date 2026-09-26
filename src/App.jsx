@@ -1,12 +1,13 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { Users, User, Plus, Shield, CheckCircle, RefreshCw, MoreHorizontal } from 'lucide-react';
+import { Users, Plus, CheckCircle, RefreshCw, Grid, Activity, Settings } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import { reportDataError } from './errorReporting';
 import './styles.css';
 import { AppSidebar } from './components/AppSidebar';
 import { AppHeader } from './components/AppHeader';
 import { Confetti } from './components/Confetti';
-import { MobileMoreMenu } from './components/MobileMoreMenu';
+import { SubTabs } from './components/SubTabs';
+import { NAV_GROUPS, groupForScreen } from './navigation';
 import { RecoveryModal } from './components/modals/RecoveryModal';
 import { InstallModal } from './components/modals/InstallModal';
 import { ConfirmDialog } from './components/modals/ConfirmDialog';
@@ -22,7 +23,6 @@ import { usePerformanceTests } from './features/analytics/usePerformanceTests';
 import { useLiftLogs } from './features/lifts/useLiftLogs';
 const LiftScreen = lazy(() => import('./features/lifts/LiftScreen'));
 const GroupsScreen = lazy(() => import('./features/groups/GroupsScreen'));
-const TeamStatusScreen = lazy(() => import('./features/team-status/TeamStatusScreen'));
 const AthletesScreen = lazy(() => import('./features/athletes/AthletesScreen'));
 const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
 const DashboardScreen = lazy(() => import('./features/dashboard/DashboardScreen'));
@@ -74,19 +74,20 @@ export default function App() {
     return hash || 'dashboard';
   });
 
-  const [showMobileMore, setShowMobileMore] = useState(false);
   const setScreen = (newScreen) => {
     setScreenState(newScreen);
     window.location.hash = newScreen;
-    setShowMobileMore(false);
+   
   };
   const [search, setSearch] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
-  const [teamStatusSport, setTeamStatusSport] = useState(null);
+  // Sport to pre-select when the Weigh-In screen opens from a Teams card's
+  // "Weigh-In Status" button (replaces the old separate Team Status screen).
+  const [entrySportFilter, setEntrySportFilter] = useState(null);
+  const openWeighInStatus = (sport) => { setEntrySportFilter(sport); setScreen('entry'); };
   // Lifted out of TeamStatusScreen so it survives navigating away to an athlete's
   // profile and back (that screen unmounts on navigation, which would otherwise reset
   // local state back to the default sort every time).
-  const [teamStatusSortMode, setTeamStatusSortMode] = useState('status');
   // Where a profile was opened FROM, so the "ALL PROFILES / NAME" back chevron on
   // Profiles can return there instead of always landing on the generic profiles
   // directory. Only Weigh-In Status needs this special-cased today (it's the one
@@ -97,15 +98,11 @@ export default function App() {
   const [selectedGradeFilter, setSelectedGradeFilter] = useState('ALL');
   const [selectedPositionFilter, setSelectedPositionFilter] = useState('ALL');
   const [nameSortOrder, setNameSortOrder] = useState('first'); // 'first' | 'last'
-  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null); // { type: 'athlete', id, name } or { type: 'all_weigh_ins' }
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' }); // optional: requireText for typed confirmation
   const [confirmTypedText, setConfirmTypedText] = useState('');
   const [showExpiredBaselinesModal, setShowExpiredBaselinesModal] = useState(false);
   const [unweighedOnlyFilter, setUnweighedOnlyFilter] = useState(false);
-  const [showHistoricalLogAccordion, setShowHistoricalLogAccordion] = useState(false);
-  const [showReportsLogAccordion, setShowReportsLogAccordion] = useState(true);
   const [showBulkBaselineStudio, setShowBulkBaselineStudio] = useState(false);
-  const [reportsSortDirection, setReportsSortDirection] = useState('desc');
   const [dehySortBy, setDehySortBy] = useState('drop');
   const [showMergePanel, setShowMergePanel] = useState(false);
   const [mergeSourceId, setMergeSourceId] = useState('');
@@ -129,7 +126,13 @@ export default function App() {
     successMsg: '',
     editingLogId: null
   });
-  const [athletes, setAthletes] = useState([]);
+  // Full roster including archived athletes (v5.3.0). Everything else in the app reads
+  // `athletes`, the active subset, so an archived athlete drops out of every roster,
+  // kiosk, alert and report without their history being deleted. setAthletes still
+  // updates the full list.
+  const [athletesAll, setAthletes] = useState([]);
+  const athletes = React.useMemo(() => athletesAll.filter(a => !a.archived_at), [athletesAll]);
+  const archivedAthletes = React.useMemo(() => athletesAll.filter(a => a.archived_at), [athletesAll]);
   const fetchReportRequestId = React.useRef(0);
   const didBackfillLocalOverrides = React.useRef(false);
   // Analytics can ask for more history than the Dashboard's normal data window (e.g. a
@@ -1512,9 +1515,7 @@ export default function App() {
   // back to the existing behavior of just deselecting the profile.
   const handleBackFromProfile = () => {
     setSelectedProfileId(null);
-    if (profileEntryScreen === 'team-status' && teamStatusSport) {
-      setScreen('team-status');
-    } else if (profileEntryScreen === 'athletes') {
+    if (profileEntryScreen === 'athletes') {
       setScreen('athletes');
     }
     setProfileEntryScreen(null);
@@ -2265,6 +2266,33 @@ export default function App() {
     }
   };
 
+  // Archive (archive=true) or restore an athlete. Keeps all their records.
+  const handleArchiveAthlete = async (athleteId, archive = true) => {
+    if (!athleteId) return;
+    setSaving(true);
+    const archived_at = archive ? new Date().toISOString() : null;
+    try {
+      const { error } = await supabase.from('athletes').update({ archived_at }).eq('id', athleteId);
+      if (error) throw error;
+      setAthletes(prev => {
+        const updated = prev.map(a => a.id === athleteId ? { ...a, archived_at } : a);
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(updated)); } catch {}
+        return updated;
+      });
+      if (archive) {
+        setIsAddingAthlete(false);
+        setEditingAthleteId(null);
+        setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' });
+      }
+      showToast(archive ? 'Athlete archived. Their history is kept.' : 'Athlete restored to the roster.');
+    } catch (err) {
+      reportDataError(err, 'athletes:archive');
+      showToast('Could not update athlete: ' + err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleMergeAthletes = async () => {
     if (!mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId) return;
     setSaving(true);
@@ -2305,9 +2333,6 @@ export default function App() {
   // Scans back up to 45 days from a per-day flag set so DAILY alert cards can show it.
   const { dailyAlerts, getDailyAlerts } = useAlertFeeds({ athletes, dehydrationThreshold, reportData, settings, sleepThreshold });
 
-  // Badge/sort count: alerts a coach hasn't actioned yet (open or acknowledged-but-not-resolved
-  // still count so the badge doesn't disappear the moment someone glances at it).
-  const unresolvedDailyAlertsCount = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length;
 
   // maxAgeDays lets a caller override the default Reports/historical lookback
   // (settings.postPracticeLookbackDays) with a tighter window - Alerts passes its own
@@ -2332,9 +2357,11 @@ export default function App() {
   const expiredBaselinesList = useExpiredBaselines({ athletes, baselineExpiryDays, reportData });
 
   const navItem = (key, icon, label) => {
-    const active = screen === key && !showMobileMore;
+    // key is a nav group id (navigation.js); active when the current screen is in it.
+    const active = groupForScreen(screen)?.id === key;
+    const target = NAV_GROUPS.find(g => g.id === key).screens[0].screen;
     return (
-      <div onClick={() => { setScreen(key); setShowMobileMore(false); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
+      <div onClick={() => { setScreen(target); setSaved(false); setSelectedProfileId(null); setProfileEntryScreen(null); setIsAddingAthlete(false); }}
            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
                     color: active ? 'var(--color-accent)' : 'var(--color-text-muted)', transition: 'color 0.2s, transform 0.15s' }}>
         {icon}
@@ -2420,6 +2447,7 @@ export default function App() {
             </div>
           )}
           <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {!isKioskMode && <SubTabs screen={screen} setScreen={setScreen} settings={settings} />}
             <Suspense fallback={<ScreenLoadingFallback />}>
             {screen === 'dashboard' && (
               <DashboardScreen
@@ -2446,6 +2474,8 @@ export default function App() {
             
             {screen === 'entry' && (
               <EntryScreen
+                entrySportFilter={entrySportFilter}
+                clearEntrySportFilter={() => setEntrySportFilter(null)}
                 settings={settings}
                 kioskTrackMode={kioskTrackMode}
                 setKioskTrackMode={setKioskTrackMode}
@@ -2506,8 +2536,7 @@ export default function App() {
                 setSelectedSportFilter={setSelectedSportFilter}
                 setScreen={setScreen}
                 showToast={showToast}
-                teamStatusSport={teamStatusSport}
-                setTeamStatusSport={setTeamStatusSport}
+                openWeighInStatus={openWeighInStatus}
                 settings={settings}
               />
             )}
@@ -2528,19 +2557,6 @@ export default function App() {
                 onPlyomatApiSync={onPlyomatApiSync}
                 onPlyomatSyncComplete={onPlyomatSyncComplete}
                 ensureReportWindow={ensureReportWindow}
-              />
-            )}
-            {screen === 'team-status' && (
-              <TeamStatusScreen
-                sport={teamStatusSport}
-                athletes={athletes}
-                reportData={reportData}
-                setScreen={setScreen}
-                setSelectedProfileId={setSelectedProfileId}
-                fetchProfileData={fetchProfileData}
-                sortMode={teamStatusSortMode}
-                setSortMode={setTeamStatusSortMode}
-                setProfileEntryScreen={setProfileEntryScreen}
               />
             )}
 
@@ -2584,10 +2600,6 @@ export default function App() {
                 renderNegativeSweatDropCards={renderNegativeSweatDropCards}
                 dehySortBy={dehySortBy}
                 setDehySortBy={setDehySortBy}
-                showReportsLogAccordion={showReportsLogAccordion}
-                setShowReportsLogAccordion={setShowReportsLogAccordion}
-                handleMakeDateBaselineMarker={handleMakeDateBaselineMarker}
-                handleDeleteWeighIn={handleDeleteWeighIn}
                 alertStatusMap={alertStatusMap}
               />
             )}
@@ -2623,6 +2635,8 @@ export default function App() {
                 handleCreateAthlete={handleCreateAthlete}
                 saving={saving}
                 handleDeleteAthlete={handleDeleteAthlete}
+                handleArchiveAthlete={handleArchiveAthlete}
+                archivedAthletes={archivedAthletes}
                 handleSelectAthleteForEntry={handleSelectAthleteForEntry}
               />
             )}
@@ -2731,35 +2745,13 @@ export default function App() {
       {!isKioskMode && (
         <>
           <div className="bottom-nav">
-            {navItem('dashboard', <Users size={22} />, 'Home')}
-            {navItem('entry', <Plus size={22} />, 'Log')}
-            {navItem('athletes', <User size={22} />, 'Athletes')}
-            {navItem('groups', <Shield size={22} />, 'Teams')}
-            
-            {/* Clean More / Toolbox Button */}
-            <div onClick={() => setShowMobileMore(!showMobileMore)} 
-                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', flex: 1, minWidth: '56px', height: '100%',
-                          color: (showMobileMore || ['groups', 'alerts', 'reports', 'settings', 'lifts'].includes(screen)) ? 'var(--color-accent)' : 'var(--color-text-muted)', transition: 'color 0.2s' }}>
-              <MoreHorizontal size={22} />
-              <span style={{ fontSize: '11px', fontWeight: (showMobileMore || ['groups', 'alerts', 'reports', 'settings', 'lifts'].includes(screen)) ? 700 : 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>More</span>
-            </div>
+            {navItem('today', <Grid size={22} />, 'Today')}
+            {navItem('log', <Plus size={22} />, 'Log')}
+            {navItem('teams', <Users size={22} />, 'Teams')}
+            {navItem('performance', <Activity size={22} />, 'Performance')}
+            {navItem('settings', <Settings size={22} />, 'Settings')}
           </div>
 
-          {/* Glassmorphic Centered "More" Tools & Analytics Modal */}
-          {showMobileMore && (
-            <MobileMoreMenu
-              coachInitials={coachInitials}
-              screen={screen}
-              setIsAddingAthlete={setIsAddingAthlete}
-              setProfileEntryScreen={setProfileEntryScreen}
-              setSaved={setSaved}
-              setScreen={setScreen}
-              setSelectedProfileId={setSelectedProfileId}
-              setShowMobileMore={setShowMobileMore}
-              settings={settings}
-              unresolvedDailyAlertsCount={unresolvedDailyAlertsCount}
-            />
-          )}
         </>
       )}
 
