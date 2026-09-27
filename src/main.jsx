@@ -26,7 +26,10 @@ registerSW({
     // re-checked automatically on navigation - polling here means a coach
     // who leaves the app open in a kiosk/tab for hours still picks up a
     // new deploy without needing to close and reopen it.
-    setInterval(() => registration.update(), 60 * 60 * 1000);
+    // update() rejects when the device can't reach the server (flaky gym Wi-Fi) -
+    // harmless, the next hourly check retries, so don't let it surface as an
+    // unhandled rejection in app_errors.
+    setInterval(() => { registration.update().catch(() => {}); }, 60 * 60 * 1000);
   },
 })
 
