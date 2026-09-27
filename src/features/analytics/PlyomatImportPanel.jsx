@@ -227,11 +227,11 @@ export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebr
                     <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-accent)' }}>{r.candidate.name}</span>
                     <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
                       <button type="button" onClick={() => setDecisions(p => ({ ...p, [r.csvName]: 'link' }))}
-                        style={{ padding: '5px 11px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', border: '1px solid rgba(52,211,153,0.5)', background: d === 'link' ? '#34d399' : 'transparent', color: d === 'link' ? '#06281c' : '#34d399' }}>
+                        style={{ padding: '5px 11px', borderRadius: '10px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', border: '1px solid rgba(52,211,153,0.5)', background: d === 'link' ? '#34d399' : 'transparent', color: d === 'link' ? '#06281c' : '#34d399' }}>
                         SAME PERSON
                       </button>
                       <button type="button" onClick={() => setDecisions(p => ({ ...p, [r.csvName]: 'create' }))}
-                        style={{ padding: '5px 11px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', border: '1px solid rgba(96,165,250,0.5)', background: d === 'create' ? '#60a5fa' : 'transparent', color: d === 'create' ? '#04203f' : '#60a5fa' }}>
+                        style={{ padding: '5px 11px', borderRadius: '10px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', border: '1px solid rgba(96,165,250,0.5)', background: d === 'create' ? '#60a5fa' : 'transparent', color: d === 'create' ? '#04203f' : '#60a5fa' }}>
                         DIFFERENT
                       </button>
                     </div>
@@ -248,7 +248,7 @@ export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebr
               </summary>
               <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {plan.newAthletes.map(a => (
-                  <span key={a.name} style={{ fontSize: '11px', padding: '4px 9px', borderRadius: '8px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', color: 'var(--color-text)' }}>
+                  <span key={a.name} style={{ fontSize: '11px', padding: '4px 9px', borderRadius: '10px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', color: 'var(--color-text)' }}>
                     {a.name} <span style={{ color: 'var(--color-text-muted)' }}>· {a.sport || 'no sport'}{a.grade ? ` · ${a.grade}` : ''}</span>
                   </span>
                 ))}

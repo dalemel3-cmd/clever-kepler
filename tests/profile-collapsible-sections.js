@@ -59,7 +59,7 @@ const newPage = async (browser) => {
     await page.getByText('Collapse Athlete', { exact: true }).first().click(); await page.waitForTimeout(1800);
     const body = await page.locator('body').innerText();
     check('Post-Practice Sweat Loss header is visible', /POST-PRACTICE SWEAT LOSS/i.test(body));
-    check('Historical Log Ledger header is visible', /HISTORICAL LOG LEDGER/i.test(body));
+    check('Historical Log Ledger header is visible', /LOG HISTORY \(/i.test(body));
     check('the log ledger table is NOT shown before expanding', !/DATE & TIME/i.test(body), body.match(/.{0,60}DATE & TIME/i)?.[0]);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
@@ -69,11 +69,11 @@ const newPage = async (browser) => {
     const page = await newPage(browser);
     await page.goto(`${APP}/#profiles`); await page.waitForTimeout(1800);
     await page.getByText('Collapse Athlete', { exact: true }).first().click(); await page.waitForTimeout(1800);
-    await page.getByText('HISTORICAL LOG LEDGER', { exact: false }).click();
+    await page.getByText(/LOG HISTORY \(/, { exact: false }).click();
     await page.waitForTimeout(400);
     let body = await page.locator('body').innerText();
     check('expands to show the ledger table', /DATE & TIME/i.test(body));
-    await page.getByText('HISTORICAL LOG LEDGER', { exact: false }).click();
+    await page.getByText(/LOG HISTORY \(/, { exact: false }).click();
     await page.waitForTimeout(400);
     body = await page.locator('body').innerText();
     check('collapses again on a second click', !/DATE & TIME/i.test(body));

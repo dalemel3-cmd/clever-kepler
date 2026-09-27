@@ -33,3 +33,11 @@ export const groupScreens = (group, settings = {}) =>
 export const groupForScreen = (screen) =>
   NAV_GROUPS.find(g => g.screens.some(s => s.screen === screen))
   || (screen === 'profiles' ? NAV_GROUPS.find(g => g.id === 'teams') : null);
+
+// Browser-tab title for a screen, e.g. "Alerts · Today · HPD".
+export const titleForScreen = (screen, extra) => {
+  const group = groupForScreen(screen);
+  const sub = group?.screens.find(s => s.screen === screen);
+  const parts = [extra, sub && group && sub.label !== group.label && group.screens.length > 1 ? sub.label : null, group?.label, 'HPD'].filter(Boolean);
+  return parts.join(' · ');
+};

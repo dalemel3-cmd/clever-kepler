@@ -32,26 +32,18 @@ export default defineConfig({
         skipWaiting: true,
         cleanupOutdatedCaches: true,
       },
-      includeAssets: ['logo1.png', 'logo2.png', 'favicon.svg'],
+      includeAssets: ['logo1.png', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png', 'og-image.png'],
       manifest: {
-        name: 'HPD APP',
-        short_name: 'HPD APP',
-        description: 'High Performance Development & Athletic Weight Tracker.',
+        name: 'HPD · Shiloh Christian Human Performance',
+        short_name: 'HPD',
+        description: 'Weigh-ins, sleep, session RPE, lifts and jump testing for Shiloh Christian S&C staff.',
         theme_color: '#030e20',
         background_color: '#030e20',
         display: 'standalone',
-        orientation: 'portrait',
         icons: [
-          {
-            src: '/logo1.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/logo1.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       }
     })

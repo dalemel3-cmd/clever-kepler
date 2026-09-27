@@ -9,9 +9,9 @@ export function ConfirmDialog({
 }) {
   return (
     <div className="modal-overlay animate-fade-in" style={{ zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.95)' }}>
-      <div className="card-glass glow-card" style={{ maxWidth: '440px', width: '100%', padding: '28px', borderRadius: '20px', border: confirmModal.isDanger ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid var(--color-accent)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div className="card-glass glow-card" style={{ maxWidth: '440px', width: '100%', padding: '28px', borderRadius: '16px', border: confirmModal.isDanger ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid var(--color-accent)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: confirmModal.isDanger ? 'rgba(239, 68, 68, 0.15)' : 'rgba(184, 156, 91, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: confirmModal.isDanger ? 'var(--status-error)' : 'var(--color-accent)' }}>
+          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: confirmModal.isDanger ? 'rgba(239, 68, 68, 0.15)' : 'rgba(184, 156, 91, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: confirmModal.isDanger ? 'var(--status-error)' : 'var(--color-accent)' }}>
             <AlertTriangle size={24} />
           </div>
           <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--white)', fontFamily: 'var(--font-display)' }}>{confirmModal.title || 'Confirm Action'}</h3>

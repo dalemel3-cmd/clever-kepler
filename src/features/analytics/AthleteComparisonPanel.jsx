@@ -143,7 +143,7 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
               type="button"
               onClick={() => setVariant(v.key)}
               style={{
-                padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 700,
+                padding: '6px 14px', borderRadius: '10px', fontSize: '11px', fontWeight: 700,
                 textTransform: 'uppercase', letterSpacing: '0.03em', cursor: 'pointer',
                 border: variant === v.key ? '1px solid #60a5fa' : '1px solid rgba(255,255,255,0.12)',
                 background: variant === v.key ? 'rgba(96,165,250,0.15)' : 'transparent',
@@ -184,7 +184,7 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
                 <label
                   key={a.id}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', borderRadius: '8px',
+                    display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', borderRadius: '10px',
                     cursor: disabled ? 'not-allowed' : 'pointer',
                     background: checked ? 'rgba(251,191,36,0.1)' : 'transparent',
                     opacity: disabled ? 0.4 : 1,
@@ -203,15 +203,15 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
         {/* Chart + summary */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
           {activeTest.variants.length > 1 && !variant ? (
-            <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, border: `1px dashed ${gridColor}`, borderRadius: '14px' }}>
+            <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, border: `1px dashed ${gridColor}`, borderRadius: '16px' }}>
               Pick a technique above - {activeTest.label} results differ by protocol.
             </div>
           ) : selectedAthletes.length === 0 ? (
-            <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, border: `1px dashed ${gridColor}`, borderRadius: '14px' }}>
+            <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, border: `1px dashed ${gridColor}`, borderRadius: '16px' }}>
               Select at least one athlete on the left to see their {activeTest.label} history.
             </div>
           ) : chartData.length === 0 ? (
-            <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, border: `1px dashed ${gridColor}`, borderRadius: '14px' }}>
+            <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, border: `1px dashed ${gridColor}`, borderRadius: '16px' }}>
               No {activeTest.label} results logged yet for {selectedAthletes.length === 1 ? selectedAthletes[0].name : 'these athletes'}.
             </div>
           ) : (
@@ -248,7 +248,7 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
 
               {/* Per-athlete best / latest / trend, so the chart's exact numbers don't
                   need to be read off the axis. */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '10px' }}>
                 {selectedAthletes.map((a, i) => {
                   const s = perAthleteStats.get(a.id);
                   if (!s) {

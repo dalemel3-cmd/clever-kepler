@@ -25,9 +25,9 @@ export default function GroupsScreen({
         <div className="flex flex-wrap items-center justify-between gap-space-md">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-space-xs font-label-md text-label-md uppercase tracking-wider text-text-muted">
-              <span>Workspace</span>
-              <span aria-hidden="true" className="material-symbols-outlined text-sm text-text-muted">chevron_right</span>
-              <span className="text-antique-gold font-bold">Sport Groups</span>
+              <span>Teams</span>
+              <span aria-hidden="true">&middot;</span>
+              <span className="text-antique-gold font-bold">By Sport</span>
             </div>
             <h1 className="font-display text-headline-xl text-text-headline uppercase tracking-wide flex items-center gap-space-sm">
               Sport Groups & Readiness
@@ -36,7 +36,7 @@ export default function GroupsScreen({
               </span>
             </h1>
             <p className="font-body-md text-body-md text-text-body max-w-2xl">
-              Team-level biometric health, weigh-in compliance, internal training load, and squad baselines.
+              Each team's roster, weigh-ins, sleep and training load.
             </p>
           </div>
           {/* Quick Action Pill Buttons */}
@@ -50,7 +50,7 @@ export default function GroupsScreen({
               className="flex items-center gap-space-xs px-space-md py-space-sm rounded-xl bg-antique-gold hover:bg-gold-hover text-antique-dark font-headline-md text-headline-md uppercase tracking-wider font-bold shadow-lg transition-all duration-150 active:scale-95"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-lg">bolt</span>
-              <span>{showBulkBaselineStudio ? 'Close Baseline Studio' : 'Bulk Team Baseline Studio'}</span>
+              <span>{showBulkBaselineStudio ? 'Close team baselines' : 'Set team baselines'}</span>
             </button>
           </div>
         </div>
@@ -64,7 +64,7 @@ export default function GroupsScreen({
             </div>
             <div>
               <h3 className="font-display text-headline-lg font-bold m-0 text-antique-gold uppercase tracking-wide">
-                Bulk Team Baseline Synchronization Studio
+                Set team baselines
               </h3>
               <p className="font-body-sm text-body-sm text-text-muted mt-1">
                 Select an entire sport team and designate a specific historical weigh-in date as their official baseline marker across all charts and dehydration alarms.
@@ -277,7 +277,7 @@ export default function GroupsScreen({
         })}
         {sportsList.filter(sport => athletes.some(a => (a.sport || '').toLowerCase() === sport.toLowerCase())).length === 0 && (
           <div className="col-span-full text-center p-12 text-text-muted border border-card-border rounded-xl bg-card-surface/50">
-            No sports currently tracked. Add athletes with sport tags to populate group statistics.
+            No teams yet. Add athletes with a sport to see them here.
           </div>
         )}
       </div>

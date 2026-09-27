@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { Search, X, Plus, ChevronLeft } from 'lucide-react';
-import { isPostPracticeLog, hasWeight, isRpeLog, getAthleteBaseline, getWeeklyWeightDelta } from '../../utils/athleteData';
+import { isPostPracticeLog, hasWeight, isRpeLog, getAthleteBaseline, getWeeklyWeightDelta, initialsFor } from '../../utils/athleteData';
 import { bestTestFor } from '../profiles/ProfilesScreen';
 import { formatMetric } from '../analytics/SpeedPowerPanel';
 import { estimate1RM } from '../lifts/LiftScreen';
 
 const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
 const colorFor = (name) => avatarColors[name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length];
-const initialsOf = (name) => name.split(' ').map(n => n[0]).join('').toUpperCase();
+const initialsOf = initialsFor;
 
 // One badge per athlete - the same "needs attention" signal drives both the list's
 // sort order and its right-hand badge, so a coach never sees a flagged badge on a
@@ -160,7 +160,7 @@ export default function AthletesScreen({
                   type="button"
                   onClick={() => setNewAthlete({ ...newAthlete, sport })}
                   style={{
-                    padding: '6px 12px', borderRadius: '20px',
+                    padding: '6px 12px', borderRadius: '16px',
                     border: newAthlete.sport === sport ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.1)',
                     background: newAthlete.sport === sport ? 'var(--color-accent)' : 'rgba(255,255,255,0.03)',
                     color: newAthlete.sport === sport ? 'var(--navy-950)' : 'var(--color-text-muted)',
@@ -227,7 +227,7 @@ export default function AthletesScreen({
     <div className="animate-slide-up flex flex-col gap-5">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>WORKSPACE &middot; ATHLETES</div>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>TEAMS &middot; ATHLETES</div>
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>ATHLETES</h1>
           <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
             Select an athlete to open their profile.
@@ -236,7 +236,7 @@ export default function AthletesScreen({
         <button
           onClick={() => { setIsAddingAthlete(true); setEditingAthleteId(null); setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' }); }}
           className="btn-primary glow-card"
-          style={{ height: '40px', padding: '0 20px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-accent)', color: 'var(--navy-950)', border: '1px solid var(--color-accent)', borderRadius: '8px', cursor: 'pointer' }}
+          style={{ height: '40px', padding: '0 20px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-accent)', color: 'var(--navy-950)', border: '1px solid var(--color-accent)', borderRadius: '10px', cursor: 'pointer' }}
         >
           <Plus size={18} strokeWidth={2.5} /> Add Athlete
         </button>
@@ -247,7 +247,7 @@ export default function AthletesScreen({
           <button
             onClick={() => setShowArchived(v => !v)}
             aria-expanded={showArchived}
-            style={{ alignSelf: 'flex-start', background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}
+            style={{ alignSelf: 'flex-start', background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '10px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
             {showArchived ? 'Hide' : 'Show'} archived ({archivedAthletes.length})
           </button>
@@ -262,7 +262,7 @@ export default function AthletesScreen({
                   <button
                     onClick={() => handleArchiveAthlete(a.id, false)}
                     disabled={saving}
-                    style={{ background: 'transparent', border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
+                    style={{ background: 'transparent', border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: '10px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
                   >
                     Restore
                   </button>
@@ -328,10 +328,11 @@ export default function AthletesScreen({
                 <Avatar name={a.name} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '15px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{a.sport || 'General'} &middot; {a.team || 'Varsity'}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{[a.sport || 'No sport', a.team].filter(Boolean).join(' · ')}</div>
                 </div>
-                <Badge tone={badge.tone}>{badge.label}</Badge>
-                <div style={{ textAlign: 'right', minWidth: '90px', flex: 'none' }}>
+                {/* The badge repeats the metric when the metric IS the flag (e.g. "-6.0 lb"). */}
+                {badge.label !== metric.val && <span className="athlete-row-badge"><Badge tone={badge.tone}>{badge.label}</Badge></span>}
+                <div style={{ textAlign: 'right', minWidth: '72px', flex: 'none' }}>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{metric.val}</div>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{metric.lbl}</div>
                 </div>
@@ -339,7 +340,7 @@ export default function AthletesScreen({
             ))}
             {sortedRows.length === 0 && (
               <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                No athletes match "{search}".
+                {search ? `No athletes match "${search}".` : 'No athletes in this group yet.'}
               </div>
             )}
           </div>
@@ -383,7 +384,7 @@ export default function AthletesScreen({
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                    {a.sport || 'General'} &middot; {a.team || 'Varsity'}{lastActive ? ` · Active ${lastActive}` : ''}
+                    {[a.sport || 'No sport', a.team, lastActive ? `Active ${lastActive}` : null].filter(Boolean).join(' · ')}
                   </div>
                 </div>
               </div>
@@ -447,19 +448,19 @@ export default function AthletesScreen({
               <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => handleSelectAthleteForEntry(a.id)}
-                  style={{ height: '36px', padding: '0 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', border: 'none', background: 'var(--color-accent)', color: 'var(--navy-950)' }}
+                  style={{ height: '36px', padding: '0 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', border: 'none', background: 'var(--color-accent)', color: 'var(--navy-950)' }}
                 >
                   Log Entry
                 </button>
                 <button
                   onClick={() => openTrends(a.id)}
-                  style={{ height: '36px', padding: '0 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: '#fff' }}
+                  style={{ height: '36px', padding: '0 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: '#fff' }}
                 >
                   View Full Trends
                 </button>
                 <button
                   onClick={() => startEdit(a)}
-                  style={{ height: '36px', padding: '0 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)' }}
+                  style={{ height: '36px', padding: '0 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)', color: 'var(--color-text-muted)' }}
                 >
                   Edit Info
                 </button>
@@ -475,7 +476,10 @@ export default function AthletesScreen({
 
       <style>{`
         @media (max-width: 960px) {
-          .athletes-layout { grid-template-columns: 1fr !important; }
+          .athletes-layout { grid-template-columns: minmax(0, 1fr) !important; }
+        }
+        @media (max-width: 480px) {
+          .athlete-row-badge { display: none; }
         }
       `}</style>
     </div>

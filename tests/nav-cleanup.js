@@ -75,7 +75,7 @@ async function newPage(browser, { width = 1280, height = 860, settings = {} } = 
     const perf = page.getByRole('tablist', { name: 'Performance' });
     check('Performance opens with Analytics / Print Report switcher', await perf.getByRole('tab', { name: /Print Report/i }).count() === 1);
     await perf.getByRole('tab', { name: /Print Report/i }).click(); await page.waitForTimeout(900);
-    check('Print Report opens Reports', /QUICK PRIORITY READINESS REPORT/i.test(await page.locator('body').innerText()));
+    check('Print Report opens Reports', /READINESS REPORT/i.test(await page.locator('body').innerText()));
     check('Reports raw log table is gone', !/CHRONOLOGICAL|LOG HISTORY/i.test(await page.locator('body').innerText()));
   }
 
@@ -95,7 +95,7 @@ async function newPage(browser, { width = 1280, height = 860, settings = {} } = 
     check('archived athlete not counted in Football', !/Grad Senior/i.test(body));
     await page.getByRole('button', { name: /Weigh-In Status/i }).first().click(); await page.waitForTimeout(1200);
     const entry = await page.locator('body').innerText();
-    check('landed on the Weigh-In screen', /RAPID QUICK ENTRY KIOSK|RAPID WEIGH-IN/i.test(entry));
+    check('landed on the Weigh-In screen', /WEIGH-IN KIOSK/i.test(entry));
     check('filtered to the tapped sport (Football only)', /Fb One/i.test(entry) && !/Vb Two/i.test(entry));
     await page.locator('aside nav').getByText('Log', { exact: true }).click(); await page.waitForTimeout(900);
     await page.locator('aside nav').getByText('Today', { exact: true }).click(); await page.waitForTimeout(500);

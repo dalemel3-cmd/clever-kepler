@@ -27,7 +27,7 @@ function ListField({ id, value, onCommit, multiline, ariaLabel, rows }) {
         value={text}
         onChange={e => setText(e.target.value)}
         onBlur={commit}
-        style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', resize: 'vertical', lineHeight: 1.6 }}
+        style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 600, borderRadius: '10px', resize: 'vertical', lineHeight: 1.6 }}
       />
     );
   }
@@ -41,7 +41,7 @@ function ListField({ id, value, onCommit, multiline, ariaLabel, rows }) {
       onChange={e => setText(e.target.value)}
       onBlur={commit}
       onKeyDown={e => { if (e.key === 'Enter') { commit(); e.currentTarget.blur(); } }}
-      style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px' }}
+      style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, borderRadius: '10px' }}
     />
   );
 }
@@ -97,14 +97,14 @@ export default function SettingsScreen({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-2xl)', fontWeight: 700, margin: 0 }}>
-            SYSTEM SETTINGS & TROUBLESHOOTING
+            SETTINGS
           </h1>
           <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-            Configure performance threshold rules, troubleshoot system connections, and download app for mobile devices.
+            Thresholds, roster import, data export, and installing the app.
           </div>
         </div>
         {settingsSavedToast && (
-          <div style={{ background: 'rgba(52, 211, 153, 0.15)', color: 'var(--status-success)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '8px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ background: 'rgba(52, 211, 153, 0.15)', color: 'var(--status-success)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '8px 16px', borderRadius: '10px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Check size={16} /> SETTINGS SAVED!
           </div>
         )}
@@ -119,7 +119,7 @@ export default function SettingsScreen({
             </div>
             <div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: 'var(--color-accent)' }}>
-                HOW TO INSTALL & DOWNLOAD APP
+                INSTALL THE APP
               </h2>
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                 Installs {settings.programName} as a standalone native application (not a bookmark) with its own home screen icon, fullscreen view, and offline fail-safe cache.
@@ -128,8 +128,8 @@ export default function SettingsScreen({
           </div>
 
           {isAppInstalled ? (
-            <div style={{ background: 'rgba(52, 211, 153, 0.15)', color: 'var(--status-success)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '10px 18px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <CheckCircle size={18} /> APP INSTALLED & RUNNING STANDALONE
+            <div style={{ background: 'rgba(52, 211, 153, 0.15)', color: 'var(--status-success)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '10px 18px', borderRadius: '10px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle size={18} /> APP INSTALLED
             </div>
           ) : (
             <button
@@ -142,12 +142,11 @@ export default function SettingsScreen({
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '4px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '16px', marginTop: '4px' }}>
 
           {/* iOS / iPad Guide */}
           <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>
-              <span style={{ fontSize: '18px' }}>🍎</span> iPhone & iPad (Safari)
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>iPhone & iPad (Safari)
             </div>
             <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
               <li>Open Safari and load <strong style={{ color: 'var(--color-accent)' }}>{getAppHost()}</strong></li>
@@ -159,8 +158,7 @@ export default function SettingsScreen({
 
           {/* Android Guide */}
           <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>
-              <span style={{ fontSize: '18px' }}>🤖</span> Android (Chrome)
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>Android (Chrome)
             </div>
             <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
               <li>Open Chrome and load <strong style={{ color: 'var(--color-accent)' }}>{getAppHost()}</strong></li>
@@ -172,14 +170,13 @@ export default function SettingsScreen({
 
           {/* Laptop / Desktop Guide */}
           <div className="card-glass" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>
-              <span style={{ fontSize: '18px' }}>💻</span> Laptop / Desktop (Chrome / Edge)
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--white)', fontWeight: 700, fontSize: '14px' }}>Laptop / Desktop (Chrome / Edge)
             </div>
             <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
               <li>Look at the right side of your browser URL address bar</li>
-              <li>Click the <strong>Install Icon</strong> (<span style={{ fontSize: '14px' }}>📥</span> or <span style={{ fontSize: '14px' }}>⊕</span>)</li>
+              <li>Click the <strong>install icon</strong> at the right end of the address bar</li>
               <li>Click <strong>"Install {settings.programName} App"</strong> to launch as a standalone desktop window</li>
-              <li>Access it anytime from your desktop or dock!</li>
+              <li>It opens in its own window from your desktop or dock.</li>
             </ol>
           </div>
 
@@ -230,7 +227,7 @@ export default function SettingsScreen({
           </div>
           <button
             onClick={handleResetSettings}
-            style={{ padding: '10px 18px', fontSize: '12px', fontWeight: 700, background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '10px 18px', fontSize: '12px', fontWeight: 700, background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <RotateCcw size={15} /> RESTORE DEFAULTS
           </button>
@@ -240,7 +237,7 @@ export default function SettingsScreen({
           const GROUPS = [
             {
               title: 'PROGRAM IDENTITY',
-              hint: 'Shown in the sidebar, mobile menu, and printed report headers.',
+              hint: 'Shown on the sign-in screen and in the install and share prompts.',
               fields: [
                 { key: 'organizationName', label: 'Organization Name', type: 'text' },
                 { key: 'programName', label: 'Program Name', type: 'text' },
@@ -327,7 +324,7 @@ export default function SettingsScreen({
 
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
-              <div style={{ position: 'relative', width: 'fit-content' }}>
+              <div style={{ position: 'relative', width: 'fit-content', maxWidth: '100%' }}>
                 <select
                   aria-label="Configuration section"
                   value={group.title}
@@ -335,7 +332,7 @@ export default function SettingsScreen({
                   style={{
                     appearance: 'none', WebkitAppearance: 'none',
                     background: 'var(--navy-900)', color: 'var(--color-accent)',
-                    border: '1px solid var(--color-accent)', borderRadius: '8px',
+                    border: '1px solid var(--color-accent)', borderRadius: '10px',
                     padding: '10px 40px 10px 14px', fontSize: '13px', fontWeight: 800,
                     letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', outline: 'none'
                   }}
@@ -345,7 +342,7 @@ export default function SettingsScreen({
                 <ChevronDown size={16} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-accent)', pointerEvents: 'none' }} />
               </div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{group.hint}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(230px, 100%), 1fr))', gap: '14px' }}>
                 {group.fields.map(f => (
                   <div key={f.key} className="card-glass" style={{ padding: '14px', background: 'rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '8px', borderRadius: '10px' }}>
                     <label htmlFor={`setting-${f.key}`} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -358,7 +355,7 @@ export default function SettingsScreen({
                         role="switch"
                         aria-checked={!!settings[f.key]}
                         onClick={() => (updateSettingNow || updateSetting)(f.key, !settings[f.key])}
-                        style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '0 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '13px', letterSpacing: '0.04em', background: settings[f.key] ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)', color: settings[f.key] ? 'var(--navy-950)' : 'var(--color-text-muted)', border: settings[f.key] ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}
+                        style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '0 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 800, fontSize: '13px', letterSpacing: '0.04em', background: settings[f.key] ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)', color: settings[f.key] ? 'var(--navy-950)' : 'var(--color-text-muted)', border: settings[f.key] ? '1px solid var(--color-accent)' : '1px solid var(--color-border)' }}
                       >
                         <span>{settings[f.key] ? 'ON' : 'OFF'}</span>
                         <span style={{ width: '34px', height: '18px', borderRadius: '9px', background: settings[f.key] ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.12)', position: 'relative', flexShrink: 0 }}>
@@ -378,7 +375,7 @@ export default function SettingsScreen({
                         className="input-glass"
                         value={settings[f.key] ?? ''}
                         onChange={e => updateSetting(f.key, e.target.value)}
-                        style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, borderRadius: '8px' }}
+                        style={{ height: '42px', padding: '0 12px', fontSize: '14px', fontWeight: 600, borderRadius: '10px' }}
                       />
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -386,7 +383,7 @@ export default function SettingsScreen({
                           type="button"
                           aria-label={`Decrease ${f.label}`}
                           onClick={() => updateSetting(f.key, prev => Math.max(f.min, Number((Number(prev) - f.step).toFixed(2))))}
-                          style={{ width: '40px', height: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                          style={{ width: '40px', height: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '10px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                         >
                           <Minus size={16} />
                         </button>
@@ -402,13 +399,13 @@ export default function SettingsScreen({
                             const v = Number(e.target.value);
                             updateSetting(f.key, !isFinite(v) ? f.min : Math.min(Math.max(v, f.min), f.max));
                           }}
-                          style={{ flex: 1, minWidth: 0, height: '42px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '8px', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'var(--color-accent)', outline: 'none' }}
+                          style={{ flex: 1, minWidth: 0, height: '42px', background: 'var(--navy-900)', border: '1px solid var(--color-accent)', borderRadius: '10px', textAlign: 'center', fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, color: 'var(--color-accent)', outline: 'none' }}
                         />
                         <button
                           type="button"
                           aria-label={`Increase ${f.label}`}
                           onClick={() => updateSetting(f.key, prev => Math.min(f.max, Number((Number(prev) + f.step).toFixed(2))))}
-                          style={{ width: '40px', height: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                          style={{ width: '40px', height: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '10px', color: 'var(--white)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                         >
                           <Plus size={16} />
                         </button>
@@ -451,42 +448,42 @@ export default function SettingsScreen({
       {/* Card 3: Cloud Data Management & Synchronization Hub */}
       <div className="card-glass glow-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(59, 130, 246, 0.35)', background: 'rgba(59, 130, 246, 0.04)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa', boxShadow: '0 0 15px rgba(59, 130, 246, 0.25)' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa', boxShadow: '0 0 15px rgba(59, 130, 246, 0.25)' }}>
             <Database size={24} />
           </div>
           <div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: '#fff' }}>
-              CLOUD DATA MANAGEMENT &amp; SYNCHRONIZATION HUB
+              ROSTER &amp; DATA
             </h2>
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-              Import rosters via CSV, download bulk templates, export full weigh-in reports, or verify real-time inter-device communication.
+              Import a roster, export every record, or test live sync between devices.
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '4px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '16px', marginTop: '4px' }}>
 
           {/* Roster Import & Template */}
-          <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Upload size={16} /> Roster CSV Import &amp; Template
+                <Upload size={16} /> Roster import
               </div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                Bulk upload new athletes or download the standard formatted roster template file.
+                Upload athletes from a CSV, or download the template.
               </div>
             </div>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: 'auto' }}>
               <button
                 onClick={handleDownloadTemplate}
                 className="btn-primary no-print"
-                style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 700, background: 'rgba(255,255,255,0.05)', color: 'var(--white)', border: '1px solid var(--color-border)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 700, background: 'rgba(255,255,255,0.05)', color: 'var(--white)', border: '1px solid var(--color-border)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
               >
                 <Download size={15} /> Template
               </button>
               <label
                 className="btn-primary no-print glow-card"
-                style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 800, background: 'rgba(59, 130, 246, 0.25)', color: '#60a5fa', border: '1px solid #60a5fa', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 800, background: 'rgba(59, 130, 246, 0.25)', color: '#60a5fa', border: '1px solid #60a5fa', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
               >
                 <Upload size={15} /> Upload CSV
                 <input
@@ -500,13 +497,13 @@ export default function SettingsScreen({
           </div>
 
           {/* Report Export & Live Signal Test */}
-          <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className="card-glass" style={{ padding: '18px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Wifi size={16} /> Data Export &amp; Network Test
+                <Wifi size={16} /> Export &amp; sync test
               </div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                Export all recorded session logs to spreadsheet format or send a live test ping across devices.
+                Download every log as a spreadsheet, or ping other open devices.
               </div>
             </div>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: 'auto' }}>
@@ -514,20 +511,20 @@ export default function SettingsScreen({
                 onClick={exportToCSV}
                 className="btn-primary no-print"
                 title="Full unfiltered dump of every weigh-in record ever logged. For a filtered/scoped export, use Export CSV on the Reports screen instead."
-                style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 700, background: 'rgba(255,255,255,0.05)', color: 'var(--white)', border: '1px solid var(--color-border)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 700, background: 'rgba(255,255,255,0.05)', color: 'var(--white)', border: '1px solid var(--color-border)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
               >
                 <Download size={15} /> Export All Records (CSV)
               </button>
               <button
                 onClick={() => {
                   broadcastDeviceSync({ isPing: true });
-                  showToast('📡 Test ping sent to all connected devices.\nOpen devices log the signal in their console.', 'info');
+                  showToast('Test ping sent. Any other open device should show a "ping received" message.', 'info');
                 }}
                 className="no-print glow-card"
-                style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 800, background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+                style={{ flex: 1, height: '40px', padding: '0 14px', fontSize: '12px', fontWeight: 800, background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
                 title="Verify real-time communication between your devices"
               >
-                📶 Ping Devices
+                Ping Devices
               </button>
             </div>
           </div>
@@ -543,10 +540,10 @@ export default function SettingsScreen({
           </div>
           <div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0 }}>
-              PRACTICAL TROUBLESHOOTING & SYSTEM HEALTH
+              TROUBLESHOOTING
             </h2>
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              Monitor database synchronization status and run diagnostic actions in case of network issues.
+              Connection status and fixes for sync problems.
             </div>
           </div>
         </div>
@@ -586,7 +583,7 @@ export default function SettingsScreen({
         </div>
 
         {syncStatus && (
-          <div style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--navy-500)', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '10px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--navy-500)', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '10px 16px', borderRadius: '10px', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <RefreshCw size={16} /> {syncStatus}
           </div>
         )}
@@ -611,7 +608,7 @@ export default function SettingsScreen({
 
           <button
             onClick={handleClearAppCache}
-            style={{ padding: '12px 20px', fontSize: '13px', background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--status-error)', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '12px 20px', fontSize: '13px', background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--status-error)', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <Trash2 size={16} /> CLEAR LOCAL APP CACHE
           </button>
@@ -622,26 +619,26 @@ export default function SettingsScreen({
       {/* Card 4: Hardware Vault & Emergency Data Recovery Station */}
       <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(184, 156, 91, 0.35)', background: 'rgba(184, 156, 91, 0.04)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', boxShadow: '0 0 12px rgba(184, 156, 91, 0.3)' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', boxShadow: '0 0 12px rgba(184, 156, 91, 0.3)' }}>
             <Shield size={24} />
           </div>
           <div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: 'var(--color-accent)' }}>
-              HARDWARE VAULT &amp; EMERGENCY RECOVERY SUITE
+              OFFLINE DATA RECOVERY
             </h2>
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-              Access encrypted local iPad storage, force cloud synchronization of offline logs, or restore data from diagnostic backup files.
+              Review weigh-ins saved on this device, re-upload any that didn't sync, or restore from a backup file.
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0, 0, 0, 0.25)', padding: '16px 20px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0, 0, 0, 0.25)', padding: '16px 20px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--white)', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Lock size={14} style={{ color: 'var(--color-accent)' }} /> 1,000-LOG PERMANENT DEVICE HARDWARE VAULT ACTIVE
+              <Lock size={14} style={{ color: 'var(--color-accent)' }} /> LAST 1,000 ENTRIES BACKED UP ON THIS DEVICE
             </span>
             <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              All kiosk sessions on this device are automatically duplicated to an immutable hardware ledger regardless of internet connection state.
+              Every kiosk entry is also saved on this device, so nothing is lost if the Wi-Fi drops. Open this to review or re-upload those copies.
             </span>
           </div>
 
@@ -650,7 +647,7 @@ export default function SettingsScreen({
             className="btn-primary glow-card"
             style={{ padding: '12px 24px', fontSize: '13px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 0 15px rgba(184, 156, 91, 0.3)', display: 'flex', alignItems: 'center', gap: '8px', height: '44px', whiteSpace: 'nowrap' }}
           >
-            <Database size={16} /> OPEN RECOVERY STATION &amp; AUDIT VAULT
+            <Database size={16} /> OPEN DATA RECOVERY
           </button>
         </div>
       </div>
@@ -659,15 +656,15 @@ export default function SettingsScreen({
       <div className="card-glass glow-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(139, 92, 246, 0.4)', background: 'rgba(139, 92, 246, 0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc', boxShadow: '0 0 15px rgba(139, 92, 246, 0.3)' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc', boxShadow: '0 0 15px rgba(139, 92, 246, 0.3)' }}>
               <Users size={22} />
             </div>
             <div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: '#c084fc' }}>
-                ATHLETE RECORD MERGE STUDIO
+                MERGE DUPLICATE ATHLETES
               </h2>
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Resolve duplicated athlete accounts by consolidating all weigh-ins, hydration alerts, and sleep logs into a single master profile.
+                Combine two profiles for the same athlete. All logs move to the one you keep.
               </div>
             </div>
           </div>
@@ -676,13 +673,13 @@ export default function SettingsScreen({
             className="btn-secondary"
             style={{ padding: '10px 20px', fontSize: '13px', border: '1px solid rgba(139, 92, 246, 0.5)', background: showMergePanel ? 'rgba(139, 92, 246, 0.2)' : 'transparent', color: '#fff', fontWeight: 700, borderRadius: '10px', cursor: 'pointer' }}
           >
-            {showMergePanel ? '✕ Close Studio' : '⚡ Open Merge Studio'}
+            {showMergePanel ? 'Close merge tool' : 'Open merge tool'}
           </button>
         </div>
 
         {showMergePanel && (
-          <div style={{ padding: '20px', background: 'rgba(0,0,0,0.3)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+          <div style={{ padding: '20px', background: 'rgba(0,0,0,0.3)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   1. Select Source (Duplicate To Delete):
@@ -740,7 +737,7 @@ export default function SettingsScreen({
                 className="btn-primary"
                 style={{ padding: '12px 28px', fontSize: '14px', background: 'linear-gradient(135deg, #a855f7, #6366f1)', border: 'none', fontWeight: 800, cursor: (!mergeSourceId || !mergeTargetId) ? 'not-allowed' : 'pointer', borderRadius: '10px' }}
               >
-                🔗 MERGE RECORDS &amp; PURGE DUPLICATE
+                MERGE AND DELETE DUPLICATE
               </button>
             </div>
           </div>
@@ -751,15 +748,15 @@ export default function SettingsScreen({
       <div className="card-glass glow-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.04)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-error)' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-error)' }}>
               <AlertTriangle size={24} />
             </div>
             <div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: 0, color: 'var(--status-error)' }}>
-                DANGER ZONE &amp; DATABASE RESET VAULT
+                DANGER ZONE
               </h2>
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Perform irreversible administrative cleanup operations across the active cloud database.
+                Permanent deletions. These can't be undone.
               </div>
             </div>
           </div>

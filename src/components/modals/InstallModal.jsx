@@ -14,7 +14,7 @@ export function InstallModal({
       <div className="card-glass glow-card animate-slide-up" style={{ width: '100%', maxWidth: '520px', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid var(--color-accent)', boxShadow: '0 8px 32px rgba(184, 156, 91, 0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'rgba(184, 156, 91, 0.2)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)' }}>
               <Smartphone size={26} />
             </div>
             <div>
@@ -38,8 +38,7 @@ export function InstallModal({
 
           {/* Actionable Box 1: Android & Laptop / Desktop */}
           <div className="card-glass glow-card" style={{ padding: '18px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-            <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🤖 / 💻</span> Android & Desktop (Chrome / Edge)
+            <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>Android & Desktop (Chrome / Edge)
             </div>
 
             <button 
@@ -47,18 +46,17 @@ export function InstallModal({
               className="btn-primary"
               style={{ width: '100%', height: '44px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
-              <Download size={18} /> LAUNCH NATIVE INSTALL PROMPT
+              <Download size={18} /> Install app
             </button>
 
             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-              Triggers browser system 1-click install dialog directly.
+              Opens your browser's install prompt.
             </div>
           </div>
 
           {/* Actionable Box 2: iPhone & iPad (Safari) */}
           <div className="card-glass glow-card" style={{ padding: '18px', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid rgba(184, 156, 91, 0.3)' }}>
-            <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🍎</span> iPhone & iPad (Safari)
+            <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--white)', display: 'flex', alignItems: 'center', gap: '8px' }}>iPhone & iPad (Safari)
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -71,7 +69,7 @@ export function InstallModal({
               </button>
               <button 
                 onClick={handleCopyLink}
-                style={{ height: '44px', padding: '0 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--white)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ height: '44px', padding: '0 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: '10px', color: 'var(--white)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 {copiedLinkToast ? <Check size={16} style={{ color: 'var(--status-success)' }} /> : <Copy size={16} />}
                 {copiedLinkToast ? 'COPIED!' : 'COPY LINK'}

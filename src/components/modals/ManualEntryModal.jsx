@@ -15,16 +15,16 @@ export function ManualEntryModal({
 }) {
   return (
     <div className="modal-overlay animate-fade-in" style={{ zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.95)' }}>
-      <div className="card-glass glow-card" style={{ maxWidth: '540px', width: '100%', borderRadius: '24px', border: '1px solid rgba(96, 165, 250, 0.4)', boxShadow: '0 20px 60px rgba(0,0,0,0.8)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div className="card-glass glow-card" style={{ maxWidth: '540px', width: '100%', borderRadius: '16px', border: '1px solid rgba(96, 165, 250, 0.4)', boxShadow: '0 20px 60px rgba(0,0,0,0.8)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <div style={{ padding: '24px 28px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.6) 100%)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(96, 165, 250, 0.2)', border: '1px solid rgba(96, 165, 250, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(96, 165, 250, 0.2)', border: '1px solid rgba(96, 165, 250, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa' }}>
               <Zap size={24} />
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                {manualEntryForm.editingLogId ? 'EDIT LOG ENTRY' : 'COACH MANUAL LOG STUDIO'}
+                {manualEntryForm.editingLogId ? 'EDIT LOG ENTRY' : 'MANUAL LOG ENTRY'}
               </h3>
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
                 {manualEntryForm.editingLogId ? 'Correct the date, time, weight, or Session RPE on this existing log' : "Log acute post-practice weights without altering morning baseline trends"}
@@ -45,8 +45,7 @@ export function ManualEntryModal({
         {/* Form Content */}
         <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {manualEntryForm.successMsg && (
-            <div className="animate-fade-in" style={{ padding: '14px 20px', borderRadius: '14px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', color: '#4ade80', fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span>🎉</span>
+            <div className="animate-fade-in" style={{ padding: '14px 20px', borderRadius: '16px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', color: '#4ade80', fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span>{manualEntryForm.successMsg}</span>
             </div>
           )}
@@ -59,7 +58,7 @@ export function ManualEntryModal({
               style={{
                 flex: 1,
                 padding: '12px 16px',
-                borderRadius: '14px',
+                borderRadius: '16px',
                 border: manualEntryForm.sessionType === 'post_practice' ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)',
                 background: manualEntryForm.sessionType === 'post_practice' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
                 color: manualEntryForm.sessionType === 'post_practice' ? '#fff' : 'var(--color-text-muted)',
@@ -73,7 +72,7 @@ export function ManualEntryModal({
                 gap: '8px'
               }}
             >
-              <span>⚡ Post-Practice Sweat Check</span>
+              <span>Post-Practice Sweat Check</span>
             </button>
             <button
               type="button"
@@ -81,7 +80,7 @@ export function ManualEntryModal({
               style={{
                 flex: 1,
                 padding: '12px 16px',
-                borderRadius: '14px',
+                borderRadius: '16px',
                 border: manualEntryForm.sessionType === 'morning' ? '2px solid #d4af37' : '1px solid rgba(255,255,255,0.1)',
                 background: manualEntryForm.sessionType === 'morning' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.02)',
                 color: manualEntryForm.sessionType === 'morning' ? '#fff' : 'var(--color-text-muted)',
@@ -95,7 +94,7 @@ export function ManualEntryModal({
                 gap: '8px'
               }}
             >
-              <span>☀️ Morning / Baseline Correction</span>
+              <span>Morning / Baseline Correction</span>
             </button>
             {settings.enableRpe && (
               <button
@@ -104,7 +103,7 @@ export function ManualEntryModal({
                 style={{
                   flex: 1,
                   padding: '12px 16px',
-                  borderRadius: '14px',
+                  borderRadius: '16px',
                   border: manualEntryForm.sessionType === 'rpe' ? '2px solid #a78bfa' : '1px solid rgba(255,255,255,0.1)',
                   background: manualEntryForm.sessionType === 'rpe' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(255,255,255,0.02)',
                   color: manualEntryForm.sessionType === 'rpe' ? '#fff' : 'var(--color-text-muted)',
@@ -118,7 +117,7 @@ export function ManualEntryModal({
                   gap: '8px'
                 }}
               >
-                <span>🎯 Session RPE</span>
+                <span>Session RPE</span>
               </button>
             )}
           </div>
@@ -130,7 +129,7 @@ export function ManualEntryModal({
               className="input-glass"
               value={manualEntryForm.athleteId}
               onChange={e => setManualEntryForm(p => ({ ...p, athleteId: e.target.value, successMsg: '' }))}
-              style={{ width: '100%', height: '46px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '15px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}
+              style={{ width: '100%', height: '46px', padding: '0 16px', borderRadius: '10px', background: 'var(--navy-900)', color: '#fff', fontSize: '15px', fontWeight: 700, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}
             >
               <option value="" disabled>-- Select Roster Athlete --</option>
               {athletes.slice().sort((a,b) => a.name.localeCompare(b.name)).map(a => (
@@ -148,7 +147,7 @@ export function ManualEntryModal({
                 className="input-glass"
                 value={manualEntryForm.date}
                 onChange={e => setManualEntryForm(p => ({ ...p, date: e.target.value, successMsg: '' }))}
-                style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '14px', border: '1px solid rgba(255,255,255,0.2)' }}
+                style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '10px', background: 'var(--navy-900)', color: '#fff', fontSize: '14px', border: '1px solid rgba(255,255,255,0.2)' }}
               />
             </div>
             <div>
@@ -158,7 +157,7 @@ export function ManualEntryModal({
                 className="input-glass"
                 value={manualEntryForm.time}
                 onChange={e => setManualEntryForm(p => ({ ...p, time: e.target.value, successMsg: '' }))}
-                style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '14px', border: '1px solid rgba(255,255,255,0.2)' }}
+                style={{ width: '100%', height: '44px', padding: '0 14px', borderRadius: '10px', background: 'var(--navy-900)', color: '#fff', fontSize: '14px', border: '1px solid rgba(255,255,255,0.2)' }}
               />
             </div>
           </div>
@@ -179,7 +178,7 @@ export function ManualEntryModal({
                   className="input-glass"
                   value={manualEntryForm.rpe}
                   onChange={e => setManualEntryForm(p => ({ ...p, rpe: e.target.value.replace(/[^0-9]/g, ''), successMsg: '' }))}
-                  style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(167, 139, 250, 0.4)' }}
+                  style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '10px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(167, 139, 250, 0.4)' }}
                 />
               </div>
               {settings.rpeTrackDuration && (
@@ -193,7 +192,7 @@ export function ManualEntryModal({
                     className="input-glass"
                     value={manualEntryForm.rpeDuration}
                     onChange={e => setManualEntryForm(p => ({ ...p, rpeDuration: e.target.value.replace(/[^0-9]/g, ''), successMsg: '' }))}
-                    style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(167, 139, 250, 0.4)' }}
+                    style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '10px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(167, 139, 250, 0.4)' }}
                   />
                 </div>
               )}
@@ -232,12 +231,12 @@ export function ManualEntryModal({
                   className="input-glass"
                   value={manualEntryForm.weight}
                   onChange={e => setManualEntryForm(p => ({ ...p, weight: e.target.value, successMsg: '' }))}
-                  style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '12px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(96, 165, 250, 0.4)' }}
+                  style={{ flex: 1, height: '48px', padding: '0 16px', borderRadius: '10px', background: 'var(--navy-900)', color: '#fff', fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(96, 165, 250, 0.4)' }}
                 />
-                <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-1</button>
-                <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>-.1</button>
-                <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+.1</button>
-                <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '12px', fontSize: '16px', fontWeight: 800 }}>+1</button>
+                <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '10px', fontSize: '16px', fontWeight: 800 }}>-1</button>
+                <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) - 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '10px', fontSize: '16px', fontWeight: 800 }}>-.1</button>
+                <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 0.1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '10px', fontSize: '16px', fontWeight: 800 }}>+.1</button>
+                <button type="button" onClick={() => { const val = (parseFloat(manualEntryForm.weight || 200) + 1).toFixed(1); setManualEntryForm(p => ({ ...p, weight: val })); }} className="btn-secondary" style={{ height: '48px', width: '48px', padding: 0, borderRadius: '10px', fontSize: '16px', fontWeight: 800 }}>+1</button>
               </div>
             </div>
           )}

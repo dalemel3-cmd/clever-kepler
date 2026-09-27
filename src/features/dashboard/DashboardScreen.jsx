@@ -1,5 +1,5 @@
 import { CheckCircle } from 'lucide-react';
-import { getCentralDateString, getCentralTimeString, isRpeLog, hasWeight, isPostPracticeLog } from '../../utils/athleteData';
+import { getCentralDateString, getCentralTimeString, isRpeLog, hasWeight, isPostPracticeLog, initialsFor } from '../../utils/athleteData';
 
 export default function DashboardScreen({
   settings,
@@ -63,9 +63,9 @@ export default function DashboardScreen({
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-space-md py-space-md border-b border-[#2a313d]">
         <div className="flex flex-col gap-space-xs">
           <div className="flex items-center gap-space-xs">
-            <span className="font-label-sm text-label-sm uppercase tracking-widest text-primary">WORKSPACE</span>
-            <span className="text-[#2a313d] font-label-sm text-label-sm">/</span>
-            <span className="font-label-sm text-label-sm uppercase tracking-widest text-on-surface">COMMAND CENTER</span>
+            <span className="font-label-sm text-label-sm uppercase tracking-widest text-primary">TODAY</span>
+            <span className="text-dim font-label-sm text-label-sm">&middot;</span>
+            <span className="font-label-sm text-label-sm uppercase tracking-widest text-on-surface">OVERVIEW</span>
           </div>
           <h1 className="font-display text-display uppercase tracking-tight text-on-surface flex items-center gap-space-sm">
             {greeting}
@@ -75,9 +75,9 @@ export default function DashboardScreen({
             <span className="text-dim">&middot;</span>
             <span className="text-primary font-semibold">{athletes.length} rostered athletes</span>
             <span className="text-dim">&middot;</span>
-            <span>{allSports.length} teams in-season</span>
+            <span>{athletes.filter(a => (a.sport || '').trim()).length ? new Set(athletes.map(a => a.sport).filter(Boolean)).size : 0} teams</span>
             <span className="text-dim">&middot;</span>
-            <span className="text-secondary font-medium">Session #{Math.max(todaySessions, executiveInsights?.todayCount || 0)} underway</span>
+            <span className="text-secondary font-medium">{Math.max(todaySessions, executiveInsights?.todayCount || 0)} check-ins today</span>
           </p>
         </div>
 
@@ -126,16 +126,15 @@ export default function DashboardScreen({
           </div>
           <div>
             <div className="flex items-center gap-space-xs">
-              <span className="font-headline-md text-headline-md uppercase text-on-surface">FACILITY DISPATCH</span>
-              <span className="px-1.5 py-0.5 rounded bg-primary text-[#030a14] font-label-sm text-label-sm font-bold">LIVE QUEUE</span>
+              <span className="font-headline-md text-headline-md uppercase text-on-surface">WEIGH-INS</span>
             </div>
-            <p className="font-body-sm text-body-sm text-on-surface-variant">{unrecordedAthletes.length} athletes awaiting pre/post mass check.</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">{athletes.length === 0 ? 'No athletes on the roster yet.' : unrecordedAthletes.length === 0 ? 'Everyone has weighed in today.' : `${unrecordedAthletes.length} athlete${unrecordedAthletes.length === 1 ? '' : 's'} still to weigh in today.`}</p>
           </div>
         </div>
 
         {/* Actions Set */}
         <div className="flex flex-wrap items-center gap-space-sm">
-          {!isComplete && (
+          {!isComplete && unrecordedAthletes.length > 0 && (
             <button
               onClick={() => {
                 setKioskTrackMode('both');
@@ -201,7 +200,7 @@ export default function DashboardScreen({
             </div>
           ) : (
             unresolved.slice(0, 5).map(item => {
-              const initials = item.athlete_name ? item.athlete_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A';
+              const initials = item.athlete_name ? initialsFor(item.athlete_name).slice(0, 2) : 'A';
               const status = alertStatusFor(item.alert_key);
               const isUrgent = item.color === '#ef4444' || item.streak >= 2;
               
@@ -262,7 +261,7 @@ export default function DashboardScreen({
                   {todaysRpeLogs.length === 0 ? 'NO SESSIONS LOGGED YET' : `${respondedIds.size} of ${athletes.length} REPORTED · ${rpeRate}% · AVG ${avgRpe}`}
                 </span>
               </div>
-              <p className="font-body-sm text-body-sm text-on-surface-variant">Aggregated Rated Perceived Exertion (sRPE) &amp; biometric exertion telemetry across training zones.</p>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Session RPE reported today, by team.</p>
               
               {/* RPE Distribution Visualization */}
               <div className="mt-space-md grid grid-cols-2 gap-space-sm">
@@ -354,7 +353,7 @@ export default function DashboardScreen({
                 </div>
                 <span className="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-bold">{athletesRecordedToday.size} OF {athletes.length} LOGGED</span>
               </div>
-              <p className="font-body-sm text-body-sm text-on-surface-variant">Mandatory hydration &amp; baseline tracking accountability per athletic department directive.</p>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Who still needs to weigh in today, by team.</p>
               
               {/* Sport Group Bars */}
               <div className="mt-space-md flex flex-col gap-space-md">
@@ -388,7 +387,7 @@ export default function DashboardScreen({
                           )}
                         </div>
                         {neverTracked ? (
-                          <span className="font-body-sm text-body-sm text-dim">No weigh-ins logged for this team yet - not a compliance gap, just not started.</span>
+                          <span className="font-body-sm text-body-sm text-dim">No weigh-ins logged for this team yet.</span>
                         ) : (
                           <div className="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
                             <div className={`${pct === 100 ? 'bg-status-success' : 'bg-primary'} h-3 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>

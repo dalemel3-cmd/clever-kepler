@@ -79,23 +79,23 @@ export function NegativeSweatDropCards({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <div style={{ fontSize: '11px', fontWeight: 800, color: '#ef4444', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            ⚡ ACUTE EXERTIONAL MONITORING
+            ACUTE EXERTIONAL MONITORING
           </div>
           <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 800, color: '#fff', textTransform: 'uppercase' }}>
-            POST-PRACTICE SWEAT LOSS & HYDRATION ALERTS (IN THE NEGATIVE)
+            POST-PRACTICE SWEAT LOSS
           </h3>
           <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-            Athletes experiencing acute weight loss during practice sessions requiring urgent fluid replacement before tomorrow.
+            Athletes who lost weight during practice and need to rehydrate before tomorrow.
           </span>
         </div>
-        <span style={{ padding: '6px 12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '8px', fontSize: '12px', fontWeight: 800 }}>
+        <span style={{ padding: '6px 12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '10px', fontSize: '12px', fontWeight: 800 }}>
           {list.length} {list.length === 1 ? 'ATHLETE IN NEGATIVE' : 'ATHLETES IN NEGATIVE'}
         </span>
       </div>
 
       {list.length === 0 ? (
         <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
-          Clean! No athletes currently showing acute post-practice sweat loss in the negative.
+          No post-practice weight loss to flag.
         </div>
       ) : (
         <>
@@ -131,7 +131,7 @@ export function NegativeSweatDropCards({
                         {item.athlete.name}
                       </span>
                       {item.athlete.position && (
-                        <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.1)', color: 'var(--color-accent)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.1)', color: 'var(--color-accent)', padding: '2px 6px', borderRadius: '6px', fontWeight: 700 }}>
                           {item.athlete.position}
                         </span>
                       )}
@@ -159,8 +159,8 @@ export function NegativeSweatDropCards({
                       -{item.drop.toFixed(1)} lbs (-{item.pctLoss.toFixed(1)}%)
                     </span>
                   </div>
-                  <div style={{ padding: '8px 16px', borderRadius: '12px', background: item.drop >= 5 ? 'rgba(239, 68, 68, 0.2)' : item.drop > 2 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: item.drop >= 5 ? '1px solid rgba(239, 68, 68, 0.4)' : item.drop > 2 ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: item.drop >= 5 ? '#ef4444' : item.drop > 2 ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
-                    💧 Rx: Drink {item.fluidOz} oz fluids before tomorrow
+                  <div style={{ padding: '8px 16px', borderRadius: '10px', background: item.drop >= 5 ? 'rgba(239, 68, 68, 0.2)' : item.drop > 2 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: item.drop >= 5 ? '1px solid rgba(239, 68, 68, 0.4)' : item.drop > 2 ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: item.drop >= 5 ? '#ef4444' : item.drop > 2 ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
+                    Rx: Drink {item.fluidOz} oz fluids before tomorrow
                   </div>
                 </div>
               </div>
@@ -192,7 +192,7 @@ export function NegativeSweatDropCards({
                       -{item.drop.toFixed(1)} lbs (-{item.pctLoss.toFixed(1)}%)
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 800, color: '#ef4444' }}>
-                      💧 Drink {item.fluidOz} oz fluids
+                      Drink {item.fluidOz} oz fluids
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: '12px' }}>{item.pDate} · {item.pTime}</td>
                   </tr>

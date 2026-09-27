@@ -219,10 +219,10 @@ export default function ReportsScreen({
       {/* Title & Action Buttons Header */}
       <div className="report-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div className="report-header-text">
-          <div className="no-print" style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>ANALYTICS &middot; HUMAN PERFORMANCE</div>
+          <div className="no-print" style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>PERFORMANCE &middot; PRINT REPORT</div>
           <img src="/logo1.png" alt={`${settings.programName} - ${settings.organizationName}`} className="only-print report-print-logo" style={{ display: 'none', height: '46px', width: 'auto', marginBottom: '10px' }} />
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-3xl)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-            {reportMode === 'quick' ? '⚡ QUICK PRIORITY READINESS REPORT' : '⚙️ CUSTOM METRIC PERFORMANCE REPORT'}
+            {reportMode === 'quick' ? 'READINESS REPORT' : 'CUSTOM REPORT'}
           </h1>
           <div className="no-print" style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
             {reportMode === 'quick' ? 'High-priority performance indicators (Dehydration risk, sleep deficits, baseline audits).' : 'Customized metric view tailored for coaching analysis.'}
@@ -232,7 +232,7 @@ export default function ReportsScreen({
           <button
             onClick={exportReportCSV}
             className="no-print"
-            style={{ padding: '10px 22px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, background: 'rgba(255,255,255,0.06)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '8px', cursor: 'pointer' }}
+            style={{ padding: '10px 22px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, background: 'rgba(255,255,255,0.06)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '10px', cursor: 'pointer' }}
             title="Export the currently filtered log rows as CSV"
           >
             <Download size={16} /> Export CSV
@@ -251,7 +251,7 @@ export default function ReportsScreen({
       <div className="card-glass no-print" style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           {/* Mode Switcher */}
-          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
             <button
               onClick={() => setReportMode('quick')}
               style={{
@@ -299,7 +299,7 @@ export default function ReportsScreen({
             <select
               value={reportTimeframe}
               onChange={e => setReportTimeframe(e.target.value)}
-              style={{ background: 'var(--navy-900)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: 'var(--navy-900)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '8px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', width: '100%', maxWidth: '300px' }}
             >
               <option value="all">TIMEFRAME: ALL LOADED ({settings.dataWindowDays} DAYS)</option>
               <option value="today">TIMEFRAME: TODAY</option>
@@ -349,7 +349,7 @@ export default function ReportsScreen({
             <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               SELECT METRICS & SECTIONS TO INCLUDE IN REPORT:
             </span>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))', gap: '10px' }}>
               {[
                 { key: 'acuteSweatLoss', label: 'Acute Sweat Loss', desc: 'Post-practice negative sweat drop' },
                 { key: 'dehydration', label: 'Dehydration Roster', desc: `Athletes down more than ${dehydrationThreshold} lbs` },
@@ -363,7 +363,7 @@ export default function ReportsScreen({
                     key={item.key}
                     onClick={() => toggleMetric(item.key)}
                     style={{
-                      padding: '12px 14px', borderRadius: '8px',
+                      padding: '12px 14px', borderRadius: '10px',
                       background: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255,255,255,0.02)',
                       border: isSelected ? '1px solid var(--color-accent)' : '1px solid rgba(255,255,255,0.08)',
                       cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'all 0.2s'
@@ -441,7 +441,7 @@ export default function ReportsScreen({
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div className="no-print" style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className="no-print" style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
                     <button
                       onClick={() => setDehySortBy('drop')}
                       style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: dehySortBy === 'drop' ? 'var(--status-error)' : 'transparent', color: dehySortBy === 'drop' ? '#fff' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}
@@ -514,7 +514,7 @@ export default function ReportsScreen({
               </div>
 
               {sleepDeficitList.length === 0 ? (
-                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>Optimal CNS sleep scores recorded across all athletes!</div>
+                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '12px 0' }}>No sleep below the threshold in this period.</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -581,11 +581,11 @@ export default function ReportsScreen({
 
           {/* Section 5: Weight Leaderboard (Custom Mode) */}
           {showLeaderboard && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '20px' }}>
               <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    📈 TOP WEIGHT GAINS (WEEK-TO-WEEK)
+                    TOP WEIGHT GAINS (WEEK-TO-WEEK)
                   </h3>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginTop: '2px' }}>Latest weigh-in vs. 7+ days prior</div>
                 </div>
@@ -603,7 +603,7 @@ export default function ReportsScreen({
               <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    📉 TOP WEIGHT DROPS (WEEK-TO-WEEK)
+                    TOP WEIGHT DROPS (WEEK-TO-WEEK)
                   </h3>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginTop: '2px' }}>Latest weigh-in vs. 7+ days prior</div>
                 </div>

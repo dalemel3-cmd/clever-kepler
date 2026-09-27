@@ -82,7 +82,7 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
   // before looking for row-level Edit buttons. The collapse state lives on the
   // ProfilesScreen component itself, so it stays open across the athlete-switch in
   // probe [C] below without needing a second click.
-  await page.getByText('HISTORICAL LOG LEDGER', { exact: false }).click();
+  await page.getByText(/LOG HISTORY \(/, { exact: false }).click();
   await page.waitForTimeout(400);
   const editButtons = page.getByRole('button', { name: /^EDIT$/i });
   const n = await editButtons.count();

@@ -7,7 +7,7 @@ import { AppSidebar } from './components/AppSidebar';
 import { AppHeader } from './components/AppHeader';
 import { Confetti } from './components/Confetti';
 import { SubTabs } from './components/SubTabs';
-import { NAV_GROUPS, groupForScreen } from './navigation';
+import { NAV_GROUPS, groupForScreen, titleForScreen } from './navigation';
 import { RecoveryModal } from './components/modals/RecoveryModal';
 import { InstallModal } from './components/modals/InstallModal';
 import { ConfirmDialog } from './components/modals/ConfirmDialog';
@@ -32,7 +32,7 @@ const ProfilesScreen = lazy(() => import('./features/profiles/ProfilesScreen'));
 const SettingsScreen = lazy(() => import('./features/settings/SettingsScreen'));
 
 const ScreenLoadingFallback = () => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: 'var(--color-text-muted)', fontSize: '14px', fontWeight: 600 }}>
+  <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: 'var(--color-text-muted)', fontSize: '14px', fontWeight: 600 }}>
     Loading...
   </div>
 );
@@ -73,6 +73,10 @@ export default function App() {
     const hash = window.location.hash.replace('#', '');
     return hash || 'dashboard';
   });
+
+  // Screens the app can actually render; anything else in the URL hash gets the
+  // not-found view instead of a blank page.
+  const KNOWN_SCREENS = React.useMemo(() => new Set([...NAV_GROUPS.flatMap(g => g.screens.map(x => x.screen)), 'profiles']), []);
 
   const setScreen = (newScreen) => {
     setScreenState(newScreen);
@@ -167,11 +171,13 @@ export default function App() {
   // Non-blocking toast notifications (replaces the old blocking alert() popups).
   const [toast, setToast] = useState(null); // { id, message, type: 'success'|'error'|'info' }
   const toastTimer = React.useRef(null);
+  const showToastRef = React.useRef(null);
   const showToast = (message, type = 'success') => {
     setToast({ id: Date.now(), message, type });
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 4500);
   };
+  showToastRef.current = showToast;
 
   // Single settings object drives every threshold, window, and label in the app.
   // Values are merged over defaults on load, so a release that adds a new setting
@@ -430,6 +436,12 @@ export default function App() {
   const [isAddingAthlete, setIsAddingAthlete] = useState(false);
   const [editingAthleteId, setEditingAthleteId] = useState(null);
   const [selectedProfileId, setSelectedProfileId] = useState(null);
+
+  // Unique browser-tab title per screen (and the athlete's name on a profile).
+  useEffect(() => {
+    const profileName = screen === 'profiles' && selectedProfileId ? athletes.find(a => a.id === selectedProfileId)?.name : null;
+    document.title = KNOWN_SCREENS.has(screen) ? titleForScreen(screen, profileName) : 'Page not found · HPD';
+  }, [screen, selectedProfileId, athletes, KNOWN_SCREENS]);
   const [profileData, setProfileData] = useState([]);
   const [newAthlete, setNewAthlete] = useState({ name: '', sport: '', team: '', grade: '', position: '' });
   
@@ -513,19 +525,20 @@ export default function App() {
     };
     checkQueue();
 
-    // Supabase UltraSync: Realtime WebSockets + Instant Client-to-Client Broadcast Channel (iPad <-> PC)
+    // Live sync: realtime database changes plus a device-to-device broadcast channel (iPad <-> PC)
     let channel;
     try {
       channel = supabase
         .channel('shiloh_ultrasync_bus', { config: { broadcast: { ack: false, self: false } } })
         .on('broadcast', { event: 'DEVICE_SYNC_EVENT' }, (payload) => {
-          console.log("🔥 [ULTRASYNC] Instant real-time signal received from wireless device:", payload);
+          // Settings > Ping Devices: show the receipt on screen (it used to go only to
+          // the developer console, so the button looked like it did nothing).
           if (payload.payload && payload.payload.isPing) {
-            console.log("📶 [ULTRASYNC] Test ping received — devices are connected.");
+            showToastRef.current('Test ping received from another device. Live sync is working.', 'info');
+            return;
           }
           if (payload.payload && payload.payload.type === 'NEW_WEIGH_IN_LOGGED' && payload.payload.record) {
             const incoming = payload.payload.record;
-            console.log("⚡ [ULTRASYNC DATA RECEPTION] Merging live wireless log directly into display:", incoming);
             setReportData(prev => {
               const isDuplicate = prev.some(r => {
                 if (r.id && incoming.id && !String(r.id).startsWith('opt_') && !String(r.id).startsWith('offline_')) {
@@ -687,7 +700,7 @@ export default function App() {
         setDeferredInstallPrompt(null);
         return;
       } catch (err) {
-        console.log("Install prompt error:", err);
+        console.warn("Install prompt error:", err);
       }
     }
     setShowInstallModal(true);
@@ -702,7 +715,7 @@ export default function App() {
           url: window.location.href,
         });
       } catch (err) {
-        console.log("Share error:", err);
+        console.warn("Share error:", err);
       }
     } else {
       handleCopyLink();
@@ -715,7 +728,7 @@ export default function App() {
       setCopiedLinkToast(true);
       setTimeout(() => setCopiedLinkToast(false), 2500);
     } catch (err) {
-      console.log("Copy error:", err);
+      console.warn("Copy error:", err);
     }
   };
 
@@ -1007,7 +1020,7 @@ export default function App() {
       const offlineQueue = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
       if (offlineQueue.length === 0) {
         if (isClick) {
-          showToast("☁️ No offline logs pending — fully synchronized with the cloud.", 'info');
+          showToast("No offline logs pending — fully synchronized with the cloud.", 'info');
         }
         return;
       }
@@ -1094,14 +1107,14 @@ export default function App() {
 
       if (isClick) {
         if (failedItems.length === 0) {
-          showToast(`⚡ Sync complete — ${syncedCount} offline session${syncedCount === 1 ? '' : 's'} uploaded & secured.`);
+          showToast(`Sync complete — ${syncedCount} offline session${syncedCount === 1 ? '' : 's'} uploaded & secured.`);
         } else {
-          showToast(`⚠️ Partial sync: ${syncedCount} uploaded, ${failedItems.length} still queued.\nQueued logs retry automatically.`, 'error');
+          showToast(`Partial sync: ${syncedCount} uploaded, ${failedItems.length} still queued.\nQueued logs retry automatically.`, 'error');
         }
       }
     } catch (err) {
       console.warn("Could not sync offline queue yet:", err);
-      if (isClick) showToast("⚠️ Could not reach the server — records remain safely queued.", 'error');
+      if (isClick) showToast("Could not reach the server — records remain safely queued.", 'error');
     } finally {
       syncInFlight.current = false;
     }
@@ -1136,7 +1149,7 @@ export default function App() {
           const key = (rec.athlete_id || '') + '_' + (rec.created_at || '');
           if (!seen.has(key)) {
             seen.add(key);
-            findings.push({ ...rec, source_key: 'shiloh_permanent_vault (Hardware Vault)', raw_index: idx });
+            findings.push({ ...rec, source_key: 'shiloh_permanent_vault (device backup)', raw_index: idx });
           }
         }
       });
@@ -1234,7 +1247,7 @@ export default function App() {
     }
 
     setRecoverySyncing(false);
-    showToast(`⚡ Force upload complete: ${successCount} new log${successCount === 1 ? '' : 's'} uploaded.\n✔ ${skippedCount} already in cloud (skipped).${failCount > 0 ? `\n⚠️ ${failCount} failed.` : ''}`, failCount > 0 ? 'error' : 'success');
+    showToast(`Force upload complete: ${successCount} new log${successCount === 1 ? '' : 's'} uploaded.\n${skippedCount} already in cloud (skipped).${failCount > 0 ? `\n${failCount} failed.` : ''}`, failCount >0 ? 'error' : 'success');
     fetchReportData();
   };
 
@@ -1321,7 +1334,7 @@ export default function App() {
         localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(currentOffline));
         
         fetchReportData();
-        showToast(`🎉 Imported ${validRecords.length} records from ${file.name}.\nClick FORCE UPLOAD to push them to the cloud.`);
+        showToast(`Imported ${validRecords.length} records from ${file.name}.\nClick FORCE UPLOAD to push them to the cloud.`);
       } catch (err) {
         console.error("Error importing file:", err);
         showToast("Failed to read that file — check the format and try again.", 'error');
@@ -1364,8 +1377,9 @@ export default function App() {
       } else {
         throw error;
       }
-    } catch {
+    } catch (err) {
       console.warn("Supabase fetch failed. Loading local cache.");
+      reportDataError(err, 'athletes:fetch');
       try {
         const cached = JSON.parse(localStorage.getItem('shiloh_roster'));
         if (cached && Array.isArray(cached) && cached.length > 0) {
@@ -1375,7 +1389,9 @@ export default function App() {
           // against them (which then auto-created them as cloud athletes on save).
           console.warn("No local roster cache while offline - showing empty roster.");
           setAthletes([]);
-          showToast('📡 Offline with no cached roster on this device yet.\nRoster will appear after the first successful cloud sync.', 'info');
+          showToast(navigator.onLine
+            ? "Couldn't load the roster from the server. It will appear as soon as the connection recovers."
+            : "You're offline and this device has no saved roster yet. It will appear after the first sync.", 'info');
         }
       } catch {
         console.warn("No local roster cache while offline - showing empty roster.");
@@ -1479,7 +1495,7 @@ export default function App() {
       try {
         const { error } = await supabase.from('athletes').insert(athletesToInsert);
         if (error) throw error;
-        showToast(`✅ Uploaded ${athletesToInsert.length} athletes to the roster!`);
+        showToast(`Uploaded ${athletesToInsert.length} athletes to the roster!`);
         fetchAthletes();
       } catch (err) {
         console.error("CSV Upload Error:", err);
@@ -1951,7 +1967,7 @@ export default function App() {
       return item;
     }));
 
-    showToast(`🎯 Baseline marker updated: ${weightVal} lbs (${dateStr}).`);
+    showToast(`Baseline marker updated: ${weightVal} lbs (${dateStr}).`);
     fetchReportData();
     if (typeof selectedProfileId !== 'undefined' && selectedProfileId) {
       fetchProfileData(selectedProfileId);
@@ -2029,7 +2045,7 @@ export default function App() {
       return item;
     }));
 
-    showToast(`🎉 ${sportName.toUpperCase()} team baseline synchronized to ${displayDateStr}.\n${totalAthletesAffected} athletes updated.`);
+    showToast(`${sportName.toUpperCase()} team baseline synchronized to ${displayDateStr}.\n${totalAthletesAffected} athletes updated.`);
     fetchReportData();
     broadcastDeviceSync({ type: 'BULK_BASELINE_SYNCED', sport: sportName });
   };
@@ -2378,7 +2394,7 @@ export default function App() {
           <CheckCircle size={24} style={{ flexShrink: 0, color: '#fff' }} />
           <div>
             <span style={{ fontSize: '15px', fontWeight: 800, display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              {lastSavedWasBaseline ? '🎯 BASELINE SET SUCCESSFULLY!' : 'LOG RECORDED SUCCESSFULLY!'}
+              {lastSavedWasBaseline ? 'BASELINE SET SUCCESSFULLY!' : 'LOG RECORDED SUCCESSFULLY!'}
             </span>
             {lastSavedAthleteName && <span style={{ fontSize: '12px', opacity: 0.95, fontWeight: 700 }}>{lastSavedAthleteName} &middot; {lastSavedWasBaseline ? 'New Baseline Mass Established & ' : ''}{isOnline ? 'Synced & Live' : 'Cached Offline in Sync Queue'}</span>}
           </div>
@@ -2403,11 +2419,13 @@ export default function App() {
       )}
       
 
-      {!isKioskMode && <AppSidebar cloudStatus={cloudStatus} screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} enableLiftTracker={settings.enableLiftTracker} onActivateKioskMode={handleActivateKioskMode} />}
+      {!isKioskMode && <AppSidebar cloudStatus={cloudStatus} organizationName={settings.organizationName} screen={screen} setScreen={setScreen} getDailyAlerts={() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved')} coachName={settings.coachName} coachInitials={coachInitials} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} enableLiftTracker={settings.enableLiftTracker} onActivateKioskMode={handleActivateKioskMode} />}
 
       <div className={`flex-1 min-w-0 ${isKioskMode ? "w-full" : (sidebarCollapsed ? "md:pl-20" : "md:pl-64")}`}>
         <AppHeader
           cloudStatus={cloudStatus}
+          screen={screen}
+          organizationName={settings.organizationName}
           isKioskMode={isKioskMode}
           setIsKioskMode={setIsKioskMode}
           onActivateKioskMode={handleActivateKioskMode}
@@ -2428,18 +2446,18 @@ export default function App() {
                 {isRefreshing ? (
                   <>
                     <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-accent)' }} />
-                    <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-accent)' }}>⚡ SYNCHRONIZING WITH LIVE CLOUD DATABASE...</span>
+                    <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-accent)' }}>Refreshing...</span>
                   </>
                 ) : showRefreshCelebration ? (
                   <>
                     <CheckCircle size={16} style={{ color: '#4ade80' }} />
-                    <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', color: '#4ade80' }}>✨ CLOUD ROSTERS &amp; BASELINES UP-TO-DATE!</span>
+                    <span style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', color: '#4ade80' }}>Up to date</span>
                   </>
                 ) : (
                   <>
                     <RefreshCw size={16} style={{ transform: `rotate(${pullProgress * 3.6}deg)`, color: pullProgress >= 75 ? '#4ade80' : 'var(--color-text-muted)', transition: 'transform 0.1s' }} />
                     <span style={{ fontSize: '12px', fontWeight: 700, color: pullProgress >= 75 ? '#4ade80' : 'var(--color-text-muted)' }}>
-                      {pullProgress >= 75 ? '⬆️ Release to refresh live cloud data!' : `⬇️ Pull down to refresh (${pullProgress}%)`}
+                      {pullProgress >= 75 ? 'Release to refresh live cloud data!' : `Pull down to refresh (${pullProgress}%)`}
                     </span>
                   </>
                 )}
@@ -2733,6 +2751,15 @@ export default function App() {
                 authEmail={authEmail}
                 handleSignOut={handleSignOut}
               />
+            )}
+            {!KNOWN_SCREENS.has(screen) && (
+              <div className="card-glass" style={{ padding: '40px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', textAlign: 'center' }}>
+                <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-2xl)', textTransform: 'uppercase' }}>Page not found</h1>
+                <p style={{ margin: 0, color: 'var(--color-text-muted)', maxWidth: '44ch' }}>
+                  This link doesn't match a screen in the app. It may be from an older version.
+                </p>
+                <button className="btn-primary" style={{ height: '44px', padding: '0 20px' }} onClick={() => setScreen('dashboard')}>Go to Today</button>
+              </div>
             )}
             </Suspense>
 

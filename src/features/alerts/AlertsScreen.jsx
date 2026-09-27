@@ -10,8 +10,8 @@ const STATUS_META = {
 };
 
 function severityBadge(streak) {
-  if (streak >= 3) return { label: `🔥 ${streak}-DAY STREAK`, bg: 'rgba(239, 68, 68, 0.25)', color: '#ef4444' };
-  if (streak === 2) return { label: '⚠️ 2ND DAY RUNNING', bg: 'rgba(245, 158, 11, 0.25)', color: '#f59e0b' };
+  if (streak >= 3) return { label: `${streak}-DAY STREAK`, bg: 'rgba(239, 68, 68, 0.25)', color: '#ef4444' };
+  if (streak === 2) return { label: '2ND DAY RUNNING', bg: 'rgba(245, 158, 11, 0.25)', color: '#f59e0b' };
   return null;
 }
 
@@ -33,18 +33,18 @@ export default function AlertsScreen({
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div style={{ flex: '1 1 280px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.1em', marginBottom: '4px' }}>TRAINING SAFETY &middot; TODAY'S RISK ALERTS</div>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--status-error)', letterSpacing: '0.1em', marginBottom: '4px' }}>TODAY &middot; ALERTS</div>
           <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 5vw, var(--text-3xl))', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.1 }}>ATHLETE RECOVERY ALERTS</h1>
           <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>Automated flags for mass loss (&gt;{dehydrationThreshold} lbs) and low sleep (&lt;{sleepThreshold}h) &middot; sorted most urgent first</div>
         </div>
 
         {allAlerts.length > 0 && (
           <div style={{ display: 'flex', gap: '10px' }}>
-            <div style={{ padding: '8px 16px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', textAlign: 'center' }}>
+            <div style={{ padding: '8px 16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', textAlign: 'center' }}>
               <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--status-error)' }}>{openCount}</div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)' }}>UNRESOLVED</div>
             </div>
-            <div style={{ padding: '8px 16px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', textAlign: 'center' }}>
+            <div style={{ padding: '8px 16px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', textAlign: 'center' }}>
               <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--status-success)' }}>{resolvedCount}</div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)' }}>RESOLVED</div>
             </div>
@@ -57,7 +57,7 @@ export default function AlertsScreen({
         {allAlerts.length === 0 ? (
           <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: 'var(--color-text-muted)' }}>
             <CheckCircle size={32} style={{ color: 'var(--status-success)' }} />
-            <span style={{ fontSize: '14px', fontWeight: 600 }}>No risk alerts today. All athletes are fully recovered.</span>
+            <span style={{ fontSize: '14px', fontWeight: 600 }}>No alerts today.</span>
           </div>
         ) : (
           allAlerts.map(alert => {
@@ -81,9 +81,9 @@ export default function AlertsScreen({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700 }}>{alert.athlete_name}</span>
-                      <span style={{ fontSize: '10px', background: `${alert.color}33`, color: alert.color, padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>{alert.type}</span>
+                      <span style={{ fontSize: '10px', background: `${alert.color}33`, color: alert.color, padding: '2px 6px', borderRadius: '6px', fontWeight: 700 }}>{alert.type}</span>
                       {badge && (
-                        <span style={{ fontSize: '10px', background: badge.bg, color: badge.color, padding: '2px 6px', borderRadius: '4px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <span style={{ fontSize: '10px', background: badge.bg, color: badge.color, padding: '2px 6px', borderRadius: '6px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}>
                           <Flame size={11} /> {badge.label}
                         </span>
                       )}

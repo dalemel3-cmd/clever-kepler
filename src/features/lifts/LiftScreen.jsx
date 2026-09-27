@@ -622,9 +622,9 @@ export default function LiftScreen({
           {/* Top Breadcrumb & Control Anchor */}
           <div className="flex flex-wrap items-center justify-between gap-space-sm pt-space-md pb-space-sm">
             <div className="flex items-center gap-space-xs font-label-md text-label-md tracking-widest text-outline uppercase">
-              <span>WORKSPACE</span>
-              <span aria-hidden="true" className="material-symbols-outlined text-xs">chevron_right</span>
-              <span className="text-primary font-bold">LIFT TRACKER</span>
+              <span>LOG</span>
+              <span aria-hidden="true">&middot;</span>
+              <span className="text-primary font-bold">LIFTS</span>
             </div>
           </div>
 
@@ -679,18 +679,6 @@ export default function LiftScreen({
                 </button>
               )}
 
-              {/* Segmented View Controller */}
-              <div className="flex items-center bg-surface-container-lowest p-1 rounded-lg gap-0.5 ml-1">
-                <button className="p-1.5 rounded text-primary bg-surface-container-high transition-colors" id="view-grid-btn" title="Station Grid View">
-                  <span aria-hidden="true" className="material-symbols-outlined text-lg">view_cozy</span>
-                </button>
-                <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-list-btn" title="Roster Table View">
-                  <span aria-hidden="true" className="material-symbols-outlined text-lg">format_list_bulleted</span>
-                </button>
-                <button className="p-1.5 rounded text-on-surface-variant hover:text-on-surface transition-colors" id="view-stream-btn" title="Live Velocity Stream">
-                  <span aria-hidden="true" className="material-symbols-outlined text-lg">timeline</span>
-                </button>
-              </div>
             </div>
           </div>
         </>
@@ -794,16 +782,16 @@ export default function LiftScreen({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h2 className="font-headline-lg text-headline-lg uppercase text-on-surface tracking-wide">
-                    ROSTER LOGS &amp; WORKOUT ASSIGNMENTS
+                    ROSTER
                   </h2>
-                  <span className="font-label-sm text-label-sm text-outline uppercase">{filteredAthletes.length} REGISTERED ATHLETES • SORTED BY VELOCITY / RECENCY</span>
+                  <span className="font-label-sm text-label-sm text-outline uppercase">{filteredAthletes.length} ATHLETES • A–Z</span>
                 </div>
               </div>
             )}
 
             {filteredAthletes.length === 0 ? (
               <div className="bg-surface-container-low rounded-xl p-space-xl text-center text-on-surface-variant">
-                No athletes match "{search}".
+                {search ? `No athletes match "${search}".` : 'No athletes in this group yet.'}
               </div>
             ) : isKioskMode ? (
               /* Big tap-target tile picker - an athlete walking up finds their own
@@ -865,11 +853,11 @@ export default function LiftScreen({
               <div className="bg-surface-container-low rounded-xl overflow-hidden shadow-lg">
                 {/* Table Header Bar */}
                 <div className="grid grid-cols-12 px-space-md py-space-sm bg-surface-container-high text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
-                  <div className="col-span-4 sm:col-span-3">ATHLETE &amp; SPORT</div>
+                  <div className="col-span-6 sm:col-span-3">ATHLETE &amp; SPORT</div>
                   <div className="col-span-2 hidden md:block">BODYWEIGHT</div>
                   <div className="col-span-3 hidden sm:block">STATUS</div>
                   <div className="col-span-3 sm:col-span-2">LAST LOGGED SET</div>
-                  <div className="col-span-5 sm:col-span-2 text-right">ACTION</div>
+                  <div className="col-span-3 sm:col-span-2 text-right">ACTION</div>
                 </div>
 
                 {/* Rows Container */}
@@ -885,7 +873,7 @@ export default function LiftScreen({
 
                     return (
                       <div key={a.id} className="roster-row grid grid-cols-12 items-center px-space-md py-3.5 bg-surface-container hover:bg-surface-container-highest transition-colors border-b border-surface-container-high last:border-b-0 cursor-pointer" onClick={() => openEntry(a.id)}>
-                        <div className="col-span-4 sm:col-span-3 flex items-center gap-space-sm">
+                        <div className="col-span-6 sm:col-span-3 flex items-center gap-space-sm min-w-0">
                           <div className={`w-9 h-9 rounded bg-surface-container-highest ${status === 'stale' ? 'text-error' : (status === 'never' ? 'text-outline' : 'text-primary')} font-headline-md text-headline-md flex items-center justify-center shrink-0`}>
                             {initialsOf(a.name).slice(0, 2)}
                           </div>
@@ -924,7 +912,7 @@ export default function LiftScreen({
                           )}
                         </div>
 
-                        <div className="col-span-5 sm:col-span-2 flex items-center justify-end gap-1.5">
+                        <div className="col-span-3 sm:col-span-2 flex items-center justify-end gap-1.5">
                           <button 
                             onClick={(e) => { e.stopPropagation(); openEntry(a.id); }}
                             className={`px-space-sm py-1.5 rounded bg-primary-container hover:bg-primary text-on-primary-container font-headline-md text-headline-md uppercase transition-colors shadow-sm`}
@@ -933,8 +921,9 @@ export default function LiftScreen({
                           </button>
                           <button 
                             onClick={(e) => { e.stopPropagation(); openProfile(a.id); }}
-                            className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface" 
-                            title="View Athlete Dashboard"
+                            className="hidden sm:inline-flex p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface" 
+                            title="Open athlete profile"
+                            aria-label="Open athlete profile"
                           >
                             <span aria-hidden="true" className="material-symbols-outlined text-base">visibility</span>
                           </button>
@@ -1094,7 +1083,7 @@ export default function LiftScreen({
           style={{ position: 'fixed', inset: 0, zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.9)', overflowY: 'auto' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeEntry(); }}
         >
-          <div className="card-glass glow-card animate-slide-up bg-surface-container-low shadow-lg" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid rgba(255, 193, 116, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="card-glass glow-card animate-slide-up bg-surface-container-low shadow-lg" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', border: '1px solid rgba(255, 193, 116, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {entryPanelInner}
           </div>
         </div>,
@@ -1107,7 +1096,7 @@ export default function LiftScreen({
           style={{ position: 'fixed', inset: 0, zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: 'rgba(5, 11, 20, 0.9)', overflowY: 'auto' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeBulkEdit(); }}
         >
-          <div className="card-glass glow-card animate-slide-up bg-surface-container-low shadow-lg" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: '1px solid rgba(255, 193, 116, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="card-glass glow-card animate-slide-up bg-surface-container-low shadow-lg" style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', border: '1px solid rgba(255, 193, 116, 0.4)', padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h3 className="font-display text-2xl font-bold text-on-surface uppercase m-0">Bulk Edit Lift Type</h3>

@@ -68,6 +68,18 @@ body {
   overflow: hidden;
 }
 
+/* A select sizes itself to its longest option (a long athlete name), and an input
+   to its size attribute - neither may push past its container on a phone. */
+select, input, textarea {
+  max-width: 100%;
+  min-width: 0; /* as flex items they'd otherwise refuse to shrink below the longest option */
+}
+select { text-overflow: ellipsis; }
+
+/* A single long word in a big display heading ("TROUBLESHOOTING") must wrap rather
+   than push a phone screen sideways. Only breaks when it truly doesn't fit. */
+h1, h2, h3 { overflow-wrap: break-word; }
+
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;

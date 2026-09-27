@@ -149,14 +149,14 @@ export default function LoginScreen({ offlineNotice }) {
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
-          borderRadius: '24px',
+          borderRadius: '16px',
           border: '1px solid var(--color-accent)',
           boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
-            width: '52px', height: '52px', borderRadius: '14px',
+            width: '52px', height: '52px', borderRadius: '16px',
             background: 'rgba(184, 156, 91, 0.15)', border: '1px solid var(--color-accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)',
             flexShrink: 0,
@@ -178,7 +178,7 @@ export default function LoginScreen({ offlineNotice }) {
 
         {offlineNotice && (
           <div style={{
-            padding: '12px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700, lineHeight: 1.5,
+            padding: '12px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, lineHeight: 1.5,
             background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.45)', color: '#fbbf24',
             display: 'flex', gap: '10px', alignItems: 'flex-start',
           }}>
@@ -200,7 +200,7 @@ export default function LoginScreen({ offlineNotice }) {
             className="input-glass"
             value={email}
             onChange={e => { setEmail(e.target.value); setError(''); }}
-            style={{ height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '12px', fontWeight: 600 }}
+            style={{ height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '10px', fontWeight: 600 }}
           />
         </div>
 
@@ -215,7 +215,7 @@ export default function LoginScreen({ offlineNotice }) {
             className="input-glass"
             value={password}
             onChange={e => { setPassword(e.target.value); setError(''); }}
-            style={{ height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '12px', fontWeight: 600 }}
+            style={{ height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '10px', fontWeight: 600 }}
           />
         </div>
 
@@ -231,14 +231,14 @@ export default function LoginScreen({ offlineNotice }) {
               className="input-glass"
               value={confirmPassword}
               onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
-              style={{ height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '12px', fontWeight: 600 }}
+              style={{ height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '10px', fontWeight: 600 }}
             />
           </div>
         )}
 
         {notice && (
           <div style={{
-            padding: '12px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700, lineHeight: 1.5,
+            padding: '12px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, lineHeight: 1.5,
             background: 'rgba(52, 211, 153, 0.12)', border: '1px solid rgba(52, 211, 153, 0.4)', color: '#6ee7b7',
           }}>
             {notice}
@@ -247,7 +247,7 @@ export default function LoginScreen({ offlineNotice }) {
 
         {error && (
           <div role="alert" style={{
-            padding: '12px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
+            padding: '12px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700,
             background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.45)', color: '#fca5a5',
           }}>
             {error}
@@ -259,7 +259,7 @@ export default function LoginScreen({ offlineNotice }) {
           disabled={busy}
           className="btn-primary glow-card"
           style={{
-            height: '54px', fontSize: '16px', fontWeight: 800, borderRadius: '14px',
+            height: '54px', fontSize: '16px', fontWeight: 800, borderRadius: '16px',
             background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none',
             cursor: busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: '10px', opacity: busy ? 0.7 : 1,

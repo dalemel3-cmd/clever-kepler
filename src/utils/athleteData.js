@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.2.3';
+export const APP_VERSION = 'v5.2.4';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -383,4 +383,14 @@ export const getWeeklyWeightDelta = (reportData, athleteId, { days = 7, now = Da
     previousAt: prior.at,
     daysBetween: Math.max(1, Math.round((current.at - prior.at) / (24 * 60 * 60 * 1000))),
   };
+};
+
+// Two-letter avatar initials: first + last name ("Christopher Montgomery-Wellington III"
+// -> "CM", not "CMI"). Generational suffixes are skipped.
+export const initialsFor = (name) => {
+  const parts = String(name || '').trim().split(/\s+/).filter(p => !/^(jr\.?|sr\.?|ii|iii|iv|v)$/i.test(p));
+  if (parts.length === 0) return '?';
+  const first = parts[0][0] || '';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return (first + last).toUpperCase();
 };

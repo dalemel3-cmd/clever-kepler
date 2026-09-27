@@ -71,7 +71,7 @@ export default function CoachAccessCard({ showToast, setConfirmModal, currentEma
     <div className="card-glass" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid rgba(139, 92, 246, 0.35)', background: 'rgba(139, 92, 246, 0.04)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc' }}>
             <Users size={22} />
           </div>
           <div>
@@ -84,14 +84,14 @@ export default function CoachAccessCard({ showToast, setConfirmModal, currentEma
         <button
           onClick={load}
           aria-label="Refresh coach list"
-          style={{ padding: '9px 16px', fontSize: '12px', fontWeight: 700, background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
+          style={{ padding: '9px 16px', fontSize: '12px', fontWeight: 700, background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
         >
           <RefreshCw size={14} style={{ animation: state === 'loading' ? 'spin 1s linear infinite' : 'none' }} /> REFRESH
         </button>
       </div>
 
       {state === 'not-configured' && (
-        <div style={{ padding: '14px 18px', borderRadius: '12px', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.4)', color: '#fbbf24', fontSize: '13px', fontWeight: 600, lineHeight: 1.6 }}>
+        <div style={{ padding: '14px 18px', borderRadius: '10px', background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.4)', color: '#fbbf24', fontSize: '13px', fontWeight: 600, lineHeight: 1.6 }}>
           Coach approval isn't set up in the database yet. Run <strong>db/003_coach_approval.sql</strong> in
           Supabase (see <strong>docs/RLS-RUNBOOK.md</strong>) to turn it on. Until then anyone who can sign in
           has full access.
@@ -99,7 +99,7 @@ export default function CoachAccessCard({ showToast, setConfirmModal, currentEma
       )}
 
       {state === 'error' && (
-        <div style={{ padding: '14px 18px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', fontSize: '13px', fontWeight: 600 }}>
+        <div style={{ padding: '14px 18px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', fontSize: '13px', fontWeight: 600 }}>
           Couldn't load the coach list. Check the connection and hit refresh.
         </div>
       )}
@@ -112,7 +112,7 @@ export default function CoachAccessCard({ showToast, setConfirmModal, currentEma
                 <Clock size={13} /> AWAITING APPROVAL ({pending.length})
               </span>
               {pending.map(row => (
-                <div key={row.user_id} style={{ padding: '14px 18px', borderRadius: '12px', background: 'rgba(234, 179, 8, 0.08)', border: '1px solid rgba(234, 179, 8, 0.35)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div key={row.user_id} style={{ padding: '14px 18px', borderRadius: '10px', background: 'rgba(234, 179, 8, 0.08)', border: '1px solid rgba(234, 179, 8, 0.35)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--white)' }}>{row.email}</div>
                     <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
@@ -153,7 +153,7 @@ export default function CoachAccessCard({ showToast, setConfirmModal, currentEma
             {approved.map(row => {
               const isSelf = currentEmail && row.email === currentEmail;
               return (
-                <div key={row.user_id} style={{ padding: '14px 18px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div key={row.user_id} style={{ padding: '14px 18px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--white)' }}>
                       {row.email}{isSelf && <span style={{ marginLeft: '8px', fontSize: '10px', fontWeight: 800, color: 'var(--color-accent)', background: 'rgba(184,156,91,0.15)', border: '1px solid var(--color-accent)', padding: '2px 8px', borderRadius: '10px' }}>YOU</span>}

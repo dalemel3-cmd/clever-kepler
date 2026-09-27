@@ -3133,7 +3133,66 @@ look is unchanged. Only the navigation and some duplicates were removed.
 - **Pending from the coach:** a roster export (name, grade, sport) to match against the
   app.
 
-## 85. Next up
+## 85. Polish audit (v5.2.4)
+
+The coach asked for a hunt for "vibe-coded" tells. What changed, and what was
+deliberately left alone:
+
+- **Metadata** (`index.html`, `vite.config.js`, `public/`):
+  - Added a description, `robots noindex` plus `robots.txt` (this is a private staff
+    tool), a canonical URL, and Open Graph/Twitter tags with `og-image.png`
+    (1200×630).
+  - Square icons (`icon-192/512`, maskable, `apple-touch-icon`, favicons) are cut from
+    the helmet in the portrait logo. The portrait logo now lives at
+    `docs/brand/logo-portrait.png`.
+  - Removed Vite's `favicon.svg`/`icons.svg`, the manifest's portrait orientation lock,
+    `user-scalable=no`, and the duplicate Material Symbols stylesheet (`display=block`
+    is now set).
+  - Each screen sets `document.title` through `titleForScreen()` in `navigation.js`.
+- **No sitemap on purpose.** Nothing here should be crawled.
+- **Domain:** production is still Vercel's default `clever-kepler.vercel.app`. It was
+  not changed: installed home-screen apps and saved sign-ins are tied to it. See Next up.
+- **Pages people forget:**
+  - An unknown hash renders a Page not found view (`KNOWN_SCREENS` in App).
+  - The ErrorBoundary shows a branded crash screen with a Reload button, with the
+    technical details collapsed.
+  - Empty states say "No athletes in this group yet" rather than `match ""`.
+  - A failed roster fetch reports a server problem instead of claiming the device is
+    offline.
+- **Layout:**
+  - Every `minmax(Npx, 1fr)` grid became `minmax(min(Npx, 100%), 1fr)`.
+  - Form controls get `max-width: 100%; min-width: 0`, and headings get
+    `overflow-wrap: break-word`.
+  - The Athletes layout uses `minmax(0, 1fr)` on phones, the profile athlete dropdown
+    is capped, and the lift roster columns are rebalanced on phones.
+  - `initialsFor()` in athleteData gives two-letter avatars.
+  - The profile name is now the page's `h1`.
+- **Fake or broken controls:**
+  - Removed the Lift Tracker's three view buttons, which had no handlers.
+  - Ping Devices now shows a toast on the receiving device (`showToastRef`). Before
+    this it logged to the console only.
+- **Copy:**
+  - Removed about 60 decorative emoji and the emoji debug `console.log`s.
+  - Rewrote marketing-speak and false claims in plain language. S&C terms (RPE, A:C,
+    AU, baseline) were kept.
+  - Page eyebrows now follow a "GROUP · SCREEN" pattern, and the header breadcrumb
+    shows the organization and the current group.
+- **Consistency:** inline border radii were normalized to 6, 10 and 16px. The two
+  styling systems (inline styles vs Tailwind) remain. Unifying them would be the
+  redesign the coach asked us not to do.
+- **Checked and fine:**
+  - No secrets in the repo (`.env.example` holds placeholders only).
+  - No source maps ship.
+  - The Supabase anon key in the bundle is public by design, and RLS protects the data.
+  - Bundles: main chunk 148 KB. Recharts (300 KB) loads only on chart screens.
+- Test: `tests/polish.js` (53 probes). All 40 test files pass.
+
+## 86. Next up
+
+- **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
+  to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
+  the new link, reinstall the home-screen app and sign in once. Update the canonical
+  and `og:url` in `index.html` at the same time.
 
 1. **Confirm jump technique for Cheer & Dance** (§20). MBB and Softball were confirmed
    arm swing on 2026-09-09 - their 34 + 43 historical `vertical_jump`/`board_jump` rows

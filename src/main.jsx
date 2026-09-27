@@ -64,13 +64,23 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ color: 'red', background: 'white', padding: '20px', fontFamily: 'monospace' }}>
-          <h2>Something went wrong.</h2>
-          <details style={{ whiteSpace: 'pre-wrap' }}>
-            {this.state.error && this.state.error.toString()}
-            <br />
-            {this.state.errorInfo && this.state.errorInfo.componentStack}
-          </details>
+        <div role="alert" style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: '#030e20', color: '#e8ecf2', fontFamily: 'Inter, system-ui, sans-serif' }}>
+          <div style={{ maxWidth: '440px', width: '100%', background: '#0a1628', border: '1px solid #1f3252', borderRadius: '16px', padding: '28px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <h1 style={{ margin: 0, fontFamily: 'Oswald, Impact, sans-serif', fontSize: '24px', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Something went wrong</h1>
+            <p style={{ margin: 0, color: '#93a0b4', lineHeight: 1.5 }}>
+              This screen hit an error and couldn't load. Your saved data is safe. Reloading usually fixes it, and the error has been logged.
+            </p>
+            <button onClick={() => window.location.reload()} style={{ height: '44px', borderRadius: '10px', border: 0, background: '#b89c5b', color: '#030a14', fontWeight: 700, fontSize: '15px', cursor: 'pointer' }}>
+              Reload
+            </button>
+            <details style={{ color: '#93a0b4', fontSize: '12px' }}>
+              <summary style={{ cursor: 'pointer' }}>Technical details</summary>
+              <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '8px 0 0' }}>
+                {this.state.error && this.state.error.toString()}
+                {this.state.errorInfo && this.state.errorInfo.componentStack}
+              </pre>
+            </details>
+          </div>
         </div>
       );
     }

@@ -22,13 +22,13 @@ export default function PendingApproval({ email, onRecheck, rechecking }) {
         style={{
           width: '100%', maxWidth: '460px', padding: '32px',
           display: 'flex', flexDirection: 'column', gap: '20px',
-          borderRadius: '24px', border: '1px solid rgba(234, 179, 8, 0.5)',
+          borderRadius: '16px', border: '1px solid rgba(234, 179, 8, 0.5)',
           boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
-            width: '52px', height: '52px', borderRadius: '14px',
+            width: '52px', height: '52px', borderRadius: '16px',
             background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.5)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fbbf24', flexShrink: 0,
           }}>
@@ -63,7 +63,7 @@ export default function PendingApproval({ email, onRecheck, rechecking }) {
           disabled={rechecking}
           className="btn-primary"
           style={{
-            height: '50px', fontSize: '15px', fontWeight: 800, borderRadius: '14px',
+            height: '50px', fontSize: '15px', fontWeight: 800, borderRadius: '16px',
             background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none',
             cursor: rechecking ? 'wait' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
@@ -77,7 +77,7 @@ export default function PendingApproval({ email, onRecheck, rechecking }) {
           type="button"
           onClick={signOut}
           style={{
-            height: '44px', fontSize: '13px', fontWeight: 700, borderRadius: '12px',
+            height: '44px', fontSize: '13px', fontWeight: 700, borderRadius: '10px',
             background: 'transparent', border: '1px solid var(--color-border)',
             color: 'var(--color-text-muted)', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',

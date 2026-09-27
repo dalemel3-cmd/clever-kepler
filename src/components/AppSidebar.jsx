@@ -2,7 +2,7 @@ import React from 'react';
 import { APP_VERSION } from '../utils/athleteData';
 import { NAV_GROUPS, groupForScreen } from '../navigation';
 
-export function AppSidebar({ cloudStatus, screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, onActivateKioskMode }) {
+export function AppSidebar({ cloudStatus, organizationName, screen, setScreen, getDailyAlerts, coachName, coachInitials, collapsed, onToggleCollapsed, onActivateKioskMode }) {
   const handleNav = (newScreen) => (e) => {
     e.preventDefault();
     setScreen(newScreen);
@@ -78,7 +78,7 @@ export function AppSidebar({ cloudStatus, screen, setScreen, getDailyAlerts, coa
           {!collapsed && (
             <div className="flex flex-col overflow-hidden">
               <span className="font-label-lg text-label-lg text-on-surface truncate">{coachName || 'Coach'}</span>
-              <span className="font-body-sm text-body-sm text-dim truncate">Shiloh Athletics Head Coach</span>
+              <span className="font-body-sm text-body-sm text-dim truncate">{organizationName || 'Human Performance'}</span>
             </div>
           )}
         </div>

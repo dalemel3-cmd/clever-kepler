@@ -65,7 +65,7 @@ const newPage = async (browser, viewport) => {
     const body = await page.locator('body').innerText();
     check('"Start today\'s session" heading is gone', !/Start today's session/i.test(body));
     check('"Not Yet Weighed In" subtext line is gone', !/Athlete\(s\) Not Yet Weighed In/i.test(body));
-    check('a compact status marker still names the pending count', /\d+ athletes awaiting pre\/post mass check/i.test(body));
+    check('a compact status marker still names the pending count', /still to weigh in today|Everyone has weighed in/i.test(body));
     check('Start Weigh-Ins button is still present', await page.getByRole('button', { name: /Start Weigh-Ins/i }).count() > 0);
     // v5.3.0: the Dashboard's Session RPE shortcut duplicated the Log screen's own RPE mode.
     check('duplicate Session RPE shortcut is gone from the Dashboard', await page.getByRole('button', { name: /^Session RPE Entry$/i }).count() === 0);

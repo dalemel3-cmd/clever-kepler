@@ -269,7 +269,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
             {entryMode === 'single' ? 'Log a result for any past test date — not just today.' : 'Test the whole roster at once: one type and date, one input per athlete.'}
           </div>
         </div>
-        <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '3px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
           <button type="button" onClick={() => setEntryMode('single')} style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: entryMode === 'single' ? '#fbbf24' : 'transparent', color: entryMode === 'single' ? '#1a1305' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}>SINGLE ENTRY</button>
           <button type="button" onClick={() => setEntryMode('team')} style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: entryMode === 'team' ? '#fbbf24' : 'transparent', color: entryMode === 'team' ? '#1a1305' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer' }}>TEAM ENTRY</button>
         </div>
@@ -326,11 +326,11 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', maxHeight: '360px', overflowY: 'auto', padding: '4px', border: `1px solid ${gridColor}`, borderRadius: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(220px, 100%), 1fr))', gap: '8px', maxHeight: '360px', overflowY: 'auto', padding: '4px', border: `1px solid ${gridColor}`, borderRadius: '10px' }}>
             {roster.length === 0 ? (
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '10px' }}>No athletes in this sport filter.</div>
             ) : roster.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)' }}>
                 <span style={{ fontSize: '12px', fontWeight: 600, flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
                 <input
                   type="text"
@@ -343,7 +343,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
                     setTeamValues(prev => ({ ...prev, [a.id]: v }));
                   }}
                   placeholder={activeTest.placeholder}
-                  style={{ height: '32px', width: '80px', padding: '0 8px', fontSize: '12px', borderRadius: '8px', textAlign: 'center', flex: '0 0 auto' }}
+                  style={{ height: '32px', width: '80px', padding: '0 8px', fontSize: '12px', borderRadius: '10px', textAlign: 'center', flex: '0 0 auto' }}
                 />
               </div>
             ))}
@@ -444,7 +444,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       </form>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', borderTop: `1px solid ${gridColor}`, paddingTop: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '16px', borderTop: `1px solid ${gridColor}`, paddingTop: '16px' }}>
         {boards.map(b => {
           const selectedKey = boardOption[b.key] || b.options[0].key;
           const opt = b.options.find(o => o.key === selectedKey) || b.options[0];
@@ -465,7 +465,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
                   value={selectedKey}
                   onChange={e => setBoardOption(prev => ({ ...prev, [b.key]: e.target.value }))}
                   className="input-glass"
-                  style={{ width: '100%', height: '34px', padding: '0 10px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', marginBottom: '10px' }}
+                  style={{ width: '100%', height: '34px', padding: '0 10px', fontSize: '12px', fontWeight: 700, borderRadius: '10px', marginBottom: '10px' }}
                 >
                   {b.options.map(o => (
                     <option key={o.key} value={o.key} style={{ background: 'var(--navy-900)', color: 'var(--color-text)' }}>
@@ -475,7 +475,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
                 </select>
               )}
               {opt.all.length === 0 ? (
-                <div style={{ padding: '18px 12px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 600, background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ padding: '18px 12px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 600, background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
                   No {b.label.toLowerCase()} results logged yet.
                 </div>
               ) : (

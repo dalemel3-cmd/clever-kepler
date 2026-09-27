@@ -80,7 +80,7 @@ export function useAlertFeeds({ athletes, dehydrationThreshold, reportData, sett
           color: '#f59e0b',
           icon: <Activity size={22} />,
           message: `${r.sport}${positionStr} · ${r.sleep_hrs} hrs sleep logged today`,
-          action: '🌙 MONITOR CNS LOAD',
+          action: 'MONITOR CNS LOAD',
           streak,
           magnitude: sleepThreshold - Number(r.sleep_hrs)
         });
@@ -94,7 +94,7 @@ export function useAlertFeeds({ athletes, dehydrationThreshold, reportData, sett
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
         if (drop > dehydrationThreshold) {
-          const recommendation = drop >= settings.calorieAdviceLbs ? '🥗💧 INCREASE CALORIES & HYDRATION' : '💧 INCREASE HYDRATION';
+          const recommendation = drop >= settings.calorieAdviceLbs ? 'INCREASE CALORIES & HYDRATION' : 'INCREASE HYDRATION';
           const streak = alertStreakLookup(r.athlete_id, 'weight');
           alerts.push({
             id: r.id + '_weight',
@@ -145,7 +145,7 @@ export function useAlertFeeds({ athletes, dehydrationThreshold, reportData, sett
               color: '#ef4444',
               icon: <Target size={22} />,
               message: `${athlete.sport || 'General'} · A:C Ratio spiked to ${acRatio.toFixed(2)}x (Acute: ${acuteLoad} vs Chronic: ${chronicAvgWeeklyLoad.toFixed(0)})`,
-              action: '⚠️ MONITOR TRAINING VOLUME',
+              action: 'MONITOR TRAINING VOLUME',
               streak,
               magnitude: acRatio
             });

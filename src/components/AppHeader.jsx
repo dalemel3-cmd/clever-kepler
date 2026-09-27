@@ -1,3 +1,4 @@
+import { groupForScreen } from '../navigation';
 import React from 'react';
 
 // Honest connection label (v4.3.0 intent, lost in the Tailwind redesign): only claim
@@ -11,6 +12,8 @@ export const cloudPill = (status) => CLOUD_PILL[status] || CLOUD_PILL.reconnecti
 
 export function AppHeader({
   cloudStatus,
+  screen,
+  organizationName,
   isKioskMode,
   setIsKioskMode,
   onActivateKioskMode,
@@ -58,11 +61,12 @@ export function AppHeader({
         </div>
       ) : (
         <>
+          <img src="/logo1.png" alt="Human Performance, Shiloh Christian" className="sm:hidden h-7 w-auto" />
           <div className="hidden sm:flex items-center gap-space-md">
             <div className="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
-              <span>Shiloh Athletics</span>
-              <span aria-hidden="true" className="material-symbols-outlined text-sm text-dim">chevron_right</span>
-              <span className="text-on-surface font-bold">Operations</span>
+              <span>{organizationName || 'Human Performance'}</span>
+              <span aria-hidden="true" className="text-dim">&middot;</span>
+              <span className="text-on-surface font-bold">{groupForScreen(screen)?.label || 'HPD'}</span>
             </div>
             <div className={`flex items-center gap-1.5 px-space-sm py-0.5 rounded-full border font-label-sm text-label-sm ${cloudPill(cloudStatus).cls}`}>
               <span className={`w-2 h-2 rounded-full ${cloudPill(cloudStatus).dot}`}></span>

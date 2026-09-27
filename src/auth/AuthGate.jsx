@@ -103,7 +103,7 @@ export default function AuthGate({ children }) {
 
   if (status === 'checking') {
     return (
-      <div style={{
+      <div role="status" style={{
         minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'var(--navy-950, #050b14)', color: 'var(--color-text-muted, #8b93a7)',
         fontSize: '14px', fontWeight: 700, letterSpacing: '0.05em',

@@ -13,16 +13,15 @@ export function RecoveryModal({
 }) {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <div className="card-glass glow-card" style={{ width: '100%', maxWidth: '950px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: 'rgba(13, 27, 46, 0.98)', border: '2px solid #ef4444', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 0 50px rgba(239, 68, 68, 0.35)' }}>
+      <div className="card-glass glow-card" style={{ width: '100%', maxWidth: '950px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: 'rgba(13, 27, 46, 0.98)', border: '2px solid #ef4444', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 0 50px rgba(239, 68, 68, 0.35)' }}>
         <div style={{ padding: '24px 28px', background: 'rgba(239, 68, 68, 0.12)', borderBottom: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span style={{ fontSize: '32px' }}>🚨</span>
             <div>
               <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                EMERGENCY DATA RECOVERY & STORAGE AUDIT STATION
+                Data recovery
               </h2>
               <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
-                Scanning iPad local databases, offline queues, and memory caches for weigh-in logs...
+                Weigh-ins saved on this device, including any that haven't uploaded yet.
               </span>
             </div>
           </div>
@@ -44,9 +43,9 @@ export function RecoveryModal({
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <label
                 className="btn-primary glow-card"
-                style={{ background: 'rgba(59, 130, 246, 0.25)', color: '#60a5fa', border: '1px solid #60a5fa', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                style={{ background: 'rgba(59, 130, 246, 0.25)', color: '#60a5fa', border: '1px solid #60a5fa', fontWeight: 800, padding: '12px 20px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
               >
-                <Upload size={18} /> 📂 IMPORT DIAGNOSTICS OR BACKUP FILE (.JSON / .CSV)
+                <Upload size={18} /> Import backup file (.json or .csv)
                 <input
                   type="file"
                   accept=".json,.csv,.txt"
@@ -58,19 +57,19 @@ export function RecoveryModal({
                 type="button"
                 onClick={downloadRecoveredJSON}
                 className="btn-primary"
-                style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', fontWeight: 800, padding: '12px 20px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
               >
-                <Download size={18} /> 📥 DOWNLOAD RECOVERED DATA (JSON)
+                <Download size={18} /> Download these records (.json)
               </button>
               <button
                 type="button"
                 onClick={forceUploadRecoveredData}
                 disabled={recoverySyncing}
                 className="btn-primary glow-card"
-                style={{ background: '#10b981', color: '#000', fontWeight: 800, padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                style={{ background: '#10b981', color: '#000', fontWeight: 800, padding: '12px 20px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
               >
                 <RefreshCw size={18} style={{ animation: recoverySyncing ? 'spin 1s linear infinite' : 'none' }} />
-                {recoverySyncing ? '⚡ FORCE UPLOADING TO CLOUD...' : '⚡ FORCE UPLOAD TO CLOUD SERVER'}
+                {recoverySyncing ? 'FORCE UPLOADING TO CLOUD...' : 'FORCE UPLOAD TO CLOUD SERVER'}
               </button>
             </div>
           </div>
@@ -79,7 +78,7 @@ export function RecoveryModal({
             Recovered Log Directory ({getRecoveredLocalData().filter(r => new Date(r.created_at).toDateString() === new Date().toDateString()).length} recorded today):
           </div>
 
-          <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
@@ -96,7 +95,7 @@ export function RecoveryModal({
                     <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: isToday ? 'rgba(16, 185, 129, 0.08)' : 'transparent' }}>
                       <td style={{ padding: '12px 16px', fontWeight: 700, color: '#fff' }}>
                         {rec.athlete_name || 'ID: ' + rec.athlete_id}
-                        {isToday && <span style={{ marginLeft: '8px', fontSize: '10px', background: '#10b981', color: '#000', padding: '2px 8px', borderRadius: '10px', fontWeight: 800 }}>🔥 TODAY</span>}
+                        {isToday && <span style={{ marginLeft: '8px', fontSize: '10px', background: '#10b981', color: '#000', padding: '2px 8px', borderRadius: '10px', fontWeight: 800 }}>TODAY</span>}
                       </td>
                       <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--color-accent)' }}>
                         {rec.weight_lbs ? `${rec.weight_lbs} lbs` : '—'} &middot; {rec.sleep_hrs !== undefined ? `${rec.sleep_hrs} hrs` : '—'}
@@ -115,7 +114,7 @@ export function RecoveryModal({
                 {getRecoveredLocalData().length === 0 && (
                   <tr>
                     <td colSpan="4" style={{ padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
-                      No cached or offline weigh-in records found in the current browser domain storage.
+                      No weigh-ins are saved on this device.
                     </td>
                   </tr>
                 )}
@@ -124,7 +123,7 @@ export function RecoveryModal({
           </div>
         </div>
         <div style={{ padding: '16px 28px', background: 'rgba(0,0,0,0.4)', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '12px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-          💡 PRO TIP: If you do not see today's logs above, verify that you did not switch between Safari Browser Tabs and a standalone Home Screen Icon App (PWAs on iPad have separate isolated storage from regular Safari tabs).
+          PRO TIP: If you do not see today's logs above, verify that you did not switch between Safari Browser Tabs and a standalone Home Screen Icon App (PWAs on iPad have separate isolated storage from regular Safari tabs).
         </div>
       </div>
     </div>

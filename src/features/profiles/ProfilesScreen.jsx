@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, ChevronDown, ChevronUp, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
-import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, centralWallTimeToISO, hasWeight, isRpeLog, computeAcuteChronicLoad } from '../../utils/athleteData';
+import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, centralWallTimeToISO, hasWeight, isRpeLog, computeAcuteChronicLoad, initialsFor } from '../../utils/athleteData';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, formatMetric } from '../analytics/SpeedPowerPanel';
 
 // Best (per better:'asc'|'desc') result for one athlete/test_type out of their logged
@@ -103,16 +103,16 @@ export default function ProfilesScreen({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.12em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-              <User size={14} /> ATHLETE INTELLIGENCE DIRECTORY
+              <User size={14} /> TEAMS &middot; PROFILES
             </span>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase', margin: 0, lineHeight: 1.1 }}>
-              PERFORMANCE & BIOMETRIC PROFILES
+              ATHLETE PROFILES
             </h1>
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-              Select an athlete to evaluate body weight fluctuation trends, sleep recovery patterns, and historical log ledgers over time.
+              Select an athlete to see their weight, sleep and training history.
             </div>
           </div>
-          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.15)', padding: '6px 16px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.15)', padding: '6px 16px', borderRadius: '16px', border: '1px solid rgba(184, 156, 91, 0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {filteredAthletes.length} ATHLETES LISTED
           </span>
         </div>
@@ -145,7 +145,7 @@ export default function ProfilesScreen({
                 onClick={() => setSelectedSportFilter(sport)}
                 style={{
                   padding: '8px 16px',
-                  borderRadius: '20px',
+                  borderRadius: '16px',
                   fontSize: '12px',
                   fontWeight: 700,
                   textTransform: 'uppercase',
@@ -164,7 +164,7 @@ export default function ProfilesScreen({
         </div>
 
         {/* Glowing Cards Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(290px, 100%), 1fr))', gap: '16px' }}>
           {filteredAthletes.map(a => {
             const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
             const colorIdx = a.name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length;
@@ -230,7 +230,7 @@ export default function ProfilesScreen({
                     color: '#fff', fontWeight: 800, fontSize: '20px', fontFamily: 'var(--font-display)',
                     flexShrink: 0, boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                   }}>
-                    {a.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                    {initialsFor(a.name)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 700, margin: 0, color: '#fff', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -242,7 +242,7 @@ export default function ProfilesScreen({
                     {/* Weight, compact, right under the name - frees a full KPI tile below
                         for Most Recent RPE. Shown as % change rather than absolute lbs. */}
                     <div style={{ fontSize: '13px', fontWeight: 700, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--color-text-muted)' }}>
-                      {currentWeight ? `${currentWeight.weight_lbs} lb` : (latestLog ? '😴 Sleep Only' : 'No logs')}
+                      {currentWeight ? `${currentWeight.weight_lbs} lb` : (latestLog ? 'Sleep Only' : 'No logs')}
                       {weightDeltaPct !== null && Math.abs(weightDeltaPct) >= 0.1 && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 800, color: weightDeltaPct < 0 ? '#f87171' : '#34d399' }}>
                           {weightDeltaPct < 0 ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
@@ -254,7 +254,7 @@ export default function ProfilesScreen({
                 </div>
 
                 {/* KPI mini grid: best Speed & Power results + most recent Session RPE */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Best Vertical</span>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: bestVertical ? '16px' : '12px', fontWeight: 700, color: bestVertical ? 'var(--color-accent)' : 'var(--color-text-muted)', marginTop: '2px' }}>
@@ -370,7 +370,7 @@ export default function ProfilesScreen({
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Top Control & Switcher Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '16px' }}>
-        <div onClick={() => (handleBackFromProfile ? handleBackFromProfile() : setSelectedProfileId(null))} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.1em', background: 'rgba(184, 156, 91, 0.12)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.3)', transition: 'all 0.2s' }}>
+        <div onClick={() => (handleBackFromProfile ? handleBackFromProfile() : setSelectedProfileId(null))} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', letterSpacing: '0.1em', background: 'rgba(184, 156, 91, 0.12)', padding: '8px 16px', borderRadius: '16px', border: '1px solid rgba(184, 156, 91, 0.3)', transition: 'all 0.2s' }}>
           <ChevronLeft size={16} /> ALL PROFILES / {athlete.name.toUpperCase()}
         </div>
 
@@ -387,7 +387,7 @@ export default function ProfilesScreen({
                 fetchProfileData(e.target.value);
               }
             }}
-            style={{ height: '38px', padding: '0 16px', fontSize: '13px', borderRadius: '8px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', minWidth: '220px' }}
+            style={{ height: '38px', padding: '0 16px', fontSize: '13px', borderRadius: '10px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', minWidth: '0', width: '260px', maxWidth: '100%', textOverflow: 'ellipsis' }}
           >
             {athletes.slice().sort((a,b) => a.name.localeCompare(b.name)).map(a => (
               <option key={a.id} value={a.id} style={{ background: '#0a192f', color: '#fff' }}>
@@ -403,34 +403,34 @@ export default function ProfilesScreen({
         <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '280px', height: '280px', background: 'radial-gradient(circle, rgba(184, 156, 91, 0.12) 0%, rgba(0,0,0,0) 70%)', pointerEvents: 'none' }} />
 
         <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ width: '88px', height: '88px', borderRadius: '20px', background: avatarBg, border: '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'var(--font-display)', fontSize: '34px', fontWeight: 800, flexShrink: 0, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-            {athlete.name.split(' ').map(n=>n[0]).join('')}
+          <div style={{ width: '88px', height: '88px', borderRadius: '16px', background: avatarBg, border: '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'var(--font-display)', fontSize: '34px', fontWeight: 800, flexShrink: 0, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+            {initialsFor(athlete.name)}
           </div>
           <div style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: '34px', fontWeight: 800, textTransform: 'uppercase', lineHeight: 1, color: '#fff', letterSpacing: '0.02em' }}>{athlete.name}</span>
+            <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 6vw, 34px)', fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.05, color: '#fff', letterSpacing: '0.02em', overflowWrap: 'anywhere' }}>{athlete.name}</h1>
             <span style={{ fontSize: '15px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
               <strong style={{ color: '#fff' }}>{athlete.sport || 'Athletics'}</strong> &middot; {settings.organizationName}
             </span>
           </div>
 
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
-            <button onClick={() => handleSelectAthleteForEntry(athlete.id)} className="glow-card" style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: '8px', padding: '12px 22px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <button onClick={() => handleSelectAthleteForEntry(athlete.id)} className="glow-card" style={{ background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', borderRadius: '10px', padding: '12px 22px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               <Plus size={18} /> LOG DATA
             </button>
-            <button onClick={() => handleEditClick(athlete)} style={{ background: 'rgba(255,255,255,0.04)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <button onClick={() => handleEditClick(athlete)} style={{ background: 'rgba(255,255,255,0.04)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               EDIT INFO
             </button>
           </div>
         </div>
 
         {/* Executive KPI Stat Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', paddingTop: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '16px', paddingTop: '8px' }}>
 
           <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>CURRENT BODY MASS</span>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
               <span style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 800, color: '#fff' }}>
-                {latestWeight != null ? `${latestWeight} lb` : '😴 Sleep Only'}
+                {latestWeight != null ? `${latestWeight} lb` : 'Sleep Only'}
               </span>
             </div>
             {latestWeight != null && (
@@ -451,7 +451,7 @@ export default function ProfilesScreen({
               </span>
             </div>
             <span style={{ fontSize: '12px', fontWeight: 700, color: sleepLogs.length >= MIN_SLEEP_SAMPLE && sleepBand(Number(avgSleep)) === 'optimal' ? 'var(--status-success)' : sleepLogs.length >= MIN_SLEEP_SAMPLE && sleepBand(Number(avgSleep)) === 'adequate' ? '#f59e0b' : 'var(--color-text-muted)' }}>
-              {sleepLogs.length >= MIN_SLEEP_SAMPLE ? (sleepBand(Number(avgSleep)) === 'optimal' ? '🟢 Optimal Rest Standard' : sleepBand(Number(avgSleep)) === 'adequate' ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning') : (avgSleep !== '--' ? `Not enough check-ins yet (${sleepLogs.length}/${MIN_SLEEP_SAMPLE})` : 'No sleep data')}
+              {sleepLogs.length >= MIN_SLEEP_SAMPLE ? (sleepBand(Number(avgSleep)) === 'optimal' ? 'Optimal Rest Standard' : sleepBand(Number(avgSleep)) === 'adequate' ? 'Adequate Recovery' : 'Sleep Deficit Warning') : (avgSleep !== '--' ? `Not enough check-ins yet (${sleepLogs.length}/${MIN_SLEEP_SAMPLE})` : 'No sleep data')}
             </span>
             {sleepDelta != null && Math.abs(sleepDelta) >= 0.1 && (
               <span style={{ fontSize: '12px', fontWeight: 700, color: sleepDelta > 0 ? 'var(--status-success)' : 'var(--status-error)' }}>
@@ -486,7 +486,7 @@ export default function ProfilesScreen({
               <span style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontWeight: 700 }}>SESSIONS</span>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--color-accent)', fontWeight: 700 }}>
-              {daysAgo != null ? (daysAgo === 0 ? '✨ Active Today' : `Last active ${daysAgo}d ago`) : 'No historical sessions'}
+              {daysAgo != null ? (daysAgo === 0 ? 'Active Today' : `Last active ${daysAgo}d ago`) : 'No historical sessions'}
             </span>
           </div>
 
@@ -500,7 +500,7 @@ export default function ProfilesScreen({
                   </span>
                 </div>
                 <span style={{ fontSize: '12px', color: isDangerSpike ? '#ef4444' : 'var(--color-text-muted)', fontWeight: 600 }}>
-                  {isDangerSpike ? `⚠️ High Spike Risk (≥${settings.rpeLoadSpikeRatio})` : `Compared to ${settings.rpeChronicWeeks}-wk baseline`}
+                  {isDangerSpike ? `High Spike Risk (≥${settings.rpeLoadSpikeRatio})` : `Compared to ${settings.rpeChronicWeeks}-wk baseline`}
                 </span>
               </div>
               <div className="card-glass" style={{ padding: '20px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -535,10 +535,10 @@ export default function ProfilesScreen({
       )}
 
       {/* Trend Analytics Section (2 Columns) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: '20px' }}>
 
         {/* Body Weight Evolution Curve */}
-        <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+        <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
             <div>
               <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -549,7 +549,7 @@ export default function ProfilesScreen({
               </h3>
             </div>
             {weightLogs.length > 0 && (
-              <div style={{ display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.25)', padding: '8px 14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.25)', padding: '8px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.04)' }}>
                 <div>
                   <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', display: 'block' }}>LOW</span>
                   <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>{minWeight}</span>
@@ -603,14 +603,13 @@ export default function ProfilesScreen({
             })() : weightLogs.length === 1 ? (
               <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: '8px' }}>
                 <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-accent)' }}>{weightLogs[0].weight_lbs} lbs recorded</span>
-                <span style={{ fontSize: '13px' }}>Need at least 2 weigh-in entries to generate visual trend line</span>
+                <span style={{ fontSize: '13px' }}>Needs at least 2 weigh-ins to draw a trend.</span>
               </div>
             ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: '12px', background: 'rgba(139, 92, 246, 0.05)', borderRadius: '12px', border: '1px dashed rgba(139, 92, 246, 0.25)', padding: '24px' }}>
-                <span style={{ fontSize: '24px' }}>😴</span>
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: '12px', background: 'rgba(139, 92, 246, 0.05)', borderRadius: '10px', border: '1px dashed rgba(139, 92, 246, 0.25)', padding: '24px' }}>
                 <span style={{ fontSize: '15px', fontWeight: 700, color: '#c084fc', textAlign: 'center' }}>SLEEP & RECOVERY ONLY TRACKING</span>
                 <span style={{ fontSize: '13px', textAlign: 'center', maxWidth: '320px', lineHeight: 1.5 }}>
-                  This athlete is configured for recovery tracking without scale body mass recordings. No weight trends to display.
+                  This athlete only logs sleep, so there's no weight trend.
                 </span>
               </div>
             )}
@@ -618,7 +617,7 @@ export default function ProfilesScreen({
         </div>
 
         {/* Sleep Duration & Recovery Pattern */}
-        <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+        <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
             <div>
               <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -629,7 +628,7 @@ export default function ProfilesScreen({
               </h3>
             </div>
             {sleepLogs.length > 0 && (
-              <div style={{ display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.25)', padding: '8px 14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.25)', padding: '8px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.04)' }}>
                 <div>
                   <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', display: 'block' }}>PEAK REST</span>
                   <span style={{ fontSize: '14px', fontWeight: 800, color: '#60a5fa' }}>{maxSleep}h</span>
@@ -663,7 +662,7 @@ export default function ProfilesScreen({
               );
             })() : (
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '14px' }}>
-                No sleep duration recordings logged yet
+                No sleep logged yet.
               </div>
             )}
           </div>
@@ -671,7 +670,7 @@ export default function ProfilesScreen({
 
         {/* 3. Session RPE Trends (Only if enabled) */}
         {settings.enableRpe && (
-          <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+          <div className="card-glass" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -708,7 +707,7 @@ export default function ProfilesScreen({
                   </ResponsiveContainer>
                 );
               })() : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px dashed rgba(255, 255, 255, 0.1)', padding: '24px' }}>
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px dashed rgba(255, 255, 255, 0.1)', padding: '24px' }}>
                   <Target size={32} style={{ opacity: 0.5 }} />
                   <span style={{ fontSize: '15px', fontWeight: 700, textAlign: 'center' }}>NO RPE DATA RECORDED</span>
                   <span style={{ fontSize: '13px', textAlign: 'center', maxWidth: '320px', lineHeight: 1.5 }}>
@@ -723,7 +722,7 @@ export default function ProfilesScreen({
       </div>
 
       {/* Post-Practice Sweat & Acute Weight Drop Tracker */}
-      <div className="card-glass glow-card" style={{ padding: '32px', borderRadius: '24px', border: '1px solid rgba(59, 130, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.7) 100%)', display: 'flex', flexDirection: 'column', gap: postPracticeOpen ? '20px' : 0, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+      <div className="card-glass glow-card" style={{ padding: '32px', borderRadius: '16px', border: '1px solid rgba(59, 130, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.7) 100%)', display: 'flex', flexDirection: 'column', gap: postPracticeOpen ? '20px' : 0, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div
             onClick={() => setPostPracticeOpen(o => !o)}
@@ -743,7 +742,7 @@ export default function ProfilesScreen({
                 POST-PRACTICE SWEAT LOSS &amp; HYDRATION TRACKER
               </h3>
               <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px', fontWeight: 600 }}>
-                Monitors rapid weight drops after high-heat drills and training without distorting official morning recovery trend charts.
+                Post-practice weigh-ins, kept separate from the morning weight trend.
               </div>
             </div>
           </div>
@@ -761,7 +760,7 @@ export default function ProfilesScreen({
             }}
             style={{
               padding: '14px 22px',
-              borderRadius: '14px',
+              borderRadius: '16px',
               background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
               border: 'none',
               color: '#fff',
@@ -777,13 +776,13 @@ export default function ProfilesScreen({
               transition: 'all 0.2s ease'
             }}
           >
-            <span>➕ Log Post-Practice Weight</span>
+            <span>Log Post-Practice Weight</span>
           </button>
         </div>
 
         {postPracticeOpen && (postPracticeLogs.length === 0 ? (
           <div style={{ padding: '24px', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.15)', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '14px' }}>
-            No post-practice weight entries recorded yet. Use the button above to log acute weigh-ins after practice sessions!
+            No post-practice weigh-ins yet. Use the button above to log one.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -845,8 +844,8 @@ export default function ProfilesScreen({
                         </span>
                       </div>
                     )}
-                    <div style={{ padding: '8px 16px', borderRadius: '12px', background: drop >= settings.severeSweatLbs ? 'rgba(239, 68, 68, 0.2)' : drop > settings.acuteDropLbs ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: drop >= settings.severeSweatLbs ? '1px solid rgba(239, 68, 68, 0.4)' : drop > settings.acuteDropLbs ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: drop >= settings.severeSweatLbs ? '#ef4444' : drop > settings.acuteDropLbs ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
-                      💧 Rx: Drink {fluidOz > 0 ? fluidOz : settings.minFluidOz} oz fluids before tomorrow
+                    <div style={{ padding: '8px 16px', borderRadius: '10px', background: drop >= settings.severeSweatLbs ? 'rgba(239, 68, 68, 0.2)' : drop > settings.acuteDropLbs ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)', border: drop >= settings.severeSweatLbs ? '1px solid rgba(239, 68, 68, 0.4)' : drop > settings.acuteDropLbs ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(59, 130, 246, 0.4)', color: drop >= settings.severeSweatLbs ? '#ef4444' : drop > settings.acuteDropLbs ? '#f97316' : '#60a5fa', fontWeight: 800, fontSize: '13px' }}>
+                      Rx: Drink {fluidOz > 0 ? fluidOz : settings.minFluidOz} oz fluids before tomorrow
                     </div>
                     <button
                       type="button"
@@ -877,7 +876,7 @@ export default function ProfilesScreen({
       </div>
 
       {/* All Attributes Over Time - Full Chronological Ledger */}
-      <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: logLedgerOpen ? '20px' : 0, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px' }}>
+      <div className="card-glass" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: logLedgerOpen ? '20px' : 0, border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' }}>
         <div
           onClick={() => setLogLedgerOpen(o => !o)}
           role="button"
@@ -888,23 +887,23 @@ export default function ProfilesScreen({
             {logLedgerOpen ? <ChevronUp size={20} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} /> : <ChevronDown size={20} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />}
             <div>
               <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                <Activity size={14} /> COMPLETE ATTRIBUTE TIMELINE
+                <Activity size={14} /> LOG HISTORY
               </span>
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, margin: 0, color: '#fff', textTransform: 'uppercase' }}>
-                HISTORICAL LOG LEDGER ({sortedLogs.length})
+                LOG HISTORY ({sortedLogs.length})
               </h3>
               <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                Comprehensive log of every check-in session showing body weight deltas, sleep duration, and recovery classifications over time.
+                Every check-in: weight change, sleep and recovery.
               </div>
             </div>
           </div>
-          <span style={{ fontSize: '12px', color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.12)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(184, 156, 91, 0.25)', fontWeight: 700, textTransform: 'uppercase' }}>
+          <span style={{ fontSize: '12px', color: 'var(--color-accent)', background: 'rgba(184, 156, 91, 0.12)', padding: '6px 14px', borderRadius: '16px', border: '1px solid rgba(184, 156, 91, 0.25)', fontWeight: 700, textTransform: 'uppercase' }}>
             CHRONOLOGICAL ORDER (NEWEST FIRST)
           </span>
         </div>
 
         {logLedgerOpen && (sortedLogs.length > 0 ? (
-          <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
+          <div style={{ overflowX: 'auto', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '680px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
@@ -948,8 +947,8 @@ export default function ProfilesScreen({
                             {currentW.toFixed(1)} <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>lb</span>
                           </span>
                         ) : (
-                          <span style={{ fontSize: '12px', background: isRpeLog(log) ? 'rgba(59, 130, 246, 0.15)' : 'rgba(139, 92, 246, 0.15)', color: isRpeLog(log) ? '#60a5fa' : '#c084fc', padding: '4px 12px', borderRadius: '12px', fontWeight: 700, border: isRpeLog(log) ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(139, 92, 246, 0.3)' }}>
-                            {isRpeLog(log) ? '🎯 Session RPE' : '😴 Sleep Only Mode'}
+                          <span style={{ fontSize: '12px', background: isRpeLog(log) ? 'rgba(59, 130, 246, 0.15)' : 'rgba(139, 92, 246, 0.15)', color: isRpeLog(log) ? '#60a5fa' : '#c084fc', padding: '4px 12px', borderRadius: '10px', fontWeight: 700, border: isRpeLog(log) ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(139, 92, 246, 0.3)' }}>
+                            {isRpeLog(log) ? 'Session RPE' : 'Sleep Only Mode'}
                           </span>
                         )}
                       </td>
@@ -958,7 +957,7 @@ export default function ProfilesScreen({
                         {delta != null ? (
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', gap: '4px',
-                            padding: '4px 10px', borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+                            padding: '4px 10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700,
                             background: delta > 0 ? 'rgba(52, 211, 153, 0.12)' : delta < 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.05)',
                             color: delta > 0 ? 'var(--status-success)' : delta < 0 ? 'var(--status-error)' : 'var(--color-text-muted)',
                             border: `1px solid ${delta > 0 ? 'rgba(52, 211, 153, 0.3)' : delta < 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.1)'}`
@@ -984,12 +983,12 @@ export default function ProfilesScreen({
                             red "Sleep Deficit Warning". */}
                         {sleepH > 0 ? (
                           <span style={{
-                            display: 'inline-block', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                            display: 'inline-block', padding: '5px 12px', borderRadius: '16px', fontSize: '12px', fontWeight: 700,
                             background: sleepBand(sleepH) === 'optimal' ? 'rgba(52, 211, 153, 0.15)' : sleepBand(sleepH) === 'adequate' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.2)',
                             color: sleepBand(sleepH) === 'optimal' ? 'var(--status-success)' : sleepBand(sleepH) === 'adequate' ? '#f59e0b' : '#ef4444',
                             border: `1px solid ${sleepBand(sleepH) === 'optimal' ? 'rgba(52, 211, 153, 0.4)' : sleepBand(sleepH) === 'adequate' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
                           }}>
-                            {sleepBand(sleepH) === 'optimal' ? '🟢 Optimal Rest' : sleepBand(sleepH) === 'adequate' ? '🟡 Adequate Recovery' : '🔴 Sleep Deficit Warning'}
+                            {sleepBand(sleepH) === 'optimal' ? 'Optimal Rest' : sleepBand(sleepH) === 'adequate' ? 'Adequate Recovery' : 'Sleep Deficit Warning'}
                           </span>
                         ) : (
                           <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>—</span>
@@ -1002,7 +1001,7 @@ export default function ProfilesScreen({
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
                               <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, color: log.rpe >= settings.rpeHighThreshold ? '#ef4444' : '#60a5fa' }}>{log.rpe} <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>/ {settings.rpeScaleMax}</span></span>
                               {log.session_minutes ? <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>({log.rpe * log.session_minutes} AU)</span> : null}
-                              {log.session_label && <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{log.session_label}</span>}
+                              {log.session_label && <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '6px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{log.session_label}</span>}
                             </div>
                           ) : <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>—</span>}
                         </td>
@@ -1012,16 +1011,16 @@ export default function ProfilesScreen({
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
                           {currentW ? (
                             log.is_baseline ? (
-                              <span style={{ fontSize: '11px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '6px 14px', borderRadius: '14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 0 10px rgba(184, 156, 91, 0.3)', whiteSpace: 'nowrap' }}>
-                                ⭐ ACTIVE BASELINE MARKER
+                              <span style={{ fontSize: '11px', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', padding: '6px 14px', borderRadius: '16px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 0 10px rgba(184, 156, 91, 0.3)', whiteSpace: 'nowrap' }}>
+                                ACTIVE BASELINE MARKER
                               </span>
                             ) : (
                               <button
                                 onClick={() => handleMakeDateBaselineMarker(log.id, athlete.id, currentW, new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), athlete.name)}
-                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '6px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
                                 title={`Make this specific date and weight the official baseline marker for ${athlete.name || 'this athlete'}'s dehydration alerts. To set a baseline for a whole team/sport at once, use Bulk Team Baseline Studio under Teams & Rosters.`}
                               >
-                                📍 MAKE BASELINE MARKER
+                                MAKE BASELINE MARKER
                               </button>
                             )
                           ) : null}
@@ -1057,7 +1056,7 @@ export default function ProfilesScreen({
                               }));
                               setShowManualEntryModal(true);
                             }}
-                            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--white)', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--white)', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
                             title={isRpeLog(log) ? 'Correct a mis-entered RPE, session length, or label on this log' : 'Correct a mis-entered date, time, or weight on this log'}
                           >
                             <Pencil size={14} /> EDIT
@@ -1076,7 +1075,7 @@ export default function ProfilesScreen({
                                 }
                               });
                             }}
-                            style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, transition: 'all 0.2s' }}
+                            style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '6px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, transition: 'all 0.2s' }}
                             title="Delete Log Entry"
                           >
                             <Trash2 size={15} />
@@ -1091,8 +1090,7 @@ export default function ProfilesScreen({
           </div>
         ) : (
           <div style={{ padding: '48px', textAlign: 'center', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px', background: 'rgba(0,0,0,0.15)' }}>
-            <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📋</span>
-            No check-in session logs recorded for this athlete yet. Click "+ LOG DATA" above or enter via Kiosk Mode.
+            No check-ins yet. Use Log Data above or the kiosk.
           </div>
         ))}
       </div>
@@ -1184,7 +1182,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
   };
 
   return (
-    <div className="card-glass glow-card" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: '20px' }}>
+    <div className="card-glass glow-card" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(251, 191, 36, 0.25)', borderRadius: '16px' }}>
       <div>
         <span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Zap size={15} /> SPEED &amp; POWER
@@ -1195,12 +1193,12 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
       </div>
 
       {attempted.length === 0 ? (
-        <div style={{ padding: '18px 12px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+        <div style={{ padding: '18px 12px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 600, background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.1)' }}>
           No Speed &amp; Power results logged for {athlete.name} yet.
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '14px' }}>
             {rankings.map(r => {
               // Latest-vs-previous-attempt trend, same framing as the leaderboard badge -
               // moves every session, not just on a new PB.
@@ -1215,7 +1213,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
               const isOpen = !!openHistory[r.key];
 
               return (
-                <div key={r.key} style={{ padding: '16px 18px', borderRadius: '14px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div key={r.key} style={{ padding: '16px 18px', borderRadius: '16px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{r.label}</span>
                   {r.best ? (
                     <>
@@ -1262,7 +1260,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                       <button
                         type="button"
                         onClick={() => setOpenHistory(prev => ({ ...prev, [r.key]: !prev[r.key] }))}
-                        style={{ marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px', borderRadius: '8px', background: 'transparent', border: '1px dashed rgba(255,255,255,0.15)', color: 'var(--color-text-muted)', fontSize: '10px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                        style={{ marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px', borderRadius: '10px', background: 'transparent', border: '1px dashed rgba(255,255,255,0.15)', color: 'var(--color-text-muted)', fontSize: '10px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}
                       >
                         {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         {isOpen ? 'Hide history' : `History (${r.attempts.length})`}
@@ -1276,7 +1274,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                             const tt = TEST_TYPE_BY_KEY[t.test_type];
                             const hasVariants = tt && tt.variants.length > 1;
                             return (
-                              <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '6px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                              <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '6px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   {draft ? (
                                     <>
@@ -1305,7 +1303,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                                     <>
                                       <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', flex: '1 1 auto' }}>{String(t.created_at).slice(0, 10)}</span>
                                       {hasVariants && (
-                                        <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)' }}>
+                                        <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '2px 6px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)' }}>
                                           {t.test_variant ? VARIANT_LABEL[t.test_variant] : UNTAGGED_VARIANT_LABEL}
                                         </span>
                                       )}
@@ -1348,7 +1346,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
           </div>
 
           {focusArea && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderRadius: '12px', background: focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.08)' : 'rgba(52,211,153,0.08)', border: `1px solid ${focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', borderRadius: '10px', background: focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.08)' : 'rgba(52,211,153,0.08)', border: `1px solid ${focusArea.rank.percentile < 50 ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}` }}>
               <Target size={20} style={{ color: focusArea.rank.percentile < 50 ? '#f87171' : '#34d399', flexShrink: 0 }} />
               <div style={{ fontSize: '13px', color: 'var(--color-text)', lineHeight: 1.5 }}>
                 <strong>{focusArea.rank.percentile < 50 ? 'Focus area' : 'Strongest area'}: {focusArea.label}.</strong>{' '}

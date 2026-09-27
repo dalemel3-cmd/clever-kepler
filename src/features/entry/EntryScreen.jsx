@@ -3,7 +3,7 @@ import { X, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
 import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 import AthleteCard from './AthleteCard';
-import { isPlausibleWeight, parseWeightInput } from '../../utils/athleteData';
+import { isPlausibleWeight, parseWeightInput, initialsFor } from '../../utils/athleteData';
 
 export default function EntryScreen({
   entrySportFilter,
@@ -133,14 +133,14 @@ export default function EntryScreen({
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-6 mt-6">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 font-label-md text-xs uppercase tracking-wider text-[#bcc1ca]">
-              <span className="text-[#b89c5b] font-bold">KIOSK MODE</span>
-              <span aria-hidden="true" className="material-symbols-outlined text-sm">chevron_right</span>
+              <span className="text-[#b89c5b] font-bold">LOG</span>
+              <span aria-hidden="true">&middot;</span>
               <span className="text-white font-semibold">
-                {kioskTrackMode === 'sleep_only' ? 'SLEEP & RECOVERY ONLY' : (kioskTrackMode === 'rpe' ? 'SESSION RPE ONLY' : 'RAPID WEIGH-IN & SLEEP ENTRY')}
+                {kioskTrackMode === 'sleep_only' ? 'SLEEP ONLY' : (kioskTrackMode === 'rpe' ? 'SESSION RPE' : 'WEIGH-IN & SLEEP')}
               </span>
             </div>
             <h1 className="font-display text-4xl uppercase tracking-tight text-white m-0 leading-none">
-              RAPID QUICK ENTRY KIOSK
+              WEIGH-IN KIOSK
             </h1>
             <p className="font-body-md text-sm text-[#bcc1ca] m-0 max-w-2xl">
               Tap an athlete card to log today's weigh-in or session.
@@ -321,7 +321,7 @@ export default function EntryScreen({
                           displayName={nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
                           initials={nameSortOrder === 'last'
                             ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
-                            : safeName.split(' ').map(n => n[0]).join('')}
+                            : initialsFor(safeName)}
                           isSelected={entryAthleteId === a.id}
                           isDoneToday={athletesRecordedToday.has(a.id)}
                           onSelect={handleSelectAthleteForEntry}
@@ -362,7 +362,7 @@ export default function EntryScreen({
               <div className="bg-[#061c41] border-b border-[#2a313d] p-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-[#b89c5b] text-[#030a14] flex items-center justify-center font-headline-lg text-lg font-bold">
-                    {selectedAthlete.name.split(' ').map(n=>n[0]).join('')}
+                    {initialsFor(selectedAthlete.name)}
                   </div>
                   <div className="flex flex-col">
                     <span className="font-headline-lg text-xl text-white font-bold">{selectedAthlete.name}</span>
