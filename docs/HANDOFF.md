@@ -3187,7 +3187,29 @@ deliberately left alone:
   - Bundles: main chunk 148 KB. Recharts (300 KB) loads only on chart screens.
 - Test: `tests/polish.js` (53 probes). All 40 test files pass.
 
-## 86. Next up
+## 86. Per-tab team filters (v5.2.5)
+
+Bug: selecting a team on Athletes also narrowed the Weigh-In kiosk and Profiles to that
+team. Athletes, the kiosk and Profiles shared one App-level `selectedSportFilter` and
+`search`, and the kiosk was fed the Athletes-filtered `filteredAthletes`.
+
+The fix: App now has a single `filterRoster(query, sport)` function and three memoized
+lists, each with its own state:
+
+| List | Screen | State |
+|---|---|---|
+| `filteredAthletes` | Athletes | `search`, `selectedSportFilter` |
+| `kioskAthletes` | Weigh-In kiosk | `kioskSearch`, always all sports (the kiosk's sport pills are local) |
+| `profileAthletes` | Profiles | `profileSearch`, `profileSportFilter` |
+
+Other details:
+- Activating kiosk mode and saving a kiosk entry now clear only `kioskSearch`.
+- Sport-card taps on Today and Teams still set the Athletes filter, because they open
+  Athletes pre-filtered. That is intended.
+- Lifts, Analytics and Reports already had local filters.
+- Test: `tests/nav-cleanup.js` [G].
+
+## 87. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

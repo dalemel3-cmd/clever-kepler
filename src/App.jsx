@@ -83,7 +83,10 @@ export default function App() {
     window.location.hash = newScreen;
    
   };
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState('');           // Athletes tab
+  const [kioskSearch, setKioskSearch] = useState(''); // Weigh-In kiosk
+  const [profileSearch, setProfileSearch] = useState('');
+  const [profileSportFilter, setProfileSportFilter] = useState('ALL');
   const [selectedSportFilter, setSelectedSportFilter] = useState('ALL');
   // Sport to pre-select when the Weigh-In screen opens from a Teams card's
   // "Weigh-In Status" button (replaces the old separate Team Status screen).
@@ -232,9 +235,12 @@ export default function App() {
     configureWeightBounds(settings.minWeightLbs, settings.maxWeightLbs);
   }, [settings.programTimezone, settings.seasonStartDate, settings.minWeightLbs, settings.maxWeightLbs]);
 
-  const filteredAthletes = React.useMemo(() => athletes
+  // One roster filter, used with separate state per screen: the Athletes tab, the
+  // Weigh-In kiosk and Profiles each keep their own sport + search selection, so
+  // picking a team on one tab no longer silently narrows the others.
+  const filterRoster = (query, sportFilter) => athletes
     .filter(a => {
-      const q = search.trim().toLowerCase();
+      const q = query.trim().toLowerCase();
       const hasQuery = q !== '';
       const matchesSearch = !hasQuery || 
         (a.name && String(a.name).toLowerCase().includes(q)) ||
@@ -243,7 +249,7 @@ export default function App() {
         (a.grade && String(a.grade).toLowerCase().includes(q)) ||
         (a.position && String(a.position).toLowerCase().includes(q));
 
-      const matchesSport = selectedSportFilter === 'ALL' || a.sport === selectedSportFilter;
+      const matchesSport = sportFilter === 'ALL' || a.sport === sportFilter;
       const matchesTeam = selectedTeamFilter === 'ALL' || a.team === selectedTeamFilter;
       const matchesGrade = selectedGradeFilter === 'ALL' || a.grade === selectedGradeFilter;
       const matchesPosition = selectedPositionFilter === 'ALL' || a.position === selectedPositionFilter;
@@ -263,19 +269,21 @@ export default function App() {
         if (firstA !== firstB) return firstA.localeCompare(firstB);
         return getLastName(String(a.name || '')).toLowerCase().localeCompare(getLastName(String(b.name || '')).toLowerCase());
       }
-    }), [athletes, search, selectedSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
+    });
+  const filteredAthletes = React.useMemo(() => filterRoster(search, selectedSportFilter),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [athletes, search, selectedSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
+  const kioskAthletes = React.useMemo(() => filterRoster(kioskSearch, 'ALL'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [athletes, kioskSearch, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
+  const profileAthletes = React.useMemo(() => filterRoster(profileSearch, profileSportFilter),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [athletes, profileSearch, profileSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
   const [isKioskMode, setIsKioskMode] = useState(false);
-  // Entering Kiosk Mode must always start from the full roster - the Athletes
-  // tab's sport/search filters (selectedSportFilter, search) are shared state
-  // with Quick Entry's own roster query, so a coach who filtered Athletes down
-  // to one team and then activated Kiosk Mode was silently stuck seeing only
-  // that team there too, with no visible filter shown as the cause ("athlete
-  // not found in roster" when searching for anyone on a different team).
-  // Quick Entry already has its own independent sport-pill filter for
-  // narrowing within Kiosk Mode itself, so reset the shared ones on entry.
+  // The kiosk has its own search (kioskSearch) and its own sport pills, so the
+  // Athletes tab's filters never carry over; just clear any stale kiosk search.
   const handleActivateKioskMode = () => {
-    setSelectedSportFilter('ALL');
-    setSearch('');
+    setKioskSearch('');
     setIsKioskMode(true);
     setScreen('entry');
   };
@@ -1728,7 +1736,7 @@ export default function App() {
     setRpeDurationInput('');
     setRpeLabelInput('');
     setEntryAthleteId(null);
-    setSearch('');
+    setKioskSearch('');
   };
 
   const handleSaveManualLog = async (newRec) => {
@@ -2503,10 +2511,10 @@ export default function App() {
                 setEditingAthleteId={setEditingAthleteId}
                 setNewAthlete={setNewAthlete}
                 athletesRecordedToday={athletesLoggedTodayForKiosk}
-                search={search}
-                setSearch={setSearch}
+                search={kioskSearch}
+                setSearch={setKioskSearch}
                 sportsList={sportsList}
-                filteredAthletes={filteredAthletes}
+                filteredAthletes={kioskAthletes}
                 nameSortOrder={nameSortOrder}
                 setNameSortOrder={setNameSortOrder}
                 unweighedOnlyFilter={unweighedOnlyFilter}
@@ -2665,12 +2673,12 @@ export default function App() {
                 settings={settings}
                 selectedProfileId={selectedProfileId}
                 setSelectedProfileId={setSelectedProfileId}
-                filteredAthletes={filteredAthletes}
-                search={search}
-                setSearch={setSearch}
+                filteredAthletes={profileAthletes}
+                search={profileSearch}
+                setSearch={setProfileSearch}
                 sportsList={sportsList}
-                selectedSportFilter={selectedSportFilter}
-                setSelectedSportFilter={setSelectedSportFilter}
+                selectedSportFilter={profileSportFilter}
+                setSelectedSportFilter={setProfileSportFilter}
                 reportData={reportData}
                 fetchProfileData={fetchProfileData}
                 athletes={athletes}

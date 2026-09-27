@@ -115,6 +115,22 @@ async function newPage(browser, { width = 1280, height = 860, settings = {} } = 
     check('restore sends archived_at: null', page.patches.some(p => p.archived_at === null), JSON.stringify(page.patches));
   }
 
+  console.log('\n[G] A team picked on Athletes does not narrow other tabs');
+  {
+    const page = await newPage(browser);
+    await page.goto(`${APP}/#athletes`); await page.waitForTimeout(2200);
+    await page.getByRole('button', { name: 'Volleyball', exact: true }).first().click(); await page.waitForTimeout(400);
+    let body = await page.locator('body').innerText();
+    check('Athletes narrowed to Volleyball', /Vb Two/i.test(body) && !/Fb One/i.test(body));
+    await page.locator('aside nav').getByText('Log', { exact: true }).click(); await page.waitForTimeout(1200);
+    body = await page.locator('body').innerText();
+    check('Weigh-In kiosk still shows every team', /Fb One/i.test(body) && /Vb Two/i.test(body));
+    await page.locator('aside nav').getByText('Teams', { exact: true }).click(); await page.waitForTimeout(600);
+    await page.getByRole('tab', { name: /Athletes/i }).click(); await page.waitForTimeout(800);
+    body = await page.locator('body').innerText();
+    check('Athletes keeps its own Volleyball selection', /Vb Two/i.test(body) && !/Fb One/i.test(body));
+  }
+
   console.log('\n[F] Phone bottom nav uses the same 5 names');
   {
     const page = await newPage(browser, { width: 390, height: 800 });
