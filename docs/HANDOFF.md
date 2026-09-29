@@ -3348,7 +3348,28 @@ Power is on. The Analytics Speed & Power leaderboard is unchanged.
   - "Open full profile"
 - **Test:** `tests/power-deep-dive.js`.
 
-## 92. Next up
+## 92. Lift Tracker Team Log (v5.3.1)
+
+This is mass entry for lifts, the lift version of Speed & Power's Team Entry. A small
+`group_add` icon button sits next to Export / Bulk Edit in the Lift Tracker toolbar. It
+is hidden in kiosk mode, like the rest of that toolbar.
+
+- **File:** `src/features/lifts/LiftTeamEntryPanel.jsx`, a modal styled like the
+  Export panel.
+- **Sheet setup:** pick the lift, date (today or earlier), team (defaults to the first
+  sport) and default reps (1).
+- **Each athlete row:** weight × reps. A blank reps box uses the default reps. Each row
+  shows the athlete's current best est. 1RM and a live "→ est. N · PR" preview.
+- **Saving:**
+  - Blank rows are skipped.
+  - Any invalid row blocks the save: weight must be 1–1500 lb (strict
+    `parseWeightInput`), reps 1–50.
+  - Every row goes through the existing `addLift`.
+  - A past date lands at noon Central, same as Team Entry. Today keeps the real time.
+  - Saved rows clear so the next group can be entered. The sheet stays open.
+- **Test:** `tests/lift-team-log.js`.
+
+## 93. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

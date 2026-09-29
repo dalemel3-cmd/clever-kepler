@@ -8,6 +8,7 @@ import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 import { estimate1RM, buildLeaderboard, RANK_MODES, TIMEFRAMES, timeframeBounds, describeBounds } from './liftRanking';
 import { renderLeaderboardPng, shareOrDownload } from './leaderboardImage';
 import LiftExportPanel from './LiftExportPanel';
+import LiftTeamEntryPanel from './LiftTeamEntryPanel';
 export { estimate1RM };
 
 // The best set an athlete has ever logged for a given lift, ranked by estimated 1RM
@@ -68,6 +69,7 @@ export default function LiftScreen({
   const [pngLimit, setPngLimit] = React.useState(10);
   const [pngBusy, setPngBusy] = React.useState(false);
   const [exportOpen, setExportOpen] = React.useState(false);
+  const [teamLogOpen, setTeamLogOpen] = React.useState(false);
   // Editing a previously-logged set (wrong weight/reps, or logged under the wrong
   // exercise entirely) - a separate small form inline in the Recent Lifts list,
   // rather than deleting and re-adding.
@@ -640,6 +642,9 @@ export default function LiftScreen({
                 <span aria-hidden="true" className="material-symbols-outlined text-lg text-primary">military_tech</span>
                 <span>LEADERBOARD</span>
               </button>
+              <button onClick={() => setTeamLogOpen(true)} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Team Log: enter one lift for a whole team at once" aria-label="Team log: mass-enter a lift">
+                <span aria-hidden="true" className="material-symbols-outlined text-lg">group_add</span>
+              </button>
               <button onClick={() => setExportOpen(true)} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data" aria-label="Export lifts to CSV">
                 <span aria-hidden="true" className="material-symbols-outlined text-lg">download</span>
               </button>
@@ -1122,6 +1127,17 @@ export default function LiftScreen({
           </div>
         </div>,
         document.body
+      )}
+
+      {teamLogOpen && (
+        <LiftTeamEntryPanel
+          athletes={athletes}
+          liftLogs={liftLogs}
+          sports={sports}
+          liftTypes={liftTypes}
+          addLift={addLift}
+          onClose={() => setTeamLogOpen(false)}
+        />
       )}
 
       {exportOpen && (
