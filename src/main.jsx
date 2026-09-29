@@ -8,6 +8,16 @@ import { installGlobalErrorReporting, reportError, handleIfStaleChunk } from './
 
 installGlobalErrorReporting()
 
+// Report anything the index.html startup safety net caught on a previous launch that
+// never got far enough to mount (see the inline script there).
+try {
+  const boot = JSON.parse(localStorage.getItem('hpd_boot_errors') || '[]');
+  if (boot.length) {
+    localStorage.removeItem('hpd_boot_errors');
+    reportError(`Startup failed on a previous launch: ${boot.join(' | ')}`, { source: 'boot' });
+  }
+} catch { /* storage unavailable */ }
+
 // Without this, vite-plugin-pwa falls back to a bare
 // `navigator.serviceWorker.register(...)` with no update-detection logic -
 // registerType: 'autoUpdate' in vite.config.js only controls what the
@@ -97,3 +107,5 @@ createRoot(document.getElementById('root')).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+// Tells the index.html safety net the app started, so it never shows its fallback.
+window.__hpdMounted = true

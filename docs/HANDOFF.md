@@ -3235,7 +3235,29 @@ Other details:
 - Leaderboard rows carry `data-testid="leaderboard-row"`.
 - Test: `tests/lift-csv-export.js` [D] (export options) and [E] (ranking and PNG).
 
-## 88. Next up
+## 88. White screen after v5.2.6: rollback + startup safety net (v5.2.7)
+
+- The coach saw a blank white screen on open right after v5.2.6 went live. Production
+  was rolled back in Vercel to the v5.2.5 deployment (`dpl_A4ESuCvB2TRhh6vVEh8NWu4gNp7r`).
+  `main` still has v5.2.6, so the next push re-deploys forward.
+- **Not reproducible.** Every screen was fine locally, with live-shaped data including
+  an archived athlete. Nothing reached `app_errors`. v5.2.6's entry chunk imports
+  nothing new: the only new file, `liftRanking`, loads lazily with Athletes and Lifts.
+  The most likely cause is the device opening mid-update, with the service worker
+  holding a stale copy. Code that never mounts can't report anything, which is why
+  the log was empty.
+- **The safety net, in `index.html`:**
+  - `#root` starts with a static "Loading HPD…" instead of an empty div.
+  - An inline script records load and parse errors from before mount into
+    `localStorage.hpd_boot_errors`.
+  - After 10s without `window.__hpdMounted`, it replaces the page with "HPD didn't
+    finish loading" and a Reload button. The button (`window.__hpdHardReload`)
+    unregisters the service worker and clears Cache Storage before reloading.
+  - `main.jsx` sets `__hpdMounted` after `createRoot().render`, and reports stored
+    boot errors (source `boot`) on the next good start.
+- Test: `tests/boot-fallback.js`.
+
+## 89. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
