@@ -59,7 +59,7 @@ const weighIns = [{ id: uuid(900), athlete_id: uuid(1), weight_lbs: 200, sleep_h
   console.log('\n[A] Performance has a Strength sub-tab');
   await page.goto(`${APP}/#analytics`); await page.waitForTimeout(2500);
   const perf = page.getByRole('tablist', { name: 'Performance' });
-  check('Analytics / RPE / Strength / Print Report tabs', await perf.getByRole('tab').count() === 4, String(await perf.getByRole('tab').count()));
+  check('Analytics / RPE / Strength / Jumps & Sprints / Print Report tabs', await perf.getByRole('tab').count() === 5, String(await perf.getByRole('tab').count()));
   await perf.getByRole('tab', { name: /^Strength$/ }).click(); await page.waitForTimeout(1200);
   check('heading', /PERFORMANCE · STRENGTH/.test(await page.locator('main').innerText()));
   check('page title', /Strength · Performance/.test(await page.title()), await page.title());

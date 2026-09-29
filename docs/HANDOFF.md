@@ -3313,7 +3313,42 @@ for quick looks.
   - "Open full profile" (Back returns to Strength)
 - **Test:** `tests/strength-deep-dive.js`.
 
-## 91. Next up
+## 91. Performance > Jumps & Sprints deep-dive tab (v5.3.0)
+
+Third deep-dive tab, built like RPE (§89) and Strength (§90). It shows when Speed &
+Power is on. The Analytics Speed & Power leaderboard is unchanged.
+
+- **Files:**
+  - `src/features/analytics/powerMetrics.js`: pure math.
+  - `PowerScreen.jsx`: lazy-loaded, uses `components/DeepDiveUi.jsx`.
+- **Direction and techniques:**
+  - Direction comes from `TEST_TYPES.better`: the 10yd fly ranks lowest time first,
+    jumps highest first.
+  - Results are only compared within one test *and* technique (`test_variant`).
+    Untagged pre-tracking rows are their own option.
+  - The Technique picker only appears when a test has more than one technique in the
+    data. It defaults to the technique with the most results.
+- **Filters:** test, technique, sport, window (8/12/26/52 weeks), sort, search.
+- **Tiles:** tested in window, PBs in window, how many have a latest result well off
+  their PB, average PB.
+- **Table per athlete:**
+  - rank by PB within the sport filter (search doesn't re-rank)
+  - PB and its date
+  - latest result, and "Off PB" (latest vs PB, as a % of the PB)
+  - Improved: best result in the window vs the first result in the window
+  - vs Sport avg: PB vs the average PB of the athlete's sport, among athletes shown
+  - PBs, results (window / all time)
+  - last-8 sparkline (flipped for sprints, so up is always better)
+  - flags: New PB (≤14 days) / "N% off PB" (more than 3% for sprints, 5% for jumps) /
+    Not tested in 6+ weeks
+- **Clicking a row expands:**
+  - every result over time against the PB line (the axis is flipped for sprints)
+  - PBs for every test and technique the athlete has
+  - the last 12 results with PB markers, % vs PB and source (Plyomat / manual)
+  - "Open full profile"
+- **Test:** `tests/power-deep-dive.js`.
+
+## 92. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
