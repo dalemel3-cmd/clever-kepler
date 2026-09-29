@@ -10,7 +10,26 @@ const CLOUD_PILL = {
 };
 export const cloudPill = (status) => CLOUD_PILL[status] || CLOUD_PILL.reconnecting;
 
+// Lifts / jump & sprint results saved on this device but not uploaded yet (weigh-ins
+// have their own counter). Tap to retry now instead of waiting for the 30s retry.
+function PendingUploads({ count, onRetry }) {
+  if (!count) return null;
+  return (
+    <button
+      type="button"
+      onClick={onRetry}
+      title="Saved on this device. They upload automatically when the connection is back; tap to try now."
+      className="flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/40 font-label-sm text-label-sm whitespace-nowrap"
+    >
+      <span aria-hidden="true" className="material-symbols-outlined text-sm">cloud_upload</span>
+      <span>{count} waiting to upload</span>
+    </button>
+  );
+}
+
 export function AppHeader({
+  pendingUploads = 0,
+  onRetryUploads,
   cloudStatus,
   screen,
   organizationName,
@@ -39,6 +58,7 @@ export function AppHeader({
           </div>
           
           <div className="flex items-center gap-space-md">
+            <PendingUploads count={pendingUploads} onRetry={onRetryUploads} />
             {unsyncedQueueCount > 0 ? (
               <button onClick={() => syncOfflineCache(true)} className="flex items-center gap-2 px-space-sm py-1 rounded-full bg-error-container text-error border border-error/40 font-label-md text-label-md hover:bg-error/20 transition-colors">
                 <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">sync</span>
@@ -75,6 +95,7 @@ export function AppHeader({
           </div>
           
           <div className="flex items-center gap-space-md">
+            <PendingUploads count={pendingUploads} onRetry={onRetryUploads} />
             {/* The mockup's "Athlete search... Ctrl+K" box was purely decorative -
                 no input, no keyboard shortcut, no search logic behind it. Real
                 athlete search already lives on the Athletes/Lift Tracker/Kiosk

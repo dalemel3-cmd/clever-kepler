@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { reportDataError } from '../../errorReporting';
+import { useInsertQueue, newRowId } from '../../utils/insertQueue';
 
 const CACHE_KEY = 'shiloh_lift_logs';
+const QUEUE_KEY = 'hpd_pending_lift_logs';
 
 const readCache = () => {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); } catch { return []; }
@@ -19,6 +21,7 @@ const writeCache = (rows) => {
 export function useLiftLogs() {
   const [rows, setRows] = useState(readCache);
   const mounted = useRef(true);
+  const rescueRef = useRef(() => {});
 
   const mergeRows = useCallback((incoming) => {
     setRows(prev => {
@@ -36,7 +39,7 @@ export function useLiftLogs() {
       try {
         const { data, error } = await supabase.from('lift_logs').select('*').order('created_at', { ascending: false });
         if (error) reportDataError(error, 'lift_logs:fetch');
-        else if (data && mounted.current) mergeRows(data);
+        else if (data && mounted.current) { mergeRows(data); rescueRef.current(data); }
       } catch { /* offline - the cache already loaded from localStorage covers this */ }
     })();
 
@@ -58,74 +61,70 @@ export function useLiftLogs() {
     };
   }, [mergeRows]);
 
-  const addLift = useCallback(async (rec) => {
-    // Optimistic row so the entry appears immediately even offline; a real id from
-    // Supabase replaces it once the insert round-trips (or the realtime echo
-    // delivers the row from another device).
-    const optimistic = { id: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, source: 'manual', ...rec, created_at: rec.created_at || new Date().toISOString() };
-    mergeRows([optimistic]);
-    try {
-      const { data, error } = await supabase.from('lift_logs').insert([{
-        athlete_id: rec.athlete_id,
-        athlete_name: rec.athlete_name || 'Unknown',
-        sport: rec.sport || '',
-        lift_type: rec.lift_type,
-        weight_lbs: rec.weight_lbs,
-        reps: rec.reps,
-        source: rec.source || 'manual',
-        created_at: optimistic.created_at,
-      }]).select();
-      if (error) throw error;
-      if (data && data[0]) {
-        setRows(prev => {
-          const next = [data[0], ...prev.filter(r => r.id !== optimistic.id)]
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          writeCache(next);
-          return next;
-        });
-      }
-      return { ok: true };
-    } catch (e) {
-      reportDataError(e, 'lift_logs:write');
-      // Optimistic row stays visible; nothing else to reconcile offline for a feature
-      // this lightly used yet - unlike weigh-ins there is no offline queue for this table.
-      return { ok: false, error: e };
-    }
-  }, [mergeRows]);
+  const toPayload = (o) => ({
+    id: o.id,
+    athlete_id: o.athlete_id,
+    athlete_name: o.athlete_name || 'Unknown',
+    sport: o.sport || '',
+    lift_type: o.lift_type,
+    weight_lbs: o.weight_lbs,
+    reps: o.reps,
+    source: o.source || 'manual',
+    created_at: o.created_at,
+  });
+  // Rows the server accepted: take its copy (or just clear the pending mark when the
+  // row already existed - a retry of a save whose response was lost).
+  const markSaved = useCallback((ids, data) => {
+    const byId = new Map((data || []).map(r => [r.id, r]));
+    const idSet = new Set(ids);
+    setRows(prev => {
+      const next = prev.map(r => (idSet.has(r.id) ? (byId.get(r.id) || { ...r, pending: false }) : r));
+      writeCache(next);
+      return next;
+    });
+  }, []);
+  const dropRows = useCallback((ids) => {
+    const idSet = new Set(ids);
+    setRows(prev => {
+      const next = prev.filter(r => !idSet.has(r.id));
+      writeCache(next);
+      return next;
+    });
+  }, []);
+  const queue = useInsertQueue({ table: 'lift_logs', queueKey: QUEUE_KEY, onSaved: markSaved, onRejected: dropRows });
 
-  // Many sets in ONE request (Team Log): one round trip for a whole team instead of one
-  // per athlete. Optimistic rows get unique ids - 'opt_' + Date.now() alone collides when
-  // a batch is created in the same millisecond, and mergeRows then drops all but one.
+  // Before v5.3.3 a set that failed to upload stayed in this device's cache as an
+  // 'opt_...' row and was never retried. Once the server list is in, any such row the
+  // server doesn't already have (same athlete, lift and time) gets a real id and joins
+  // the queue, so those sets finally upload instead of living on one device forever.
+  rescueRef.current = (server) => {
+    const have = new Set(server.map(r => `${r.athlete_id}|${r.lift_type}|${new Date(r.created_at).getTime()}`));
+    const stranded = readCache().filter(r => String(r.id).startsWith('opt_'));
+    if (!stranded.length) return;
+    const drop = new Set(stranded.map(r => r.id));
+    const rescued = stranded
+      .filter(r => r.athlete_id && !have.has(`${r.athlete_id}|${r.lift_type}|${new Date(r.created_at).getTime()}`))
+      .map(r => ({ ...r, id: newRowId(), pending: true }));
+    setRows(prev => {
+      const next = [...prev.filter(r => !drop.has(r.id)), ...rescued].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      writeCache(next);
+      return next;
+    });
+    queue.enqueue(rescued.map(toPayload));
+    if (rescued.length) setTimeout(queue.flush, 0);
+  };
+
+  // Each new set gets its real id on the device (see utils/insertQueue): shows
+  // immediately, uploads now if it can, otherwise waits in the offline queue.
+  // Many sets (Team Log) go up in one request.
   const addLifts = useCallback(async (recs) => {
     if (!recs.length) return { ok: true, count: 0 };
-    const stamp = Date.now();
-    const optimistic = recs.map((rec, i) => ({ id: `opt_${stamp}_${i}`, source: 'manual', ...rec, created_at: rec.created_at || new Date().toISOString() }));
-    mergeRows(optimistic);
-    try {
-      const { data, error } = await supabase.from('lift_logs').insert(optimistic.map(o => ({
-        athlete_id: o.athlete_id,
-        athlete_name: o.athlete_name || 'Unknown',
-        sport: o.sport || '',
-        lift_type: o.lift_type,
-        weight_lbs: o.weight_lbs,
-        reps: o.reps,
-        source: o.source || 'manual',
-        created_at: o.created_at,
-      }))).select();
-      if (error) throw error;
-      const optIds = new Set(optimistic.map(o => o.id));
-      setRows(prev => {
-        const next = [...(data || []), ...prev.filter(r => !optIds.has(r.id))]
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        writeCache(next);
-        return next;
-      });
-      return { ok: true, count: recs.length };
-    } catch (e) {
-      reportDataError(e, 'lift_logs:write');
-      return { ok: false, error: e, count: recs.length };
-    }
-  }, [mergeRows]);
+    const rows = recs.map(rec => ({ source: 'manual', ...rec, id: newRowId(), created_at: rec.created_at || new Date().toISOString(), pending: true }));
+    mergeRows(rows);
+    const res = await queue.insert(rows.map(toPayload));
+    return { ...res, count: recs.length };
+  }, [mergeRows, queue.insert]); // eslint-disable-line react-hooks/exhaustive-deps
+  const addLift = useCallback((rec) => addLifts([rec]), [addLifts]);
 
   // Corrects a mis-entered lift in place - a fat-fingered weight or rep count should
   // not require deleting the row and losing the rest of its history.
@@ -135,6 +134,8 @@ export function useLiftLogs() {
       writeCache(next);
       return next;
     });
+    // Not uploaded yet: fix the queued copy; the queue sends the corrected row.
+    if (queue.isQueued(id)) { queue.patchQueued(id, patch); return { ok: true }; }
     try {
       const { error } = await supabase.from('lift_logs').update(patch).eq('id', id);
       if (error) throw error;
@@ -143,7 +144,7 @@ export function useLiftLogs() {
       reportDataError(e, 'lift_logs:write');
       return { ok: false, error: e };
     }
-  }, []);
+  }, [queue]);
 
   // Reassigns a batch of already-logged sets to a different lift type in one shot,
   // leaving their weight/reps/athlete/date untouched - for the common mislabel case
@@ -157,15 +158,18 @@ export function useLiftLogs() {
       writeCache(next);
       return next;
     });
+    ids.forEach(id => queue.patchQueued(id, { lift_type: newLiftType }));
+    const cloudIds = ids.filter(id => !queue.isQueued(id));
+    if (!cloudIds.length) return { ok: true, count: ids.length };
     try {
-      const { error } = await supabase.from('lift_logs').update({ lift_type: newLiftType }).in('id', ids);
+      const { error } = await supabase.from('lift_logs').update({ lift_type: newLiftType }).in('id', cloudIds);
       if (error) throw error;
       return { ok: true, count: ids.length };
     } catch (e) {
       reportDataError(e, 'lift_logs:write');
       return { ok: false, error: e };
     }
-  }, []);
+  }, [queue]);
 
   const deleteLift = useCallback(async (id) => {
     let removed = null;
@@ -175,6 +179,7 @@ export function useLiftLogs() {
       writeCache(next);
       return next;
     });
+    if (queue.isQueued(id)) { queue.dropQueued(id); return { ok: true }; }
     try {
       const { error } = await supabase.from('lift_logs').delete().eq('id', id);
       if (error) throw error;
@@ -186,7 +191,7 @@ export function useLiftLogs() {
       if (removed) mergeRows([removed]);
       return { ok: false, error: e };
     }
-  }, [mergeRows]);
+  }, [mergeRows, queue]);
 
-  return { liftLogs: rows, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType };
+  return { liftLogs: rows, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType, pendingLiftCount: queue.pendingCount, flushLiftQueue: queue.flush };
 }

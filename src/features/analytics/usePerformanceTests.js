@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { reportDataError } from '../../errorReporting';
+import { useInsertQueue, newRowId } from '../../utils/insertQueue';
 import { normalizeName as normKey } from './normalizeName';
 
 const CACHE_KEY = 'shiloh_performance_tests';
+const QUEUE_KEY = 'hpd_pending_performance_tests';
 
 const readCache = () => {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); } catch { return []; }
@@ -21,6 +23,7 @@ const writeCache = (rows) => {
 export function usePerformanceTests() {
   const [rows, setRows] = useState(readCache);
   const mounted = useRef(true);
+  const rescueRef = useRef(() => {});
 
   const mergeRows = useCallback((incoming) => {
     setRows(prev => {
@@ -38,7 +41,7 @@ export function usePerformanceTests() {
       try {
         const { data, error } = await supabase.from('performance_tests').select('*').order('created_at', { ascending: false });
         if (error) reportDataError(error, 'performance_tests:fetch');
-        else if (data && mounted.current) mergeRows(data);
+        else if (data && mounted.current) { mergeRows(data); rescueRef.current(data); }
       } catch { /* offline - the cache already loaded from localStorage covers this */ }
     })();
 
@@ -60,81 +63,68 @@ export function usePerformanceTests() {
     };
   }, [mergeRows]);
 
-  const addTest = useCallback(async (rec) => {
-    // Optimistic row so the entry appears immediately even offline; a real id from
-    // Supabase replaces it once the insert round-trips (or the realtime echo delivers
-    // the row from another device).
-    const optimistic = { id: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, source: 'manual', unit: 'sec', ...rec, created_at: rec.created_at || new Date().toISOString() };
-    mergeRows([optimistic]);
-    try {
-      const { data, error } = await supabase.from('performance_tests').insert([{
-        athlete_id: rec.athlete_id,
-        athlete_name: rec.athlete_name || 'Unknown',
-        sport: rec.sport || '',
-        test_type: rec.test_type,
-        // The protocol/technique this was measured under (db/007). This insert names its
-        // columns explicitly rather than spreading `rec`, so the Technique field added in
-        // v4.19.0 reached the optimistic row but never the database - the entry looked
-        // saved, then came back untagged on the next load. Any column added to this table
-        // from here on has to be added to this list too.
-        test_variant: rec.test_variant || null,
-        metric: rec.metric,
-        unit: rec.unit || 'sec',
-        source: 'manual',
-        created_at: optimistic.created_at,
-      }]).select();
-      if (error) throw error;
-      if (data && data[0]) {
-        setRows(prev => {
-          const next = [data[0], ...prev.filter(r => r.id !== optimistic.id)]
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          writeCache(next);
-          return next;
-        });
-      }
-      return { ok: true };
-    } catch (e) {
-      reportDataError(e, 'performance_tests:write');
-      // Optimistic row stays visible; nothing else to reconcile offline for a feature
-      // this lightly used yet - unlike weigh-ins there is no offline queue for this table.
-      return { ok: false, error: e };
-    }
-  }, [mergeRows]);
+  // Columns are listed explicitly rather than spreading the row: the Technique field
+  // added in v4.19.0 once reached the optimistic row but never the database because it
+  // was missing from this list. Any column added to the table has to be added here too.
+  const toPayload = (o) => ({
+    id: o.id,
+    athlete_id: o.athlete_id,
+    athlete_name: o.athlete_name || 'Unknown',
+    sport: o.sport || '',
+    test_type: o.test_type,
+    test_variant: o.test_variant || null,
+    metric: o.metric,
+    unit: o.unit || 'sec',
+    source: 'manual',
+    created_at: o.created_at,
+  });
+  const markSaved = useCallback((ids, data) => {
+    const byId = new Map((data || []).map(r => [r.id, r]));
+    const idSet = new Set(ids);
+    setRows(prev => {
+      const next = prev.map(r => (idSet.has(r.id) ? (byId.get(r.id) || { ...r, pending: false }) : r));
+      writeCache(next);
+      return next;
+    });
+  }, []);
+  const dropRows = useCallback((ids) => {
+    const idSet = new Set(ids);
+    setRows(prev => {
+      const next = prev.filter(r => !idSet.has(r.id));
+      writeCache(next);
+      return next;
+    });
+  }, []);
+  const queue = useInsertQueue({ table: 'performance_tests', queueKey: QUEUE_KEY, onSaved: markSaved, onRejected: dropRows });
 
-  // Many results in ONE request (Speed & Power Team Entry) - one round trip for the
-  // whole roster instead of one per athlete. Unique optimistic ids per row: a bare
-  // 'opt_' + Date.now() collides within a batch and mergeRows keeps only one of them.
+  // Pre-v5.3.3 'opt_...' rows that never uploaded: re-queue any the server doesn't have
+  // (same athlete, test, technique and time). See useLiftLogs for the same rescue.
+  rescueRef.current = (server) => {
+    const keyOf = r => `${r.athlete_id}|${r.test_type}|${r.test_variant || ''}|${new Date(r.created_at).getTime()}`;
+    const have = new Set(server.map(keyOf));
+    const stranded = readCache().filter(r => String(r.id).startsWith('opt_'));
+    if (!stranded.length) return;
+    const drop = new Set(stranded.map(r => r.id));
+    const rescued = stranded.filter(r => r.athlete_id && !have.has(keyOf(r))).map(r => ({ ...r, id: newRowId(), pending: true }));
+    setRows(prev => {
+      const next = [...prev.filter(r => !drop.has(r.id)), ...rescued].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      writeCache(next);
+      return next;
+    });
+    queue.enqueue(rescued.map(toPayload));
+    if (rescued.length) setTimeout(queue.flush, 0);
+  };
+
+  // New results get their real id on the device (utils/insertQueue): shown at once,
+  // uploaded now if possible, otherwise queued. Team Entry sends a roster in one request.
   const addTests = useCallback(async (recs) => {
     if (!recs.length) return { ok: true, count: 0 };
-    const stamp = Date.now();
-    const optimistic = recs.map((rec, i) => ({ id: `opt_${stamp}_${i}`, source: 'manual', unit: 'sec', ...rec, created_at: rec.created_at || new Date().toISOString() }));
-    mergeRows(optimistic);
-    try {
-      const { data, error } = await supabase.from('performance_tests').insert(optimistic.map(o => ({
-        athlete_id: o.athlete_id,
-        athlete_name: o.athlete_name || 'Unknown',
-        sport: o.sport || '',
-        test_type: o.test_type,
-        test_variant: o.test_variant || null, // see addTest: columns are listed explicitly
-        metric: o.metric,
-        unit: o.unit || 'sec',
-        source: 'manual',
-        created_at: o.created_at,
-      }))).select();
-      if (error) throw error;
-      const optIds = new Set(optimistic.map(o => o.id));
-      setRows(prev => {
-        const next = [...(data || []), ...prev.filter(r => !optIds.has(r.id))]
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        writeCache(next);
-        return next;
-      });
-      return { ok: true, count: recs.length };
-    } catch (e) {
-      reportDataError(e, 'performance_tests:write');
-      return { ok: false, error: e, count: recs.length };
-    }
-  }, [mergeRows]);
+    const rows = recs.map(rec => ({ source: 'manual', unit: 'sec', ...rec, id: newRowId(), created_at: rec.created_at || new Date().toISOString(), pending: true }));
+    mergeRows(rows);
+    const res = await queue.insert(rows.map(toPayload));
+    return { ...res, count: recs.length };
+  }, [mergeRows, queue.insert]); // eslint-disable-line react-hooks/exhaustive-deps
+  const addTest = useCallback((rec) => addTests([rec]), [addTests]);
 
   // Corrects a mis-entered result in place - a fat-fingered value or the wrong test
   // date should not require deleting the row and losing the rest of its history (source,
@@ -145,6 +135,7 @@ export function usePerformanceTests() {
       writeCache(next);
       return next;
     });
+    if (queue.isQueued(id)) { queue.patchQueued(id, patch); return { ok: true }; }
     try {
       const { error } = await supabase.from('performance_tests').update(patch).eq('id', id);
       if (error) throw error;
@@ -153,7 +144,7 @@ export function usePerformanceTests() {
       reportDataError(e, 'performance_tests:write');
       return { ok: false, error: e };
     }
-  }, []);
+  }, [queue]);
 
   const deleteTest = useCallback(async (id) => {
     let removed = null;
@@ -163,6 +154,7 @@ export function usePerformanceTests() {
       writeCache(next);
       return next;
     });
+    if (queue.isQueued(id)) { queue.dropQueued(id); return { ok: true }; }
     try {
       const { error } = await supabase.from('performance_tests').delete().eq('id', id);
       if (error) throw error;
@@ -174,7 +166,7 @@ export function usePerformanceTests() {
       if (removed) mergeRows([removed]);
       return { ok: false, error: e };
     }
-  }, [mergeRows]);
+  }, [mergeRows, queue]);
 
   // Writes an import plan from plyomatImport.buildImportPlan.
   //
@@ -267,5 +259,5 @@ export function usePerformanceTests() {
     }
   }, []);
 
-  return { performanceTests: rows, addTest, addTests, updateTest, deleteTest, importPlan, advancePlyomatSyncCheckpoint };
+  return { performanceTests: rows, pendingTestCount: queue.pendingCount, flushTestQueue: queue.flush, addTest, addTests, updateTest, deleteTest, importPlan, advancePlyomatSyncCheckpoint };
 }

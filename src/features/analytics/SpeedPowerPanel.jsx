@@ -217,9 +217,11 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       created_at: centralWallTimeToISO(testDate, '12:00'),
     });
     setSaving(false);
-    setMessage(result.ok
-      ? `Saved ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'} on ${testDate}.`
-      : 'Saved locally — will sync once back online.');
+    setMessage(!result.ok
+      ? "The server refused that result, so it wasn't saved. Check the value and try again."
+      : result.queued
+        ? `No connection. ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'} is saved on this device and will upload automatically.`
+        : `Saved ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'} on ${testDate}.`);
     setValue('');
     setTimeout(() => setMessage(''), 3500);
   };
@@ -245,13 +247,13 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       created_at,
     }));
     // One request for the whole roster when the batch writer is available.
-    const failed = addTests
-      ? ((await addTests(recs)).ok ? 0 : recs.length)
-      : (await Promise.all(recs.map(r => addTest(r)))).filter(r => !r.ok).length;
+    const res = addTests ? await addTests(recs) : { ok: (await Promise.all(recs.map(r => addTest(r)))).every(r => r.ok) };
     setTeamSaving(false);
-    setTeamMessage(failed === 0
-      ? `Saved ${entries.length} result${entries.length !== 1 ? 's' : ''} for ${testDate}.`
-      : `Saved ${entries.length - failed} of ${entries.length}. The rest didn't reach the cloud; check your connection.`);
+    setTeamMessage(!res.ok
+      ? `The server refused these results, so they weren't saved. Check the numbers and try again.`
+      : res.queued
+        ? `No connection. ${entries.length} result${entries.length !== 1 ? 's are' : ' is'} saved on this device and will upload automatically.`
+        : `Saved ${entries.length} result${entries.length !== 1 ? 's' : ''} for ${testDate}.`);
     // Clear only the rows that were actually submitted, leaving anything left blank
     // untouched in case the coach comes back to finish the sheet.
     setTeamValues(prev => {

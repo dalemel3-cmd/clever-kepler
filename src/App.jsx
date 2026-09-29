@@ -462,7 +462,7 @@ export default function App() {
   // Speed & Power test results - lifted here (rather than fetched inside
   // SpeedPowerPanel itself) so Profiles can also read best-test data without opening a
   // second realtime subscription to the same table.
-  const { performanceTests, addTest: addPerformanceTest, addTests: addPerformanceTests, updateTest: updatePerformanceTest, deleteTest: deletePerformanceTest, importPlan: importPlyomatPlan, advancePlyomatSyncCheckpoint } = usePerformanceTests();
+  const { performanceTests, pendingTestCount, flushTestQueue, addTest: addPerformanceTest, addTests: addPerformanceTests, updateTest: updatePerformanceTest, deleteTest: deletePerformanceTest, importPlan: importPlyomatPlan, advancePlyomatSyncCheckpoint } = usePerformanceTests();
 
   // "Sync from Plyomat" checkpoint (db/010) - read once so the panel knows whether this
   // is a first-ever sync (fetch everything) or an incremental one (?since=<this value>).
@@ -505,7 +505,7 @@ export default function App() {
   // Lift Tracker (Bench/Squat/Deadlift/etc.) - same lifted-to-App-level reasoning as
   // Speed & Power above, so Profiles can eventually read best-lift data without a
   // second realtime subscription to the same table.
-  const { liftLogs, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType } = useLiftLogs();
+  const { liftLogs, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType, pendingLiftCount, flushLiftQueue } = useLiftLogs();
 
   // Settings & PWA State
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
@@ -2435,6 +2435,8 @@ export default function App() {
       <div className={`flex-1 min-w-0 ${isKioskMode ? "w-full" : (sidebarCollapsed ? "md:pl-20" : "md:pl-64")}`}>
         <AppHeader
           cloudStatus={cloudStatus}
+          pendingUploads={pendingLiftCount + pendingTestCount}
+          onRetryUploads={() => { flushLiftQueue(); flushTestQueue(); }}
           screen={screen}
           organizationName={settings.organizationName}
           isKioskMode={isKioskMode}

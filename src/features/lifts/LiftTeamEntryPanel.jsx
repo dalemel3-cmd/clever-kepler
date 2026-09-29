@@ -76,9 +76,11 @@ export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTyp
       lift_type: lift, weight_lbs: s.w, reps: s.r, created_at,
     })));
     setSaving(false);
-    setMessage(res.ok
-      ? `Saved ${ready.length} ${lift} set${ready.length === 1 ? '' : 's'} for ${date}.`
-      : `Couldn't reach the cloud. ${ready.length} set${ready.length === 1 ? ' is' : 's are'} shown on this device only; check your connection and re-enter.`);
+    setMessage(!res.ok
+      ? `The server refused these sets, so they weren't saved. Check the numbers and try again.`
+      : res.queued
+        ? `No connection. ${ready.length} ${lift} set${ready.length === 1 ? ' is' : 's are'} saved on this device and will upload automatically.`
+        : `Saved ${ready.length} ${lift} set${ready.length === 1 ? '' : 's'} for ${date}.`);
     setValues(prev => {
       const next = { ...prev };
       ready.forEach(([a]) => delete next[a.id]);

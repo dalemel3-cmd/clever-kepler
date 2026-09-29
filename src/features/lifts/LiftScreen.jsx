@@ -267,7 +267,7 @@ export default function LiftScreen({
     setSaving(true);
     const w = parseFloat(weight);
     const r = parseInt(reps, 10);
-    await addLift({
+    const res = await addLift({
       athlete_id: selectedAthlete.id,
       athlete_name: selectedAthlete.name,
       sport: selectedAthlete.sport || '',
@@ -276,7 +276,11 @@ export default function LiftScreen({
       reps: r,
     });
     setSaving(false);
-    setSuccessMsg(`Logged ${w} lbs × ${r} reps — ${liftType} for ${selectedAthlete.name}.`);
+    setSuccessMsg(!res.ok
+      ? `That set wasn't saved (the server refused it). Check the numbers and try again.`
+      : res.queued
+        ? `Logged ${w} lbs × ${r} reps — ${liftType} for ${selectedAthlete.name}. No signal: saved on this device, uploads automatically.`
+        : `Logged ${w} lbs × ${r} reps — ${liftType} for ${selectedAthlete.name}.`);
     // Fields reset so the same athlete can immediately log a second lift (e.g. bench
     // then squat in the same visit) without re-selecting their card.
     setWeight('');
