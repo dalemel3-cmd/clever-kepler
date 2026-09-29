@@ -27,6 +27,7 @@ const AthletesScreen = lazy(() => import('./features/athletes/AthletesScreen'));
 const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
 const DashboardScreen = lazy(() => import('./features/dashboard/DashboardScreen'));
 const ReportsScreen = lazy(() => import('./features/reports/ReportsScreen'));
+const RpeScreen = lazy(() => import('./features/rpe/RpeScreen'));
 const AnalyticsScreen = lazy(() => import('./features/analytics/AnalyticsScreen'));
 const ProfilesScreen = lazy(() => import('./features/profiles/ProfilesScreen'));
 const SettingsScreen = lazy(() => import('./features/settings/SettingsScreen'));
@@ -1539,8 +1540,8 @@ export default function App() {
   // back to the existing behavior of just deselecting the profile.
   const handleBackFromProfile = () => {
     setSelectedProfileId(null);
-    if (profileEntryScreen === 'athletes') {
-      setScreen('athletes');
+    if (profileEntryScreen === 'athletes' || profileEntryScreen === 'rpe') {
+      setScreen(profileEntryScreen);
     }
     setProfileEntryScreen(null);
   };
@@ -2583,6 +2584,18 @@ export default function App() {
                 onPlyomatApiSync={onPlyomatApiSync}
                 onPlyomatSyncComplete={onPlyomatSyncComplete}
                 ensureReportWindow={ensureReportWindow}
+              />
+            )}
+
+            {screen === 'rpe' && (
+              <RpeScreen
+                settings={settings}
+                athletes={athletes}
+                reportData={reportData}
+                setSelectedProfileId={setSelectedProfileId}
+                fetchProfileData={fetchProfileData}
+                setScreen={setScreen}
+                setProfileEntryScreen={setProfileEntryScreen}
               />
             )}
 

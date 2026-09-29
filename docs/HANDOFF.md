@@ -3257,7 +3257,31 @@ Other details:
     boot errors (source `boot`) on the next good start.
 - Test: `tests/boot-fallback.js`.
 
-## 89. Next up
+## 89. Performance > RPE deep-dive tab (v5.2.8)
+
+The Analytics tab keeps its quick team RPE/load chart. A new **RPE** sub-tab (Performance
+group, shown only when Session RPE is on in Settings) gives S&C staff the full per-athlete
+picture.
+
+- **Files:** `src/features/rpe/rpeMetrics.js` (pure math, no React) and `RpeScreen.jsx`
+  (lazy-loaded). The A:C ratio reuses `computeAcuteChronicLoad`, so it matches Profile and
+  Reports exactly.
+- **Filters:** sport, athlete search, window (4/6/8/12 weeks), and sort (A:C, 7-day load,
+  week-over-week change, monotony, avg RPE, name). All local to this tab.
+- **Summary tiles:** athletes reporting, avg RPE, count at A:C ≥ spike threshold, count
+  with monotony > 2.0.
+- **Table per athlete:** A:C (colored), 7-day load, chronic weekly avg, week-over-week %,
+  Foster monotony and strain (last 7 days, rest days = 0), sessions, avg RPE, hard
+  sessions (≥ `rpeHighThreshold`), a weekly-load sparkline, and flags (Load spike /
+  High monotony / Underloaded < 0.8 / No RPE in 7+ days). Athletes with no RPE ever are
+  left out.
+- **Clicking a row expands:** weekly load bars against the chronic-average line, a
+  breakdown by session label, the last 12 sessions, and "Open full profile" (Back returns
+  to RPE). The panel is pinned to the visible width so it doesn't stretch with the
+  sideways-scrolling table on phones.
+- **Test:** `tests/rpe-deep-dive.js`.
+
+## 90. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

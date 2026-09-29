@@ -18,6 +18,7 @@ export const NAV_GROUPS = [
   ] },
   { id: 'performance', label: 'Performance', icon: 'monitoring', screens: [
     { screen: 'analytics', label: 'Analytics' },
+    { screen: 'rpe', label: 'RPE', requires: 'enableRpe' },
     { screen: 'reports', label: 'Print Report' },
   ] },
   { id: 'settings', label: 'Settings', icon: 'settings', screens: [
