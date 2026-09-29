@@ -2,13 +2,13 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, X, Minus, Plus, Pencil, Trash2, Check } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
-import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
+import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog, initialsFor } from '../../utils/athleteData';
 import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 
-// Estimated 1-rep max (Epley formula). Weight and reps are always stored as the raw
-// set an athlete actually did - this is only used to rank/compare sets logged at
-// different rep counts (245x5 vs 275x3), never stored back on the row itself.
-export const estimate1RM = (weight, reps) => (reps <= 1 ? weight : weight * (1 + reps / 30));
+import { estimate1RM, buildLeaderboard, RANK_MODES, TIMEFRAMES, timeframeBounds, describeBounds } from './liftRanking';
+import { renderLeaderboardPng, shareOrDownload } from './leaderboardImage';
+import LiftExportPanel from './LiftExportPanel';
+export { estimate1RM };
 
 // The best set an athlete has ever logged for a given lift, ranked by estimated 1RM
 // - same "one PB per category" convention as bestTestFor in Speed & Power.
@@ -23,24 +23,8 @@ export function bestLiftFor(logs, athleteId, liftType) {
   return best ? { ...best, estimated1RM: Math.round(bestEst) } : null;
 }
 
-const initialsOf = (name) => (name || '?').trim().split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || '?';
+const initialsOf = initialsFor;
 const shortDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-// Same escape/download convention ReportsScreen.jsx uses for its exports.
-const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-const downloadCSV = (filename, headers, rows) => {
-  const csvContent = [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
 
 export default function LiftScreen({
   settings,
@@ -76,6 +60,14 @@ export default function LiftScreen({
   // whichever sport logs the most, so a coach checking their own team's PRs had to
   // scan past everyone else's.
   const [leaderboardSportFilter, setLeaderboardSportFilter] = React.useState('ALL');
+  // Leaderboard ranking + window, shared by the on-screen board and its PNG export.
+  const [rankBy, setRankBy] = React.useState('est1rm');
+  const [lbFrame, setLbFrame] = React.useState('all');
+  const [lbFrom, setLbFrom] = React.useState(settings.seasonStartDate || '');
+  const [lbTo, setLbTo] = React.useState('');
+  const [pngLimit, setPngLimit] = React.useState(10);
+  const [pngBusy, setPngBusy] = React.useState(false);
+  const [exportOpen, setExportOpen] = React.useState(false);
   // Editing a previously-logged set (wrong weight/reps, or logged under the wrong
   // exercise entirely) - a separate small form inline in the Recent Lifts list,
   // rather than deleting and re-adding.
@@ -267,34 +259,6 @@ export default function LiftScreen({
   // an athlete tapping through the kiosk doesn't mistake it for part of the log-a-lift
   // flow and trigger a download).
   // Last name first, then first name, then newest-first within one athlete's own sets -
-  // "athlete_name" is stored as one string ("Trent Butler"), so the sort key is just
-  // its last whitespace-separated word.
-  const lastNameOf = (fullName) => (fullName || '').trim().split(/\s+/).pop().toLowerCase();
-
-  const handleExportCSV = () => {
-    const sorted = [...(liftLogs || [])].sort((a, b) => {
-      const lastCmp = lastNameOf(a.athlete_name).localeCompare(lastNameOf(b.athlete_name));
-      if (lastCmp !== 0) return lastCmp;
-      const nameCmp = (a.athlete_name || '').localeCompare(b.athlete_name || '');
-      if (nameCmp !== 0) return nameCmp;
-      return new Date(b.created_at) - new Date(a.created_at);
-    });
-    const rows = sorted.map(l => [
-      new Date(l.created_at).toLocaleDateString(),
-      l.athlete_name || '',
-      l.sport || '',
-      l.lift_type,
-      l.weight_lbs,
-      l.reps,
-      Math.round(estimate1RM(Number(l.weight_lbs), Number(l.reps))),
-    ]);
-    downloadCSV(
-      `Shiloh_LiftLogs_${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Date', 'Athlete', 'Sport', 'Lift', 'Weight (lbs)', 'Reps', 'Est. 1RM'],
-      rows
-    );
-  };
-
   const handleSave = async () => {
     if (disableSave || !selectedAthlete) return;
     setSaving(true);
@@ -340,18 +304,37 @@ export default function LiftScreen({
     ? Math.max(...todaysSetsForLift.map(s => s.weight))
     : null;
 
-  const leaderboardRows = React.useMemo(() => {
-    const roster = leaderboardSportFilter === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === leaderboardSportFilter);
-    const rosterIds = new Set(roster.map(a => a.id));
-    const byAthlete = new Map();
-    for (const l of (liftLogs || [])) {
-      if (l.lift_type !== leaderboardLift || !rosterIds.has(l.athlete_id)) continue;
-      const est = estimate1RM(Number(l.weight_lbs), Number(l.reps));
-      const cur = byAthlete.get(l.athlete_id);
-      if (!cur || est > cur.est) byAthlete.set(l.athlete_id, { ...l, est: Math.round(est) });
+  const lbBounds = timeframeBounds(lbFrame, { seasonStartDate: settings.seasonStartDate, from: lbFrom, to: lbTo });
+  const rankMode = RANK_MODES.find(m => m.id === rankBy) || RANK_MODES[0];
+  const { rows: leaderboardRows, missingBodyWeight } = React.useMemo(() => buildLeaderboard(liftLogs, athletes, {
+    lift: leaderboardLift,
+    sport: leaderboardSportFilter,
+    rankBy,
+    bounds: lbBounds,
+    bodyWeightFor: (id) => lastWeightByAthlete.get(id)?.weight_lbs,
+  }), [liftLogs, athletes, leaderboardLift, leaderboardSportFilter, rankBy, lbBounds.start, lbBounds.end, lastWeightByAthlete]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDownloadPng = async () => {
+    setPngBusy(true);
+    try {
+      const sportLabel = leaderboardSportFilter === 'ALL' ? 'All teams' : leaderboardSportFilter;
+      const blob = await renderLeaderboardPng({
+        rows: leaderboardRows,
+        lift: leaderboardLift,
+        sportLabel,
+        rankLabel: rankMode.label.replace(/ \(.*\)$/, ''),
+        valueLabel: rankMode.short,
+        periodLabel: describeBounds(lbFrame, lbBounds),
+        limit: pngLimit,
+      });
+      const name = `Leaderboard_${leaderboardLift}_${sportLabel}_${new Date().toISOString().slice(0, 10)}.png`.replace(/[^A-Za-z0-9_.-]+/g, '-');
+      await shareOrDownload(blob, name);
+    } catch (e) {
+      console.warn('Leaderboard image failed:', e);
+    } finally {
+      setPngBusy(false);
     }
-    return [...byAthlete.values()].sort((a, b) => b.est - a.est);
-  }, [liftLogs, leaderboardLift, leaderboardSportFilter, athletes]);
+  };
 
   const openProfile = (id) => {
     setSelectedProfileId(id);
@@ -657,7 +640,7 @@ export default function LiftScreen({
                 <span aria-hidden="true" className="material-symbols-outlined text-lg text-primary">military_tech</span>
                 <span>LEADERBOARD</span>
               </button>
-              <button onClick={handleExportCSV} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data" aria-label="Export all lift logs to CSV">
+              <button onClick={() => setExportOpen(true)} className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" title="Export CSV Data" aria-label="Export lifts to CSV">
                 <span aria-hidden="true" className="material-symbols-outlined text-lg">download</span>
               </button>
               <button
@@ -1002,11 +985,61 @@ export default function LiftScreen({
                 </div>
                 <DragScrollBar drag={leaderboardSportDrag} className="mt-1" />
               </div>
+
+              {/* Ranking + window: drive both this board and the PNG export. */}
+              <div className="flex flex-wrap items-end gap-space-sm">
+                <label className="flex flex-col gap-1">
+                  <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Rank by</span>
+                  <select value={rankBy} onChange={e => setRankBy(e.target.value)} className="bg-surface-container text-on-surface font-label-md text-label-md px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary">
+                    {RANK_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Time frame</span>
+                  <select value={lbFrame} onChange={e => setLbFrame(e.target.value)} className="bg-surface-container text-on-surface font-label-md text-label-md px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary">
+                    {TIMEFRAMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                </label>
+                {lbFrame === 'custom' && (
+                  <>
+                    <label className="flex flex-col gap-1">
+                      <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">From</span>
+                      <input type="date" value={lbFrom} onChange={e => setLbFrom(e.target.value)} className="bg-surface-container text-on-surface font-label-md text-label-md px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary" />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">To</span>
+                      <input type="date" value={lbTo} onChange={e => setLbTo(e.target.value)} className="bg-surface-container text-on-surface font-label-md text-label-md px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary" />
+                    </label>
+                  </>
+                )}
+                <div className="flex items-end gap-space-xs ml-auto">
+                  <label className="flex flex-col gap-1">
+                    <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Image shows</span>
+                    <select value={pngLimit} onChange={e => setPngLimit(Number(e.target.value))} className="bg-surface-container text-on-surface font-label-md text-label-md px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary">
+                      {[5, 10, 15].map(n => <option key={n} value={n}>Top {n}</option>)}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleDownloadPng}
+                    disabled={pngBusy || leaderboardRows.length === 0}
+                    className={`flex items-center gap-1.5 px-space-md py-2 rounded-lg font-headline-md text-headline-md uppercase transition-colors ${pngBusy || leaderboardRows.length === 0 ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary-fixed'}`}
+                  >
+                    <span aria-hidden="true" className="material-symbols-outlined text-lg">image</span>
+                    {pngBusy ? 'Making image…' : 'Download PNG'}
+                  </button>
+                </div>
+              </div>
+              {rankBy === 'relative' && missingBodyWeight > 0 && (
+                <div className="font-label-sm text-label-sm text-on-surface-variant">
+                  {missingBodyWeight} athlete{missingBodyWeight === 1 ? '' : 's'} left out: no weigh-in on record to divide by.
+                </div>
+              )}
             </div>
 
             {leaderboardRows.length === 0 ? (
               <div className="p-space-xl text-center text-on-surface-variant font-body-md text-body-md">
-                No {leaderboardLift} results logged yet{leaderboardSportFilter !== 'ALL' ? ` for ${leaderboardSportFilter}` : ''}.
+                No {leaderboardLift} results {lbFrame === 'all' ? 'logged yet' : 'in this time frame'}{leaderboardSportFilter !== 'ALL' ? ` for ${leaderboardSportFilter}` : ''}.
               </div>
             ) : (
               <div>
@@ -1033,8 +1066,8 @@ export default function LiftScreen({
                           </div>
                           <div className={`font-headline-md text-headline-md text-on-surface uppercase truncate max-w-full ${isGold ? 'mt-1' : ''}`}>{row.athlete_name}</div>
                           <div className="font-label-sm text-label-sm text-outline uppercase">{row.sport || 'GENERAL'}</div>
-                          <div className={`font-display font-bold leading-none mt-1 ${isGold ? 'text-3xl' : 'text-2xl'} ${podiumColor}`}>{row.est}</div>
-                          <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider">EST. 1RM</div>
+                          <div className={`font-display font-bold leading-none mt-1 ${isGold ? 'text-3xl' : 'text-2xl'} ${podiumColor}`}>{row.display}</div>
+                          <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider">{rankMode.short}</div>
                           <div className="font-label-sm text-label-sm text-on-surface-variant mt-1">{row.weight_lbs} lbs × {row.reps}</div>
                         </div>
                       );
@@ -1047,6 +1080,7 @@ export default function LiftScreen({
                   {leaderboardRows.map((row, idx) => (
                     <div
                       key={row.athlete_id}
+                      data-testid="leaderboard-row"
                       onClick={() => openProfile(row.athlete_id)}
                       className={`flex items-center justify-between gap-3 px-space-md py-3 cursor-pointer border-b border-surface-container-high last:border-0 hover:bg-surface-container transition-colors ${idx === 0 ? 'bg-primary-container/5' : ''}`}
                     >
@@ -1063,8 +1097,8 @@ export default function LiftScreen({
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className={`font-display text-xl font-bold ${idx === 0 ? 'text-primary' : 'text-on-surface'}`}>{row.est}</div>
-                        <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider">EST. 1RM</div>
+                        <div className={`font-display text-xl font-bold ${idx === 0 ? 'text-primary' : 'text-on-surface'}`}>{row.display}</div>
+                        <div className="font-label-sm text-label-sm text-outline uppercase tracking-wider">{rankMode.short}</div>
                       </div>
                     </div>
                   ))}
@@ -1088,6 +1122,17 @@ export default function LiftScreen({
           </div>
         </div>,
         document.body
+      )}
+
+      {exportOpen && (
+        <LiftExportPanel
+          liftLogs={liftLogs}
+          athletes={athletes}
+          sports={sports}
+          liftTypes={liftTypes}
+          seasonStartDate={settings.seasonStartDate}
+          onClose={() => setExportOpen(false)}
+        />
       )}
 
       {bulkEditOpen && createPortal(

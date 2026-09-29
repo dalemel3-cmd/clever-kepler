@@ -23,6 +23,8 @@ const check = (name, ok, detail = '') => {
 
 const athletes = [
   { id: uuid(1), name: 'Export Athlete', sport: 'Football', team: 'Varsity', grade: '11th', position: 'OL' },
+  { id: uuid(2), name: 'Adam Zed', sport: 'Football', team: 'Varsity', grade: '11th', position: 'DL' },
+  { id: uuid(3), name: 'Zach Adams', sport: 'Football', team: 'Varsity', grade: '12th', position: 'LB' },
 ];
 // Deliberately out of last-name order, and deliberately mixed first names so a
 // naive full-name sort ("Adam Zed" before "Zach Adams") would land in the wrong
@@ -32,6 +34,8 @@ const liftLogs = [
   { id: uuid(51), athlete_id: uuid(1), athlete_name: 'Export Athlete', sport: 'Football', lift_type: 'Bench', weight_lbs: 185, reps: 5, source: 'manual', created_at: ago(0) },
   { id: uuid(52), athlete_id: uuid(2), athlete_name: 'Adam Zed', sport: 'Football', lift_type: 'Bench', weight_lbs: 200, reps: 5, source: 'manual', created_at: ago(2) },
   { id: uuid(53), athlete_id: uuid(3), athlete_name: 'Zach Adams', sport: 'Football', lift_type: 'Squat', weight_lbs: 300, reps: 3, source: 'manual', created_at: ago(2) },
+  // Old set, outside a 7- or 30-day window - used by the time-frame probe.
+  { id: uuid(54), athlete_id: uuid(1), athlete_name: 'Export Athlete', sport: 'Football', lift_type: 'Deadlift', weight_lbs: 405, reps: 1, source: 'manual', created_at: ago(45) },
 ];
 
 const newPage = async (browser) => {
@@ -64,7 +68,7 @@ const newPage = async (browser) => {
   {
     const page = await newPage(browser);
     await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
-    const btn = page.getByLabel('Export all lift logs to CSV');
+    const btn = page.getByLabel('Export lifts to CSV');
     check('the export control exists', await btn.count() > 0);
     // The icon is a Material Symbols ligature, so its glyph name ("download") is DOM
     // text - ignore aria-hidden icon spans and require no other text.
@@ -81,9 +85,9 @@ const newPage = async (browser) => {
     await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByLabel('Export all lift logs to CSV').click(),
+      (async () => { await page.getByLabel('Export lifts to CSV').click(); await page.getByRole('button', { name: /Download CSV/i }).click(); })(),
     ]);
-    check('filename matches the Shiloh_LiftLogs_<date>.csv convention', /^Shiloh_LiftLogs_\d{4}-\d{2}-\d{2}\.csv$/.test(download.suggestedFilename()), download.suggestedFilename());
+    check('filename names who, lift and time frame', /^Shiloh_Lifts_All_AllLifts_AllTime_\d{4}-\d{2}-\d{2}\.csv$/.test(download.suggestedFilename()), download.suggestedFilename());
     const path = await download.path();
     const fs = await import('fs');
     const content = fs.readFileSync(path, 'utf-8');
@@ -99,7 +103,7 @@ const newPage = async (browser) => {
     await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByLabel('Export all lift logs to CSV').click(),
+      (async () => { await page.getByLabel('Export lifts to CSV').click(); await page.getByRole('button', { name: /Download CSV/i }).click(); })(),
     ]);
     const path = await download.path();
     const fs = await import('fs');
@@ -112,6 +116,63 @@ const newPage = async (browser) => {
     check('all three athletes are present', idxAdams >= 0 && idxExport >= 0 && idxZed >= 0, content);
     check('sorted by last name (Adams, Athlete, Zed) - not first name or date', idxAdams < idxExport && idxExport < idxZed,
       `Adams@${idxAdams}, Athlete@${idxExport}, Zed@${idxZed}`);
+    check('no page errors', page.errors.length === 0, page.errors.join(' | '));
+  }
+
+  console.log('\n[D] Export options: who, lift and time frame');
+  {
+    const page = await newPage(browser);
+    await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
+    await page.getByLabel('Export lifts to CSV').click(); await page.waitForTimeout(300);
+    const panel = page.getByRole('dialog');
+    check('export options panel opens', await panel.count() === 1);
+    check('shows the matching set count before downloading', /5 sets/.test(await panel.innerText()), await panel.innerText());
+    await panel.getByRole('button', { name: 'Last 7 days' }).click();
+    check('7-day window drops the 45-day-old set', /4 sets/.test(await panel.innerText()), await panel.innerText());
+    await panel.getByRole('button', { name: 'One athlete' }).click();
+    check('download disabled until an athlete is picked', await panel.getByRole('button', { name: /Download CSV/i }).isDisabled());
+    await panel.getByLabel('Athlete').selectOption(uuid(1));
+    await panel.getByLabel('Lift').selectOption('Squat');
+    check('one athlete + Squat + 7 days = 1 set', /1 set\b/.test(await panel.innerText()), await panel.innerText());
+    const [download] = await Promise.all([page.waitForEvent('download'), panel.getByRole('button', { name: /Download CSV/i }).click()]);
+    const fs = await import('fs');
+    const content = fs.readFileSync(await download.path(), 'utf-8');
+    check('file only contains that athlete', content.includes('Export Athlete') && !content.includes('Zach Adams') && !content.includes('Adam Zed'), content);
+    check('file only contains Squat', content.includes('Squat') && !content.includes('Bench') && !content.includes('Deadlift'), content);
+    check('filename names the athlete and lift', /^Shiloh_Lifts_Export-Athlete_Squat_/.test(download.suggestedFilename()), download.suggestedFilename());
+    check('panel closes after export', await page.getByRole('dialog').count() === 0);
+  }
+
+  console.log('\n[E] Leaderboard: rank options and PNG image');
+  {
+    const page = await newPage(browser);
+    await page.goto(`${APP}/#lifts`); await page.waitForTimeout(1800);
+    await page.getByRole('button', { name: /Leaderboard/i }).first().click(); await page.waitForTimeout(500);
+    await page.locator('select[aria-label="Lift"]').selectOption('Squat'); await page.waitForTimeout(300);
+    // Position in the ranked list (skipping the top-3 podium, which is ordered 2-1-3).
+    const order = async () => {
+      const rows = await page.locator('[data-testid="leaderboard-row"]').allInnerTexts();
+      const up = rows.map(r => r.toUpperCase());
+      const e = up.findIndex(r => r.includes('EXPORT ATHLETE')), z = up.findIndex(r => r.includes('ZACH ADAMS'));
+      if (e < 0 || z < 0) return `missing (export=${e}, zach=${z})`;
+      return e < z ? 'export-first' : 'zach-first';
+    };
+    // Squat: Export 225x8 (est 285) vs Zach 300x3 (est 330, heaviest 300) -> Zach first either way
+    check('est. 1RM ranks Zach (330) above Export (285)', await order() === 'zach-first', await order());
+    await page.getByLabel('Rank by').selectOption('heaviest'); await page.waitForTimeout(300);
+    check('rank label switches to HEAVIEST SET', /HEAVIEST SET/.test(await page.locator('body').innerText()));
+    check('heaviest set still has Zach (300) above Export (225)', await order() === 'zach-first', await order());
+    await page.getByLabel('Rank by').selectOption('relative'); await page.waitForTimeout(300);
+    check('pound-for-pound explains athletes without a weigh-in', /left out: no weigh-in on record/i.test(await page.locator('body').innerText()));
+    await page.getByLabel('Rank by').selectOption('est1rm');
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: /Download PNG/i }).click()]);
+    const fs = await import('fs');
+    const buf = fs.readFileSync(await download.path());
+    check('downloads a PNG file', buf.slice(1, 4).toString() === 'PNG', download.suggestedFilename());
+    // Height follows the row count (3 athletes here), so a short board isn't mostly empty.
+    check('PNG is 1080 wide and sized to its rows', buf.readUInt32BE(16) === 1080 && buf.readUInt32BE(20) > 700 && buf.readUInt32BE(20) < 1100, `${buf.readUInt32BE(16)}x${buf.readUInt32BE(20)}`);
+    check('filename names the lift', /^Leaderboard_Squat_/.test(download.suggestedFilename()), download.suggestedFilename());
+    fs.writeFileSync('/tmp/claude-0/leaderboard-test.png', buf);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

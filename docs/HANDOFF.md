@@ -3209,7 +3209,33 @@ Other details:
 - Lifts, Analytics and Reports already had local filters.
 - Test: `tests/nav-cleanup.js` [G].
 
-## 87. Next up
+## 87. Lift Tracker: filtered CSV export + leaderboard PNG (v5.2.6)
+
+- **`src/features/lifts/liftRanking.js`** is the shared lift math: `estimate1RM`
+  (moved here from LiftScreen, which re-exports it), `RANK_MODES`, `TIMEFRAMES`,
+  `timeframeBounds`/`inBounds`/`describeBounds`, and `buildLeaderboard()`.
+  - Windows are inclusive Central calendar days. "This season" starts at
+    `settings.seasonStartDate`.
+  - Pound-for-pound divides est. 1RM by the athlete's latest real weigh-in. Athletes
+    with no weigh-in are excluded and counted (`missingBodyWeight`), never guessed.
+- **`LiftExportPanel.jsx`** holds the CSV options:
+  - who: everyone, one team or one athlete
+  - which lift
+  - time frame
+  - a live count of matching sets
+  - a filename like `Shiloh_Lifts_<who>_<lift>_<window>.csv`
+  The columns and the last-name sort are unchanged.
+- **`leaderboardImage.js`** draws a canvas PNG that is 1080 wide, with height sized to
+  the row count and never shorter than square. It has the logo band, then title,
+  subtitle and ranked rows (gold, silver and bronze accents on the top 3), then a
+  footer. `shareOrDownload()` uses `navigator.share({ files })` when it's available
+  (the iOS share sheet), and otherwise a normal download.
+- The leaderboard UI adds Rank by, Time frame (with custom dates) and "Image shows
+  Top 5/10/15". The on-screen board and the image always match.
+- Leaderboard rows carry `data-testid="leaderboard-row"`.
+- Test: `tests/lift-csv-export.js` [D] (export options) and [E] (ranking and PNG).
+
+## 88. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
