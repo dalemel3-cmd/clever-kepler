@@ -27,6 +27,7 @@ const AthletesScreen = lazy(() => import('./features/athletes/AthletesScreen'));
 const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
 const DashboardScreen = lazy(() => import('./features/dashboard/DashboardScreen'));
 const ReportsScreen = lazy(() => import('./features/reports/ReportsScreen'));
+const StrengthScreen = lazy(() => import('./features/lifts/StrengthScreen'));
 const RpeScreen = lazy(() => import('./features/rpe/RpeScreen'));
 const AnalyticsScreen = lazy(() => import('./features/analytics/AnalyticsScreen'));
 const ProfilesScreen = lazy(() => import('./features/profiles/ProfilesScreen'));
@@ -1540,7 +1541,7 @@ export default function App() {
   // back to the existing behavior of just deselecting the profile.
   const handleBackFromProfile = () => {
     setSelectedProfileId(null);
-    if (profileEntryScreen === 'athletes' || profileEntryScreen === 'rpe') {
+    if (['athletes', 'rpe', 'strength'].includes(profileEntryScreen)) {
       setScreen(profileEntryScreen);
     }
     setProfileEntryScreen(null);
@@ -2591,6 +2592,19 @@ export default function App() {
               <RpeScreen
                 settings={settings}
                 athletes={athletes}
+                reportData={reportData}
+                setSelectedProfileId={setSelectedProfileId}
+                fetchProfileData={fetchProfileData}
+                setScreen={setScreen}
+                setProfileEntryScreen={setProfileEntryScreen}
+              />
+            )}
+
+            {screen === 'strength' && settings.enableLiftTracker && (
+              <StrengthScreen
+                settings={settings}
+                athletes={athletes}
+                liftLogs={liftLogs}
                 reportData={reportData}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}

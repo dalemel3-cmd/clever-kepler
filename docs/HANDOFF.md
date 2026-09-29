@@ -3281,7 +3281,39 @@ picture.
   sideways-scrolling table on phones.
 - **Test:** `tests/rpe-deep-dive.js`.
 
-## 90. Next up
+## 90. Performance > Strength deep-dive tab (v5.2.9)
+
+This is the lift version of §89. A new **Strength** sub-tab (Performance group, shown
+when the Lift Tracker is on) sits next to RPE. The Lift Tracker keeps its leaderboard
+for quick looks.
+
+- **Files:**
+  - `src/features/lifts/liftMetrics.js`: pure math.
+  - `StrengthScreen.jsx`: lazy-loaded.
+  - `src/components/DeepDiveUi.jsx`: the card, chip, tile, sparkline and
+    sticky-detail-width pieces, now shared by the RPE and Strength tabs. RpeScreen was
+    refactored onto it with no visual change.
+- **Filters:** lift, sport, window (4/8/12/16 weeks), sort, search.
+- **Tiles:** athletes who logged the lift, PRs in the window, athletes with a new PR in
+  the last 14 days, how many are plateaued or down, average PR ÷ body weight.
+- **Table per athlete:**
+  - PR (best Epley est. 1RM ever, the same number the leaderboard uses) and its set/date
+  - PR ÷ latest weigh-in
+  - trend (best of the later half of the window vs the earlier half)
+  - recent best as a % of PR
+  - PRs, sets and volume in the window
+  - weekly-best sparkline
+  - flags: New PR (≤14 days) / "N% of PR" (recent best under 90%, PR older than
+    14 days) / Plateau (still logging, no PR in 8+ weeks) / Not logged in 14+ days
+- **Clicking a row expands:**
+  - a weekly best-e1RM line against the PR line
+  - the PR history chips
+  - PRs for every lift the athlete logs
+  - their last 12 sets, with PR markers and % of PR
+  - "Open full profile" (Back returns to Strength)
+- **Test:** `tests/strength-deep-dive.js`.
+
+## 91. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
