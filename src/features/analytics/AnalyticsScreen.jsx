@@ -36,6 +36,7 @@ export default function AnalyticsScreen({
   setProfileEntryScreen,
   performanceTests,
   addPerformanceTest,
+  addPerformanceTests,
   onPlyomatImport,
   plyomatLastSyncedAt,
   onPlyomatApiSync,
@@ -512,6 +513,7 @@ export default function AnalyticsScreen({
             grid={grid}
             performanceTests={performanceTests}
             addTest={addPerformanceTest}
+            addTests={addPerformanceTests}
           />
           <PlyomatImportPanel
             athletes={athletes}

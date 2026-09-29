@@ -17,7 +17,7 @@ const PAGE_SIZE = 8;
 // inside the boards reduce - which the error boundary turned into a blank *entire Analytics
 // screen*, every chart with it, over one absent side panel. An empty board is the right
 // failure mode for this card.
-export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, card, h3, eyebrow, grid: gridColor, performanceTests = [], addTest }) {
+export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, card, h3, eyebrow, grid: gridColor, performanceTests = [], addTest, addTests }) {
   const [athleteId, setAthleteId] = React.useState('');
   const [testType, setTestType] = React.useState(TEST_TYPES[0].key);
   // Which protocol/technique this result was measured under (see TEST_TYPES.variants).
@@ -234,7 +234,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
     setTeamSaving(true);
     setTeamMessage('');
     const created_at = centralWallTimeToISO(testDate, '12:00');
-    const results = await Promise.all(entries.map(({ athlete, raw }) => addTest({
+    const recs = entries.map(({ athlete, raw }) => ({
       athlete_id: athlete.id,
       athlete_name: athlete.name,
       sport: athlete.sport,
@@ -243,12 +243,15 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       metric: parseFloat(raw),
       unit: activeTest.unit,
       created_at,
-    })));
+    }));
+    // One request for the whole roster when the batch writer is available.
+    const failed = addTests
+      ? ((await addTests(recs)).ok ? 0 : recs.length)
+      : (await Promise.all(recs.map(r => addTest(r)))).filter(r => !r.ok).length;
     setTeamSaving(false);
-    const failed = results.filter(r => !r.ok).length;
     setTeamMessage(failed === 0
       ? `Saved ${entries.length} result${entries.length !== 1 ? 's' : ''} for ${testDate}.`
-      : `Saved ${entries.length - failed} of ${entries.length} — the rest are queued to sync.`);
+      : `Saved ${entries.length - failed} of ${entries.length}. The rest didn't reach the cloud; check your connection.`);
     // Clear only the rows that were actually submitted, leaving anything left blank
     // untouched in case the coach comes back to finish the sheet.
     setTeamValues(prev => {

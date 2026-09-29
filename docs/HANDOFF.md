@@ -3369,7 +3369,48 @@ is hidden in kiosk mode, like the rest of that toolbar.
   - Saved rows clear so the next group can be entered. The sheet stays open.
 - **Test:** `tests/lift-team-log.js`.
 
-## 93. Next up
+## 93. Performance review against a 5-point checklist (v5.3.2)
+
+The user brought a generic 5-point speed checklist. Each point was checked against this
+app with real numbers:
+
+1. **Uncompressed JSON.** Not something this app controls.
+   - Supabase's gateway compresses REST responses (gzip/brotli) for any client that
+     sends `Accept-Encoding`, and browsers always send it.
+   - Couldn't be measured from the dev sandbox (its proxy blocks direct Supabase calls).
+   - Payloads are small anyway. Whole-table sizes: weigh_ins 1,968 rows ≈ 207 KB raw
+     (the app only pulls a 30-day window), performance_tests 1,078 ≈ 185 KB, lift_logs
+     370 ≈ 45 KB, athletes 195 ≈ 20 KB.
+2. **One-row-at-a-time writes.** True for the two team-sized saves; fixed.
+   - Speed & Power Team Entry and Lift Team Log sent one POST per athlete. The logs
+     showed 83 lift_logs POSTs in 24h.
+   - Both now go through new batch writers, `addTests` (usePerformanceTests) and
+     `addLifts` (useLiftLogs): one request per sheet.
+   - This also fixed a real bug. Every optimistic row in a batch got
+     `'opt_' + Date.now()`, so ids collided within a millisecond and `mergeRows` showed
+     only one of them until the server answered. Temp ids are now unique per row.
+   - The Plyomat import already chunked 200 rows per insert.
+   - Left as-is:
+     - the offline weigh-in queue flush, which needs per-row fallback when one record
+       is bad
+     - Force Upload, a rare recovery tool
+     - bulk baseline athlete updates, where each row carries a different value
+3. **Single bottleneck.** None found. Supabase edge logs for 24h (server time):
+   - every REST read averages 95–220 ms, with p95 ≤ 365 ms
+   - the slowest call is the auth token refresh at 396 ms avg, which happens about
+     hourly, not per action
+   - the 5 s heartbeat is already a cheap change probe, not a full refetch
+4. **UI waits on the backend.** Already optimistic: weigh-in/kiosk saves, manual logs,
+   lifts, tests and alert status all update the screen before the network call.
+5. **HTML rebuilt per visitor.** Not applicable. This is a static Vite build served from
+   Vercel's CDN. There is no server rendering; `index.html` is a static file, and the
+   service worker precaches the app shell.
+
+- **Test:** `tests/batch-writes.js`. Against the old code it fails as expected:
+  `[1,1,1]` requests, and rows missing before the server answered.
+- `tests/lift-team-log.js` now also asserts a single request.
+
+## 94. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

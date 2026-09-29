@@ -43,7 +43,7 @@ const lifts = [{ id: uuid(90), athlete_id: uuid(1), athlete_name: 'Ann Adams', l
     if (url.includes('/rest/v1/athletes') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
     if (url.includes('/rest/v1/lift_logs') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(lifts) });
     if (url.includes('/rest/v1/lift_logs') && m === 'POST') {
-      const rows = req.postDataJSON(); posted.push(...rows);
+      const rows = req.postDataJSON(); posted.push(...rows); page.posts = (page.posts || 0) + 1;
       return route.fulfill({ status: 201, headers: h, body: JSON.stringify(rows.map((r, i) => ({ ...r, id: uuid(500 + posted.length + i) }))) });
     }
     return route.fulfill({ status: 200, headers: h, body: '[]' });
@@ -73,6 +73,7 @@ const lifts = [{ id: uuid(90), athlete_id: uuid(1), athlete_name: 'Ann Adams', l
   const past = new Date(Date.now() - 3 * DAY).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
   await dlg.getByLabel('Date', { exact: true }).fill(past);
   await dlg.getByRole('button', { name: /^Save/ }).click(); await page.waitForTimeout(1200);
+  check('whole sheet saved in ONE request', page.posts === 1, String(page.posts));
   check('2 rows posted (blank Cal skipped)', posted.length === 2, JSON.stringify(posted));
   const ann = posted.find(r => r.athlete_name === 'Ann Adams'), ben = posted.find(r => r.athlete_name === 'Ben Brown');
   check('default reps (1) applied to Ann', ann?.reps === 1 && ann?.weight_lbs === 215 && ann?.lift_type === 'Bench');

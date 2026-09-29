@@ -62,7 +62,7 @@ export function useLiftLogs() {
     // Optimistic row so the entry appears immediately even offline; a real id from
     // Supabase replaces it once the insert round-trips (or the realtime echo
     // delivers the row from another device).
-    const optimistic = { id: 'opt_' + Date.now(), source: 'manual', ...rec, created_at: rec.created_at || new Date().toISOString() };
+    const optimistic = { id: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, source: 'manual', ...rec, created_at: rec.created_at || new Date().toISOString() };
     mergeRows([optimistic]);
     try {
       const { data, error } = await supabase.from('lift_logs').insert([{
@@ -90,6 +90,40 @@ export function useLiftLogs() {
       // Optimistic row stays visible; nothing else to reconcile offline for a feature
       // this lightly used yet - unlike weigh-ins there is no offline queue for this table.
       return { ok: false, error: e };
+    }
+  }, [mergeRows]);
+
+  // Many sets in ONE request (Team Log): one round trip for a whole team instead of one
+  // per athlete. Optimistic rows get unique ids - 'opt_' + Date.now() alone collides when
+  // a batch is created in the same millisecond, and mergeRows then drops all but one.
+  const addLifts = useCallback(async (recs) => {
+    if (!recs.length) return { ok: true, count: 0 };
+    const stamp = Date.now();
+    const optimistic = recs.map((rec, i) => ({ id: `opt_${stamp}_${i}`, source: 'manual', ...rec, created_at: rec.created_at || new Date().toISOString() }));
+    mergeRows(optimistic);
+    try {
+      const { data, error } = await supabase.from('lift_logs').insert(optimistic.map(o => ({
+        athlete_id: o.athlete_id,
+        athlete_name: o.athlete_name || 'Unknown',
+        sport: o.sport || '',
+        lift_type: o.lift_type,
+        weight_lbs: o.weight_lbs,
+        reps: o.reps,
+        source: o.source || 'manual',
+        created_at: o.created_at,
+      }))).select();
+      if (error) throw error;
+      const optIds = new Set(optimistic.map(o => o.id));
+      setRows(prev => {
+        const next = [...(data || []), ...prev.filter(r => !optIds.has(r.id))]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        writeCache(next);
+        return next;
+      });
+      return { ok: true, count: recs.length };
+    } catch (e) {
+      reportDataError(e, 'lift_logs:write');
+      return { ok: false, error: e, count: recs.length };
     }
   }, [mergeRows]);
 
@@ -154,5 +188,5 @@ export function useLiftLogs() {
     }
   }, [mergeRows]);
 
-  return { liftLogs: rows, addLift, updateLift, deleteLift, bulkUpdateLiftType };
+  return { liftLogs: rows, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType };
 }

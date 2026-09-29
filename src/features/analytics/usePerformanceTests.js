@@ -64,7 +64,7 @@ export function usePerformanceTests() {
     // Optimistic row so the entry appears immediately even offline; a real id from
     // Supabase replaces it once the insert round-trips (or the realtime echo delivers
     // the row from another device).
-    const optimistic = { id: 'opt_' + Date.now(), source: 'manual', unit: 'sec', ...rec, created_at: rec.created_at || new Date().toISOString() };
+    const optimistic = { id: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, source: 'manual', unit: 'sec', ...rec, created_at: rec.created_at || new Date().toISOString() };
     mergeRows([optimistic]);
     try {
       const { data, error } = await supabase.from('performance_tests').insert([{
@@ -98,6 +98,41 @@ export function usePerformanceTests() {
       // Optimistic row stays visible; nothing else to reconcile offline for a feature
       // this lightly used yet - unlike weigh-ins there is no offline queue for this table.
       return { ok: false, error: e };
+    }
+  }, [mergeRows]);
+
+  // Many results in ONE request (Speed & Power Team Entry) - one round trip for the
+  // whole roster instead of one per athlete. Unique optimistic ids per row: a bare
+  // 'opt_' + Date.now() collides within a batch and mergeRows keeps only one of them.
+  const addTests = useCallback(async (recs) => {
+    if (!recs.length) return { ok: true, count: 0 };
+    const stamp = Date.now();
+    const optimistic = recs.map((rec, i) => ({ id: `opt_${stamp}_${i}`, source: 'manual', unit: 'sec', ...rec, created_at: rec.created_at || new Date().toISOString() }));
+    mergeRows(optimistic);
+    try {
+      const { data, error } = await supabase.from('performance_tests').insert(optimistic.map(o => ({
+        athlete_id: o.athlete_id,
+        athlete_name: o.athlete_name || 'Unknown',
+        sport: o.sport || '',
+        test_type: o.test_type,
+        test_variant: o.test_variant || null, // see addTest: columns are listed explicitly
+        metric: o.metric,
+        unit: o.unit || 'sec',
+        source: 'manual',
+        created_at: o.created_at,
+      }))).select();
+      if (error) throw error;
+      const optIds = new Set(optimistic.map(o => o.id));
+      setRows(prev => {
+        const next = [...(data || []), ...prev.filter(r => !optIds.has(r.id))]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        writeCache(next);
+        return next;
+      });
+      return { ok: true, count: recs.length };
+    } catch (e) {
+      reportDataError(e, 'performance_tests:write');
+      return { ok: false, error: e, count: recs.length };
     }
   }, [mergeRows]);
 
@@ -232,5 +267,5 @@ export function usePerformanceTests() {
     }
   }, []);
 
-  return { performanceTests: rows, addTest, updateTest, deleteTest, importPlan, advancePlyomatSyncCheckpoint };
+  return { performanceTests: rows, addTest, addTests, updateTest, deleteTest, importPlan, advancePlyomatSyncCheckpoint };
 }

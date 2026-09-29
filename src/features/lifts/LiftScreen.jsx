@@ -33,6 +33,7 @@ export default function LiftScreen({
   liftLogs,
   reportData,
   addLift,
+  addLifts,
   updateLift,
   deleteLift,
   bulkUpdateLiftType,
@@ -1135,7 +1136,7 @@ export default function LiftScreen({
           liftLogs={liftLogs}
           sports={sports}
           liftTypes={liftTypes}
-          addLift={addLift}
+          addLifts={addLifts}
           onClose={() => setTeamLogOpen(false)}
         />
       )}

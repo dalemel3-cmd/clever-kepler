@@ -13,7 +13,7 @@ const field = 'w-full h-12 px-4 rounded-xl bg-surface-container-highest text-on-
 const cell = 'h-10 px-2 rounded-lg bg-surface-container-highest text-on-surface text-center focus:outline-none focus:ring-2 focus:ring-primary border border-transparent';
 const lastNameOf = (name) => (name || '').trim().split(/\s+/).pop().toLowerCase();
 
-export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTypes, addLift, onClose }) {
+export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTypes, addLifts, onClose }) {
   const today = getCentralDateString();
   const [lift, setLift] = React.useState(liftTypes[0] || '');
   const [date, setDate] = React.useState(today);
@@ -70,15 +70,15 @@ export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTyp
     // Today keeps the real time (so sets stay in logging order); a past date lands at
     // noon Central, same as Speed & Power's Team Entry.
     const created_at = date === today ? new Date().toISOString() : centralWallTimeToISO(date, '12:00');
-    const results = await Promise.all(ready.map(([a, s]) => addLift({
+    // One request for the whole sheet (see addLifts).
+    const res = await addLifts(ready.map(([a, s]) => ({
       athlete_id: a.id, athlete_name: a.name, sport: a.sport || '',
       lift_type: lift, weight_lbs: s.w, reps: s.r, created_at,
     })));
-    const failed = results.filter(r => !r?.ok).length;
     setSaving(false);
-    setMessage(failed === 0
+    setMessage(res.ok
       ? `Saved ${ready.length} ${lift} set${ready.length === 1 ? '' : 's'} for ${date}.`
-      : `Saved ${ready.length - failed} of ${ready.length}. ${failed} didn't reach the cloud; check your connection.`);
+      : `Couldn't reach the cloud. ${ready.length} set${ready.length === 1 ? ' is' : 's are'} shown on this device only; check your connection and re-enter.`);
     setValues(prev => {
       const next = { ...prev };
       ready.forEach(([a]) => delete next[a.id]);
