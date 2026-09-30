@@ -64,6 +64,7 @@ const lifts = [{ id: uuid(90), athlete_id: uuid(1), athlete_name: 'Ann Adams', l
   check('PR preview vs existing 200', /est\. 215 · PR/.test(await dlg.getByTestId('team-lift-row').nth(0).innerText()));
   await dlg.getByLabel('Ben Brown weight (lbs)').fill('185');
   await dlg.getByLabel('Ben Brown reps').fill('5');
+  check('first-ever lift marked "first", not PR', /est\. 216 · first/.test(await dlg.getByTestId('team-lift-row').nth(1).innerText()), await dlg.getByTestId('team-lift-row').nth(1).innerText());
   await dlg.getByLabel('Cal Cole weight (lbs)').fill('9999');
   check('bad row blocks save', await dlg.getByRole('button', { name: /^Save/ }).isDisabled() && /1 row need/.test(await dlg.innerText()));
   await dlg.getByLabel('Cal Cole weight (lbs)').fill('');
@@ -81,6 +82,7 @@ const lifts = [{ id: uuid(90), athlete_id: uuid(1), athlete_name: 'Ann Adams', l
   check('past date saved at noon Central', ann && new Date(ann.created_at).toLocaleString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }) === '12'
     && new Date(ann.created_at).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) === past, ann?.created_at);
   check('success message', /Saved 2 Bench sets/.test(await dlg.innerText()));
+  check('peak-end: names the new PR (Ann beat 200; Ben\'s first bench is not a PR)', /1 new PR: Ann\./.test(await dlg.innerText()), (await dlg.innerText()).slice(-160));
   check('saved rows cleared', await dlg.getByLabel('Ann Adams weight (lbs)').inputValue() === '');
 
   console.log('\n[D] Team switch');

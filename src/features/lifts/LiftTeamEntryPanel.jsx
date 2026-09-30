@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { getCentralDateString, centralWallTimeToISO, parseWeightInput } from '../../utils/athleteData';
+import { getCentralDateString, centralWallTimeToISO, parseWeightInput, cleanDecimalTyping } from '../../utils/athleteData';
 import { estimate1RM } from './liftRanking';
 
 // Lift Tracker "Team log": one lift + one date for a whole group, one weight × reps row
@@ -54,7 +54,7 @@ export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTyp
     if (!(w > 0) || w > 1500 || !(r >= 1) || r > 50) return { invalid: true };
     const est = estimate1RM(w, r);
     const pr = prBy.get(a.id);
-    return { w, r, est, isPr: pr == null || est > pr };
+    return { w, r, est, isPr: pr != null && est > pr, isFirst: pr == null };
   };
   const states = roster.map(a => [a, rowState(a)]);
   const ready = states.filter(([, s]) => s.w);
@@ -76,11 +76,16 @@ export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTyp
       lift_type: lift, weight_lbs: s.w, reps: s.r, created_at,
     })));
     setSaving(false);
+    // Peak-end rule: finish a testing day on the good news, not just a count.
+    const prNames = ready.filter(([, st]) => st.isPr).map(([a]) => a.name.split(' ')[0]);
+    const prNote = prNames.length
+      ? ` ${prNames.length} new PR${prNames.length === 1 ? '' : 's'}: ${prNames.slice(0, 5).join(', ')}${prNames.length > 5 ? ` +${prNames.length - 5} more` : ''}.`
+      : '';
     setMessage(!res.ok
       ? `The server refused these sets, so they weren't saved. Check the numbers and try again.`
       : res.queued
-        ? `No connection. ${ready.length} ${lift} set${ready.length === 1 ? ' is' : 's are'} saved on this device and will upload automatically.`
-        : `Saved ${ready.length} ${lift} set${ready.length === 1 ? '' : 's'} for ${date}.`);
+        ? `No connection. ${ready.length} ${lift} set${ready.length === 1 ? ' is' : 's are'} saved on this device and will upload automatically.${prNote}`
+        : `Saved ${ready.length} ${lift} set${ready.length === 1 ? '' : 's'} for ${date}.${prNote}`);
     setValues(prev => {
       const next = { ...prev };
       ready.forEach(([a]) => delete next[a.id]);
@@ -143,7 +148,7 @@ export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTyp
                   <div className="font-label-md text-label-md text-on-surface truncate">{a.name}</div>
                   <div className="font-label-sm text-label-sm text-on-surface-variant">
                     {pr ? `Best est. ${Math.round(pr)}` : 'No ' + lift + ' yet'}
-                    {s.est && <span style={{ marginLeft: '8px', color: s.isPr ? '#10b981' : undefined, fontWeight: s.isPr ? 700 : undefined }}>→ est. {Math.round(s.est)}{s.isPr ? ' · PR' : ''}</span>}
+                    {s.est && <span style={{ marginLeft: '8px', color: s.isPr ? '#10b981' : undefined, fontWeight: s.isPr ? 700 : undefined }}>→ est. {Math.round(s.est)}{s.isPr ? ' · PR' : s.isFirst ? ' · first' : ''}</span>}
                     {s.invalid && <span style={{ marginLeft: '8px', color: '#ef4444', fontWeight: 700 }}>Check weight / reps</span>}
                   </div>
                 </div>
@@ -151,7 +156,7 @@ export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTyp
                   type="text" inputMode="decimal" className={cell} style={{ width: '84px' }}
                   aria-label={`${a.name} weight (lbs)`} placeholder="lbs"
                   value={values[a.id]?.w ?? ''}
-                  onChange={e => set(a.id, 'w', e.target.value.replace(/[^0-9.]/g, ''))}
+                  onChange={e => set(a.id, 'w', cleanDecimalTyping(e.target.value))}
                 />
                 <span aria-hidden="true" className="text-on-surface-variant">×</span>
                 <input

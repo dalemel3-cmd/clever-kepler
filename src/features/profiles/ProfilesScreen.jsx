@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, ChevronDown, ChevronUp, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
-import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, centralWallTimeToISO, hasWeight, isRpeLog, computeAcuteChronicLoad, initialsFor } from '../../utils/athleteData';
+import { isPostPracticeLog, getAthleteBaseline, getCentralDateString, getCentralTimeString, centralWallTimeToISO, hasWeight, isRpeLog, computeAcuteChronicLoad, initialsFor, cleanDecimalTyping, parseDecimalInput } from '../../utils/athleteData';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, formatMetric } from '../analytics/SpeedPowerPanel';
 
 // Best (per better:'asc'|'desc') result for one athlete/test_type out of their logged
@@ -1154,7 +1154,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
   const saveEdit = async (t) => {
     const draft = editing[t.id];
     if (!draft) return;
-    const v = parseFloat(draft.metric);
+    const v = parseDecimalInput(draft.metric);
     const tt = TEST_TYPE_BY_KEY[t.test_type];
     // A multi-variant type (jump) must have a technique picked before saving - same
     // "don't guess" rule the entry form enforces. A single-variant type (Fly 10) has
@@ -1289,7 +1289,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                                         type="text"
                                         inputMode="decimal"
                                         value={draft.metric}
-                                        onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], metric: e.target.value.replace(/[^0-9.]/g, '') } }))}
+                                        onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], metric: cleanDecimalTyping(e.target.value) } }))}
                                         style={{ width: '60px', fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center' }}
                                       />
                                       <button type="button" disabled={savingId === t.id || (hasVariants && !draft.variant)} onClick={() => saveEdit(t)} style={{ fontSize: '10px', fontWeight: 800, color: (hasVariants && !draft.variant) ? 'var(--color-text-muted)' : '#34d399', background: 'transparent', border: 'none', cursor: (hasVariants && !draft.variant) ? 'not-allowed' : 'pointer', padding: '4px' }}>

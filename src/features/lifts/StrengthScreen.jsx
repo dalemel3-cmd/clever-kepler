@@ -2,7 +2,7 @@ import React from 'react';
 import { Dumbbell, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { initialsFor } from '../../utils/athleteData';
-import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth } from '../../components/DeepDiveUi';
+import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth, useMoreColumns, MoreColumnsToggle } from '../../components/DeepDiveUi';
 import { estimate1RM } from './liftRanking';
 import { buildStrengthRows, strengthFlags, latestBodyWeights, prHistory } from './liftMetrics';
 
@@ -114,6 +114,7 @@ export default function StrengthScreen({ settings, athletes, liftLogs, reportDat
   const [query, setQuery] = React.useState('');
   const [openId, setOpenId] = React.useState(null);
   const [scrollRef, visibleWidth] = useVisibleWidth();
+  const [more, toggleMore] = useMoreColumns('strength');
 
   const bodyWeights = React.useMemo(() => latestBodyWeights(reportData), [reportData]);
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
@@ -176,9 +177,12 @@ export default function StrengthScreen({ settings, athletes, liftLogs, reportDat
       <div className="card-glass" style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h2 style={h3}><Dumbbell size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: '#60a5fa' }} />{lift} progress table</h2>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: '0 1 260px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: '0 1 420px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <MoreColumnsToggle more={more} onToggle={toggleMore} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: '1 1 200px' }}>
             <Search size={15} style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
             <input type="search" aria-label="Search athletes" placeholder="Search athletes" value={query} onChange={e => setQuery(e.target.value)} className="input-glass" style={{ ...selectStyle, width: '100%', paddingLeft: '34px' }} />
+          </div>
           </div>
         </div>
 
@@ -193,13 +197,13 @@ export default function StrengthScreen({ settings, athletes, liftLogs, reportDat
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                   <th style={th}>Athlete</th>
                   <th style={th} title="All-time best estimated 1RM (Epley)">PR (est.)</th>
-                  <th style={th}>PR set</th>
-                  <th style={th} title="PR ÷ latest weigh-in">× Body wt</th>
+                  {more && <th style={th}>PR set</th>}
+                  {more && <th style={th} title="PR ÷ latest weigh-in">× Body wt</th>}
                   <th style={th} title="Best of the later half of the window vs the earlier half">Trend</th>
                   <th style={th} title="Best set in the later half of the window as a % of PR">Recent % PR</th>
-                  <th style={th}>PRs</th>
-                  <th style={th}>Sets</th>
-                  <th style={th} title="Weight × reps, all sets in the window">Volume</th>
+                  {more && <th style={th}>PRs</th>}
+                  {more && <th style={th}>Sets</th>}
+                  {more && <th style={th} title="Weight × reps, all sets in the window">Volume</th>}
                   <th style={th}>Weekly best</th>
                   <th style={th}>Flags</th>
                   <th style={th} aria-label="Expand" />
@@ -226,20 +230,20 @@ export default function StrengthScreen({ settings, athletes, liftLogs, reportDat
                           </div>
                         </td>
                         <td style={{ ...td, fontWeight: 800, color: GOLD }}>{r.pr}</td>
-                        <td style={td}>{r.prSet.weight_lbs}×{r.prSet.reps} <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>{shortDate(r.prSet.created_at)}</span></td>
-                        <td style={td}>{r.relative == null ? '—' : `${r.relative.toFixed(2)}×`}</td>
+                        {more && <td style={td}>{r.prSet.weight_lbs}×{r.prSet.reps} <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>{shortDate(r.prSet.created_at)}</span></td>}
+                        {more && <td style={td}>{r.relative == null ? '—' : `${r.relative.toFixed(2)}×`}</td>}
                         <td style={{ ...td, color: r.change == null ? undefined : r.change > 0 ? '#10b981' : r.change < -0.05 ? '#ef4444' : undefined }}>{pct(r.change)}</td>
                         <td style={td}>{r.pctOfPr == null ? '—' : `${Math.round(r.pctOfPr * 100)}%`}</td>
-                        <td style={td}>{r.prsInWindow}</td>
-                        <td style={td}>{r.sets}</td>
-                        <td style={td}>{r.volume ? fmt(r.volume) : '—'}</td>
+                        {more && <td style={td}>{r.prsInWindow}</td>}
+                        {more && <td style={td}>{r.sets}</td>}
+                        {more && <td style={td}>{r.volume ? fmt(r.volume) : '—'}</td>}
                         <td style={td}><Sparkline values={r.weeks.map(w => w.best)} color="#60a5fa" ariaLabel={`Weekly best ${lift}, last ${r.weeks.length} weeks`} /></td>
                         <td style={td}><div style={{ display: 'flex', gap: '4px' }}>{flags.map(f => <Chip key={f.key} tone={f.tone}>{f.label}</Chip>)}</div></td>
                         <td style={td} aria-hidden="true">{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</td>
                       </tr>
                       {open && (
                         <tr>
-                          <td colSpan={12} style={{ padding: '0 0 12px' }}>
+                          <td colSpan={more ? 12 : 7} style={{ padding: '0 0 12px' }}>
                             <div style={{ position: 'sticky', left: 0, width: visibleWidth || '100%' }}>
                               <AthleteDetail row={r} lift={lift} allLogs={liftLogs} onOpenProfile={() => openProfile(r.athlete.id)} />
                             </div>

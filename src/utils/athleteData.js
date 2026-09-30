@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.3.3';
+export const APP_VERSION = 'v5.3.4';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -97,10 +97,22 @@ export const configureWeightBounds = (min, max) => {
 };
 export const isPlausibleWeight = (w) => typeof w === 'number' && !isNaN(w) && w > WEIGHT_BOUNDS.min && w <= WEIGHT_BOUNDS.max;
 export const getWeightBounds = () => ({ ...WEIGHT_BOUNDS });
-// Strict numeric parse for typed weights: parseFloat("1.2.3") is 1.2 and
-// parseFloat("20O") is 20, which silently saved garbage entries as real weigh-ins.
-// Only a plain decimal number is accepted; anything else is NaN (fails isPlausibleWeight).
-export const parseWeightInput = (s) => (/^\s*\d+(\.\d+)?\s*$/.test(String(s ?? '')) ? Number(s) : NaN);
+// Typed numbers (weights, reps, sprint times, jump heights). Forgiving about how a
+// coach types - "185 lbs", "185lb", " 185 ", "185,5" (decimal comma), "1.62s",
+// "24.5 in" - but still strict (kg is rejected, not silently read as lb) about what the number is: parseFloat("1.2.3") is 1.2
+// and parseFloat("20O") is 20, which once saved garbage as real weigh-ins, so anything
+// that isn't one plain decimal number after trimming a unit is NaN.
+const UNIT_SUFFIX = /\s*(lbs?|pounds?|#|in(ch(es)?)?|"|secs?|seconds?|s|reps?)\.?\s*$/i;
+export const parseDecimalInput = (input) => {
+  let t = String(input ?? '').trim().replace(UNIT_SUFFIX, '').trim();
+  if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(',', '.'); // "185,5" -> 185.5; "1,850" stays invalid (ambiguous)
+  return /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
+};
+// Kept as its own name: weigh-in code and tests read better with it.
+export const parseWeightInput = parseDecimalInput;
+// While typing: keep digits and one decimal separator only, so "1,62" can't silently
+// become 162 (the old [^0-9.] filter dropped the comma).
+export const cleanDecimalTyping = (v) => String(v ?? '').replace(/[^0-9.,]/g, '').replace(',', '.');
 
 // ---- Cached localStorage JSON reads ----
 // Hot paths (alert scans, baseline lookups, post-practice checks) used to JSON.parse

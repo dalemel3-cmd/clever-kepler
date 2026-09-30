@@ -66,6 +66,12 @@ const weighIns = [{ id: uuid(900), athlete_id: uuid(1), weight_lbs: 200, sleep_h
 
   console.log('\n[B] Table for Bench');
   const rows = page.getByTestId('strength-row');
+  const heads = async () => (await page.locator('main table thead').first().innerText()).toUpperCase();
+  check('opens on core columns (Volume hidden)', !(await heads()).includes('VOLUME'));
+  await page.getByRole('button', { name: 'More columns' }).click(); await page.waitForTimeout(300);
+  check('More columns shows Volume', (await heads()).includes('VOLUME'));
+  await page.reload(); await page.waitForTimeout(2000);
+  check('More columns choice remembered after reload', (await heads()).includes('VOLUME'));
   check('3 bench athletes (non-bencher omitted)', await rows.count() === 3, String(await rows.count()));
   const rising = await rows.nth(0).innerText();
   const flat = await rows.nth(1).innerText();

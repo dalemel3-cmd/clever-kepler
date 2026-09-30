@@ -62,6 +62,12 @@ for (let d = 0; d < 35; d += 2) logs.push(rpe(uuid(2), d, 6, 60));
 
   console.log('\n[B] Table rows and flags');
   const rows = page.getByTestId('rpe-row');
+  const heads = async () => (await page.locator('main table thead').first().innerText()).toUpperCase();
+  check('opens on core columns (Monotony hidden)', !(await heads()).includes('MONOTONY'));
+  await page.getByRole('button', { name: 'More columns' }).click(); await page.waitForTimeout(300);
+  check('More columns shows Monotony', (await heads()).includes('MONOTONY'));
+  await page.reload(); await page.waitForTimeout(2000);
+  check('More columns choice remembered after reload', (await heads()).includes('MONOTONY'));
   check('two athletes with RPE listed (no-RPE athlete omitted)', await rows.count() === 2, String(await rows.count()));
   check('sorted by A:C: spike athlete first', /Spike Guy/.test(await rows.first().innerText()));
   check('spike athlete flagged', /Load spike/.test(await rows.first().innerText()), await rows.first().innerText());

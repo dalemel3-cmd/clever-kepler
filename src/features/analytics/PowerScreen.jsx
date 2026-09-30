@@ -2,7 +2,7 @@ import React from 'react';
 import { Zap, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { initialsFor } from '../../utils/athleteData';
-import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth } from '../../components/DeepDiveUi';
+import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth, useMoreColumns, MoreColumnsToggle } from '../../components/DeepDiveUi';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, formatMetric } from './testVariants';
 import { buildPowerRows, powerFlags, variantsFor, variantOf, pbHistory, isAsc } from './powerMetrics';
 
@@ -123,6 +123,7 @@ export default function PowerScreen({ athletes, performanceTests, setSelectedPro
   const [query, setQuery] = React.useState('');
   const [openId, setOpenId] = React.useState(null);
   const [scrollRef, visibleWidth] = useVisibleWidth();
+  const [more, toggleMore] = useMoreColumns('power');
   const tt = TEST_TYPE_BY_KEY[testKey];
   const unit = tt?.unit || '';
 
@@ -190,9 +191,12 @@ export default function PowerScreen({ athletes, performanceTests, setSelectedPro
       <div className="card-glass" style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h2 style={h3}><Zap size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: GREEN }} />{tt?.label} results table</h2>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: '0 1 260px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: '0 1 420px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <MoreColumnsToggle more={more} onToggle={toggleMore} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: '1 1 200px' }}>
             <Search size={15} style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
             <input type="search" aria-label="Search athletes" placeholder="Search athletes" value={query} onChange={e => setQuery(e.target.value)} className="input-glass" style={{ ...selectStyle, width: '100%', paddingLeft: '34px' }} />
+          </div>
           </div>
         </div>
 
@@ -210,10 +214,10 @@ export default function PowerScreen({ athletes, performanceTests, setSelectedPro
                   <th style={th}>PB</th>
                   <th style={th}>Latest</th>
                   <th style={th} title="How far the latest result is from the PB">Off PB</th>
-                  <th style={th} title="Best result in the window vs the first result in the window">Improved</th>
-                  <th style={th} title="PB vs the average PB of their sport">vs Sport avg</th>
-                  <th style={th}>PBs</th>
-                  <th style={th} title="Results in the window / all time">Results</th>
+                  {more && <th style={th} title="Best result in the window vs the first result in the window">Improved</th>}
+                  {more && <th style={th} title="PB vs the average PB of their sport">vs Sport avg</th>}
+                  {more && <th style={th}>PBs</th>}
+                  {more && <th style={th} title="Results in the window / all time">Results</th>}
                   <th style={th}>Last 8</th>
                   <th style={th}>Flags</th>
                   <th style={th} aria-label="Expand" />
@@ -243,17 +247,17 @@ export default function PowerScreen({ athletes, performanceTests, setSelectedPro
                         <td style={{ ...td, fontWeight: 800, color: '#b89c5b' }}>{formatMetric(r.pb, unit)} <span style={{ color: 'var(--color-text-muted)', fontSize: '11px', fontWeight: 600 }}>{shortDate(r.pbResult.created_at)}</span></td>
                         <td style={td}>{formatMetric(r.latest, unit)}</td>
                         <td style={{ ...td, color: flags.some(f => f.key === 'down') ? '#ef4444' : undefined }}>{r.offPb > 0 ? `-${(r.offPb * 100).toFixed(1)}%` : 'At PB'}</td>
-                        <td style={{ ...td, color: r.change > 0 ? '#10b981' : undefined }}>{pct(r.change)}</td>
-                        <td style={{ ...td, color: r.vsSport == null ? undefined : r.vsSport > 0 ? '#10b981' : '#f59e0b' }}>{pct(r.vsSport)}</td>
-                        <td style={td}>{r.pbsInWindow}</td>
-                        <td style={td}>{r.testsInWindow} / {r.tests}</td>
+                        {more && <td style={{ ...td, color: r.change > 0 ? '#10b981' : undefined }}>{pct(r.change)}</td>}
+                        {more && <td style={{ ...td, color: r.vsSport == null ? undefined : r.vsSport > 0 ? '#10b981' : '#f59e0b' }}>{pct(r.vsSport)}</td>}
+                        {more && <td style={td}>{r.pbsInWindow}</td>}
+                        {more && <td style={td}>{r.testsInWindow} / {r.tests}</td>}
                         <td style={td}><Sparkline values={isAsc(testKey) ? r.recent.map(v => -v) : r.recent} color={GREEN} ariaLabel={`Last ${r.recent.length} ${tt?.label} results`} /></td>
                         <td style={td}><div style={{ display: 'flex', gap: '4px' }}>{flags.map(f => <Chip key={f.key} tone={f.tone}>{f.label}</Chip>)}</div></td>
                         <td style={td} aria-hidden="true">{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</td>
                       </tr>
                       {open && (
                         <tr>
-                          <td colSpan={12} style={{ padding: '0 0 12px' }}>
+                          <td colSpan={more ? 12 : 8} style={{ padding: '0 0 12px' }}>
                             <div style={{ position: 'sticky', left: 0, width: visibleWidth || '100%' }}>
                               <AthleteDetail row={r} testKey={testKey} variant={variant} allTests={tests} onOpenProfile={() => openProfile(r.athlete.id)} />
                             </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Zap, Plus, ChevronDown, ChevronUp, ArrowUp, ArrowDown } from 'lucide-react';
-import { getCentralDateString, centralWallTimeToISO } from '../../utils/athleteData';
+import { getCentralDateString, centralWallTimeToISO, cleanDecimalTyping, parseDecimalInput } from '../../utils/athleteData';
 // Test type/variant definitions live in a plain-data module (no React) so the Plyomat
 // importer can share them without pulling a component file into its pure-logic layer.
 // Re-exported here so existing `from './SpeedPowerPanel'` imports elsewhere keep working.
@@ -17,6 +17,19 @@ const PAGE_SIZE = 8;
 // inside the boards reduce - which the error boundary turned into a blank *entire Analytics
 // screen*, every chart with it, over one absent side panel. An empty board is the right
 // failure mode for this card.
+// Peak-end rule: saving a result that beats the athlete's PB for that test *and*
+// technique says so. Direction-aware (lower is better for sprint times).
+const beatsPb = (tests, athleteId, testKey, variant, value) => {
+  const asc = (TEST_TYPE_BY_KEY[testKey]?.better || 'asc') === 'asc';
+  let best = null;
+  for (const t of tests) {
+    if (t.athlete_id !== athleteId || t.test_type !== testKey || (t.test_variant || null) !== (variant || null)) continue;
+    const v = Number(t.metric);
+    if (best == null || (asc ? v < best : v > best)) best = v;
+  }
+  return best != null && (asc ? value < best : value > best) ? best : null;
+};
+
 export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, card, h3, eyebrow, grid: gridColor, performanceTests = [], addTest, addTests }) {
   const [athleteId, setAthleteId] = React.useState('');
   const [testType, setTestType] = React.useState(TEST_TYPES[0].key);
@@ -55,7 +68,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
   // WARNING, not a block: an athlete really can hit 24.5in twice in one session, and
   // refusing a legitimate second attempt would be worse than a duplicate.
   const duplicateOfExisting = React.useMemo(() => {
-    const v = parseFloat(value);
+    const v = parseDecimalInput(value);
     if (!athleteId || !isFinite(v)) return false;
     return performanceTests.some(t =>
       t.athlete_id === athleteId &&
@@ -198,11 +211,13 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const v = parseFloat(value);
+    const v = parseDecimalInput(value);
     if (!athleteId || !isFinite(v) || v <= 0 || (needsVariantPicker && !variant)) return;
     const athlete = athletes.find(a => a.id === athleteId);
     setSaving(true);
     setMessage('');
+    const prevPb = beatsPb(performanceTests, athleteId, testType, variant || null, v);
+    const pbNote = prevPb != null ? ` New PB! (was ${formatMetric(prevPb, activeTest.unit)})` : '';
     const result = await addTest({
       athlete_id: athleteId,
       athlete_name: athlete ? athlete.name : 'Unknown',
@@ -220,8 +235,8 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
     setMessage(!result.ok
       ? "The server refused that result, so it wasn't saved. Check the value and try again."
       : result.queued
-        ? `No connection. ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'} is saved on this device and will upload automatically.`
-        : `Saved ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'} on ${testDate}.`);
+        ? `No connection. ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'} is saved on this device and will upload automatically.${pbNote}`
+        : `Saved ${formatMetric(v, activeTest.unit)} for ${athlete ? athlete.name : 'athlete'} on ${testDate}.${pbNote}`);
     setValue('');
     setTimeout(() => setMessage(''), 3500);
   };
@@ -231,7 +246,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
     if (needsVariantPicker && !teamVariant) return;
     const entries = roster
       .map(a => ({ athlete: a, raw: teamValues[a.id] }))
-      .filter(({ raw }) => raw != null && raw !== '' && isFinite(parseFloat(raw)) && parseFloat(raw) > 0);
+      .filter(({ raw }) => parseDecimalInput(raw) > 0);
     if (entries.length === 0) return;
     setTeamSaving(true);
     setTeamMessage('');
@@ -242,18 +257,20 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       sport: athlete.sport,
       test_type: testType,
       test_variant: teamVariant || null,
-      metric: parseFloat(raw),
+      metric: parseDecimalInput(raw),
       unit: activeTest.unit,
       created_at,
     }));
     // One request for the whole roster when the batch writer is available.
+    const pbNames = recs.filter(r => beatsPb(performanceTests, r.athlete_id, r.test_type, r.test_variant, r.metric) != null).map(r => r.athlete_name.split(' ')[0]);
+    const pbNote = pbNames.length ? ` ${pbNames.length} new PB${pbNames.length === 1 ? '' : 's'}: ${pbNames.slice(0, 5).join(', ')}${pbNames.length > 5 ? ` +${pbNames.length - 5} more` : ''}.` : '';
     const res = addTests ? await addTests(recs) : { ok: (await Promise.all(recs.map(r => addTest(r)))).every(r => r.ok) };
     setTeamSaving(false);
     setTeamMessage(!res.ok
       ? `The server refused these results, so they weren't saved. Check the numbers and try again.`
       : res.queued
-        ? `No connection. ${entries.length} result${entries.length !== 1 ? 's are' : ' is'} saved on this device and will upload automatically.`
-        : `Saved ${entries.length} result${entries.length !== 1 ? 's' : ''} for ${testDate}.`);
+        ? `No connection. ${entries.length} result${entries.length !== 1 ? 's are' : ' is'} saved on this device and will upload automatically.${pbNote}`
+        : `Saved ${entries.length} result${entries.length !== 1 ? 's' : ''} for ${testDate}.${pbNote}`);
     // Clear only the rows that were actually submitted, leaving anything left blank
     // untouched in case the coach comes back to finish the sheet.
     setTeamValues(prev => {
@@ -261,7 +278,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
       entries.forEach(({ athlete }) => delete next[athlete.id]);
       return next;
     });
-    setTimeout(() => setTeamMessage(''), 4000);
+    setTimeout(() => setTeamMessage(''), pbNote ? 9000 : 4000); // leave good news up longer
   };
 
   return (
@@ -344,7 +361,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
                   className="input-glass"
                   value={teamValues[a.id] || ''}
                   onChange={e => {
-                    const v = e.target.value.replace(/[^0-9.]/g, '');
+                    const v = cleanDecimalTyping(e.target.value);
                     setTeamValues(prev => ({ ...prev, [a.id]: v }));
                   }}
                   placeholder={activeTest.placeholder}
@@ -422,7 +439,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
             aria-label={`Test result in ${activeTest.unit === 'sec' ? 'seconds' : 'inches'}`}
             className="input-glass"
             value={value}
-            onChange={e => setValue(e.target.value.replace(/[^0-9.]/g, ''))}
+            onChange={e => setValue(cleanDecimalTyping(e.target.value))}
             placeholder={activeTest.placeholder}
             style={{ height: '40px', width: '110px', padding: '0 10px', fontSize: '13px', borderRadius: '10px', textAlign: 'center' }}
             required

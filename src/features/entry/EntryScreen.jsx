@@ -3,7 +3,7 @@ import { X, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
 import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 import AthleteCard from './AthleteCard';
-import { isPlausibleWeight, parseWeightInput, initialsFor } from '../../utils/athleteData';
+import { isPlausibleWeight, parseWeightInput, initialsFor, cleanDecimalTyping } from '../../utils/athleteData';
 
 export default function EntryScreen({
   entrySportFilter,
@@ -391,7 +391,7 @@ export default function EntryScreen({
                         className="font-display text-4xl text-white tracking-wider font-bold bg-transparent border-none outline-none w-full mt-1"
                         placeholder={lastLoggedWeight ? String(lastLoggedWeight) : '0.0'}
                         value={weightInput || ''}
-                        onChange={(e) => setWeightInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                        onChange={(e) => setWeightInput(cleanDecimalTyping(e.target.value))}
                         onFocus={() => setFocusedField('weight')}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
                       />

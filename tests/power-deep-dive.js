@@ -60,6 +60,12 @@ const tests = [
 
   console.log('\n[B] Vertical, default technique = most results (hands on hips)');
   const rows = page.getByTestId('power-row');
+  const heads = async () => (await page.locator('main table thead').first().innerText()).toUpperCase();
+  check('opens on core columns (Improved hidden)', !(await heads()).includes('IMPROVED'));
+  await page.getByRole('button', { name: 'More columns' }).click(); await page.waitForTimeout(300);
+  check('More columns shows Improved', (await heads()).includes('IMPROVED'));
+  await page.reload(); await page.waitForTimeout(2000);
+  check('More columns choice remembered after reload', (await heads()).includes('IMPROVED'));
   check('2 hands-on-hips athletes (arm swing not mixed in)', await rows.count() === 2, String(await rows.count()));
   const r0 = await rows.nth(0).innerText(), r1 = await rows.nth(1).innerText();
   check('ranked by PB: Off Day (30) #1, Hops Guy (29) #2', /Off Day/.test(r0) && /30\.0 in/.test(r0) && /Hops Guy/.test(r1), r0 + ' | ' + r1);

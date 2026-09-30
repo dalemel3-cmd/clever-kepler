@@ -72,3 +72,30 @@ export function useVisibleWidth() {
   });
   return [ref, width];
 }
+
+// Deep-dive tables open on their core columns (Miller's law: a dozen numbers per row
+// is too much to scan). "More columns" shows the rest for S&C staff; the choice is
+// remembered per tab on this device.
+export function useMoreColumns(tab) {
+  const key = `hpd_more_columns_${tab}`;
+  const [more, setMore] = React.useState(() => { try { return localStorage.getItem(key) === '1'; } catch { return false; } });
+  const toggle = React.useCallback(() => setMore(m => {
+    try { localStorage.setItem(key, m ? '0' : '1'); } catch {}
+    return !m;
+  }), [key]);
+  return [more, toggle];
+}
+
+export function MoreColumnsToggle({ more, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={more}
+      className="input-glass"
+      style={{ height: '38px', padding: '0 14px', fontSize: '12px', fontWeight: 800, borderRadius: '10px', cursor: 'pointer', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.04em', color: more ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+    >
+      {more ? 'Fewer columns' : 'More columns'}
+    </button>
+  );
+}

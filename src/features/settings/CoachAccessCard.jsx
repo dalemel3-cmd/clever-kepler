@@ -123,7 +123,7 @@ export default function CoachAccessCard({ showToast, setConfirmModal, currentEma
                     <button
                       onClick={() => setApproved(row, true)}
                       disabled={busyId === row.user_id}
-                      style={{ padding: '9px 18px', minHeight: '40px', fontSize: '13px', fontWeight: 800, background: 'var(--status-success)', color: '#04140b', border: 'none', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      style={{ padding: '9px 18px', minHeight: '44px', fontSize: '13px', fontWeight: 800, background: 'var(--status-success)', color: '#04140b', border: 'none', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
                       <Check size={16} /> Approve
                     </button>
@@ -131,7 +131,7 @@ export default function CoachAccessCard({ showToast, setConfirmModal, currentEma
                       onClick={() => confirmRevoke(row)}
                       disabled={busyId === row.user_id}
                       aria-label={`Dismiss request from ${row.email}`}
-                      style={{ padding: '9px 14px', minHeight: '40px', fontSize: '13px', fontWeight: 700, background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: '10px', cursor: 'pointer' }}
+                      style={{ padding: '9px 14px', minHeight: '44px', fontSize: '13px', fontWeight: 700, background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: '10px', cursor: 'pointer' }}
                     >
                       <X size={16} />
                     </button>
@@ -166,7 +166,7 @@ export default function CoachAccessCard({ showToast, setConfirmModal, currentEma
                     onClick={() => confirmRevoke(row)}
                     disabled={busyId === row.user_id || (isSelf && isLastApproved)}
                     title={isSelf && isLastApproved ? 'You are the only approved coach — approve someone else first' : undefined}
-                    style={{ padding: '9px 16px', minHeight: '40px', fontSize: '12px', fontWeight: 700, background: 'transparent', color: 'var(--status-error)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '10px', cursor: (isSelf && isLastApproved) ? 'not-allowed' : 'pointer', opacity: (isSelf && isLastApproved) ? 0.4 : 1 }}
+                    style={{ padding: '9px 16px', minHeight: '44px', fontSize: '12px', fontWeight: 700, background: 'transparent', color: 'var(--status-error)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '10px', cursor: (isSelf && isLastApproved) ? 'not-allowed' : 'pointer', opacity: (isSelf && isLastApproved) ? 0.4 : 1 }}
                   >
                     Revoke
                   </button>

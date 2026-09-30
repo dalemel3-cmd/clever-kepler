@@ -3470,7 +3470,59 @@ app with real numbers:
   so it could read 74% next to "226 vs 303". It now compares exact values.
 - **Test:** `tests/report-training-flags.js`.
 
-## 95. Next up
+## 95. UX-law pass: fewer columns, forgiving numbers, 44 px targets, PR callouts (v5.3.4)
+
+This pass applied four UX laws the user picked (1, 3, 4, 6 from the list), without
+changing any layouts.
+
+**1. Miller's law: deep-dive tables open on core columns.**
+- `useMoreColumns(tab)` and `MoreColumnsToggle` live in `components/DeepDiveUi.jsx`.
+  The "More columns" choice is remembered per tab (localStorage
+  `hpd_more_columns_<tab>`).
+- **Core columns:**
+  - RPE: A:C, 7-day load, week change, avg RPE, trend, flags
+  - Strength: PR, trend, recent % of PR, weekly best, flags
+  - Jumps & Sprints: rank, PB, latest, off PB, last 8, flags
+- **Behind the toggle:**
+  - RPE: chronic/wk, monotony, strain, sessions, hard sessions
+  - Strength: PR set, × body wt, PRs, sets, volume
+  - Jumps & Sprints: improved, vs sport avg, PBs, results
+
+**3. Postel's law: `parseDecimalInput`** (`utils/athleteData.js`, and
+`parseWeightInput` is now an alias).
+- **Accepts:** `185 lbs`, `185lb`, `185#`, `185,5`, `1.62s`, `24.5 in`, `5 reps`,
+  surrounding spaces.
+- **Rejects:** `20O`, `1.2.3`, `185 kg` (never read as lb), `1,850` (ambiguous).
+- **`cleanDecimalTyping` replaces the old `[^0-9.]` typing filters.** Those dropped the
+  comma, so "1,62" in Team Entry silently saved as **162**. Fixed in Speed & Power
+  single entry and Team Entry, Lift Team Log, the Profile result edit, and the kiosk
+  weight box. Speed & Power now validates with the strict parser instead of
+  `parseFloat`.
+
+**4. Fitts's law: 44 px minimum on touch screens.**
+- A `@media (pointer: coarse)` rule in `styles.css` gives buttons, tabs, selects and
+  text inputs a minimum height of 44 px, and buttons and tabs a minimum width of 44 px.
+- Desktop is untouched.
+- Coach Access buttons had an inline `minHeight: 40px`, now 44.
+- Worst before: the Lift Kiosk sport chips (32×22).
+- **Test:** `tests/tap-targets.js` audits every main screen and the Lift Kiosk at
+  phone size (145 → 0 undersized controls), and checks that desktop tabs keep their
+  size.
+
+**6. Peak-end rule: saves end on the good news.**
+- Lift single entry: "New PR! Est. 1RM N (was M)".
+- Team Log: "N new PRs: Ann, Ben…". An athlete's first-ever set of a lift is marked
+  "first", not PR.
+- Speed & Power single and Team Entry: "New PB" or "N new PBs", direction-aware and
+  per technique. The Team Entry message stays up 9 s when it has good news.
+
+**Also noticed, not changed:** on phones the Weigh-In kiosk has a large empty gap
+under the Weigh-In/Lifts tabs. It predates this pass (seen on v5.3.3 too).
+
+**Tests:** `tests/input-parsing.js`, `tests/tap-targets.js`; the deep-dive tests,
+`lift-team-log.js` and `input-parsing.js` were extended.
+
+## 96. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

@@ -2,7 +2,7 @@ import React from 'react';
 import { Activity, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { initialsFor } from '../../utils/athleteData';
-import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth } from '../../components/DeepDiveUi';
+import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth, useMoreColumns, MoreColumnsToggle } from '../../components/DeepDiveUi';
 import { buildRpeRows, flagsFor, sessionLoad } from './rpeMetrics';
 
 // Performance > RPE: the in-depth, per-athlete session-RPE view. Analytics keeps its
@@ -104,6 +104,7 @@ export default function RpeScreen({ settings, athletes, reportData, setSelectedP
   const [query, setQuery] = React.useState('');
   const [openId, setOpenId] = React.useState(null);
   const [scrollRef, visibleWidth] = useVisibleWidth();
+  const [more, toggleMore] = useMoreColumns('rpe');
   const spike = settings.rpeLoadSpikeRatio || 1.3;
 
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
@@ -170,9 +171,12 @@ export default function RpeScreen({ settings, athletes, reportData, setSelectedP
       <div className="card-glass" style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h2 style={h3}><Activity size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: '#a78bfa' }} />Athlete load table</h2>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: '0 1 260px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: '0 1 420px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <MoreColumnsToggle more={more} onToggle={toggleMore} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: '1 1 200px' }}>
             <Search size={15} style={{ position: 'absolute', left: '12px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
             <input type="search" aria-label="Search athletes" placeholder="Search athletes" value={query} onChange={e => setQuery(e.target.value)} className="input-glass" style={{ ...selectStyle, width: '100%', paddingLeft: '34px' }} />
+          </div>
           </div>
         </div>
 
@@ -188,13 +192,13 @@ export default function RpeScreen({ settings, athletes, reportData, setSelectedP
                   <th style={th}>Athlete</th>
                   <th style={th} title="7-day load ÷ chronic weekly average">A:C</th>
                   <th style={th}>7-day load</th>
-                  <th style={th}>Chronic / wk</th>
+                  {more && <th style={th}>Chronic / wk</th>}
                   <th style={th}>Wk change</th>
-                  <th style={th} title="Foster monotony: mean daily load ÷ SD, last 7 days">Monotony</th>
-                  <th style={th} title="Weekly load × monotony">Strain</th>
-                  <th style={th}>Sessions</th>
+                  {more && <th style={th} title="Foster monotony: mean daily load ÷ SD, last 7 days">Monotony</th>}
+                  {more && <th style={th} title="Weekly load × monotony">Strain</th>}
+                  {more && <th style={th}>Sessions</th>}
                   <th style={th}>Avg RPE</th>
-                  <th style={th} title={`Sessions at RPE ${settings.rpeHighThreshold || 8}+`}>Hard</th>
+                  {more && <th style={th} title={`Sessions at RPE ${settings.rpeHighThreshold || 8}+`}>Hard</th>}
                   <th style={th}>Trend</th>
                   <th style={th}>Flags</th>
                   <th style={th} aria-label="Expand" />
@@ -222,20 +226,20 @@ export default function RpeScreen({ settings, athletes, reportData, setSelectedP
                         </td>
                         <td style={td}><Chip tone={ratioTone(r.ratio, spike)}>{fmt(r.ratio, 2)}</Chip></td>
                         <td style={{ ...td, fontWeight: 700 }}>{fmt(r.acuteLoad)}</td>
-                        <td style={td}>{fmt(r.chronicWeekly)}</td>
+                        {more && <td style={td}>{fmt(r.chronicWeekly)}</td>}
                         <td style={{ ...td, color: r.weekChange == null ? undefined : r.weekChange > 0.3 ? '#ef4444' : r.weekChange < -0.3 ? '#f59e0b' : undefined }}>{pct(r.weekChange)}</td>
-                        <td style={{ ...td, color: r.monotony > 2 ? '#f59e0b' : undefined }}>{fmt(r.monotony, 2)}</td>
-                        <td style={td}>{fmt(r.strain)}</td>
-                        <td style={td}>{r.sessions}</td>
+                        {more && <td style={{ ...td, color: r.monotony > 2 ? '#f59e0b' : undefined }}>{fmt(r.monotony, 2)}</td>}
+                        {more && <td style={td}>{fmt(r.strain)}</td>}
+                        {more && <td style={td}>{r.sessions}</td>}
                         <td style={td}>{fmt(r.avgRpe, 1)}</td>
-                        <td style={td}>{r.highSessions}</td>
+                        {more && <td style={td}>{r.highSessions}</td>}
                         <td style={td}><Sparkline values={r.weeks.map(w => w.load)} ariaLabel={`Weekly load, last ${r.weeks.length} weeks`} /></td>
                         <td style={td}><div style={{ display: 'flex', gap: '4px' }}>{flags.map(f => <Chip key={f.key} tone={f.tone}>{f.label}</Chip>)}</div></td>
                         <td style={td} aria-hidden="true">{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</td>
                       </tr>
                       {open && (
                         <tr>
-                          <td colSpan={13} style={{ padding: '0 0 12px' }}>
+                          <td colSpan={more ? 13 : 8} style={{ padding: '0 0 12px' }}>
                             <div style={{ position: 'sticky', left: 0, width: visibleWidth || '100%' }}>
                               <AthleteDetail row={r} settings={settings} onOpenProfile={() => openProfile(r.athlete.id)} />
                             </div>

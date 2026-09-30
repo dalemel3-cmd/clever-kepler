@@ -437,3 +437,20 @@ h1, h2, h3 { overflow-wrap: break-word; }
   .hide-mobile { display: none !important; }
   .kiosk-btn-text { display: none !important; }
 }
+/* Fitts's law (v5.3.4): on touch screens - phones and the weight-room kiosk iPad -
+   every control is at least 44x44 px (Apple/WCAG minimum). Pointer-coarse only, so
+   desktop layouts are untouched; min-height/min-width only ever grow a control, and
+   they win over the fixed heights (h-10, height: 38px) used across the app. The
+   worst offenders were the Lift Kiosk sport chips at 32x22 px. */
+@media (pointer: coarse) {
+  button,
+  select,
+  [role="tab"],
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]) {
+    min-height: 44px;
+  }
+  button,
+  [role="tab"] {
+    min-width: 44px;
+  }
+}
