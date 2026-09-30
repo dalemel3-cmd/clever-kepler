@@ -51,10 +51,6 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     const message = error?.message || String(error);
-    reportError(message, {
-      stack: error?.stack || errorInfo?.componentStack,
-      source: 'react-boundary',
-    });
 
     // A deploy replaces every lazy-loaded screen chunk with a new content-hashed
     // filename - a tab that loaded its shell before (or across) a deploy fails to
@@ -62,7 +58,13 @@ class ErrorBoundary extends Component {
     // auto-recovered here (see errorReporting.js) instead of leaving the coach
     // stuck on this permanent error screen with no way out but a manual hard
     // refresh.
+    // Recovered by that reload, so not reported (see errorReporting.js); anything
+    // else - including a stale chunk the reload didn't fix - is.
     if (handleIfStaleChunk(message)) return;
+    reportError(message, {
+      stack: error?.stack || errorInfo?.componentStack,
+      source: 'react-boundary',
+    });
 
     this.setState({
       hasError: true,

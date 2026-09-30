@@ -17,22 +17,27 @@ import { NegativeSweatDropCards } from './features/alerts/NegativeSweatDropCards
 import { useAlertFeeds } from './features/alerts/useAlertFeeds';
 import { useExpiredBaselines } from './features/alerts/useExpiredBaselines';
 import { useExecutiveInsights } from './features/dashboard/useExecutiveInsights';
-const AlertsScreen = lazy(() => import('./features/alerts/AlertsScreen'));
+// Every lazy screen's loader, kept so they can all be fetched in the background once
+// the app is idle (see the preload effect in App). A tab that already holds every
+// screen can't hit "Failed to fetch dynamically imported module" when a deploy
+// replaces the files before the coach first opens one of them.
+const SCREEN_LOADERS = {};
+const AlertsScreen = lazy(SCREEN_LOADERS.AlertsScreen = () => import('./features/alerts/AlertsScreen'));
 import { useAlertStatus } from './features/alerts/useAlertStatus';
 import { usePerformanceTests } from './features/analytics/usePerformanceTests';
 import { useLiftLogs } from './features/lifts/useLiftLogs';
-const LiftScreen = lazy(() => import('./features/lifts/LiftScreen'));
-const GroupsScreen = lazy(() => import('./features/groups/GroupsScreen'));
-const AthletesScreen = lazy(() => import('./features/athletes/AthletesScreen'));
-const EntryScreen = lazy(() => import('./features/entry/EntryScreen'));
-const DashboardScreen = lazy(() => import('./features/dashboard/DashboardScreen'));
-const ReportsScreen = lazy(() => import('./features/reports/ReportsScreen'));
-const PowerScreen = lazy(() => import('./features/analytics/PowerScreen'));
-const StrengthScreen = lazy(() => import('./features/lifts/StrengthScreen'));
-const RpeScreen = lazy(() => import('./features/rpe/RpeScreen'));
-const AnalyticsScreen = lazy(() => import('./features/analytics/AnalyticsScreen'));
-const ProfilesScreen = lazy(() => import('./features/profiles/ProfilesScreen'));
-const SettingsScreen = lazy(() => import('./features/settings/SettingsScreen'));
+const LiftScreen = lazy(SCREEN_LOADERS.LiftScreen = () => import('./features/lifts/LiftScreen'));
+const GroupsScreen = lazy(SCREEN_LOADERS.GroupsScreen = () => import('./features/groups/GroupsScreen'));
+const AthletesScreen = lazy(SCREEN_LOADERS.AthletesScreen = () => import('./features/athletes/AthletesScreen'));
+const EntryScreen = lazy(SCREEN_LOADERS.EntryScreen = () => import('./features/entry/EntryScreen'));
+const DashboardScreen = lazy(SCREEN_LOADERS.DashboardScreen = () => import('./features/dashboard/DashboardScreen'));
+const ReportsScreen = lazy(SCREEN_LOADERS.ReportsScreen = () => import('./features/reports/ReportsScreen'));
+const PowerScreen = lazy(SCREEN_LOADERS.PowerScreen = () => import('./features/analytics/PowerScreen'));
+const StrengthScreen = lazy(SCREEN_LOADERS.StrengthScreen = () => import('./features/lifts/StrengthScreen'));
+const RpeScreen = lazy(SCREEN_LOADERS.RpeScreen = () => import('./features/rpe/RpeScreen'));
+const AnalyticsScreen = lazy(SCREEN_LOADERS.AnalyticsScreen = () => import('./features/analytics/AnalyticsScreen'));
+const ProfilesScreen = lazy(SCREEN_LOADERS.ProfilesScreen = () => import('./features/profiles/ProfilesScreen'));
+const SettingsScreen = lazy(SCREEN_LOADERS.SettingsScreen = () => import('./features/settings/SettingsScreen'));
 
 const ScreenLoadingFallback = () => (
   <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: 'var(--color-text-muted)', fontSize: '14px', fontWeight: 600 }}>
@@ -80,6 +85,21 @@ export default function App() {
   // Screens the app can actually render; anything else in the URL hash gets the
   // not-found view instead of a blank page.
   const KNOWN_SCREENS = React.useMemo(() => new Set([...NAV_GROUPS.flatMap(g => g.screens.map(x => x.screen)), 'profiles']), []);
+
+  // Background-fetch every screen once startup has settled, one at a time so it never
+  // competes with the first screen's data. A failure here is harmless (offline, or a
+  // deploy mid-preload) - that screen just loads on demand as before.
+  React.useEffect(() => {
+    let cancelled = false;
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1));
+    const start = setTimeout(() => idle(async () => {
+      for (const load of Object.values(SCREEN_LOADERS)) {
+        if (cancelled || navigator.onLine === false) return;
+        try { await load(); } catch { /* loads on demand instead */ }
+      }
+    }), 4000);
+    return () => { cancelled = true; clearTimeout(start); };
+  }, []);
 
   const setScreen = (newScreen) => {
     setScreenState(newScreen);

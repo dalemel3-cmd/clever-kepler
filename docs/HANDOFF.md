@@ -3544,7 +3544,31 @@ under the Weigh-In/Lifts tabs. It predates this pass (seen on v5.3.3 too).
 - `tests/lift-team-log.js` checks the order. It includes a fixture ("Zed Abbott") that
   would come first under a last-name sort.
 
-## 98. Next up
+## 98. Quieter error log: stale screens preloaded, recovered ones not reported (v5.3.7)
+
+Every app_errors row in the last two weeks was the "tab open across a deploy" case:
+"Failed to fetch dynamically imported module … <Screen>.js". The app already recovered
+from it (handleIfStaleChunk unregisters the service worker, clears caches and reloads
+once), but each one still landed in the daily error check.
+
+- **Preload.**
+  - `App.jsx` keeps each lazy screen's loader in `SCREEN_LOADERS`.
+  - 4 s after startup, when the browser is idle, it fetches them one at a time. It
+    skips this when offline and ignores failures.
+  - A tab that's been open a while already holds every screen, so a deploy can't
+    strand it.
+- **Report only what isn't recovered.**
+  - The window `error` and `unhandledrejection` handlers (errorReporting.js) and the
+    React error boundary (main.jsx) now call `handleIfStaleChunk` *first*.
+  - If it triggers the recovery reload, nothing is reported.
+  - If the same failure happens again within 30 s (the reload didn't fix it: a
+    genuinely broken deploy), `handleIfStaleChunk` returns false. The error is then
+    reported and the coach sees the error screen instead of a reload loop.
+- **Test:** `tests/stale-chunk-quiet.js`. It checks the preload, that a recovered
+  error isn't reported, and that an unrecovered one still is. It fails against v5.3.6
+  as expected.
+
+## 99. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

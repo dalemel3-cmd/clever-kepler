@@ -46,22 +46,26 @@ export function reportError(message, { stack, source } = {}) {
 // errors thrown outside any component render (event handlers, timers, third-party
 // scripts) and rejected promises nobody caught. Call once, at app startup.
 export function installGlobalErrorReporting() {
+  // A stale-chunk error the app recovers from by reloading (see handleIfStaleChunk)
+  // is not reported: it's the normal "tab open across a deploy" case and only
+  // cluttered app_errors. If the reload doesn't fix it (a second one within 30s),
+  // handleIfStaleChunk returns false and it IS reported - that's a broken deploy.
   window.addEventListener('error', (event) => {
+    if (handleIfStaleChunk(event.message)) return;
     reportError(event.message || 'Unknown window error', {
       stack: event.error?.stack,
       source: 'window.onerror',
     });
-    handleIfStaleChunk(event.message);
   });
 
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
     const message = reason?.message || String(reason) || 'Unhandled promise rejection';
+    if (handleIfStaleChunk(message)) return;
     reportError(message, {
       stack: reason?.stack,
       source: 'unhandledrejection',
     });
-    handleIfStaleChunk(message);
   });
 }
 
