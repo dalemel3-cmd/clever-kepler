@@ -3522,7 +3522,22 @@ under the Weigh-In/Lifts tabs. It predates this pass (seen on v5.3.3 too).
 **Tests:** `tests/input-parsing.js`, `tests/tap-targets.js`; the deep-dive tests,
 `lift-team-log.js` and `input-parsing.js` were extended.
 
-## 96. Next up
+## 96. Weigh-In screen gap fixed (v5.3.5)
+
+- **Symptom:** on phones and desktop, Log > Weigh-In had a large empty band (about
+  90 px extra) between the sub-tabs and the "WEIGH-IN KIOSK" heading.
+- **Cause:** `EntryScreen` still wrapped itself in its own
+  `<main className="relative pt-16 … min-h-screen overflow-y-auto">`, from before
+  screens rendered inside App's `<main data-scroll-root>`. That meant:
+  - a second 64 px header offset
+  - a nested `<main>` (invalid: one main landmark per page)
+  - a second scroll container inside the page scroller
+- **Fix:** now a plain `<div className="relative w-full">`.
+- **Result:** the tab-to-heading distance is 67 px, in line with the other screens
+  (46–70 px). There is one `<main>`, and the page scroller reaches the whole roster.
+- Checked on a phone, on desktop and in kiosk mode.
+
+## 97. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

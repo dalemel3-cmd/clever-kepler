@@ -127,7 +127,10 @@ export default function EntryScreen({
   const totalVisibleCount = groupedAthletes.reduce((sum, g) => sum + g.athletes.length, 0);
 
   return (
-    <main className="relative pt-16 w-full px-6 bg-[#030a14] min-h-screen overflow-y-auto">
+    <div className="relative w-full">
+      {/* Plain container: this screen renders inside App's main element, which already
+          clears the fixed header and scrolls. The old nested main with its own pt-16
+          and overflow left a ~90px empty gap under the sub-tabs and a second scroller. */}
       <div className="flex flex-col w-full pb-20">
         {/* Top Command & Kiosk HUD Bar */}
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-6 mt-6">
@@ -584,6 +587,6 @@ export default function EntryScreen({
         )}
 
       </div>
-    </main>
+    </div>
   );
 }
