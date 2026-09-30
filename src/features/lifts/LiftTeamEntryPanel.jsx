@@ -11,7 +11,6 @@ import { estimate1RM } from './liftRanking';
 const label = 'block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2';
 const field = 'w-full h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary border border-transparent';
 const cell = 'h-10 px-2 rounded-lg bg-surface-container-highest text-on-surface text-center focus:outline-none focus:ring-2 focus:ring-primary border border-transparent';
-const lastNameOf = (name) => (name || '').trim().split(/\s+/).pop().toLowerCase();
 
 export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTypes, addLifts, onClose }) {
   const today = getCentralDateString();
@@ -31,7 +30,8 @@ export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTyp
 
   const roster = React.useMemo(() => athletes
     .filter(a => sport === 'ALL' || (a.sport || 'General') === sport)
-    .sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)) || a.name.localeCompare(b.name)), [athletes, sport]);
+    // First name A-Z (then last name), matching how coaches call the roster in the room.
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })), [athletes, sport]);
 
   // Current best est. 1RM per athlete for this lift, shown as a reference and used to
   // mark a row that would set a new PR.

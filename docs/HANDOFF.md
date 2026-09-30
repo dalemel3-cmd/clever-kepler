@@ -3537,7 +3537,14 @@ under the Weigh-In/Lifts tabs. It predates this pass (seen on v5.3.3 too).
   (46–70 px). There is one `<main>`, and the page scroller reaches the whole roster.
 - Checked on a phone, on desktop and in kiosk mode.
 
-## 97. Next up
+## 97. Team Log sorted by first name (v5.3.6)
+
+- The Lift Team Log sheet now lists athletes A–Z by first name, which is how coaches
+  call the roster in the room. It used to sort by last name.
+- `tests/lift-team-log.js` checks the order. It includes a fixture ("Zed Abbott") that
+  would come first under a last-name sort.
+
+## 98. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

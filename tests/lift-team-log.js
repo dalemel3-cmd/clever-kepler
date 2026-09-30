@@ -23,6 +23,7 @@ const athletes = [
   { id: uuid(1), name: 'Ann Adams', sport: 'Football', team: 'Varsity' },
   { id: uuid(2), name: 'Ben Brown', sport: 'Football', team: 'Varsity' },
   { id: uuid(3), name: 'Cal Cole', sport: 'Football', team: 'Varsity' },
+  { id: uuid(5), name: 'Zed Abbott', sport: 'Football', team: 'Varsity' },
   { id: uuid(4), name: 'Vb Vee', sport: 'Volleyball', team: 'Varsity' },
 ];
 const lifts = [{ id: uuid(90), athlete_id: uuid(1), athlete_name: 'Ann Adams', lift_type: 'Bench', weight_lbs: 200, reps: 1, created_at: new Date(Date.now() - 20 * DAY).toISOString() }];
@@ -56,7 +57,9 @@ const lifts = [{ id: uuid(90), athlete_id: uuid(1), athlete_name: 'Ann Adams', l
   await btn.click(); await page.waitForTimeout(500);
   const dlg = page.getByRole('dialog', { name: /Team Log/i });
   check('dialog opens', await dlg.count() === 1);
-  check('defaults to first team (Football: 3 rows)', await dlg.getByTestId('team-lift-row').count() === 3, String(await dlg.getByTestId('team-lift-row').count()));
+  check('defaults to first team (Football: 4 rows)', await dlg.getByTestId('team-lift-row').count() === 4, String(await dlg.getByTestId('team-lift-row').count()));
+  const names = await dlg.getByTestId('team-lift-row').evaluateAll(rs => rs.map(r => r.querySelector('div div').innerText.trim()));
+  check('rows in first-name order', JSON.stringify(names) === JSON.stringify([...names].sort((a, b) => a.localeCompare(b))), JSON.stringify(names));
   check('save disabled with nothing entered', await dlg.getByRole('button', { name: /^Save/ }).isDisabled());
 
   console.log('\n[B] Entry, PR preview and validation');
