@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, LogIn, AlertTriangle, UserPlus } from 'lucide-react';
+import { Lock, LogIn, AlertTriangle, UserPlus, Mail, KeyRound } from 'lucide-react';
 import { supabase, markSignedInBefore } from '../supabaseClient';
 import { loadSettings } from '../settings';
 
@@ -34,20 +34,22 @@ export function describeAuthError(err) {
   return msg || 'Could not sign in. Try again.';
 }
 
-export default function LoginScreen({ offlineNotice }) {
+export default function LoginScreen({ offlineNotice, initialError = '' }) {
   const settings = loadSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
+  const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'reset'
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
   const [notice, setNotice] = useState('');
   const isSignup = mode === 'signup';
+  const isReset = mode === 'reset';
 
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
+    if (isReset) return sendReset();
     if (!email.trim() || !password) {
       setError('Enter your email and password.');
       return;
@@ -122,6 +124,30 @@ export default function LoginScreen({ offlineNotice }) {
     }
   };
 
+  // Emails a reset link that comes back to this app (AuthGate picks it up and shows
+  // the set-new-password screen). Same answer whether or not the address has an
+  // account, so the form can't be used to find out who does.
+  const sendReset = async () => {
+    const addr = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { setError('Enter the email you sign in with.'); return; }
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(addr, { redirectTo: `${window.location.origin}/` });
+      if (resetError && (resetError.status === 429 || /rate limit/i.test(resetError.message || ''))) {
+        setError('A reset email was sent recently. Wait a minute before asking for another.');
+      } else if (resetError && /Failed to fetch|NetworkError|Load failed/i.test(resetError.message || '')) {
+        setError('Cannot reach the server. Check the connection and try again.');
+      } else {
+        setNotice(`If ${addr} has an account, a reset link is on its way. Open it on this device, then choose a new password.`);
+      }
+    } catch {
+      setError('Cannot reach the server. Check the connection and try again.');
+    }
+    setBusy(false);
+  };
+
   const switchMode = (next) => {
     setMode(next);
     setError('');
@@ -171,7 +197,7 @@ export default function LoginScreen({ offlineNotice }) {
               {settings.programName || 'Human Performance'}
             </h1>
             <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-              {isSignup ? 'Request coach access' : (settings.organizationName || 'Sign in to continue')}
+              {isSignup ? 'Request coach access' : isReset ? 'Reset your password' : (settings.organizationName || 'Sign in to continue')}
             </span>
           </div>
         </div>
@@ -204,7 +230,7 @@ export default function LoginScreen({ offlineNotice }) {
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {!isReset && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <label htmlFor="login-password" style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Password
           </label>
@@ -217,7 +243,13 @@ export default function LoginScreen({ offlineNotice }) {
             onChange={e => { setPassword(e.target.value); setError(''); }}
             style={{ height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '10px', fontWeight: 600 }}
           />
-        </div>
+          {!isSignup && (
+            <button type="button" onClick={() => switchMode('reset')}
+              style={{ alignSelf: 'flex-end', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', padding: '2px 0' }}>
+              Forgot password?
+            </button>
+          )}
+        </div>}
 
         {isSignup && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -265,12 +297,17 @@ export default function LoginScreen({ offlineNotice }) {
             justifyContent: 'center', gap: '10px', opacity: busy ? 0.7 : 1,
           }}
         >
-          {isSignup ? <UserPlus size={20} /> : <LogIn size={20} />}
-          {busy ? (isSignup ? 'CREATING...' : 'SIGNING IN...') : (isSignup ? 'CREATE ACCOUNT' : 'SIGN IN')}
+          {isReset ? <Mail size={20} /> : isSignup ? <UserPlus size={20} /> : <LogIn size={20} />}
+          {busy ? (isReset ? 'SENDING...' : isSignup ? 'CREATING...' : 'SIGNING IN...') : (isReset ? 'EMAIL RESET LINK' : isSignup ? 'CREATE ACCOUNT' : 'SIGN IN')}
         </button>
 
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
-          {isSignup ? (
+          {isReset ? (
+            <button type="button" onClick={() => switchMode('signin')}
+              style={{ background: 'transparent', border: 'none', color: 'var(--color-accent)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', padding: '4px' }}>
+              Back to sign in
+            </button>
+          ) : isSignup ? (
             <>
               <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
                 Creating an account does not grant access on its own — an existing coach
@@ -293,6 +330,75 @@ export default function LoginScreen({ offlineNotice }) {
             </>
           )}
         </div>
+      </form>
+    </div>
+  );
+}
+
+/**
+ * Shown after a coach opens a password-reset email link (AuthGate has already turned
+ * the link into a temporary recovery session). Sets the new password, then hands back
+ * to AuthGate, which signs them in normally.
+ */
+export function SetNewPassword({ email, onDone }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    if (password.length < 8) { setError('Use a password of at least 8 characters.'); return; }
+    if (password !== confirm) { setError('The two passwords do not match.'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      const { error: updError } = await supabase.auth.updateUser({ password });
+      if (updError) {
+        const msg = String(updError.message || '');
+        setError(/same|different from the old/i.test(msg) ? 'Choose a password different from your old one.'
+          : /weak|pwned|leaked|compromised/i.test(msg) ? 'That password has shown up in a data breach or is too weak. Pick a different one.'
+          : describeAuthError(updError));
+        setBusy(false);
+        return;
+      }
+      markSignedInBefore();
+      onDone();
+    } catch {
+      setError('Cannot reach the server. Check the connection and try again.');
+      setBusy(false);
+    }
+  };
+
+  const field = { height: '50px', padding: '0 16px', fontSize: '16px', borderRadius: '10px', fontWeight: 600 };
+  const lbl = { fontSize: '11px', fontWeight: 800, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' };
+  return (
+    <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'var(--navy-950, #050b14)' }}>
+      <form onSubmit={submit} className="card-glass glow-card" style={{ width: '100%', maxWidth: '420px', padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', borderRadius: '16px', border: '1px solid var(--color-accent)', boxShadow: '0 24px 60px rgba(0,0,0,0.7)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: '52px', height: '52px', borderRadius: '16px', background: 'rgba(184, 156, 91, 0.15)', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-accent)', flexShrink: 0 }}>
+            <KeyRound size={26} />
+          </div>
+          <div>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, margin: 0, color: 'var(--white, #fff)', textTransform: 'uppercase', letterSpacing: '0.03em', lineHeight: 1.1 }}>Set a new password</h1>
+            {email && <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600 }}>{email}</span>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label htmlFor="new-password" style={lbl}>New password</label>
+          <input id="new-password" type="password" autoComplete="new-password" className="input-glass" value={password} onChange={e => { setPassword(e.target.value); setError(''); }} style={field} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label htmlFor="new-password-confirm" style={lbl}>Confirm new password</label>
+          <input id="new-password-confirm" type="password" autoComplete="new-password" className="input-glass" value={confirm} onChange={e => { setConfirm(e.target.value); setError(''); }} style={field} />
+        </div>
+        {error && (
+          <div role="alert" style={{ padding: '12px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.45)', color: '#fca5a5' }}>{error}</div>
+        )}
+        <button type="submit" disabled={busy} style={{ height: '54px', fontSize: '16px', fontWeight: 800, borderRadius: '16px', background: 'var(--color-accent)', color: 'var(--navy-950)', border: 'none', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+          {busy ? 'SAVING...' : 'SAVE PASSWORD'}
+        </button>
       </form>
     </div>
   );

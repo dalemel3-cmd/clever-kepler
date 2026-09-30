@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, markSignedInBefore, hasSignedInBefore } from '../supabaseClient';
 import { checkApproval, wasApproved } from './approval';
-import LoginScreen from './LoginScreen';
+import LoginScreen, { SetNewPassword } from './LoginScreen';
 import PendingApproval from './PendingApproval';
 
 /**
@@ -19,14 +19,56 @@ import PendingApproval from './PendingApproval';
  *    it is, public.coaches doesn't exist and approval isn't a concept, so 'not-configured'
  *    means let everyone signed in through. The app must not break in that window.
  */
+// Password-reset links come back as /#access_token=...&refresh_token=...&type=recovery
+// (or #error=...&error_code=otp_expired). The app uses the hash for screen routing and
+// the client has detectSessionInUrl off, so read it once at load - before routing
+// rewrites it - and strip it from the address bar so the tokens don't linger there.
+const readAuthHash = () => {
+  if (typeof window === 'undefined') return null;
+  const raw = window.location.hash.replace(/^#/, '');
+  if (!/access_token=|error_code=|error=/.test(raw)) return null;
+  const p = new URLSearchParams(raw);
+  try { window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch {}
+  if (p.get('error') || p.get('error_code')) {
+    return { error: /expired/i.test(p.get('error_code') || p.get('error_description') || '')
+      ? 'That reset link has expired or was already used. Ask for a new one below.'
+      : 'That link could not be used. Ask for a new reset email below.' };
+  }
+  if (p.get('type') === 'recovery' && p.get('access_token') && p.get('refresh_token')) {
+    return { recovery: { access_token: p.get('access_token'), refresh_token: p.get('refresh_token') } };
+  }
+  return null;
+};
+const AUTH_HASH = readAuthHash();
+// True from opening a reset link until the new password is saved: the recovery session
+// is a real session, and the SIGNED_IN it fires must not skip the new-password screen.
+let inRecovery = false;
+
 export default function AuthGate({ children }) {
   const [status, setStatus] = useState('checking'); // 'checking' | 'in' | 'out' | 'pending'
   const [email, setEmail] = useState('');
   const [rechecking, setRechecking] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
 
+  const [linkError, setLinkError] = useState(AUTH_HASH?.error || '');
+
   const resolve = useCallback(async () => {
     try {
+      if (AUTH_HASH?.recovery && !AUTH_HASH.used) {
+        AUTH_HASH.used = true;
+        inRecovery = true; // before setSession: the SIGNED_IN it fires must see this
+        const { data, error } = await supabase.auth.setSession(AUTH_HASH.recovery);
+        if (error || !data?.session) {
+          inRecovery = false;
+          setLinkError('That reset link has expired or was already used. Ask for a new one below.');
+          setStatus('out');
+          return;
+        }
+        setEmail(data.session.user?.email || '');
+        setStatus('recovery');
+        return;
+      }
+      if (inRecovery) { setStatus('recovery'); return; }
       const { data } = await supabase.auth.getSession();
       const session = data?.session;
 
@@ -72,6 +114,8 @@ export default function AuthGate({ children }) {
         setStatus('out');
         return;
       }
+      if (event === 'PASSWORD_RECOVERY') inRecovery = true;
+      if (inRecovery) { setStatus('recovery'); return; }
       if (session) {
         markSignedInBefore();
         setEmail(session.user?.email || '');
@@ -113,7 +157,8 @@ export default function AuthGate({ children }) {
     );
   }
 
-  if (status === 'out') return <LoginScreen offlineNotice={!isOnline} />;
+  if (status === 'recovery') return <SetNewPassword email={email} onDone={() => { inRecovery = false; setStatus('checking'); resolve(); }} />;
+  if (status === 'out') return <LoginScreen offlineNotice={!isOnline} initialError={linkError} />;
   if (status === 'pending') return <PendingApproval email={email} onRecheck={recheck} rechecking={rechecking} />;
   return children;
 }
