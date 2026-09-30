@@ -440,7 +440,8 @@ export default function App() {
     expiredBaselines: true,
     weightLeaderboard: true,
     rawLogs: true,
-    sessionLoad: true
+    sessionLoad: true,
+    trainingFlags: true
   });
 
   // Roster State
@@ -2643,6 +2644,8 @@ export default function App() {
 
             {screen === 'reports' && (
               <ReportsScreen
+                liftLogs={liftLogs}
+                performanceTests={performanceTests}
                 settings={settings}
                 reportData={reportData}
                 reportSportFilter={reportSportFilter}

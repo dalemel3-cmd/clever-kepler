@@ -1,5 +1,6 @@
 import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Download, User } from 'lucide-react';
 import { SessionLoadSection } from './SessionLoadSection';
+import { TrainingFlagsSection } from './TrainingFlagsSection';
 import { getAthleteBaseline, getCentralDateString, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 export default function ReportsScreen({
@@ -28,7 +29,9 @@ export default function ReportsScreen({
   renderNegativeSweatDropCards,
   dehySortBy,
   setDehySortBy,
-  alertStatusMap
+  alertStatusMap,
+  liftLogs = [],
+  performanceTests = []
 }) {
 
   // 1. Filter logs
@@ -161,6 +164,7 @@ export default function ReportsScreen({
   const showSleepDeficit = reportMode === 'quick' || enabledMetrics.sleepDeficit;
   const showExpiredBaselines = reportMode === 'quick' || enabledMetrics.expiredBaselines;
   const showLeaderboard = reportMode === 'custom' && enabledMetrics.weightLeaderboard;
+  const showTrainingFlags = (settings.enableRpe || settings.enableLiftTracker || settings.enableSpeedPower) && (reportMode === 'quick' || enabledMetrics.trainingFlags !== false);
   const showSessionLoad = settings.enableRpe && (reportMode === 'quick' || enabledMetrics.sessionLoad !== false);
 
   const toggleMetric = (key) => {
@@ -355,6 +359,7 @@ export default function ReportsScreen({
                 { key: 'dehydration', label: 'Dehydration Roster', desc: `Athletes down more than ${dehydrationThreshold} lbs` },
                 { key: 'sleepDeficit', label: 'Sleep Deficit Roster', desc: `Athletes logging <${sleepThreshold}h sleep` },
                 { key: 'weightLeaderboard', label: 'Weight Leaderboard', desc: 'Top weight gains & drops' },
+                ...((settings.enableRpe || settings.enableLiftTracker || settings.enableSpeedPower) ? [{ key: 'trainingFlags', label: 'Training Flags', desc: 'Load spikes, lifts below PR, jumps/sprints off PB' }] : []),
                 ...(settings.enableRpe ? [{ key: 'sessionLoad', label: 'Session Load', desc: 'Per-athlete RPE load & A:C ratio' }] : []),
               ].map(item => {
                 const isSelected = enabledMetrics[item.key];
@@ -618,6 +623,18 @@ export default function ReportsScreen({
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Section 5c: Training Flags (from the Performance deep-dive tabs) */}
+          {showTrainingFlags && (
+            <TrainingFlagsSection
+              athletes={caseFileAthlete ? [caseFileAthlete] : filteredAthletes}
+              reportData={reportData}
+              liftLogs={liftLogs}
+              performanceTests={performanceTests}
+              settings={settings}
+              scopeLabel={caseFileAthlete ? caseFileAthlete.name : (reportSportFilter === 'ALL' ? 'All Sports' : reportSportFilter)}
+            />
           )}
 
           {/* Section 5d: Session Load Analytics (RPE) */}

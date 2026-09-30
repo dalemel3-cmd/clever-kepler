@@ -82,7 +82,7 @@ export function buildStrengthRows(athletes, liftLogs, { lift, windowWeeks = 8, n
       recentBest: recentBest == null ? null : Math.round(recentBest),
       // Best of the later half of the window vs the earlier half.
       change: recentBest != null && earlierBest ? (recentBest - earlierBest) / earlierBest : null,
-      pctOfPr: recentBest != null ? recentBest / pr.est : null,
+      pctOfPr: recentBest != null ? recentBest / e1(pr) : null, // exact vs exact: rounded PR skewed the %
       relative: bw ? pr.est / bw : null,
       bodyWeight: bw,
       sets: inWindow.length,

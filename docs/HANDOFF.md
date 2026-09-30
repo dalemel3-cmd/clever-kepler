@@ -3410,7 +3410,67 @@ app with real numbers:
   `[1,1,1]` requests, and rows missing before the server answered.
 - `tests/lift-team-log.js` now also asserts a single request.
 
-## 94. Next up
+## 94. Offline lifts/tests, Forgot password, Training Flags on the report (v5.3.3)
+
+**1. Lifts and jump/sprint results saved without signal now upload.**
+- **Before:** only weigh-ins had an offline queue. A lift or test saved with no signal
+  stayed as an `opt_...` row in that one device's cache and was never retried.
+- **Now:** `src/utils/insertQueue.js` (`useInsertQueue`) is used by `useLiftLogs` and
+  `usePerformanceTests`.
+- **How a retry stays safe:**
+  - New rows get their real UUID on the device (`newRowId`).
+  - The write is an upsert with `onConflict: 'id', ignoreDuplicates: true`, so a retry
+    of a save whose response was lost can't duplicate.
+- **When it retries:** network failures go to a localStorage queue
+  (`hpd_pending_lift_logs`, `hpd_pending_performance_tests`). It retries on the
+  `online` event, on app start, every 30 s while anything waits, and when the header
+  pill is tapped.
+- **Real rejections:** anything other than a network error (constraint, RLS) is
+  reported and the row removed. It is not retried forever.
+- **Edits and deletes** of a not-yet-uploaded row change or drop the queued copy.
+- **Rescue:** pre-v5.3.3 stranded `opt_` rows are re-queued after the first server
+  fetch, unless the server already has the same athlete + lift/test + timestamp.
+- **UI:** the header shows "N waiting to upload" (tap to retry). Save messages say
+  "saved on this device, uploads automatically" or "refused" honestly.
+- **Test:** `tests/offline-queue.js`.
+
+**2. Forgot password.**
+- The login screen has "Forgot password?" (email only). It calls
+  `resetPasswordForEmail(email, { redirectTo: origin + '/' })` and gives the same
+  neutral reply whether or not the account exists.
+- **Returning from the link:**
+  - The client has `detectSessionInUrl: false` and the app routes on the hash, so
+    `AuthGate` reads `#access_token…&type=recovery` once at load, strips it from the
+    address bar, and calls `setSession`.
+  - A module-level `inRecovery` flag holds the "Set a new password" screen until
+    `updateUser({ password })` succeeds. `setSession`'s own SIGNED_IN event would
+    otherwise drop the user straight into the app.
+  - Expired or used links show a clear message on the login screen.
+- **Manual steps (Supabase dashboard):**
+  - Authentication → URL Configuration: the production URL
+    (`https://clever-kepler.vercel.app`) must be the Site URL or in Redirect URLs.
+    Otherwise the link falls back to the Site URL. Preview URLs aren't allowlisted, so
+    test resets on production.
+  - Authentication → Policies (or Attack Protection): turn on **leaked password
+    protection**. The new-password screen already explains a breached-password
+    rejection.
+- **Test:** `tests/password-reset.js`.
+
+**3. Training Flags on Print Report.**
+- `src/features/reports/TrainingFlagsSection.jsx` gathers the deep-dive tabs' warnings
+  using their own functions, so the report and the tabs agree:
+  - RPE: load spike, high monotony, underloaded
+  - Strength: "N% of PR"
+  - Jumps & Sprints: "N% off PB"
+- It follows the report's sport/athlete filters, lists red flags first, and ends with a
+  one-line list of new PRs/PBs.
+- It's on in the Quick report and a toggle in Custom (`enabledMetrics.trainingFlags`).
+- ReportsScreen now receives `liftLogs` and `performanceTests`.
+- Also fixed: Strength "% of PR" divided the unrounded recent best by the rounded PR,
+  so it could read 74% next to "226 vs 303". It now compares exact values.
+- **Test:** `tests/report-training-flags.js`.
+
+## 95. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
