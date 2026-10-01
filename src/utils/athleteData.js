@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.3.9';
+export const APP_VERSION = 'v5.4.0';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -360,11 +360,15 @@ export const getWeeklyWeightDelta = (reportData, athleteId, { days = 7 } = {}) =
   if (logs.length < 2) return null;
 
   const current = logs[0];
-  const cutoff = current.at - days * 24 * 60 * 60 * 1000;
-  // The nearest log at/before the cutoff; short of a full week of history, fall
-  // back to the oldest log available so a coach still sees a labeled trend
-  // rather than nothing, just over fewer days than `days`.
-  const prior = logs.find(l => l.at <= cutoff) || logs[logs.length - 1];
+  // Compare by program calendar day, not by exact hours: "on or before the same day
+  // last week". An hours cutoff skipped a weigh-in taken a little later in the day
+  // (9/24 4pm is less than 7x24h before 10/1 3pm) and fell back to the one before it,
+  // so the same card read 7d for one athlete and 14d for the next.
+  const dayOf = (t) => getCentralDateString(new Date(t));
+  const cutoffDay = dayOf(new Date(`${dayOf(current.at)}T12:00:00Z`).getTime() - days * 24 * 60 * 60 * 1000);
+  // Short of a full week of history, fall back to the oldest log so a coach still
+  // sees a trend (the card shows which weigh-in it's compared against).
+  const prior = logs.find(l => dayOf(l.at) <= cutoffDay) || logs[logs.length - 1];
   if (!prior || prior.at === current.at) return null;
 
   return {
@@ -373,7 +377,8 @@ export const getWeeklyWeightDelta = (reportData, athleteId, { days = 7 } = {}) =
     delta: Math.round((current.weight - prior.weight) * 10) / 10,
     currentAt: current.at,
     previousAt: prior.at,
-    daysBetween: Math.max(1, Math.round((current.at - prior.at) / (24 * 60 * 60 * 1000))),
+    daysBetween: Math.max(1, Math.round((new Date(`${dayOf(current.at)}T12:00:00Z`) - new Date(`${dayOf(prior.at)}T12:00:00Z`)) / (24 * 60 * 60 * 1000))),
+    previousDay: dayOf(prior.at),
   };
 };
 

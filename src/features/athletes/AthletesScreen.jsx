@@ -425,7 +425,12 @@ export default function AthletesScreen({
                     {weeklyDelta ? `${weeklyDelta.delta > 0 ? '+' : ''}${weeklyDelta.delta} lb` : 'Not enough data'}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
-                    {weeklyDelta ? `Weight change (${weeklyDelta.daysBetween}d)` : 'Weekly weight change'}
+                    Weekly weight change
+                    {weeklyDelta && (
+                      <span style={{ display: 'block', textTransform: 'none', marginTop: '2px' }}>
+                        vs {Number(weeklyDelta.previousDay.slice(5, 7))}/{Number(weeklyDelta.previousDay.slice(8, 10))}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

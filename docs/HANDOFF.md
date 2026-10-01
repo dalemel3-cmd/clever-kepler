@@ -3659,7 +3659,21 @@ parts are left out. **Test:** `tests/profile-subtext.js`.
 - Sets above 10 reps keep counting toward est. 1RM, PRs and leaderboards, even though
   Epley runs high there.
 
-## 101. Next up
+## 101. Consistent weekly weight change on the Athletes card (v5.4.0)
+
+- **Symptom:** the Athletes card's "Weight change (Nd)" read 7d for one athlete, 10d or
+  14d for another.
+- **Cause:** `getWeeklyWeightDelta` picked the latest weigh-in at least 7×24 h before the
+  current one. A weigh-in on the same day last week but later in the day (9/24 4 pm vs
+  10/1 3 pm) was skipped, and the one before it was used. Drake Schmidt showed −6.1 vs
+  9/17 instead of −5.3 vs 9/24.
+- **Fix:** it now compares by Central calendar day: the latest weigh-in on or before the
+  same day last week. With under a week of history it falls back to the oldest weigh-in.
+  It also returns `previousDay`.
+- **Card:** always labeled "Weekly weight change", with "vs M/D" underneath.
+- **Test:** `tests/weekly-weight-change.js`.
+
+## 102. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
