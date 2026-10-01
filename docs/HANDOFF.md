@@ -3568,7 +3568,28 @@ once), but each one still landed in the daily error check.
   error isn't reported, and that an unrecovered one still is. It fails against v5.3.6
   as expected.
 
-## 99. Next up
+## 99. Roster data + profile subtext (v5.3.8)
+
+**Roster data (written directly to production, 2026-10-01).**
+- **Football:** all 51 active players got `grade` (SR/JR/SO/FR → 12th/11th/10th/9th,
+  matching the "e.g. 10th" placeholder) and a position, from the Fall 2026 roster CSV.
+  - Position was merged into the baseline-meta JSON in `athletes.position` with a jsonb
+    merge, so `bw`/`bd`/`lid` were untouched (checked all 51).
+  - The stored text is now jsonb-formatted (`{"bd": …, "pos": "LB"}`).
+    `parseAthleteMeta` reads it fine, and `encodeAthleteMeta` rewrites the app's own
+    format on the next baseline change.
+  - Kallen Hunnicutt is on the roster but not in the DB, so he was not added (per the
+    user).
+  - Wyatt Fryer was listed twice (RB #44, OL #64); the user confirmed TE.
+- **Volleyball:** grades for all 20 listed players. Name fixed: "Ryleigh McMluve" →
+  "Ryleigh McClure" (athletes row plus her 7 `performance_tests.athlete_name` rows).
+  If Plyomat still has the old spelling, her next sync lands in the review list.
+  Hannah Storg and Klaire Rodgers weren't on the list and are unchanged.
+
+**Profile subtext.** The profile header now reads "Football · LB · 11th · <org>". Missing
+parts are left out. **Test:** `tests/profile-subtext.js`.
+
+## 100. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

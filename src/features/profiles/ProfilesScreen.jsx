@@ -409,7 +409,8 @@ export default function ProfilesScreen({
           <div style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 6vw, 34px)', fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.05, color: '#fff', letterSpacing: '0.02em', overflowWrap: 'anywhere' }}>{athlete.name}</h1>
             <span style={{ fontSize: '15px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-              <strong style={{ color: '#fff' }}>{athlete.sport || 'Athletics'}</strong> &middot; {settings.organizationName}
+              <strong style={{ color: '#fff' }}>{athlete.sport || 'Athletics'}</strong>
+              {[athlete.position, athlete.grade, settings.organizationName].filter(Boolean).map(t => ` · ${t}`).join('')}
             </span>
           </div>
 
