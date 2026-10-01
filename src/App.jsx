@@ -1068,7 +1068,13 @@ export default function App() {
           sleep_hrs: !isNaN(parseFloat(rec.sleep_hrs)) ? parseFloat(rec.sleep_hrs) : 0,
           created_at: rec.created_at || new Date().toISOString(),
           session_type: rec.session_type || null,
-          is_baseline: !!rec.is_baseline
+          is_baseline: !!rec.is_baseline,
+          // Session RPE fields. Before v5.4.1 these were left out here, so an RPE entry
+          // saved while the kiosk was offline uploaded as an empty session (no RPE, no
+          // minutes, no label) - three WSOC rows on 2026-09-28 were exactly this.
+          rpe: rec.rpe ?? null,
+          session_minutes: rec.session_minutes ?? null,
+          session_label: rec.session_label ?? null,
         };
         let success = false;
         if (item.action === 'update' && item.id && !String(item.id).startsWith('opt_') && !String(item.id).startsWith('offline_')) {
@@ -1087,7 +1093,9 @@ export default function App() {
               sport: cleanPayload.sport,
               weight_lbs: cleanPayload.weight_lbs || 0,
               sleep_hrs: cleanPayload.sleep_hrs || 0,
-              created_at: cleanPayload.created_at
+              created_at: cleanPayload.created_at,
+              // Never drop an RPE session's values in the fallback either.
+              ...(cleanPayload.session_type === 'rpe' ? { session_type: 'rpe', rpe: cleanPayload.rpe, session_minutes: cleanPayload.session_minutes, session_label: cleanPayload.session_label } : {}),
             };
             const resMini = await supabase.from('weigh_ins').insert([mini]);
             if (!resMini.error) success = true;
@@ -1257,6 +1265,11 @@ export default function App() {
       };
       if (rec.is_baseline !== undefined) cleanPayload.is_baseline = rec.is_baseline;
       if (rec.session_type !== undefined) cleanPayload.session_type = rec.session_type;
+      if (rec.rpe != null) {
+        cleanPayload.rpe = rec.rpe;
+        cleanPayload.session_minutes = rec.session_minutes ?? null;
+        cleanPayload.session_label = rec.session_label ?? null;
+      }
 
       let res = await supabase.from('weigh_ins').insert([cleanPayload]);
       if (res.error) {
@@ -1597,10 +1610,15 @@ export default function App() {
     // Session RPE entry either - doing so blanked the athlete's weight (or wiped their RPE)
     // depending on which order the two were entered. Each log type owns its own row per day.
     const isRpeEntry = kioskTrackMode === 'rpe';
+    // Session RPE is per SESSION, not per day: a morning lift and an afternoon run are
+    // two sessions and both count toward the day's load. Before v5.4.1 the second one
+    // matched the first here and "Override Log" replaced it, so a two-session day only
+    // ever kept one. Now only the same session type on the same day counts as a repeat.
     const existingRecord = reportData.find(r => {
       if (r.athlete_id !== selectedAthlete.id) return false;
       if (isPostPracticeLog(r)) return false;
       if (isRpeLog(r) !== isRpeEntry) return false;
+      if (isRpeEntry && (r.session_label || '') !== (rpeLabelInput || '')) return false;
       return getCentralDateString(new Date(r.created_at)) === todayCentralStr;
     });
     
@@ -1608,7 +1626,9 @@ export default function App() {
       setConfirmModal({
         isOpen: true,
         title: 'Overwrite Today Log?',
-        message: `A record already exists for ${selectedAthlete.name} today. Do you want to update and override their recorded entry?`,
+        message: isRpeEntry
+          ? `${selectedAthlete.name} already logged a ${rpeLabelInput} session today. Replace it? (A different session - e.g. a Run after a Lift - is saved separately; pick that session type instead.)`
+          : `A record already exists for ${selectedAthlete.name} today. Do you want to update and override their recorded entry?`,
         isDanger: false,
         actionText: 'Override Log',
         onConfirm: () => handleSave(isBaselineOverride, true)

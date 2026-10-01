@@ -3673,7 +3673,49 @@ parts are left out. **Test:** `tests/profile-subtext.js`.
 - **Card:** always labeled "Weekly weight change", with "vs M/D" underneath.
 - **Test:** `tests/weekly-weight-change.js`.
 
-## 102. Next up
+## 102. Session RPE logging fixes + Reports weekly weight (v5.4.1)
+
+From a check of the production RPE log. 372 sessions; every athlete had exactly one
+session per day, 92% labeled "Lift" and the rest "Combined".
+
+1. **Only one RPE session per athlete per day could be kept.**
+   - The kiosk's "already logged today?" check matched any RPE row from today. A second
+     session (Run after a Lift) prompted "Overwrite Today Log?", and confirming
+     *replaced* the first, so a two-session day only ever kept one. That's likely why
+     "Combined" got used.
+   - Now only the same session label on the same day counts as a repeat (still asks
+     before replacing). Different sessions are separate rows, and all of them count
+     toward the day's load.
+2. **Offline RPE sessions uploaded empty.**
+   - The weigh-in offline queue (`syncOfflineCache`) and Force Upload built their
+     payloads without `rpe`, `session_minutes` or `session_label`. An RPE session saved
+     with no signal reached the cloud as an empty session.
+   - Three WSOC rows on 2026-09-28 (KJ Shelton, Ava Haymond, Maryn Butler, saved within
+     16 s) are exactly this. Their real values are unrecoverable.
+   - Both paths now carry all three fields, including the minimal-payload fallback.
+3. **Empty RPE rows counted as RPE-0 sessions.**
+   - `isRpeLog` now requires `rpe > 0`, so a no-value row isn't a session anywhere. It
+     still isn't a weigh-in, since it has no weight.
+   - Those three rows had been pulling down averages (RPE tab, Reports Session Load,
+     Analytics).
+4. **Print Report week-to-week weight list** now uses `getWeeklyWeightDelta`, the same
+   calendar-day rule as the Athletes card (§101). Only a full week back counts.
+
+**Checked and fine:**
+- RPE 2–9, median 6.
+- Minutes 30–60.
+- sRPE load = RPE × minutes.
+- A:C, monotony and strain math (tests `acwr-math.js`, `rpe-deep-dive.js`).
+
+**Not changed:**
+- The three empty WSOC rows are left in the table (the user decides whether to delete
+  them).
+- The default labels are Lift / Run / Combined. Practice is never logged, so load
+  reflects weight-room work only, unless that's intended.
+
+**Tests:** `tests/rpe-sessions.js` (new), `tests/weekly-weight-change.js` [C].
+
+## 103. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.4.0';
+export const APP_VERSION = 'v5.4.1';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -276,7 +276,10 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
 };
 
 // RPE & Training Load Predicates
-export const isRpeLog   = (r) => r?.session_type === 'rpe' || (r?.rpe != null && !r?.weight_lbs);
+// A Session RPE row that actually carries an RPE. An RPE-typed row with no value (the
+// offline-queue bug fixed in v5.4.1 uploaded three) used to count as an RPE-0 session,
+// dragging every average down; it isn't a session, so it isn't counted anywhere.
+export const isRpeLog   = (r) => (r?.session_type === 'rpe' || (r?.rpe != null && !r?.weight_lbs)) && Number(r?.rpe) > 0;
 export const hasWeight  = (r) => r?.weight_lbs != null && Number(r.weight_lbs) > 0;
 export const hasSleep   = (r) => r?.sleep_hrs != null && Number(r.sleep_hrs) > 0;
 

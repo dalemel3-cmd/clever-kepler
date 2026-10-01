@@ -1,7 +1,7 @@
 // Run with:  node tests/weekly-weight-change.js
 // Requires a preview server on http://127.0.0.1:4173 and Playwright.
 //
-// v5.4.0: the Athletes card's weekly weight change compares against the latest
+// v5.4.0 (+ v5.4.1 Reports): the Athletes card's weekly weight change compares against the latest
 // weigh-in on or before the same calendar day last week (Central), so a slightly
 // later time of day no longer skips that weigh-in. The label is always "Weekly weight
 // change" with "vs M/D", instead of drifting between (7d), (10d), (14d).
@@ -65,6 +65,12 @@ check('label reads "Weekly weight change"', /WEEKLY WEIGHT CHANGE/i.test(txt), (
 check('no drifting "(Nd)" label', !/WEIGHT CHANGE \(\d+D\)/i.test(txt));
 check('shows which weigh-in it compares to ("vs M/D")', /vs \d{1,2}\/\d{1,2}/.test(txt));
 check('value is -5.3 lb', /-5\.3 lb/.test(txt), (txt.match(/[-+][\d.]+ lb/g) || []).join(','));
+
+console.log('\n[C] Print Report week-to-week list uses the same rule');
+await page.goto(`${APP}/#reports`); await page.waitForTimeout(2200);
+await page.getByRole('button', { name: /custom/i }).first().click(); await page.waitForTimeout(500);
+const rep = await page.locator('main').innerText();
+check('report compares Drake against 9/24 (255 -> 249.7, -5.3)', /255 → 249\.7 lbs\)[\s\S]{0,40}-5\.3 lbs/.test(rep), (rep.match(/\([\d.]+ → [\d.]+ lbs\)[^\n]*\n?[^\n]*/) || [''])[0]);
 await browser.close();
 
 console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);

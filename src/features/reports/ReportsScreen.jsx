@@ -1,7 +1,7 @@
 import { Printer, Zap, Sliders, Filter, CheckSquare, Square, AlertTriangle, Activity, Shield, Download, User } from 'lucide-react';
 import { SessionLoadSection } from './SessionLoadSection';
 import { TrainingFlagsSection } from './TrainingFlagsSection';
-import { getAthleteBaseline, getCentralDateString, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
+import { getAthleteBaseline, getCentralDateString, isPostPracticeLog, isRpeLog, getWeeklyWeightDelta } from '../../utils/athleteData';
 
 export default function ReportsScreen({
   settings,
@@ -130,22 +130,21 @@ export default function ReportsScreen({
   // sleep-only logs with weight 0/null used to register as huge bogus "drops" like
   // 185 -> 0 lbs; post-practice sweat checks are excluded too, or a normal fluid loss
   // reads as a week of weight loss).
+  // Same calculation as the Athletes card (getWeeklyWeightDelta): the weigh-in on or
+  // before the same calendar day last week. The old exact-7x24h cutoff skipped a
+  // weigh-in taken a little later in the day, comparing against two weeks back or
+  // dropping the athlete from the list. Only a true week back counts here - a
+  // fallback to "oldest available" would read a few days as a week.
   const gains = [];
   filteredAthletes.forEach(a => {
-    const aRecs = reportData.filter(r => r.athlete_id === a.id && r.weight_lbs && Number(r.weight_lbs) > 0 && !isPostPracticeLog(r) && !isRpeLog(r)).sort((x,y) => new Date(x.created_at) - new Date(y.created_at));
-    if (aRecs.length === 0) return;
-    const latest = aRecs[aRecs.length - 1];
-    const weekAgoCutoff = new Date(latest.created_at).getTime() - 7 * 24 * 60 * 60 * 1000;
-    const priorLogs = aRecs.filter(r => r !== latest && new Date(r.created_at).getTime() <= weekAgoCutoff);
-    if (priorLogs.length === 0) return;
-    const weekAgo = priorLogs[priorLogs.length - 1];
-    const diff = latest.weight_lbs - weekAgo.weight_lbs;
+    const d = getWeeklyWeightDelta(reportData, a.id);
+    if (!d || d.daysBetween < 7) return;
     gains.push({
       athlete_name: a.name,
       sport: a.sport,
-      initial_weight: weekAgo.weight_lbs,
-      latest_weight: latest.weight_lbs,
-      diff
+      initial_weight: d.previous,
+      latest_weight: d.current,
+      diff: d.delta,
     });
   });
   const topGains = [...gains].sort((a,b) => b.diff - a.diff).slice(0, 5);
