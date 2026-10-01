@@ -66,7 +66,9 @@ export default function ReportsScreen({
   const filteredAthletes = (reportSportFilter === 'ALL' ? athletes : athletes.filter(a => a.sport === reportSportFilter))
     .filter(a => reportAthleteFilter === 'ALL' || a.id === reportAthleteFilter);
 
-  // 2. Dehydration Roster (LIVE status: Latest weigh-in vs Official Baseline, >=2% drop)
+  // 2. Dehydration Roster (LIVE status: latest weigh-in vs official baseline, down more than
+  //    settings.dehydrationThreshold LBS). Deliberately pounds, not % of body mass - the
+  //    staff want one hard number to have the conversation at (decided 2026-10-01).
   // Post-practice sweat-check logs are excluded - comparing those against baseline
   // false-flags every athlete as dehydrated after a normal practice (same fix already
   // applied on Dashboard and in the Alerts daily-alert computation).

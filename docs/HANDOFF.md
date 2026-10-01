@@ -3652,11 +3652,12 @@ parts are left out. **Test:** `tests/profile-subtext.js`.
 - PowerScreen recomputed on every render when there were no tests (unstable `[]`).
 - Profile result edit inputs got aria-labels.
 
-**Decisions left for the user:**
-- Dehydration threshold is a flat 2.0 lb (`dehydrationThreshold`). A comment in Reports
-  says "≥2%". A % of body mass (standard ~2%) would stop over-flagging linemen and
-  under-flagging light athletes.
-- Epley overestimates above about 10 reps (12-rep sets exist).
+**Decided by the user (2026-10-01). Keep as is; don't "fix" these:**
+- The dehydration threshold stays in **pounds** (`dehydrationThreshold`, 2.0 lb), not % of
+  body mass. Staff want one hard number to have the conversation at. The Reports comment
+  that said "≥2%" has been corrected.
+- Sets above 10 reps keep counting toward est. 1RM, PRs and leaderboards, even though
+  Epley runs high there.
 
 ## 101. Next up
 
