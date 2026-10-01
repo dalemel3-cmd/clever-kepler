@@ -3715,7 +3715,19 @@ session per day, 92% labeled "Lift" and the rest "Combined".
 
 **Tests:** `tests/rpe-sessions.js` (new), `tests/weekly-weight-change.js` [C].
 
-## 103. Next up
+## 103. Retry "JWT issued at future" (v5.4.2)
+
+- **Symptom:** app_errors on 2026-10-01 had `athletes:fetch` → "JWT issued at future".
+  Right after a token refresh, a device whose clock runs slightly behind the auth server
+  presents a token the database sees as not yet valid. The read failed and the roster
+  stayed empty until a manual refresh.
+- **Fix:** `supabaseClient.js` now passes a `global.fetch` wrapper (`skewSafeFetch`).
+  - A 401 whose body says "issued at future", "nbf" or "not yet valid" is retried up to
+    twice, waiting 1.5 s and then 3 s.
+  - Every other response, including other 401s, is returned untouched.
+- **Test:** `tests/clock-skew-retry.js`. It fails against v5.4.1.
+
+## 104. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
