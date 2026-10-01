@@ -111,7 +111,7 @@ const SORTS = [
 ];
 
 export default function PowerScreen({ athletes, performanceTests, setSelectedProfileId, fetchProfileData, setScreen, setProfileEntryScreen }) {
-  const tests = performanceTests || [];
+  const tests = React.useMemo(() => performanceTests || [], [performanceTests]);
   const [testKey, setTestKey] = React.useState(TEST_TYPES[1]?.key || TEST_TYPES[0].key);
   const variants = React.useMemo(() => variantsFor(tests, testKey), [tests, testKey]);
   const [variantPick, setVariantPick] = React.useState(null);

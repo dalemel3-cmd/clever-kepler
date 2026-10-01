@@ -91,5 +91,18 @@ console.log('\n[G] Chronic window setting is honoured');
   check('steady load over 8 weeks still reads ~1.0', near(wide.ratio, 1.0, 0.05), String(wide.ratio));
 }
 
+console.log('\n[H] Return from a layoff that started before the chronic window is a spike');
+{
+  // Trained daily for weeks 8..4 ago, injured (nothing) days 27..8, back to full
+  // training the past 7 days. Weeks of history = 8 (first session ever), not the ~1 week
+  // the in-window logs alone would suggest.
+  const before = sessions(56, 5, 60).filter(l => (NOW - new Date(l.created_at).getTime()) >= 28 * 86400000);
+  const back = sessions(7, 7, 60);
+  const r = computeAcuteChronicLoad([...before, ...back], { chronicWeeks: 4, trackDuration: true, now: NOW });
+  check('history counts from the first session ever (~8 weeks)', r.weeksOfHistory > 7.5, String(r.weeksOfHistory));
+  check('chronic average divides by the full 4-week window', near(r.chronicAvgWeeklyLoad, (7 * 420) / 4, 1), String(r.chronicAvgWeeklyLoad));
+  check('return-to-training reads as a spike (A:C 4.0, not null or ~1)', near(r.ratio, 4.0, 0.05), String(r.ratio));
+}
+
 console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
 process.exit(fail === 0 ? 0 : 1);

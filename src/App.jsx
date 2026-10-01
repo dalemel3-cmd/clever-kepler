@@ -124,9 +124,6 @@ export default function App() {
   // screen with its own state - sport + sort - worth returning to intact); every
   // other entry point keeps the existing behavior of just deselecting the profile.
   const [profileEntryScreen, setProfileEntryScreen] = useState(null);
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState('ALL');
-  const [selectedGradeFilter, setSelectedGradeFilter] = useState('ALL');
-  const [selectedPositionFilter, setSelectedPositionFilter] = useState('ALL');
   const [nameSortOrder, setNameSortOrder] = useState('first'); // 'first' | 'last'
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true, actionText: 'Confirm' }); // optional: requireText for typed confirmation
   const [confirmTypedText, setConfirmTypedText] = useState('');
@@ -137,7 +134,6 @@ export default function App() {
   const [showMergePanel, setShowMergePanel] = useState(false);
   const [mergeSourceId, setMergeSourceId] = useState('');
   const [mergeTargetId, setMergeTargetId] = useState('');
-  const [mergeSuccessMsg, setMergeSuccessMsg] = useState('');
   const [showManualEntryModal, setShowManualEntryModal] = useState(false);
   const [manualEntryForm, setManualEntryForm] = useState({
     athleteId: '',
@@ -273,12 +269,9 @@ export default function App() {
         (a.position && String(a.position).toLowerCase().includes(q));
 
       const matchesSport = sportFilter === 'ALL' || a.sport === sportFilter;
-      const matchesTeam = selectedTeamFilter === 'ALL' || a.team === selectedTeamFilter;
-      const matchesGrade = selectedGradeFilter === 'ALL' || a.grade === selectedGradeFilter;
-      const matchesPosition = selectedPositionFilter === 'ALL' || a.position === selectedPositionFilter;
 
-      // When searching by name in Kiosk mode or elsewhere, don't let active dropdown filters hide the matching athlete
-      return matchesSearch && (hasQuery || (matchesSport && matchesTeam && matchesGrade && matchesPosition));
+      // When searching by name in Kiosk mode or elsewhere, don't let the sport filter hide the matching athlete
+      return matchesSearch && (hasQuery || matchesSport);
     })
     .sort((a, b) => {
       if (nameSortOrder === 'last') {
@@ -295,13 +288,13 @@ export default function App() {
     });
   const filteredAthletes = React.useMemo(() => filterRoster(search, selectedSportFilter),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [athletes, search, selectedSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
+    [athletes, search, selectedSportFilter, nameSortOrder]);
   const kioskAthletes = React.useMemo(() => filterRoster(kioskSearch, 'ALL'),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [athletes, kioskSearch, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
+    [athletes, kioskSearch, nameSortOrder]);
   const profileAthletes = React.useMemo(() => filterRoster(profileSearch, profileSportFilter),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [athletes, profileSearch, profileSportFilter, selectedTeamFilter, selectedGradeFilter, selectedPositionFilter, nameSortOrder]);
+    [athletes, profileSearch, profileSportFilter, nameSortOrder]);
   const [isKioskMode, setIsKioskMode] = useState(false);
   // The kiosk has its own search (kioskSearch) and its own sport pills, so the
   // Athletes tab's filters never carry over; just clear any stale kiosk search.
@@ -2341,36 +2334,42 @@ export default function App() {
     }
   };
 
+  // Moves every record of the duplicate onto the kept athlete, then deletes the
+  // duplicate. Before v5.3.9 only weigh_ins were moved and no step's error was checked:
+  // the delete then failed on the lift/test foreign keys (they're ON DELETE NO ACTION),
+  // the duplicate vanished from the screen anyway and came back on the next load still
+  // holding its lifts and jump/sprint results - and the success message was never shown.
   const handleMergeAthletes = async () => {
     if (!mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId) return;
+    const targetAthlete = athletes.find(a => a.id === mergeTargetId);
+    if (!targetAthlete) return;
     setSaving(true);
     try {
-      const targetAthlete = athletes.find(a => a.id === mergeTargetId);
-      if (!targetAthlete) return;
-      
-      await supabase.from('weigh_ins').update({
-        athlete_id: targetAthlete.id,
-        athlete_name: targetAthlete.name,
-        sport: targetAthlete.sport
-      }).eq('athlete_id', mergeSourceId);
+      const moves = [
+        ['weigh_ins', { athlete_id: targetAthlete.id, athlete_name: targetAthlete.name, sport: targetAthlete.sport }],
+        ['lift_logs', { athlete_id: targetAthlete.id, athlete_name: targetAthlete.name, sport: targetAthlete.sport }],
+        ['performance_tests', { athlete_id: targetAthlete.id, athlete_name: targetAthlete.name, sport: targetAthlete.sport }],
+        ['alert_status', { athlete_id: targetAthlete.id }],
+      ];
+      for (const [table, patch] of moves) {
+        const { error } = await supabase.from(table).update(patch).eq('athlete_id', mergeSourceId);
+        if (error) throw new Error(`moving ${table.replace('_', ' ')}: ${error.message}`);
+      }
+      const { error: delError } = await supabase.from('athletes').delete().eq('id', mergeSourceId);
+      if (delError) throw new Error(`removing the duplicate: ${delError.message}`);
 
-      setReportData(prev => prev.map(log => {
-        if (log.athlete_id === mergeSourceId) {
-          return { ...log, athlete_id: targetAthlete.id, athlete_name: targetAthlete.name, sport: targetAthlete.sport };
-        }
-        return log;
-      }));
-
-      await supabase.from('athletes').delete().eq('id', mergeSourceId);
+      setReportData(prev => prev.map(log => (log.athlete_id === mergeSourceId
+        ? { ...log, athlete_id: targetAthlete.id, athlete_name: targetAthlete.name, sport: targetAthlete.sport }
+        : log)));
       setAthletes(prev => prev.filter(a => a.id !== mergeSourceId));
-
       setMergeSourceId('');
       setMergeTargetId('');
-      setMergeSuccessMsg(`Successfully merged all records into ${targetAthlete.name} and removed duplicate!`);
-      setSaved(true);
-      setTimeout(() => { setSaved(false); setMergeSuccessMsg(''); }, 5000);
+      showToast(`Merged into ${targetAthlete.name}: weigh-ins, lifts and test results moved, duplicate removed.`);
     } catch (e) {
-      console.error("Merge error:", e);
+      reportDataError(e, 'athletes:merge');
+      // Nothing is lost on a partial failure: every move is an update, and the duplicate
+      // is only deleted after all of them succeed. Running the merge again finishes it.
+      showToast(`Merge didn't finish (${e.message}). Nothing was lost - try again.`, 'error');
     } finally {
       setSaving(false);
     }
@@ -2462,8 +2461,6 @@ export default function App() {
           organizationName={settings.organizationName}
           isKioskMode={isKioskMode}
           setIsKioskMode={setIsKioskMode}
-          onActivateKioskMode={handleActivateKioskMode}
-          setScreen={setScreen}
           isOnline={isOnline}
           isRefreshing={isRefreshing}
           unsyncedQueueCount={unsyncedQueueCount}

@@ -1149,7 +1149,11 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
     ? attempted.reduce((worst, r) => (r.rank.percentile < worst.rank.percentile ? r : worst))
     : null;
 
-  const startEdit = (t) => setEditing(prev => ({ ...prev, [t.id]: { metric: String(t.metric), date: String(t.created_at).slice(0, 10), variant: t.test_variant || '' } }));
+  // Program-calendar (Central) day, not the UTC slice of created_at: a result from an
+  // evening session is already "tomorrow" in UTC, which showed the wrong day here and -
+  // because saving rewrote created_at from this field - moved the result to it.
+  const testDay = (t) => getCentralDateString(new Date(t.created_at));
+  const startEdit = (t) => setEditing(prev => ({ ...prev, [t.id]: { metric: String(t.metric), date: testDay(t), variant: t.test_variant || '' } }));
   const cancelEdit = (id) => setEditing(prev => { const next = { ...prev }; delete next[id]; return next; });
 
   const saveEdit = async (t) => {
@@ -1164,8 +1168,10 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
     setSavingId(t.id);
     await updatePerformanceTest(t.id, {
       metric: v,
-      created_at: centralWallTimeToISO(draft.date, '12:00'),
       test_variant: draft.variant || null,
+      // Only move the result when the coach actually changed its day - fixing a typo in
+      // the value must not also rewrite the real time a Plyomat capture happened.
+      ...(draft.date !== testDay(t) ? { created_at: centralWallTimeToISO(draft.date, '12:00') } : {}),
     });
     setSavingId(null);
     cancelEdit(t.id);
@@ -1175,7 +1181,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
     setConfirmModal({
       isOpen: true,
       title: 'Delete Test Result',
-      message: `Delete this ${TEST_TYPE_BY_KEY[t.test_type]?.label || t.test_type} result (${formatMetric(t.metric, t.unit)} on ${String(t.created_at).slice(0, 10)})?`,
+      message: `Delete this ${TEST_TYPE_BY_KEY[t.test_type]?.label || t.test_type} result (${formatMetric(t.metric, t.unit)} on ${testDay(t)})?`,
       isDanger: true,
       actionText: 'Delete',
       onConfirm: async () => { await deletePerformanceTest(t.id); },
@@ -1232,12 +1238,12 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                                 {formatMetric(r.attempts[0].metric, r.attempts[0].unit)}
                               </span>
                               <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                Most recent &middot; {String(r.attempts[0].created_at).slice(0, 10)}
+                                Most recent &middot; {getCentralDateString(new Date(r.attempts[0].created_at))}
                               </span>
                             </>
                           ) : (
                             <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Also their most recent &middot; {String(r.attempts[0].created_at).slice(0, 10)}
+                              Also their most recent &middot; {getCentralDateString(new Date(r.attempts[0].created_at))}
                             </span>
                           )}
                           {trend && Math.abs(trend.pct) >= 0.1 && (
@@ -1281,6 +1287,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                                     <>
                                       <input
                                         type="date"
+                                        aria-label="Result date"
                                         value={draft.date}
                                         max={getCentralDateString()}
                                         onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], date: e.target.value } }))}
@@ -1289,6 +1296,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                                       <input
                                         type="text"
                                         inputMode="decimal"
+                                        aria-label="Result value"
                                         value={draft.metric}
                                         onChange={e => setEditing(prev => ({ ...prev, [t.id]: { ...prev[t.id], metric: cleanDecimalTyping(e.target.value) } }))}
                                         style={{ width: '60px', fontSize: '11px', padding: '4px 6px', borderRadius: '6px', background: 'var(--navy-900)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center' }}
@@ -1302,7 +1310,7 @@ function AthleteSpeedPowerCard({ athlete, athletes, performanceTests, updatePerf
                                     </>
                                   ) : (
                                     <>
-                                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', flex: '1 1 auto' }}>{String(t.created_at).slice(0, 10)}</span>
+                                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', flex: '1 1 auto' }}>{testDay(t)}</span>
                                       {hasVariants && (
                                         <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '2px 6px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)' }}>
                                           {t.test_variant ? VARIANT_LABEL[t.test_variant] : UNTAGGED_VARIANT_LABEL}

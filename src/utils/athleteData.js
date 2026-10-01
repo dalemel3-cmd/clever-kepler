@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.3.8';
+export const APP_VERSION = 'v5.3.9';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -24,7 +24,6 @@ export const configureProgramContext = ({ programTimezone, seasonStartDate } = {
   if (seasonStartDate) SEASON_START_DATE = seasonStartDate;
 };
 
-export const getProgramTimezone = () => PROGRAM_TIMEZONE;
 
 // Season start rendered the way dates appear elsewhere in the UI.
 const seasonStartDisplay = () => {
@@ -96,7 +95,6 @@ export const configureWeightBounds = (min, max) => {
   if (isFinite(max)) WEIGHT_BOUNDS.max = Number(max);
 };
 export const isPlausibleWeight = (w) => typeof w === 'number' && !isNaN(w) && w > WEIGHT_BOUNDS.min && w <= WEIGHT_BOUNDS.max;
-export const getWeightBounds = () => ({ ...WEIGHT_BOUNDS });
 // Typed numbers (weights, reps, sprint times, jump heights). Forgiving about how a
 // coach types - "185 lbs", "185lb", " 185 ", "185,5" (decimal comma), "1.62s",
 // "24.5 in" - but still strict (kg is rejected, not silently read as lb) about what the number is: parseFloat("1.2.3") is 1.2
@@ -325,7 +323,12 @@ export const computeAcuteChronicLoad = (rpeLogs = [], { chronicWeeks = 4, trackD
   // Weeks of history counts calendar days INCLUSIVE of both the oldest session and today
   // (28 days of sessions is 4 weeks of training, not 27/7 = 3.86), so that the acute
   // numerator and the weekly denominator are measured on the same footing.
-  const oldest = chronic.length ? Math.min(...chronic.map(at).filter(t => !isNaN(t))) : nowMs;
+  // From the athlete's FIRST session on record (not the first one inside the chronic
+  // window): an athlete with months of history returning from a two-week layoff must be
+  // divided by the full window, or their missed weeks vanish from the chronic average and
+  // the return-to-training spike - the one that matters most - reads as normal.
+  const past = rpeLogs.map(at).filter(t => !isNaN(t) && t <= nowMs);
+  const oldest = past.length ? Math.min(...past) : nowMs;
   const weeksOfHistory = (Math.floor((nowMs - oldest) / dayMs) + 1) / 7;
   const effectiveWeeks = Math.min(chronicWeeks, Math.max(weeksOfHistory, 1));
   const chronicAvgWeeklyLoad = effectiveWeeks > 0 ? chronicLoadTotal / effectiveWeeks : 0;
@@ -342,36 +345,13 @@ export const computeAcuteChronicLoad = (rpeLogs = [], { chronicWeeks = 4, trackD
   };
 };
 
-// Fixed per-sport avatar colors (Quick Entry's kiosk grid, and the entry modal's own
-// avatar) so every athlete on a sport reads as one group at a glance, instead of each
-// name hashing to an arbitrary, unrelated color. Sports not listed fall back to
-// DEFAULT_SPORT_COLOR rather than throwing or rendering blank.
-export const SPORT_COLORS = {
-  Football: '#8a5a2b',
-  Volleyball: '#5b6e3e',
-  Wrestling: '#6b3a5b',
-  Baseball: '#2c3e6b',
-  Softball: '#6b4226',
-  'Track & Field': '#3b6e6e',
-  'Cross Country': '#4b3e6b',
-  Basketball: '#6b5b2e',
-  Soccer: '#2e5b4b',
-  Cheer: '#6b2e3e',
-  Dance: '#6b2e3e',
-  Golf: '#3e4e6b',
-  Tennis: '#3e4e6b',
-  Swimming: '#3b6e6e',
-};
-export const DEFAULT_SPORT_COLOR = '#3e4e6b';
-export const getSportColor = (sport) => SPORT_COLORS[sport] || DEFAULT_SPORT_COLOR;
-
 // Most recent real body weight vs. the closest one at/before `days` earlier
 // (default 7 - a week-over-week trend), from real weigh-ins only (post-practice
 // sweat checks and RPE-only rows carry no trustworthy weight). Returns null
 // when there's no second weigh-in far enough back to compare against, rather
 // than a misleading same-day or one-log "delta". Kept here (not in a specific
 // screen) so any screen can show a weekly trend without recomputing it.
-export const getWeeklyWeightDelta = (reportData, athleteId, { days = 7, now = Date.now() } = {}) => {
+export const getWeeklyWeightDelta = (reportData, athleteId, { days = 7 } = {}) => {
   const logs = (reportData || [])
     .filter(r => r.athlete_id === athleteId && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r))
     .map(r => ({ weight: Number(r.weight_lbs), at: new Date(r.created_at).getTime() }))

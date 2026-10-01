@@ -57,7 +57,6 @@ export default function AthletesScreen({
   settings,
   isAddingAthlete,
   filteredAthletes,
-  athletes,
   search,
   setSearch,
   sportsList,

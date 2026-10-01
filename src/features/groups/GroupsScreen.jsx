@@ -1,4 +1,4 @@
-import { getAthleteBaseline, isRpeLog, hasSleep } from '../../utils/athleteData';
+import { getAthleteBaseline, isRpeLog, hasSleep, getCentralDateString, isPostPracticeLog } from '../../utils/athleteData';
 
 export default function GroupsScreen({
   sportsList,
@@ -75,13 +75,25 @@ export default function GroupsScreen({
           {(() => {
             const activeSport = bulkBaselineSport || (sportsList.length > 0 ? sportsList[0] : 'Football');
             const sportAthleteIds = new Set(athletes.filter(a => (a.sport || '').toLowerCase() === activeSport.toLowerCase()).map(a => a.id));
-            const sportLogs = reportData.filter(l => sportAthleteIds.has(l.athlete_id) && l.weight_lbs && Number(l.weight_lbs) > 0);
+            // Only real pre-practice weigh-ins can be a baseline: a post-practice sweat check
+            // is the athlete at their most dehydrated, and baselining on it hid later drops.
+            const sportLogs = reportData.filter(l => sportAthleteIds.has(l.athlete_id) && l.weight_lbs && Number(l.weight_lbs) > 0
+              && !isPostPracticeLog(l) && !isRpeLog(l));
 
             const dateGroups = {};
             sportLogs.forEach(l => {
-              const dStr = l.created_at.slice(0, 10);
-              if (!dateGroups[dStr]) dateGroups[dStr] = { date: dStr, logs: [], display: new Date(l.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) };
+              // Program (Central) calendar day: the UTC slice put evening weigh-ins under
+              // the next day, so a Monday 7pm session showed up (and got baselined) as Tuesday.
+              const dStr = getCentralDateString(new Date(l.created_at));
+              if (!dateGroups[dStr]) dateGroups[dStr] = { date: dStr, logs: [], display: new Date(`${dStr}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) };
               dateGroups[dStr].logs.push(l);
+            });
+            // One weigh-in per athlete per day - their first (pre-practice) one - so a
+            // second weigh-in that day can't overwrite it and the athlete count is real.
+            Object.values(dateGroups).forEach(g => {
+              const first = new Map();
+              g.logs.forEach(l => { const cur = first.get(l.athlete_id); if (!cur || new Date(l.created_at) < new Date(cur.created_at)) first.set(l.athlete_id, l); });
+              g.logs = [...first.values()];
             });
             const availableDates = Object.values(dateGroups).sort((a,b) => b.date.localeCompare(a.date));
             const selectedDateObj = availableDates.find(d => d.date === bulkBaselineDate) || availableDates[0];

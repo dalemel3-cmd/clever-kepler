@@ -51,9 +51,20 @@ export function useAlertFeeds({ athletes, dehydrationThreshold, reportData, sett
     const now = Date.now();
     const alerts = [];
 
+    // Newest first, so each athlete's alert reflects their latest reading in the window.
     const todaysRecords = reportData.filter(r => {
       return (now - new Date(r.created_at).getTime()) <= 24 * 60 * 60 * 1000;
-    });
+    }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    // One card per athlete per alert type. The window is a rolling 24h, so yesterday
+    // afternoon's weigh-in and today's could both sit in it and showed two dehydration
+    // cards for the same athlete; only the latest reading counts now.
+    const seen = new Set();
+    const firstFor = (athleteId, type) => {
+      const k = `${athleteId}|${type}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    };
 
     const athleteById = new Map(athletes.map(a => [a.id, a]));
     const baselineByAthlete = new Map();
@@ -68,7 +79,7 @@ export function useAlertFeeds({ athletes, dehydrationThreshold, reportData, sett
       const athlete = athleteById.get(r.athlete_id);
       const positionStr = athlete?.position ? ` · ${athlete.position}` : '';
 
-      if (r.sleep_hrs != null && r.sleep_hrs > 0 && r.sleep_hrs < sleepThreshold) {
+      if (r.sleep_hrs != null && r.sleep_hrs > 0 && firstFor(r.athlete_id, 'sleep') && r.sleep_hrs < sleepThreshold) {
         const streak = alertStreakLookup(r.athlete_id, 'sleep');
         alerts.push({
           id: r.id + '_sleep',
@@ -90,7 +101,7 @@ export function useAlertFeeds({ athletes, dehydrationThreshold, reportData, sett
       const activeBaseline = baseInfo ? { id: baseInfo.id, weight_lbs: baseInfo.weight_lbs } : null;
       const baselineDateStr = baseInfo ? baseInfo.date_str : 'Established';
 
-      if (activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs && r.weight_lbs && !isPostPracticeLog(r)) {
+      if (r.weight_lbs && !isPostPracticeLog(r) && firstFor(r.athlete_id, 'weight') && activeBaseline && activeBaseline.id !== r.id && activeBaseline.weight_lbs) {
         const drop = activeBaseline.weight_lbs - r.weight_lbs;
         const dropPercent = drop / activeBaseline.weight_lbs;
         if (drop > dehydrationThreshold) {

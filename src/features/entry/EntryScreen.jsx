@@ -24,7 +24,6 @@ export default function EntryScreen({
   nameSortOrder,
   setNameSortOrder,
   unweighedOnlyFilter,
-  setUnweighedOnlyFilter,
   entryAthleteId,
   setEntryAthleteId,
   handleSelectAthleteForEntry,
@@ -48,8 +47,7 @@ export default function EntryScreen({
   reportData,
   saving,
   handleCreateAthlete,
-  isAddingAthlete,
-  screen
+  isAddingAthlete
 }) {
   // Last recorded weight for the open athlete - shown as a ghost placeholder and used
   // to seed the +/- steppers, but never pre-filled into the input (a pre-filled value
@@ -95,7 +93,6 @@ export default function EntryScreen({
   // sport-pill row filters this screen only - it deliberately does NOT touch the shared
   // selectedSportFilter that AthletesScreen/ProfilesScreen read, so switching sports on
   // Quick Entry never surprises a coach who left another screen filtered differently.
-  const [searchOverlayOpen, setSearchOverlayOpen] = React.useState(false);
   // Opened from a Teams card's "Weigh-In Status": start filtered to that sport, then
   // clear the hand-off so the next ordinary visit opens on All.
   const [localSportFilter, setLocalSportFilter] = React.useState(entrySportFilter || 'All');
@@ -106,7 +103,6 @@ export default function EntryScreen({
 
   const closeSearchOverlay = () => {
     setSearch('');
-    setSearchOverlayOpen(false);
   };
 
   // Groups the roster into one section per sport, in sportsList's canonical order (not
@@ -319,13 +315,11 @@ export default function EntryScreen({
                         <AthleteCard
                           key={a.id}
                           athleteId={a.id}
-                          name={safeName}
                           sport={a.sport}
                           displayName={nameSortOrder === 'last' ? `${getLastName(safeName)}, ${getFirstName(safeName)}` : safeName}
                           initials={nameSortOrder === 'last'
                             ? `${getLastName(safeName)[0] || ''}${getFirstName(safeName)[0] || ''}`
                             : initialsFor(safeName)}
-                          isSelected={entryAthleteId === a.id}
                           isDoneToday={athletesRecordedToday.has(a.id)}
                           onSelect={handleSelectAthleteForEntry}
                           position={a.position || ''}

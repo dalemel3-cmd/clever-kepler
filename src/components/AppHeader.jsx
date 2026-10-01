@@ -35,8 +35,6 @@ export function AppHeader({
   organizationName,
   isKioskMode,
   setIsKioskMode,
-  onActivateKioskMode,
-  setScreen,
   isOnline,
   isRefreshing,
   unsyncedQueueCount,

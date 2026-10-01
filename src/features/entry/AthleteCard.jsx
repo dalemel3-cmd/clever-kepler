@@ -4,11 +4,9 @@ import React from 'react';
 // Memoized to prevent heavy re-renders.
 function AthleteCard({
   athleteId,
-  name,
   sport,
   displayName,
   initials,
-  isSelected,
   isDoneToday,
   onSelect,
   position = '',

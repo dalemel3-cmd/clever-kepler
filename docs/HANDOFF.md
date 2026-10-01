@@ -3589,7 +3589,76 @@ once), but each one still landed in the daily error check.
 **Profile subtext.** The profile header now reads "Football · LB · 11th · <org>". Missing
 parts are left out. **Test:** `tests/profile-subtext.js`.
 
-## 100. Next up
+## 100. Audit: bugs, math and dead code (v5.3.9)
+
+**Bugs fixed** (each one reproduced against v5.3.8 by `tests/audit-fixes.js`):
+
+1. **Merging duplicate athletes half-finished.**
+   - What happened: only `weigh_ins` were moved. Then `athletes.delete` ran with no
+     error check.
+   - Why it failed: lift_logs, performance_tests and alert_status point at athletes with
+     ON DELETE NO ACTION, so the delete failed. The duplicate disappeared from the
+     screen, came back on reload still holding its lifts and tests, and the success
+     message state was never rendered.
+   - Now: all four tables move, every step is checked, and the delete happens last.
+     Success and failure toasts are shown. A partial failure loses nothing; running the
+     merge again finishes it.
+2. **Profile → edit a Speed & Power result moved it to another day.**
+   - The date box pre-filled with the UTC slice of `created_at`, and saving always
+     rewrote `created_at` to noon on that date. Fixing only the value of an 8:30 pm
+     result moved it to the next day at noon.
+   - Now the Central day is shown, and `created_at` changes only if the coach changes
+     the date. The list and delete confirmation also show the Central day.
+3. **Teams → Set Team Baselines.**
+   - Grouping is now by Central day. The UTC slice put 60 evening weigh-ins in
+     production under the next day.
+   - Post-practice sweat checks and RPE rows were offered as baselines. The most
+     dehydrated weight of the day could become the baseline and hide later drops.
+     Both are now excluded.
+   - One weigh-in per athlete per day (the first), so the "N weighed in" count is
+     athletes, not rows.
+4. **Duplicate alert cards.** Alerts use a rolling 24 h window, so yesterday-afternoon
+   and today weigh-ins both produced a Dehydration card (likewise for sleep). Now there
+   is one card per athlete per type, from the latest reading.
+
+**Math:**
+- `computeAcuteChronicLoad` now counts `weeksOfHistory` from the athlete's first RPE
+  session ever, not the first inside the chronic window.
+  - Before, an athlete returning from a layoff that began before the window was treated
+    as brand new. The chronic average was divided by fewer weeks, and the
+    return-to-training spike read as normal or as "no ratio".
+  - New case `[H]` in `tests/acwr-math.js` (A:C 4.0).
+  - In practice the app loads 30 days of weigh-ins, so this shows up most where longer
+    history is loaded.
+- Strength "% of PR" now compares exact values (done in v5.3.3; re-checked).
+
+**Checked and fine:**
+- A:C half-open window and steady-state ≈ 1.0 (existing tests).
+- Monotony uses the population SD over 7 Central days.
+- Sprint vs jump direction.
+- Settings defaults always merged, so `rpeTrackDuration` is consistent.
+- Only 3 of 372 RPE sessions lack minutes.
+- Lift reps max at 12 (Epley is reasonable to about 10–12).
+
+**Dead code removed:**
+- `getSportColor` / `SPORT_COLORS` / `DEFAULT_SPORT_COLOR`, `getProgramTimezone`,
+  `getWeightBounds` (no callers).
+- Team/grade/position roster filters with no UI (always 'ALL'), and the never-shown
+  `mergeSuccessMsg`.
+- Unused props: AppHeader `onActivateKioskMode`/`setScreen`, SettingsScreen threshold
+  props, AthletesScreen `athletes`, AthleteCard `name`/`isSelected`, EntryScreen
+  `screen`/`setUnweighedOnlyFilter`/`searchOverlayOpen`.
+- Unused `now` option on `getWeeklyWeightDelta`.
+- PowerScreen recomputed on every render when there were no tests (unstable `[]`).
+- Profile result edit inputs got aria-labels.
+
+**Decisions left for the user:**
+- Dehydration threshold is a flat 2.0 lb (`dehydrationThreshold`). A comment in Reports
+  says "≥2%". A % of body mass (standard ~2%) would stop over-flagging linemen and
+  under-flagging light athletes.
+- Epley overestimates above about 10 reps (12-rep sets exist).
+
+## 101. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
