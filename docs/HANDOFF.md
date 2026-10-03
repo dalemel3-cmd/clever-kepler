@@ -3727,7 +3727,23 @@ session per day, 92% labeled "Lift" and the rest "Combined".
   - Every other response, including other 401s, is returned untouched.
 - **Test:** `tests/clock-skew-retry.js`. It fails against v5.4.1.
 
-## 104. Next up
+## 104. Weigh-in no longer pre-fills 8.0 h sleep (v5.4.3)
+
+- **Finding:** all 371 weigh-ins from Aug 19 to Oct 1 2026 have `sleep_hrs` exactly 8.0.
+- **Cause:** `handleSelectAthleteForEntry` and the add-guest flow pre-set
+  `sleepInput = '8.0'`, so every weigh-in saved 8 h unless someone tapped another value.
+  The low-sleep alert (< `sleepThreshold`) could therefore never fire, and every sleep
+  average and chart read a flat 8.
+- **Fix:** sleep now starts blank.
+  - Blank saves `sleep_hrs = 0`. That already means "not recorded" everywhere: `hasSleep`
+    is > 0, and alerts, profile charts and averages all skip 0.
+  - Sleep stays optional on a weigh-in, so the kiosk has no extra step.
+  - Sleep Only mode still requires a value.
+- **Historical rows:** the 371 rows are left as 8.0, unchanged. The user decides whether
+  to clear them to 0 so they stop reading as real sleep.
+- **Test:** `tests/sleep-not-prefilled.js`.
+
+## 105. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

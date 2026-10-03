@@ -1585,7 +1585,11 @@ export default function App() {
     // as a ghost placeholder in the entry modal instead, and Save stays disabled
     // until a real value is entered.
     setWeightInput('');
-    setSleepInput('8.0');
+    // Sleep starts BLANK. Pre-filling 8.0 meant every weigh-in recorded 8h unless
+    // someone changed it - all 371 weigh-ins Aug 19-Oct 1 2026 read exactly 8.0, so the
+    // low-sleep alert could never fire. Blank saves as 0 = "not recorded", which every
+    // sleep chart, average and alert already skips. Sleep stays optional on a weigh-in.
+    setSleepInput('');
     setRpeInput('');
     setRpeDurationInput('');
     setRpeLabelInput('');
@@ -2170,7 +2174,7 @@ export default function App() {
         if (screen === 'entry') {
           setEntryAthleteId(createdAthlete.id);
           setWeightInput('');
-          setSleepInput('8.0');
+          setSleepInput('');
           setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight');
         }
       }
