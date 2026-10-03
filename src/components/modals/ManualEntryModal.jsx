@@ -258,8 +258,8 @@ export function ManualEntryModal({
                   showToast(`Enter a valid RPE (1–${settings.rpeScaleMax}).`, 'error');
                   return;
                 }
-                if (settings.rpeTrackDuration && !(durationNum > 0)) {
-                  showToast('Enter a valid session duration in minutes.', 'error');
+                if (settings.rpeTrackDuration && !(durationNum > 0 && durationNum <= (settings.rpeMaxMinutes || 240))) {
+                  showToast(`Enter the session length in minutes (1–${settings.rpeMaxMinutes || 240}).`, 'error');
                   return;
                 }
               } else if (!isPlausibleWeight(parseWeightInput(manualEntryForm.weight))) {

@@ -1606,7 +1606,7 @@ export default function App() {
     // Duration is only required when the program is tracking it; the scale ceiling comes
     // from settings, not a hardcoded 10, so raising rpeScaleMax actually raises the cap.
     if (kioskTrackMode === 'rpe' && (!rpeInput || parseFloat(rpeInput) <= 0 || parseFloat(rpeInput) > settings.rpeScaleMax || !rpeLabelInput)) return;
-    if (kioskTrackMode === 'rpe' && settings.rpeTrackDuration && (!rpeDurationInput || parseFloat(rpeDurationInput) <= 0)) return;
+    if (kioskTrackMode === 'rpe' && settings.rpeTrackDuration && (!rpeDurationInput || parseFloat(rpeDurationInput) <= 0 || parseFloat(rpeDurationInput) > (settings.rpeMaxMinutes || 240))) return;
 
     const todayCentralStr = getCentralDateString();
     // The overwrite prompt only ever compares like with like. A morning weigh-in must not

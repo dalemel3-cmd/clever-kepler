@@ -94,6 +94,9 @@ export const DEFAULT_SETTINGS = {
   // a handful of round numbers anyway. Tiles are quicker to tap and keep the RPE
   // number itself as the only field that still needs manual entry.
   rpeDurationQuickPicks: [15, 20, 25, 30, 35, 40, 45, 50, 60, 75, 90],
+  // Longest believable session. A minutes value above this is refused, so a stray
+  // keypad digit (45 -> 455) can't be saved as a 7-hour session.
+  rpeMaxMinutes: 240,
   rpeLoadSpikeRatio: 1.3,
   rpeChronicWeeks: 4,
 
@@ -131,6 +134,7 @@ const NUMERIC_BOUNDS = {
   rpeHighThreshold: [1, 100],
   rpeLoadSpikeRatio: [0.1, 10.0],
   rpeChronicWeeks: [1, 52],
+  rpeMaxMinutes: [10, 600],
 };
 
 const coerce = (key, value, fallback) => {

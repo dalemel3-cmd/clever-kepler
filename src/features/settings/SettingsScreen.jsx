@@ -286,6 +286,7 @@ export default function SettingsScreen({
                 { key: 'rpeChronicWeeks', label: 'Chronic Load Window', unit: 'weeks', step: 1, min: 1, max: 52, help: 'How far back the "normal" training load is averaged.' },
                 { key: 'rpeSessionLabels', label: 'Session Labels', type: 'list', help: 'Buttons the athlete picks from, comma separated.' },
                 { key: 'rpeDurationQuickPicks', label: 'Duration Tiles (Minutes)', type: 'list', help: 'Only shown when "Also Ask For Duration" is on. Tap-to-select tiles, comma separated.' },
+                { key: 'rpeMaxMinutes', label: 'Longest Session', unit: 'min', step: 15, min: 10, max: 600, help: 'A session longer than this is refused as a typo (e.g. 455 instead of 45).' },
               ]
             },
             {

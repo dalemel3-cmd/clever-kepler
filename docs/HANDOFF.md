@@ -3743,7 +3743,27 @@ session per day, 92% labeled "Lift" and the rest "Combined".
   to clear them to 0 so they stop reading as real sleep.
 - **Test:** `tests/sleep-not-prefilled.js`.
 
-## 105. Next up
+## 105. Kiosk number pad typed into hidden fields (v5.4.3)
+
+- **Report:** an RPE session's minutes came out as 455 instead of 45.
+- **Cause:** the kiosk's on-screen `KioskNumpad` types into `focusedField`. Tapping a
+  duration tile (`45 MIN`) set `focusedField = 'rpe_duration'`. Minutes have no visible
+  input, only the tiles, so nothing showed the pad had moved. The athlete's next pad tap,
+  meant for RPE, was appended to minutes (45 → 455), RPE stayed empty, and there was no
+  upper limit on minutes.
+  - Production has no 455-type rows (all 30–60). The bad value was caught on screen, or
+    Save stayed disabled because RPE was empty.
+  - The same trap existed in Weight + Sleep mode: tapping a sleep tile moved the pad to
+    sleep, so the weight typed next went into sleep (clamped to 24 h) and weight stayed
+    empty.
+- **Fix:**
+  - Duration tiles keep the pad on RPE; the pad no longer has a minutes target at all.
+  - Sleep tiles keep the pad on weight, except in Sleep Only mode.
+  - New setting `rpeMaxMinutes` (default 240, range 10–600, Settings → Session RPE →
+    "Longest Session"). The kiosk Save and the manual entry modal refuse minutes above it.
+- **Test:** `tests/kiosk-pad-focus.js`. It fails against v5.4.2 exactly as reported.
+
+## 106. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

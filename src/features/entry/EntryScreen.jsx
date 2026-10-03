@@ -65,7 +65,7 @@ export default function EntryScreen({
   const canSave = !saving && (
     kioskTrackMode === 'sleep_only' ? parseFloat(sleepInput) > 0
     : kioskTrackMode === 'rpe' ? (parseFloat(rpeInput) > 0 && parseFloat(rpeInput) <= (settings.rpeScaleMax || 10) && !!rpeLabelInput
-        && (!settings.rpeTrackDuration || parseFloat(rpeDurationInput) > 0))
+        && (!settings.rpeTrackDuration || (parseFloat(rpeDurationInput) > 0 && parseFloat(rpeDurationInput) <= (settings.rpeMaxMinutes || 240))))
     : isPlausibleWeight(parseWeightInput(weightInput))
   );
 
@@ -405,7 +405,10 @@ export default function EntryScreen({
                           key={val}
                           type="button"
                           className={`py-2 rounded-lg font-headline-md text-sm ${sleepInput === val ? 'bg-[#b89c5b] text-[#030a14] font-bold border border-[#b89c5b]' : 'bg-[#061c41] border border-[#2a313d] text-white hover:bg-[#030a14]'}`}
-                          onClick={() => { setSleepInput(val); setFocusedField('sleep'); }}
+                          // Same trap as the minutes tiles: in Weight + Sleep mode the tile used to move
+                          // the pad to sleep, so the weight typed next landed in sleep (8.0 -> 8.0185,
+                          // clamped to 24h) with weight still empty. The pad stays on weight there.
+                          onClick={() => { setSleepInput(val); setFocusedField(kioskTrackMode === 'sleep_only' ? 'sleep' : 'weight'); }}
                         >
                           {val}h
                         </button>
@@ -439,7 +442,10 @@ export default function EntryScreen({
                               key={val}
                               type="button"
                               className={`py-2 rounded-lg font-headline-md text-sm ${rpeDurationInput === val ? 'bg-[#b89c5b] text-[#030a14] font-bold border border-[#b89c5b]' : 'bg-[#061c41] border border-[#2a313d] text-white hover:bg-[#030a14]'}`}
-                              onClick={() => { setRpeDurationInput(val); setFocusedField('rpe_duration'); }}
+                              // Minutes come only from these tiles. The tile used to point the number pad
+                              // at minutes, invisibly - so the athlete's next tap, meant for RPE, was
+                              // appended to it (45 -> 455). The pad now stays on RPE.
+                              onClick={() => { setRpeDurationInput(val); setFocusedField('rpe'); }}
                             >
                               {val} MIN
                             </button>
@@ -468,8 +474,8 @@ export default function EntryScreen({
 
                 <div className="sm:w-64 flex-shrink-0">
                   <KioskNumpad
-                    value={focusedField === 'weight' ? weightInput : (focusedField === 'rpe' ? rpeInput : (focusedField === 'rpe_duration' ? rpeDurationInput : sleepInput))}
-                    onChange={val => focusedField === 'weight' ? setWeightInput(val) : (focusedField === 'rpe' ? setRpeInput(String(val).replace(/[^0-9]/g, '')) : (focusedField === 'rpe_duration' ? setRpeDurationInput(String(val).replace(/[^0-9]/g, '')) : setSleepInput(val)))}
+                    value={focusedField === 'weight' ? weightInput : (focusedField === 'rpe' ? rpeInput : sleepInput)}
+                    onChange={val => focusedField === 'weight' ? setWeightInput(val) : (focusedField === 'rpe' ? setRpeInput(String(val).replace(/[^0-9]/g, '')) : setSleepInput(val))}
                     onEnter={handleSave}
                   />
                 </div>
