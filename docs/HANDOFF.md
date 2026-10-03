@@ -3739,8 +3739,8 @@ session per day, 92% labeled "Lift" and the rest "Combined".
     is > 0, and alerts, profile charts and averages all skip 0.
   - Sleep stays optional on a weigh-in, so the kiosk has no extra step.
   - Sleep Only mode still requires a value.
-- **Historical rows:** the 371 rows are left as 8.0, unchanged. The user decides whether
-  to clear them to 0 so they stop reading as real sleep.
+- **Historical rows:** the 371 rows are left as 8.0. The user decided (2026-10-03) to
+  keep them. Sleep data before 2026-10-03 is the 8.0 default, not real sleep.
 - **Test:** `tests/sleep-not-prefilled.js`.
 
 ## 105. Kiosk number pad typed into hidden fields (v5.4.3)
