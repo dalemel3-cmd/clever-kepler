@@ -3763,7 +3763,51 @@ session per day, 92% labeled "Lift" and the rest "Combined".
     "Longest Session"). The kiosk Save and the manual entry modal refuse minutes above it.
 - **Test:** `tests/kiosk-pad-focus.js`. It fails against v5.4.2 exactly as reported.
 
-## 106. Next up
+## 106. Printable metric leaderboard (v5.4.4)
+
+Built from the user's design handoff "HPD Metric Leaderboard (Printable)". The design
+bundle wasn't committed; its spec is summarized here.
+
+- **Files:**
+  - `src/features/leaderboard/printLeaderboardData.js`: pure functions: metrics,
+    ranking, sparkline, change, pagination.
+  - `PrintLeaderboard.jsx`: full-screen print view, lazy-loaded.
+  - `public/hp-logo.png`: the handoff logo.
+- **Opened from:** the "Printable leaderboard" button on the Lift Tracker leaderboard
+  (starts on that lift and sport), and on Jumps & Sprints (that test and technique).
+- **Controls:**
+  - Metric: every lift with data (est. 1RM, lb), plus every Speed & Power test ×
+    technique (vertical/board in, 10yd fly s, lower is better)
+  - Scope: Full roster / Top 10 only
+  - Team
+  - Period (season / 30 d / 7 d / all), plus an optional label override
+- **Ranking:** best result per athlete in the period (min when lower is better). Ties go
+  to the most recent test, then name.
+- **Sessions:** one per athlete per test day, their best that day.
+- **Sparkline:** x slots are the team's distinct test days; y uses the athlete's own
+  range, inverted when lower is better.
+- **Change:** latest − first, shown with a real minus sign (U+2212). "—" for fewer than
+  2 tests or no change.
+- **Class:** grad year from `grade` (school year rolls over in August: a 12th grader in
+  Oct 2026 is the Class of 2027).
+- **Pages:**
+  - Every page is 816×1056 px (US Letter).
+  - Page 1 is the Top 10 with rows at flex:1.
+  - Continuation pages hold 22 rows at a fixed 36 px.
+  - Colors, type and spacing are exactly the handoff's.
+  - Manrope and Oswald italic were added to the Google Fonts link in `index.html`.
+- **Exports:**
+  - **PDF:** `window.print()`. Scoped print CSS hides the app (`html body.lb-printing >
+    #root`, which outranks the Reports print rule that forces #root visible),
+    `@page { size: letter; margin: 0 }`, and one page per sheet.
+  - **PNG:** `html-to-image` (new dependency), 2× (1632×2112) per page. Google fonts are
+    fetched and embedded as data URLs; offline it falls back to system fonts.
+- **Test:** `tests/print-leaderboard.js` (24 checks: page geometry, counts, ranking,
+  colors, lower-is-better, print isolation, PDF page count and Letter MediaBox, PNG size).
+- **Note:** `npm install` removed the untracked Playwright. Reinstall it with
+  `npm i --no-save playwright@1.56` to run the tests.
+
+## 107. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

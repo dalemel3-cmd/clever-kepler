@@ -1,7 +1,7 @@
 {
   "name": "clever-kepler",
   "private": true,
-  "version": "5.4.3",
+  "version": "5.4.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
+    "html-to-image": "^1.11.13",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "recharts": "^3.10.1",

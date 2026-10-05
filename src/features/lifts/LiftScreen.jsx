@@ -9,6 +9,7 @@ import { estimate1RM, buildLeaderboard, RANK_MODES, TIMEFRAMES, timeframeBounds,
 import { renderLeaderboardPng, shareOrDownload } from './leaderboardImage';
 import LiftExportPanel from './LiftExportPanel';
 import LiftTeamEntryPanel from './LiftTeamEntryPanel';
+const PrintLeaderboard = React.lazy(() => import('../leaderboard/PrintLeaderboard'));
 export { estimate1RM };
 
 // The best set an athlete has ever logged for a given lift, ranked by estimated 1RM
@@ -31,6 +32,7 @@ export default function LiftScreen({
   settings,
   athletes,
   liftLogs,
+  performanceTests = [],
   reportData,
   addLift,
   addLifts,
@@ -71,6 +73,7 @@ export default function LiftScreen({
   const [pngBusy, setPngBusy] = React.useState(false);
   const [exportOpen, setExportOpen] = React.useState(false);
   const [teamLogOpen, setTeamLogOpen] = React.useState(false);
+  const [printLbOpen, setPrintLbOpen] = React.useState(false);
   // Editing a previously-logged set (wrong weight/reps, or logged under the wrong
   // exercise entirely) - a separate small form inline in the Recent Lifts list,
   // rather than deleting and re-adding.
@@ -1042,6 +1045,14 @@ export default function LiftScreen({
                     <span aria-hidden="true" className="material-symbols-outlined text-lg">image</span>
                     {pngBusy ? 'Making image…' : 'Download PNG'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintLbOpen(true)}
+                    className="flex items-center gap-1.5 px-space-md py-2 rounded-lg font-headline-md text-headline-md uppercase transition-colors bg-surface-container hover:bg-surface-container-high text-on-surface"
+                  >
+                    <span aria-hidden="true" className="material-symbols-outlined text-lg">print</span>
+                    Printable leaderboard
+                  </button>
                 </div>
               </div>
               {rankBy === 'relative' && missingBodyWeight > 0 && (
@@ -1136,6 +1147,20 @@ export default function LiftScreen({
           </div>
         </div>,
         document.body
+      )}
+
+      {printLbOpen && (
+        <React.Suspense fallback={null}>
+          <PrintLeaderboard
+            athletes={athletes}
+            liftLogs={liftLogs}
+            performanceTests={performanceTests}
+            settings={settings}
+            initialMetricKey={`lift:${leaderboardLift}`}
+            initialSport={leaderboardSportFilter}
+            onClose={() => setPrintLbOpen(false)}
+          />
+        </React.Suspense>
       )}
 
       {teamLogOpen && (

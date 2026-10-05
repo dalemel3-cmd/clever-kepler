@@ -2663,6 +2663,8 @@ export default function App() {
               <PowerScreen
                 athletes={athletes}
                 performanceTests={performanceTests}
+                liftLogs={liftLogs}
+                settings={settings}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}
@@ -2789,6 +2791,7 @@ export default function App() {
                 settings={settings}
                 athletes={athletes}
                 liftLogs={liftLogs}
+                performanceTests={performanceTests}
                 reportData={reportData}
                 addLift={addLift}
                 addLifts={addLifts}
