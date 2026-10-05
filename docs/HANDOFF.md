@@ -3807,7 +3807,17 @@ bundle wasn't committed; its spec is summarized here.
 - **Note:** `npm install` removed the untracked Playwright. Reinstall it with
   `npm i --no-save playwright@1.56` to run the tests.
 
-## 107. Next up
+## 107. Readiness Report (v5.4.5)
+
+The Reports tab is now the Readiness Report from the second design handoff (Part 2).
+- Data: `src/features/reports/readinessData.js` (`buildReadinessReport`) - pure; tiles count the same lists the sections show. Sweat loss reuses `computeSweatDrops` (extracted from `NegativeSweatDropCards.jsx`), load reuses `computeAcuteChronicLoad`.
+- Document: `src/features/reports/ReadinessReport.jsx` - inline handoff styles; the whole doc is one table whose `<tfoot>` is the running footer (repeats per printed page); section tables use `<thead>`.
+- Screen: `ReportsScreen.jsx` - sport selector (filters every section + kicker), Weigh-in needed toggle, CSV, Export PDF (portal `.rr-print-root`, body class `rr-printing`, `@page letter 0.5in`). Calls `ensureReportWindow(90)` so days-since-weigh-in are known.
+- Thresholds: mass drop uses `dehydrationThreshold` (lb); spike A:C >= 1.5, high >= `rpeLoadSpikeRatio`, under < 0.8; flags 5%+ off best; PRs 14 days; weigh-in 14 days.
+- Removed: quick/custom mode, timeframe picker, athlete case file, weight leaderboard, Training Flags and Session Load sections (that detail lives in Analytics deep dives).
+- Tests: `tests/readiness-report.js` (16). `reports-cleanup.js` and `report-training-flags.js` deleted; `settings-live.js` updated.
+
+## 108. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

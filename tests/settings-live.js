@@ -81,8 +81,7 @@ const logs = [
   await setSettings({ dehydrationThreshold: 3.3, baselineExpiryDays: 21 });
   await page.goto(`${APP}/#reports`); await page.waitForTimeout(1800);
   body = await page.locator('body').innerText();
-  check('[REPORTS HDR] dehydration header echoes 3.3 lbs', /3\.3 LBS DOWN/i.test(body));
-  check('[REPORTS HDR] baseline section echoes 21 days', /21\+ days/i.test(body));
+  check('[REPORTS HDR] readiness tile echoes 3.3 lb', />3\.3 lb below baseline/i.test(body));
 
   // 4. Sleep bands: with target 7.5 a 7.0h log is "Adequate"; raise deficit cutoff to 7.2 -> "Deficit"
   await setSettings({ sleepThreshold: 6.5, sleepTargetHours: 7.5 });

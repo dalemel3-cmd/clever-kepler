@@ -1,22 +1,12 @@
 import { getAthleteBaseline, getCentralDateString, isPostPracticeLog } from '../../utils/athleteData';
 
 
-// Post-practice negative sweat-drop alert cards (Alerts + Reports). Split out of
-// App.jsx, which still owns the data and passes it in.
-export function NegativeSweatDropCards({
-  forceShow = false,
-  maxAgeDays = null,
-  athletes,
-  fetchProfileData,
-  reportData,
-  screen,
-  setScreen,
-  setSelectedProfileId,
-  settings,
-}) {
+// Post-practice weigh-ins that came in below that day's pre-practice weight (or the
+// nearest earlier real weigh-in / baseline). Shared by these cards and the Readiness
+// Report, so the two always list the same athletes with the same numbers.
+export function computeSweatDrops({ athletes, reportData, settings, maxAgeDays = null, includeOld = false }) {
   const list = [];
   const now = new Date();
-  const shouldShowEmpty = forceShow || screen === 'reports';
   const effectiveMaxAgeDays = maxAgeDays != null ? maxAgeDays : settings.postPracticeLookbackDays;
 
   athletes.forEach(ath => {
@@ -26,7 +16,7 @@ export function NegativeSweatDropCards({
 
     const latestPP = ppLogs[ppLogs.length - 1];
     const daysOld = (now - new Date(latestPP.created_at)) / (1000 * 60 * 60 * 24);
-    if (daysOld > effectiveMaxAgeDays && !shouldShowEmpty) return;
+    if (daysOld > effectiveMaxAgeDays && !includeOld) return;
 
     const normalLogs = athLogs.filter(r => !isPostPracticeLog(r)).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
     const ppDate = new Date(latestPP.created_at);
@@ -71,6 +61,24 @@ export function NegativeSweatDropCards({
   });
 
   list.sort((a, b) => b.drop - a.drop);
+  return list;
+}
+
+// Post-practice negative sweat-drop alert cards (Alerts + Reports). Split out of
+// App.jsx, which still owns the data and passes it in.
+export function NegativeSweatDropCards({
+  forceShow = false,
+  maxAgeDays = null,
+  athletes,
+  fetchProfileData,
+  reportData,
+  screen,
+  setScreen,
+  setSelectedProfileId,
+  settings,
+}) {
+  const shouldShowEmpty = forceShow || screen === 'reports';
+  const list = computeSweatDrops({ athletes, reportData, settings, maxAgeDays, includeOld: shouldShowEmpty });
 
   if (list.length === 0 && !shouldShowEmpty) return null;
 

@@ -2690,6 +2690,7 @@ export default function App() {
                 liftLogs={liftLogs}
                 performanceTests={performanceTests}
                 settings={settings}
+                ensureReportWindow={ensureReportWindow}
                 reportData={reportData}
                 reportSportFilter={reportSportFilter}
                 reportTimeframe={reportTimeframe}
