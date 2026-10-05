@@ -47,20 +47,27 @@ const ZONE = {
   none: { label: '—', color: C.muted, bar: 'transparent' },
 };
 
-export default function ReadinessReport({ data, scopeLabel, showWeighIn = true, date = new Date() }) {
+export const REPORT_SECTIONS = [
+  ['mass', 'Mass drop'], ['sweat', 'Sweat loss'], ['sleep', 'Sleep'], ['load', 'Training load'],
+  ['flags', 'Below best'], ['prs', 'New PRs'], ['weighin', 'Weigh-in needed'],
+];
+
+// include: set of section keys to show (null = all). Tiles follow their section.
+export default function ReadinessReport({ data, scopeLabel, include = null, date = new Date() }) {
+  const on = (k) => !include || include.has(k);
   const dateLong = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const dateShort = date.toLocaleDateString('en-US');
   const t = data.thresholds;
   const PR_SHOW = 24;
 
   const tiles = [
-    { n: data.mass.length, label: 'Mass drop risk', sub: `>${t.dehydration} lb below baseline`, color: data.mass.length ? C.danger : C.navy900 },
-    { n: data.spikes, label: 'Load spikes', sub: 'A:C 1.5 or higher', color: data.spikes ? C.danger : C.navy900 },
-    { n: data.flagCount, label: 'Below best', sub: '5%+ off personal best', color: C.navy900 },
-    { n: data.under, label: 'Underloaded', sub: 'A:C below 0.8', color: C.navy900 },
-    { n: data.prs.length, label: 'New PRs', sub: 'Last 14 days', color: C.successDark },
-    { n: data.weighInTotal, label: 'Need weigh-in', sub: 'None in 14+ days', color: C.navy900 },
-  ];
+    { k: 'mass', n: data.mass.length, label: 'Mass drop risk', sub: `>${t.dehydration} lb below baseline`, color: data.mass.length ? C.danger : C.navy900 },
+    { k: 'load', n: data.spikes, label: 'Load spikes', sub: 'A:C 1.5 or higher', color: data.spikes ? C.danger : C.navy900 },
+    { k: 'flags', n: data.flagCount, label: 'Below best', sub: '5%+ off personal best', color: C.navy900 },
+    { k: 'load', n: data.under, label: 'Underloaded', sub: 'A:C below 0.8', color: C.navy900 },
+    { k: 'prs', n: data.prs.length, label: 'New PRs', sub: 'Last 14 days', color: C.successDark },
+    { k: 'weighin', n: data.weighInTotal, label: 'Need weigh-in', sub: 'None in 14+ days', color: C.navy900 },
+  ].filter(tl => on(tl.k));
 
   // Each check: [key, title, rows, clear note, render]. Empty ones become CLEAR lines.
   const sections = [
@@ -208,7 +215,7 @@ export default function ReadinessReport({ data, scopeLabel, showWeighIn = true, 
         </>
       ),
     },
-    showWeighIn && {
+    {
       key: 'weighin', title: 'Baseline Weigh-In Needed', count: data.weighInTotal,
       clear: 'Every athlete has weighed in within the last 14 days.',
       pills: [<span key="p" style={pill(C.neutral100, C.muted)}>{data.weighInTotal} athletes</span>],
@@ -222,7 +229,7 @@ export default function ReadinessReport({ data, scopeLabel, showWeighIn = true, 
         </div>
       )),
     },
-  ].filter(Boolean);
+  ].filter(x => x && on(x.key));
 
   const shown = sections.filter(s => s.count > 0);
   const clear = sections.filter(s => s.count === 0);
@@ -248,7 +255,7 @@ export default function ReadinessReport({ data, scopeLabel, showWeighIn = true, 
             <img src="/hp-logo.png" alt="Shiloh Christian Human Performance" style={{ height: 96, flexShrink: 0, margin: '6px -12px 0 0' }} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1, background: C.border, border: `1px solid ${C.border}`, marginTop: 20, breakInside: 'avoid' }}>
+          {tiles.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, tiles.length) || 1}, minmax(0, 1fr))`, gap: 1, background: C.border, border: `1px solid ${C.border}`, marginTop: 20, breakInside: 'avoid' }}>
             {tiles.map(tl => (
               <div key={tl.label} data-testid="rr-tile" style={{ background: C.white, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 38, lineHeight: 1, color: tl.color }}>{tl.n}</div>
@@ -256,7 +263,7 @@ export default function ReadinessReport({ data, scopeLabel, showWeighIn = true, 
                 <div style={{ fontSize: 11, color: C.muted }}>{tl.sub}</div>
               </div>
             ))}
-          </div>
+          </div>}
 
           {clear.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12, breakInside: 'avoid' }}>

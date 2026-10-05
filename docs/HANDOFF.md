@@ -3817,7 +3817,11 @@ The Reports tab is now the Readiness Report from the second design handoff (Part
 - Removed: quick/custom mode, timeframe picker, athlete case file, weight leaderboard, Training Flags and Session Load sections (that detail lives in Analytics deep dives).
 - Tests: `tests/readiness-report.js` (16). `reports-cleanup.js` and `report-training-flags.js` deleted; `settings-live.js` updated.
 
-## 108. Next up
+## 108. Readiness Report custom sections (v5.4.6)
+
+`ReportsScreen.jsx` has an "Include" row (Mass drop, Sweat loss, Sleep, Training load, Below best, New PRs, Weigh-in needed). Unchecked sections and their summary tiles leave the screen, PDF and CSV. Stored in localStorage `hpd_rr_sections`. `ReadinessReport` takes `include` (Set; null = all); `REPORT_SECTIONS` lists the keys. Replaces the old Weigh-in toggle.
+
+## 109. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

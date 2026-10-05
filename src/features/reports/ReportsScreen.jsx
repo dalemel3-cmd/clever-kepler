@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, Download } from 'lucide-react';
-import ReadinessReport from './ReadinessReport';
+import ReadinessReport, { REPORT_SECTIONS } from './ReadinessReport';
 import { buildReadinessReport } from './readinessData';
 
 // Reports tab = the Readiness Report (design handoff Part 2, docs/HANDOFF.md §107). The
@@ -13,7 +13,17 @@ export default function ReportsScreen({
   settings, reportData = [], athletes = [], liftLogs = [], performanceTests = [],
   reportSportFilter = 'ALL', setReportSportFilter, sportsList = [], reportLoading, ensureReportWindow,
 }) {
-  const [showWeighIn, setShowWeighIn] = useState(true);
+  // Custom report: which sections print. Remembered per device.
+  const [include, setInclude] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem('hpd_rr_sections')); if (Array.isArray(v)) return new Set(v); } catch { /* ignore */ }
+    return new Set(REPORT_SECTIONS.map(([k]) => k));
+  });
+  const toggle = (k) => setInclude(prev => {
+    const next = new Set(prev); next.has(k) ? next.delete(k) : next.add(k);
+    try { localStorage.setItem('hpd_rr_sections', JSON.stringify([...next])); } catch { /* ignore */ }
+    return next;
+  });
+  const showWeighIn = include.has('weighin');
   const [printing, setPrinting] = useState(false);
   const sport = reportSportFilter || 'ALL';
 
@@ -38,12 +48,12 @@ export default function ReportsScreen({
 
   const exportCSV = () => {
     const rows = [['Section', 'Athlete', 'Sport', 'Detail', 'Value']];
-    data.mass.forEach(r => rows.push(['Mass drop', r.name, r.sport, `Baseline ${r.base.toFixed(1)} -> ${r.cur.toFixed(1)} lb`, `-${r.drop.toFixed(1)} lb (${r.pct.toFixed(1)}%)`]));
-    data.sweat.forEach(r => rows.push(['Sweat loss', r.name, r.sport, r.when, `-${r.drop.toFixed(1)} lb`]));
-    data.sleep.forEach(r => rows.push(['Sleep', r.name, r.sport, `${r.nights} night(s) under`, `${r.latest} h`]));
-    data.load.forEach(r => rows.push(['Load', r.name, r.sport, r.zone, r.ratio == null ? '' : r.ratio.toFixed(2)]));
-    data.flags.forEach(g => g.rows.forEach(r => rows.push(['Below best', r.name, r.sport, `${g.title}: ${r.latest} vs ${r.best}`, `-${Math.round(r.off)}%`])));
-    data.prs.forEach(r => rows.push(['New PR', r.name, r.sport, r.what, r.val]));
+    if (include.has('mass')) data.mass.forEach(r => rows.push(['Mass drop', r.name, r.sport, `Baseline ${r.base.toFixed(1)} -> ${r.cur.toFixed(1)} lb`, `-${r.drop.toFixed(1)} lb (${r.pct.toFixed(1)}%)`]));
+    if (include.has('sweat')) data.sweat.forEach(r => rows.push(['Sweat loss', r.name, r.sport, r.when, `-${r.drop.toFixed(1)} lb`]));
+    if (include.has('sleep')) data.sleep.forEach(r => rows.push(['Sleep', r.name, r.sport, `${r.nights} night(s) under`, `${r.latest} h`]));
+    if (include.has('load')) data.load.forEach(r => rows.push(['Load', r.name, r.sport, r.zone, r.ratio == null ? '' : r.ratio.toFixed(2)]));
+    if (include.has('flags')) data.flags.forEach(g => g.rows.forEach(r => rows.push(['Below best', r.name, r.sport, `${g.title}: ${r.latest} vs ${r.best}`, `-${Math.round(r.off)}%`])));
+    if (include.has('prs')) data.prs.forEach(r => rows.push(['New PR', r.name, r.sport, r.what, r.val]));
     if (showWeighIn) data.weighIn.forEach(g => g.names.forEach(n => rows.push(['Weigh-in needed', n.label, g.sport, '', ''])));
     const blob = new Blob([rows.map(r => r.map(csvCell).join(',')).join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
@@ -53,7 +63,7 @@ export default function ReportsScreen({
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
-  const doc = <ReadinessReport data={data} scopeLabel={scopeLabel} showWeighIn={showWeighIn} />;
+  const doc = <ReadinessReport data={data} scopeLabel={scopeLabel} include={include} />;
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -64,12 +74,17 @@ export default function ReportsScreen({
             {sportsList.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <input data-testid="rr-weighin-toggle" type="checkbox" checked={showWeighIn} onChange={e => setShowWeighIn(e.target.checked)} /> Weigh-in needed
-        </label>
         <div className="ml-auto flex gap-2">
           <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50"><Download size={16} /> CSV</button>
           <button data-testid="rr-print" onClick={() => setPrinting(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#061c41] text-white text-sm font-bold hover:bg-[#133b78]"><Printer size={16} /> Export PDF</button>
+        </div>
+        <div className="w-full flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 border-t border-slate-100" data-testid="rr-custom">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Include</span>
+          {REPORT_SECTIONS.map(([k, label]) => (
+            <label key={k} className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+              <input data-testid={`rr-include-${k}`} type="checkbox" checked={include.has(k)} onChange={() => toggle(k)} /> {label}
+            </label>
+          ))}
         </div>
       </div>
       {reportLoading && <p className="text-sm text-slate-500">Loading report data…</p>}

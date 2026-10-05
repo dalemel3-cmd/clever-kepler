@@ -71,8 +71,13 @@ const SEED = { enableRpe: true, enableSpeedPower: true, rpeTrackDuration: true, 
   check('sweat clear line', /Post-Practice Sweat Loss[\s\S]*No athletes in negative/i.test(txt));
   const wtxt = await page.getByTestId('rr-section-weighin').first().innerText();
   check('weigh-in: stale shows days, never shows bare name', /Stale Guy · 40d/.test(wtxt) && /Vb Never/.test(wtxt), wtxt);
-  await page.getByTestId('rr-weighin-toggle').uncheck();
+  await page.getByTestId('rr-include-weighin').uncheck();
   check('toggle hides weigh-in section', await page.getByTestId('rr-section-weighin').count() === 0);
+  await page.getByTestId('rr-include-load').uncheck();
+  check('custom: unchecked load drops section + tiles', await page.getByTestId('rr-section-load').count() === 0 && await page.getByTestId('rr-tile').count() === 3);
+  await page.reload(); await page.waitForTimeout(2000);
+  check('custom selection remembered', !(await page.getByTestId('rr-include-load').isChecked()) && await page.getByTestId('rr-section-load').count() === 0);
+  await page.getByTestId('rr-include-load').check();
   await page.getByTestId('rr-sport').selectOption('Volleyball');
   const vtxt = await page.getByTestId('readiness-report').first().innerText();
   check('sport filter: kicker + rows', /HUMAN PERFORMANCE · VOLLEYBALL/i.test(vtxt) && !/Spike Guy/.test(vtxt));
