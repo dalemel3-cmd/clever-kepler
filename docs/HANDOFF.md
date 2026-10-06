@@ -3828,7 +3828,11 @@ The Reports tab is now the Readiness Report from the second design handoff (Part
 - **Log tab (iPad)**: kiosk mode hub is a full-width grid below `2xl` (three mode buttons in one even row; Baseline + Add Guest beside each other, 44px targets). Sport chips are `flex-none` so labels never truncate; the strip scrolls.
 - Nav: "Print Report" renamed "Readiness Report".
 
-## 110. Next up
+## 110. Leaderboard column toggles (v5.4.8)
+
+`PrintLeaderboard.jsx` toolbar has a Columns row: Pos, Class, 1st test vs now (default on), Last week vs now (default off). Grid templates come from `colsFor(show, top)`; hidden columns free width for the name. Stored in localStorage `hpd_lb_columns`. `buildPrintLeaderboard` rows now carry `changeWeek`/`changeWeekTone`: latest result vs the athlete's most recent result dated 7+ days before today ("—" if none, or if the latest result is itself that old). With both change columns on, headers read "vs 1st" and "vs Last Wk".
+
+## 111. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

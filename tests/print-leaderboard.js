@@ -99,6 +99,19 @@ const tests = [
   check('fastest (1.22) ranked first', /Player 02/.test(f[0]) && /1\.22/.test(f[0]), JSON.stringify(f));
   check('a faster time counts as improvement (−0.10)', /−0\.10/.test(f[1]), f[1]);
 
+  console.log('\n[D2] Column toggles');
+  await page.getByTestId('lb-col-week').click(); await page.waitForTimeout(300);
+  const wk = await pages.nth(0).getByTestId('lb-change-week').allInnerTexts();
+  check('last week vs now: 1.40 (20d ago) -> 1.30 = −0.10; single result = —', wk[1] === '−0.10' && wk[0] === '—', JSON.stringify(wk));
+  check('both change headers shown', /VS 1ST/i.test(await pages.nth(0).innerText()) && /VS LAST WK/i.test(await pages.nth(0).innerText()));
+  await page.getByTestId('lb-col-first').click(); await page.getByTestId('lb-col-pos').click(); await page.getByTestId('lb-col-cls').click(); await page.waitForTimeout(300);
+  const hdr = await pages.nth(0).innerText();
+  check('pos/class/1st hidden when toggled off', !/\bPOS\b/.test(hdr) && !/\bCLASS\b/.test(hdr) && await pages.nth(0).getByTestId('lb-change-first').count() === 0, hdr.slice(0, 300));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hpd_lb_columns') || '{}'));
+  check('toggles remembered on this device', saved.week === true && saved.pos === false && saved.first === false, JSON.stringify(saved));
+  for (const k of ['week', 'first', 'pos', 'cls']) await page.getByTestId(`lb-col-${k}`).click();
+  await page.waitForTimeout(300);
+
   console.log('\n[E] PDF: print shows only the sheets, on Letter');
   await page.locator('#lb-metric').selectOption({ label: 'Squat' }); await page.waitForTimeout(300);
   await page.emulateMedia({ media: 'print' });

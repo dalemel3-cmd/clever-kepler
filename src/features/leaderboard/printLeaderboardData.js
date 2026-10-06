@@ -112,10 +112,20 @@ export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], pe
     || (x.athlete.name || '').localeCompare(y.athlete.name || ''));
 
   const rows = list.map(({ athlete, points, best }, k) => {
-    const first = points[0].value, latest = points[points.length - 1].value;
-    const d = +(latest - first).toFixed(metric.decimals);
-    const improved = metric.lowerIsBetter ? d < 0 : d > 0;
-    const flat = points.length < 2 || d === 0;
+    const latest = points[points.length - 1].value;
+    const diff = (base) => {
+      if (base == null) return { text: '—', tone: 'flat' };
+      const d = +(latest - base).toFixed(metric.decimals);
+      if (d === 0) return { text: '—', tone: 'flat' };
+      const improved = metric.lowerIsBetter ? d < 0 : d > 0;
+      return { text: fmtSigned(d, metric.decimals), tone: improved ? 'up' : 'down' };
+    };
+    // vs first test; and vs the last result from a week or more ago (none, or the latest
+    // result itself is that old -> no change this week).
+    const first = diff(points.length > 1 ? points[0].value : null);
+    const weekAgo = getCentralDateString(new Date(now.getTime() - 7 * 86400000));
+    const prior = [...points].reverse().find(p => p.day <= weekAgo);
+    const week = diff(prior && prior !== points[points.length - 1] ? prior.value : null);
     return {
       id: athlete.id,
       rank: k + 1,
@@ -123,8 +133,8 @@ export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], pe
       pos: athlete.position || '',
       grad: gradYearFor(athlete.grade, now),
       value: best.toFixed(metric.decimals),
-      change: flat ? '—' : fmtSigned(d, metric.decimals),
-      changeTone: flat ? 'flat' : improved ? 'up' : 'down',
+      change: first.text, changeTone: first.tone,
+      changeWeek: week.text, changeWeekTone: week.tone,
       ...sparkline(points, slotIndex, allDays.length, metric.lowerIsBetter),
     };
   });

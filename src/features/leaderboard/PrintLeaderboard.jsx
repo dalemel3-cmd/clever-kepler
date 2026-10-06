@@ -18,8 +18,8 @@ const C = {
 const DISPLAY = "'Oswald', Impact, sans-serif";
 const BODY = "'Manrope', 'Inter', system-ui, sans-serif";
 const PAGE_W = 816, PAGE_H = 1056;
-const COLS_TOP = '48px minmax(0,1fr) 40px 48px 128px 84px 112px';
-const COLS_REST = '48px minmax(0,1fr) 40px 48px 110px 84px 112px';
+// Optional columns (toolbar toggles): pos, class, change vs first test, change vs last week.
+const colsFor = (show, top) => ['48px', 'minmax(0,1fr)', show.pos && '40px', show.cls && '48px', top ? '128px' : '110px', show.first && '84px', show.week && '84px', '112px'].filter(Boolean).join(' ');
 const toneColor = (t) => (t === 'up' ? C.success : t === 'down' ? C.danger : C.faint);
 const LOGO = '/hp-logo.png';
 
@@ -32,9 +32,11 @@ const colHead = (cols, size, padding) => ({
   display: 'grid', gridTemplateColumns: cols, gap: 10, padding, borderBottom: `1px solid ${C.borderStrong}`,
   fontWeight: 700, fontSize: size, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.faint,
 });
-const HeadCells = () => (<><div>Rk</div><div>Athlete</div><div>Pos</div><div>Class</div><div>Progression</div><div style={{ textAlign: 'right' }}>Change</div><div style={{ textAlign: 'right' }}>Best</div></>);
+const HeadCells = ({ show }) => (<><div>Rk</div><div>Athlete</div>{show.pos && <div>Pos</div>}{show.cls && <div>Class</div>}<div>Progression</div>{show.first && <div style={{ textAlign: 'right' }}>{show.week ? 'vs 1st' : 'Change'}</div>}{show.week && <div style={{ textAlign: 'right' }}>vs Last Wk</div>}<div style={{ textAlign: 'right' }}>Best</div></>);
+const changeNote = (show) => [show.first && 'latest vs. first test', show.week && 'latest vs. last result a week+ ago'].filter(Boolean).join(' · ');
 
-function TopPage({ m, team, period, data }) {
+function TopPage({ m, team, period, data, show }) {
+  const COLS_TOP = colsFor(show, true);
   return (
     <div className="lb-page" data-testid="lb-page" style={pageStyle('40px 52px 28px')}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, paddingBottom: 20, borderBottom: `3px solid ${C.gold500}` }}>
@@ -45,7 +47,7 @@ function TopPage({ m, team, period, data }) {
         </div>
         <img src={LOGO} alt="Shiloh Christian Human Performance" style={{ height: 100, flexShrink: 0, margin: '-12px -12px -12px 0' }} />
       </div>
-      <div style={colHead(COLS_TOP, 11, '16px 0 10px')}><HeadCells /></div>
+      <div style={colHead(COLS_TOP, 11, '16px 0 10px')}><HeadCells show={show} /></div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {data.top.map(r => (
           <div key={r.id} data-testid="lb-row" style={{ flex: 1, display: 'grid', gridTemplateColumns: COLS_TOP, gap: 10, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
@@ -55,14 +57,15 @@ function TopPage({ m, team, period, data }) {
                 : <span style={{ width: 38, display: 'flex', justifyContent: 'center', fontFamily: DISPLAY, fontWeight: 500, fontSize: 22, color: C.navy700 }}>{r.rank}</span>}
             </div>
             <div style={{ fontWeight: 700, fontSize: 17, color: C.navy900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.muted }}>{r.pos}</div>
-            <div style={{ fontSize: 14, color: C.muted }}>{r.grad}</div>
+            {show.pos && <div style={{ fontSize: 14, fontWeight: 600, color: C.muted }}>{r.pos}</div>}
+            {show.cls && <div style={{ fontSize: 14, color: C.muted }}>{r.grad}</div>}
             <svg width="128" height="36" viewBox="0 0 128 36" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
               <line x1="0" y1="34" x2="128" y2="34" style={{ stroke: C.border, strokeWidth: 1 }} />
               <polyline points={r.pts} style={{ fill: 'none', stroke: C.navy700, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' }} />
               <circle cx={r.cx} cy={r.cy} r="3.5" style={{ fill: C.gold500, stroke: C.navy900, strokeWidth: 1.5 }} />
             </svg>
-            <div style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>
+            {show.first && <div data-testid="lb-change-first" style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>}
+            {show.week && <div data-testid="lb-change-week" style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: toneColor(r.changeWeekTone) }}>{r.changeWeek}</div>}
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 5 }}>
               <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 30, color: C.navy900 }}>{r.value}</span>
               <span style={{ fontFamily: DISPLAY, fontWeight: 400, fontSize: 13, textTransform: 'uppercase', color: C.muted }}>{m.unit}</span>
@@ -72,14 +75,15 @@ function TopPage({ m, team, period, data }) {
         {data.top.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 15 }}>No {m.title} results for this team in this period.</div>}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, gap: 16 }}>
-        <div style={{ fontSize: 11, color: C.muted }}>Progression: each test{data.testSpan ? ` ${data.testSpan}` : ''}, up = improvement · Change: latest vs. first test</div>
+        <div style={{ fontSize: 11, color: C.muted }}>Progression: each test{data.testSpan ? ` ${data.testSpan}` : ''}, up = improvement{changeNote(show) ? ` · Change: ${changeNote(show)}` : ''}</div>
         <div style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontSize: 15, letterSpacing: '0.05em', color: C.gold700, whiteSpace: 'nowrap' }}>Champions for Life</div>
       </div>
     </div>
   );
 }
 
-function RosterPage({ m, team, period, pg, pageCount }) {
+function RosterPage({ m, team, period, pg, pageCount, show }) {
+  const COLS_REST = colsFor(show, false);
   return (
     <div className="lb-page" data-testid="lb-page" style={pageStyle('36px 52px 28px')}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, paddingBottom: 14, borderBottom: `3px solid ${C.gold500}` }}>
@@ -94,19 +98,20 @@ function RosterPage({ m, team, period, pg, pageCount }) {
           Ranks {pg.from}–{pg.to}<br /><span style={{ color: C.faint }}>Page {pg.n} of {pageCount}</span>
         </div>
       </div>
-      <div style={colHead(COLS_REST, 10, '12px 0 8px')}><HeadCells /></div>
+      <div style={colHead(COLS_REST, 10, '12px 0 8px')}><HeadCells show={show} /></div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {pg.rows.map(r => (
           <div key={r.id} data-testid="lb-row" style={{ height: 36, flex: 'none', display: 'grid', gridTemplateColumns: COLS_REST, gap: 10, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ width: 38, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 500, fontSize: 17, color: C.navy700 }}>{r.rank}</div>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.navy900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{r.pos}</div>
-            <div style={{ fontSize: 12, color: C.muted }}>{r.grad}</div>
+            {show.pos && <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{r.pos}</div>}
+            {show.cls && <div style={{ fontSize: 12, color: C.muted }}>{r.grad}</div>}
             <svg width="110" height="22" viewBox="0 0 128 36" preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
               <polyline points={r.pts} style={{ fill: 'none', stroke: C.navy700, strokeWidth: 2.4, strokeLinejoin: 'round', strokeLinecap: 'round' }} />
               <circle cx={r.cx} cy={r.cy} r="3.5" style={{ fill: C.navy900 }} />
             </svg>
-            <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>
+            {show.first && <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>}
+            {show.week && <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: toneColor(r.changeWeekTone) }}>{r.changeWeek}</div>}
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 4 }}>
               <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 20, color: C.navy900 }}>{r.value}</span>
               <span style={{ fontFamily: DISPLAY, fontWeight: 400, fontSize: 11, textTransform: 'uppercase', color: C.muted }}>{m.unit}</span>
@@ -161,6 +166,16 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
   const [frame, setFrame] = React.useState('season');
   const [periodOverride, setPeriodOverride] = React.useState('');
   const [busy, setBusy] = React.useState('');
+  // Column toggles, remembered on this device.
+  const [show, setShow] = React.useState(() => {
+    const d = { pos: true, cls: true, first: true, week: false };
+    try { return { ...d, ...JSON.parse(localStorage.getItem('hpd_lb_columns') || '{}') }; } catch { return d; }
+  });
+  const toggleCol = (k) => setShow(prev => {
+    const next = { ...prev, [k]: !prev[k] };
+    try { localStorage.setItem('hpd_lb_columns', JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
   const sheetsRef = React.useRef(null);
   const [scale, setScale] = React.useState(1);
 
@@ -258,6 +273,17 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
           <label htmlFor="lb-period" style={label}>Period label</label>
           <input id="lb-period" className="input-glass" style={{ ...field, width: 170 }} placeholder={autoPeriod} value={periodOverride} onChange={e => setPeriodOverride(e.target.value)} />
         </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={label}>Columns</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[['pos', 'Pos'], ['cls', 'Class'], ['first', '1st test vs now'], ['week', 'Last week vs now']].map(([k, t]) => (
+              <button key={k} type="button" data-testid={`lb-col-${k}`} aria-pressed={!!show[k]} onClick={() => toggleCol(k)}
+                style={{ ...field, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${show[k] ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: show[k] ? 'rgba(184,156,91,0.18)' : 'transparent', color: show[k] ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>{data.pageCount} page{data.pageCount === 1 ? '' : 's'} · {data.total} athletes</span>
           <button type="button" onClick={exportPdf} disabled={!m} style={{ ...field, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-accent)', color: '#030a14', border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}>
@@ -277,8 +303,8 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
       ) : (
         <div className="lb-sheets-wrap" style={{ height: (PAGE_H * data.pageCount + 24 * (data.pageCount - 1)) * scale + 48, display: 'flex', justifyContent: 'center' }}>
           <div ref={sheetsRef} className="lb-sheets" style={{ width: PAGE_W, padding: '24px 0', display: 'flex', flexDirection: 'column', gap: 24, transform: `scale(${scale})`, transformOrigin: 'top center' }}>
-            <TopPage m={m} team={team} period={period} data={data} />
-            {data.pages.map(pg => <RosterPage key={pg.n} m={m} team={team} period={period} pg={pg} pageCount={data.pageCount} />)}
+            <TopPage m={m} team={team} period={period} data={data} show={show} />
+            {data.pages.map(pg => <RosterPage key={pg.n} m={m} team={team} period={period} pg={pg} pageCount={data.pageCount} show={show} />)}
           </div>
         </div>
       )}
