@@ -136,6 +136,7 @@ export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], pe
       value: best.toFixed(metric.decimals),
       change: first.text, changeTone: first.tone,
       initial: points[0].value.toFixed(metric.decimals), initialDate: md(points[0].day),
+      recent: latest.toFixed(metric.decimals), recentDate: md(points[points.length - 1].day),
       bestDate: md(points.find(p => p.value === best).day),
       changeWeek: week.text, changeWeekTone: week.tone,
       ...sparkline(points, slotIndex, allDays.length, metric.lowerIsBetter),

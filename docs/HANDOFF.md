@@ -3840,7 +3840,11 @@ New toggle "Initial & best dates" (key `initial`, default on) in `PrintLeaderboa
 
 app_errors 2026-10-06 13:04: "Failed to load .../assets/index-DLXLdeaD.js" - a device opened a cached index.html from before a deploy. The index.html safety net now spots a failed `/assets/index-*.js` load and runs `__hpdHardReload()` once (sessionStorage `hpd_boot_reload` guards against loops; main.jsx clears it on a good start). The 10s Reload card remains the fallback.
 
-## 113. Next up
+## 113. Leaderboard most-recent column (v5.4.11)
+
+Toggle `recent` ("Most recent", default on): "Recent (date)" column = latest test value + M/D (`recent`, `recentDate` on rows). When Initial or Recent is on, `colsFor` narrows progression/change/best so the name keeps ~150px; names use a 2-line clamp (`nameClamp`) instead of an ellipsis. Sparklines now fill their column width.
+
+## 114. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

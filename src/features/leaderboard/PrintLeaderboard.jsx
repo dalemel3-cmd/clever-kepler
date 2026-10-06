@@ -19,7 +19,13 @@ const DISPLAY = "'Oswald', Impact, sans-serif";
 const BODY = "'Manrope', 'Inter', system-ui, sans-serif";
 const PAGE_W = 816, PAGE_H = 1056;
 // Optional columns (toolbar toggles): pos, class, change vs first test, change vs last week.
-const colsFor = (show, top) => ['48px', 'minmax(0,1fr)', show.pos && '40px', show.cls && '48px', top ? '128px' : '110px', show.initial && '84px', show.first && '84px', show.week && '84px', '112px'].filter(Boolean).join(' ');
+const colsFor = (show, top) => {
+  // With value columns on, the chart/change/best narrow so the name keeps its room.
+  const tight = show.initial || show.recent;
+  return ['40px', 'minmax(0,1fr)', show.pos && '36px', show.cls && '42px', top ? (tight ? '96px' : '128px') : (tight ? '80px' : '110px'),
+    show.initial && '62px', show.recent && '62px', show.first && (tight ? '62px' : '84px'), show.week && (tight ? '62px' : '84px'), tight ? '96px' : '112px'].filter(Boolean).join(' ');
+};
+const nameClamp = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.15, wordBreak: 'break-word' };
 const toneColor = (t) => (t === 'up' ? C.success : t === 'down' ? C.danger : C.faint);
 const LOGO = '/hp-logo.png';
 
@@ -29,11 +35,11 @@ const pageStyle = (padding) => ({
   WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', overflow: 'hidden', flex: 'none',
 });
 const colHead = (cols, size, padding) => ({
-  display: 'grid', gridTemplateColumns: cols, gap: 10, padding, borderBottom: `1px solid ${C.borderStrong}`,
+  display: 'grid', gridTemplateColumns: cols, gap: 8, padding, borderBottom: `1px solid ${C.borderStrong}`,
   fontWeight: 700, fontSize: size, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.faint,
 });
-const HeadCells = ({ show }) => (<><div>Rk</div><div>Athlete</div>{show.pos && <div>Pos</div>}{show.cls && <div>Class</div>}<div>Progression</div>{show.initial && <div style={{ textAlign: 'right' }}>Initial (date)</div>}{show.first && <div style={{ textAlign: 'right' }}>{show.week ? 'vs 1st' : 'Change'}</div>}{show.week && <div style={{ textAlign: 'right' }}>vs Last Wk</div>}<div style={{ textAlign: 'right' }}>{show.initial ? 'Best (date)' : 'Best'}</div></>);
-const changeNote = (show) => [show.initial && 'Initial = first test (date); date under Best = when it was set',show.first && 'latest vs. first test', show.week && 'latest vs. last result a week+ ago'].filter(Boolean).join(' · ');
+const HeadCells = ({ show }) => (<><div>Rk</div><div>Athlete</div>{show.pos && <div>Pos</div>}{show.cls && <div>Class</div>}<div>Progression</div>{show.initial && <div style={{ textAlign: 'right' }}>Initial (date)</div>}{show.recent && <div style={{ textAlign: 'right' }}>Recent (date)</div>}{show.first && <div style={{ textAlign: 'right' }}>{show.week ? 'vs 1st' : 'Change'}</div>}{show.week && <div style={{ textAlign: 'right' }}>vs Last Wk</div>}<div style={{ textAlign: 'right' }}>{show.initial ? 'Best (date)' : 'Best'}</div></>);
+const changeNote = (show) => [show.initial && 'Initial = first test (date); date under Best = when it was set', show.recent && 'Recent = latest test (date)',show.first && 'latest vs. first test', show.week && 'latest vs. last result a week+ ago'].filter(Boolean).join(' · ');
 
 function TopPage({ m, team, period, data, show }) {
   const COLS_TOP = colsFor(show, true);
@@ -50,16 +56,16 @@ function TopPage({ m, team, period, data, show }) {
       <div style={colHead(COLS_TOP, 11, '16px 0 10px')}><HeadCells show={show} /></div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {data.top.map(r => (
-          <div key={r.id} data-testid="lb-row" style={{ flex: 1, display: 'grid', gridTemplateColumns: COLS_TOP, gap: 10, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
+          <div key={r.id} data-testid="lb-row" style={{ flex: 1, display: 'grid', gridTemplateColumns: COLS_TOP, gap: 8, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
             <div>
               {r.rank <= 3
-                ? <span style={{ width: 38, height: 38, borderRadius: '50%', background: C.gold500, color: C.navy900, fontFamily: DISPLAY, fontWeight: 600, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{r.rank}</span>
-                : <span style={{ width: 38, display: 'flex', justifyContent: 'center', fontFamily: DISPLAY, fontWeight: 500, fontSize: 22, color: C.navy700 }}>{r.rank}</span>}
+                ? <span style={{ width: 36, height: 36, borderRadius: '50%', background: C.gold500, color: C.navy900, fontFamily: DISPLAY, fontWeight: 600, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{r.rank}</span>
+                : <span style={{ width: 36, display: 'flex', justifyContent: 'center', fontFamily: DISPLAY, fontWeight: 500, fontSize: 22, color: C.navy700 }}>{r.rank}</span>}
             </div>
-            <div style={{ fontWeight: 700, fontSize: 17, color: C.navy900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: C.navy900, ...nameClamp }}>{r.name}</div>
             {show.pos && <div style={{ fontSize: 14, fontWeight: 600, color: C.muted }}>{r.pos}</div>}
             {show.cls && <div style={{ fontSize: 14, color: C.muted }}>{r.grad}</div>}
-            <svg width="128" height="36" viewBox="0 0 128 36" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
+            <svg width="100%" height="36" viewBox="0 0 128 36" preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
               <line x1="0" y1="34" x2="128" y2="34" style={{ stroke: C.border, strokeWidth: 1 }} />
               <polyline points={r.pts} style={{ fill: 'none', stroke: C.navy700, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' }} />
               <circle cx={r.cx} cy={r.cy} r="3.5" style={{ fill: C.gold500, stroke: C.navy900, strokeWidth: 1.5 }} />
@@ -68,6 +74,12 @@ function TopPage({ m, team, period, data, show }) {
               <div data-testid="lb-initial" style={{ textAlign: 'right', lineHeight: 1.1 }}>
                 <div style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 20, color: C.navy700 }}>{r.initial}</div>
                 <div style={{ fontSize: 11, color: C.faint }}>{r.initialDate}</div>
+              </div>
+            )}
+            {show.recent && (
+              <div data-testid="lb-recent" style={{ textAlign: 'right', lineHeight: 1.1 }}>
+                <div style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 20, color: C.navy700 }}>{r.recent}</div>
+                <div style={{ fontSize: 11, color: C.faint }}>{r.recentDate}</div>
               </div>
             )}
             {show.first && <div data-testid="lb-change-first" style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>}
@@ -108,12 +120,12 @@ function RosterPage({ m, team, period, pg, pageCount, show }) {
       <div style={colHead(COLS_REST, 10, '12px 0 8px')}><HeadCells show={show} /></div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {pg.rows.map(r => (
-          <div key={r.id} data-testid="lb-row" style={{ height: 36, flex: 'none', display: 'grid', gridTemplateColumns: COLS_REST, gap: 10, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
+          <div key={r.id} data-testid="lb-row" style={{ height: 36, flex: 'none', display: 'grid', gridTemplateColumns: COLS_REST, gap: 8, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ width: 38, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 500, fontSize: 17, color: C.navy700 }}>{r.rank}</div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: C.navy900, ...nameClamp }}>{r.name}</div>
             {show.pos && <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{r.pos}</div>}
             {show.cls && <div style={{ fontSize: 12, color: C.muted }}>{r.grad}</div>}
-            <svg width="110" height="22" viewBox="0 0 128 36" preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
+            <svg width="100%" height="22" viewBox="0 0 128 36" preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
               <polyline points={r.pts} style={{ fill: 'none', stroke: C.navy700, strokeWidth: 2.4, strokeLinejoin: 'round', strokeLinecap: 'round' }} />
               <circle cx={r.cx} cy={r.cy} r="3.5" style={{ fill: C.navy900 }} />
             </svg>
@@ -121,6 +133,12 @@ function RosterPage({ m, team, period, pg, pageCount, show }) {
               <div style={{ textAlign: 'right', lineHeight: 1 }}>
                 <span style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 15, color: C.navy700 }}>{r.initial}</span>
                 <span style={{ fontSize: 9, color: C.faint, marginLeft: 4 }}>{r.initialDate}</span>
+              </div>
+            )}
+            {show.recent && (
+              <div style={{ textAlign: 'right', lineHeight: 1 }}>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 15, color: C.navy700 }}>{r.recent}</span>
+                <span style={{ fontSize: 9, color: C.faint, marginLeft: 4 }}>{r.recentDate}</span>
               </div>
             )}
             {show.first && <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>}
@@ -182,7 +200,7 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
   const [busy, setBusy] = React.useState('');
   // Column toggles, remembered on this device.
   const [show, setShow] = React.useState(() => {
-    const d = { pos: true, cls: true, initial: true, first: true, week: false };
+    const d = { pos: true, cls: true, initial: true, recent: true, first: true, week: false };
     try { return { ...d, ...JSON.parse(localStorage.getItem('hpd_lb_columns') || '{}') }; } catch { return d; }
   });
   const toggleCol = (k) => setShow(prev => {
@@ -290,7 +308,7 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={label}>Columns</span>
           <div style={{ display: 'flex', gap: 6 }}>
-            {[['pos', 'Pos'], ['cls', 'Class'], ['initial', 'Initial & best dates'], ['first', '1st test vs now'], ['week', 'Last week vs now']].map(([k, t]) => (
+            {[['pos', 'Pos'], ['cls', 'Class'], ['initial', 'Initial & best dates'], ['recent', 'Most recent'], ['first', '1st test vs now'], ['week', 'Last week vs now']].map(([k, t]) => (
               <button key={k} type="button" data-testid={`lb-col-${k}`} aria-pressed={!!show[k]} onClick={() => toggleCol(k)}
                 style={{ ...field, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${show[k] ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: show[k] ? 'rgba(184,156,91,0.18)' : 'transparent', color: show[k] ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
                 {t}

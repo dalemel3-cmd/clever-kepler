@@ -102,6 +102,8 @@ const tests = [
   console.log('\n[D1] Initial & best dates');
   const ini = await pages.nth(0).getByTestId('lb-initial').allInnerTexts();
   check('Player 01 initial 1.40 with its date', /1\.40\s*\n?\s*\d{1,2}\/\d{1,2}/.test(ini[1] || ''), JSON.stringify(ini));
+  const rec = await pages.nth(0).getByTestId('lb-recent').allInnerTexts();
+  check('Player 01 most recent 1.30 with its date', /1\.30\s*\n?\s*\d{1,2}\/\d{1,2}/.test(rec[1] || ''), JSON.stringify(rec));
   check('best date shown', await pages.nth(0).getByTestId('lb-best-date').count() >= 2);
   check('headers read Initial (date) / Best (date)', /INITIAL \(DATE\)/i.test(await pages.nth(0).innerText()) && /BEST \(DATE\)/i.test(await pages.nth(0).innerText()));
   await pages.nth(0).screenshot({ path: '/tmp/claude-0/-home-user-MoneyMase/9587e7dc-3753-5d82-8e64-81fff61e380c/scratchpad/lb_initial.png' });
