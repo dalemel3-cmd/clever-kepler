@@ -79,7 +79,7 @@ const tests = [
   check('decline shown with a real minus sign (−30)', /−30/.test(r1), r1);
   check('rank 2 Player 01 415, improvement +15', /Player 01/.test(r2) && /415/.test(r2) && /\+15/.test(r2), r2);
   check('position + class year (OL, Class of 2027 for a senior)', /OL/.test(r2) && /2027/.test(r2), r2);
-  const colors = await rows.evaluateAll(rs => rs.slice(0, 2).map(r => getComputedStyle(r.children[5]).color));
+  const colors = await rows.evaluateAll(rs => rs.slice(0, 2).map(r => getComputedStyle(r.querySelector('[data-testid="lb-change-first"]')).color));
   check('decline and improvement in different colors (red / green)', colors[0] !== colors[1] && colors.every(Boolean), JSON.stringify(colors));
   const podium = await rows.evaluateAll(rs => rs.slice(0, 4).map(r => getComputedStyle(r.querySelector('span')).borderRadius));
   check('ranks 1-3 get gold circles, rank 4 does not', podium.slice(0, 3).every(b => b === '50%') && podium[3] !== '50%', JSON.stringify(podium));
@@ -98,6 +98,13 @@ const tests = [
   const f = await pages.nth(0).getByTestId('lb-row').allInnerTexts();
   check('fastest (1.22) ranked first', /Player 02/.test(f[0]) && /1\.22/.test(f[0]), JSON.stringify(f));
   check('a faster time counts as improvement (−0.10)', /−0\.10/.test(f[1]), f[1]);
+
+  console.log('\n[D1] Initial & best dates');
+  const ini = await pages.nth(0).getByTestId('lb-initial').allInnerTexts();
+  check('Player 01 initial 1.40 with its date', /1\.40\s*\n?\s*\d{1,2}\/\d{1,2}/.test(ini[1] || ''), JSON.stringify(ini));
+  check('best date shown', await pages.nth(0).getByTestId('lb-best-date').count() >= 2);
+  check('headers read Initial (date) / Best (date)', /INITIAL \(DATE\)/i.test(await pages.nth(0).innerText()) && /BEST \(DATE\)/i.test(await pages.nth(0).innerText()));
+  await pages.nth(0).screenshot({ path: '/tmp/claude-0/-home-user-MoneyMase/9587e7dc-3753-5d82-8e64-81fff61e380c/scratchpad/lb_initial.png' });
 
   console.log('\n[D2] Column toggles');
   await page.getByTestId('lb-col-week').click(); await page.waitForTimeout(300);

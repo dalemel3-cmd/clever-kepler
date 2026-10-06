@@ -3832,7 +3832,11 @@ The Reports tab is now the Readiness Report from the second design handoff (Part
 
 `PrintLeaderboard.jsx` toolbar has a Columns row: Pos, Class, 1st test vs now (default on), Last week vs now (default off). Grid templates come from `colsFor(show, top)`; hidden columns free width for the name. Stored in localStorage `hpd_lb_columns`. `buildPrintLeaderboard` rows now carry `changeWeek`/`changeWeekTone`: latest result vs the athlete's most recent result dated 7+ days before today ("—" if none, or if the latest result is itself that old). With both change columns on, headers read "vs 1st" and "vs Last Wk".
 
-## 111. Next up
+## 111. Leaderboard initial & best dates (v5.4.9)
+
+New toggle "Initial & best dates" (key `initial`, default on) in `PrintLeaderboard.jsx`: adds an "Initial (date)" column (first test value + M/D) and puts the date the best was set under the Best value; header reads "Best (date)". Rows carry `initial`, `initialDate`, `bestDate` from `buildPrintLeaderboard`.
+
+## 112. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

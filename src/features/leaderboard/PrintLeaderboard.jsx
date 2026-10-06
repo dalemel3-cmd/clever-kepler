@@ -19,7 +19,7 @@ const DISPLAY = "'Oswald', Impact, sans-serif";
 const BODY = "'Manrope', 'Inter', system-ui, sans-serif";
 const PAGE_W = 816, PAGE_H = 1056;
 // Optional columns (toolbar toggles): pos, class, change vs first test, change vs last week.
-const colsFor = (show, top) => ['48px', 'minmax(0,1fr)', show.pos && '40px', show.cls && '48px', top ? '128px' : '110px', show.first && '84px', show.week && '84px', '112px'].filter(Boolean).join(' ');
+const colsFor = (show, top) => ['48px', 'minmax(0,1fr)', show.pos && '40px', show.cls && '48px', top ? '128px' : '110px', show.initial && '84px', show.first && '84px', show.week && '84px', '112px'].filter(Boolean).join(' ');
 const toneColor = (t) => (t === 'up' ? C.success : t === 'down' ? C.danger : C.faint);
 const LOGO = '/hp-logo.png';
 
@@ -32,8 +32,8 @@ const colHead = (cols, size, padding) => ({
   display: 'grid', gridTemplateColumns: cols, gap: 10, padding, borderBottom: `1px solid ${C.borderStrong}`,
   fontWeight: 700, fontSize: size, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.faint,
 });
-const HeadCells = ({ show }) => (<><div>Rk</div><div>Athlete</div>{show.pos && <div>Pos</div>}{show.cls && <div>Class</div>}<div>Progression</div>{show.first && <div style={{ textAlign: 'right' }}>{show.week ? 'vs 1st' : 'Change'}</div>}{show.week && <div style={{ textAlign: 'right' }}>vs Last Wk</div>}<div style={{ textAlign: 'right' }}>Best</div></>);
-const changeNote = (show) => [show.first && 'latest vs. first test', show.week && 'latest vs. last result a week+ ago'].filter(Boolean).join(' · ');
+const HeadCells = ({ show }) => (<><div>Rk</div><div>Athlete</div>{show.pos && <div>Pos</div>}{show.cls && <div>Class</div>}<div>Progression</div>{show.initial && <div style={{ textAlign: 'right' }}>Initial (date)</div>}{show.first && <div style={{ textAlign: 'right' }}>{show.week ? 'vs 1st' : 'Change'}</div>}{show.week && <div style={{ textAlign: 'right' }}>vs Last Wk</div>}<div style={{ textAlign: 'right' }}>{show.initial ? 'Best (date)' : 'Best'}</div></>);
+const changeNote = (show) => [show.initial && 'Initial = first test (date); date under Best = when it was set',show.first && 'latest vs. first test', show.week && 'latest vs. last result a week+ ago'].filter(Boolean).join(' · ');
 
 function TopPage({ m, team, period, data, show }) {
   const COLS_TOP = colsFor(show, true);
@@ -64,11 +64,18 @@ function TopPage({ m, team, period, data, show }) {
               <polyline points={r.pts} style={{ fill: 'none', stroke: C.navy700, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' }} />
               <circle cx={r.cx} cy={r.cy} r="3.5" style={{ fill: C.gold500, stroke: C.navy900, strokeWidth: 1.5 }} />
             </svg>
+            {show.initial && (
+              <div data-testid="lb-initial" style={{ textAlign: 'right', lineHeight: 1.1 }}>
+                <div style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 20, color: C.navy700 }}>{r.initial}</div>
+                <div style={{ fontSize: 11, color: C.faint }}>{r.initialDate}</div>
+              </div>
+            )}
             {show.first && <div data-testid="lb-change-first" style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>}
             {show.week && <div data-testid="lb-change-week" style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: toneColor(r.changeWeekTone) }}>{r.changeWeek}</div>}
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 5 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 5 }}>
               <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 30, color: C.navy900 }}>{r.value}</span>
               <span style={{ fontFamily: DISPLAY, fontWeight: 400, fontSize: 13, textTransform: 'uppercase', color: C.muted }}>{m.unit}</span>
+              {show.initial && <span data-testid="lb-best-date" style={{ position: 'absolute', right: 0, bottom: -12, fontSize: 11, color: C.faint }}>{r.bestDate}</span>}
             </div>
           </div>
         ))}
@@ -110,11 +117,18 @@ function RosterPage({ m, team, period, pg, pageCount, show }) {
               <polyline points={r.pts} style={{ fill: 'none', stroke: C.navy700, strokeWidth: 2.4, strokeLinejoin: 'round', strokeLinecap: 'round' }} />
               <circle cx={r.cx} cy={r.cy} r="3.5" style={{ fill: C.navy900 }} />
             </svg>
+            {show.initial && (
+              <div style={{ textAlign: 'right', lineHeight: 1 }}>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 15, color: C.navy700 }}>{r.initial}</span>
+                <span style={{ fontSize: 9, color: C.faint, marginLeft: 4 }}>{r.initialDate}</span>
+              </div>
+            )}
             {show.first && <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>}
             {show.week && <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: toneColor(r.changeWeekTone) }}>{r.changeWeek}</div>}
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 4 }}>
               <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 20, color: C.navy900 }}>{r.value}</span>
               <span style={{ fontFamily: DISPLAY, fontWeight: 400, fontSize: 11, textTransform: 'uppercase', color: C.muted }}>{m.unit}</span>
+              {show.initial && <span style={{ fontSize: 9, color: C.faint }}>{r.bestDate}</span>}
             </div>
           </div>
         ))}
@@ -168,7 +182,7 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
   const [busy, setBusy] = React.useState('');
   // Column toggles, remembered on this device.
   const [show, setShow] = React.useState(() => {
-    const d = { pos: true, cls: true, first: true, week: false };
+    const d = { pos: true, cls: true, initial: true, first: true, week: false };
     try { return { ...d, ...JSON.parse(localStorage.getItem('hpd_lb_columns') || '{}') }; } catch { return d; }
   });
   const toggleCol = (k) => setShow(prev => {
@@ -276,7 +290,7 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={label}>Columns</span>
           <div style={{ display: 'flex', gap: 6 }}>
-            {[['pos', 'Pos'], ['cls', 'Class'], ['first', '1st test vs now'], ['week', 'Last week vs now']].map(([k, t]) => (
+            {[['pos', 'Pos'], ['cls', 'Class'], ['initial', 'Initial & best dates'], ['first', '1st test vs now'], ['week', 'Last week vs now']].map(([k, t]) => (
               <button key={k} type="button" data-testid={`lb-col-${k}`} aria-pressed={!!show[k]} onClick={() => toggleCol(k)}
                 style={{ ...field, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${show[k] ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: show[k] ? 'rgba(184,156,91,0.18)' : 'transparent', color: show[k] ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
                 {t}

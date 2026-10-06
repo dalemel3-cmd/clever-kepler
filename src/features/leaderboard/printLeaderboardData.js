@@ -45,6 +45,7 @@ export function gradYearFor(grade, now = new Date()) {
   return String(seniorYear + (12 - g));
 }
 
+const md = (day) => { const [, mo, d] = day.split('-'); return `${+mo}/${+d}`; };
 const fmtSigned = (d, decimals) => (d > 0 ? '+' : '−') + Math.abs(d).toFixed(decimals);
 
 // One result per athlete per test day (their best that day), oldest first.
@@ -134,6 +135,8 @@ export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], pe
       grad: gradYearFor(athlete.grade, now),
       value: best.toFixed(metric.decimals),
       change: first.text, changeTone: first.tone,
+      initial: points[0].value.toFixed(metric.decimals), initialDate: md(points[0].day),
+      bestDate: md(points.find(p => p.value === best).day),
       changeWeek: week.text, changeWeekTone: week.tone,
       ...sparkline(points, slotIndex, allDays.length, metric.lowerIsBetter),
     };
