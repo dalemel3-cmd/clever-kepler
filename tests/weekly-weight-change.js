@@ -66,11 +66,7 @@ check('no drifting "(Nd)" label', !/WEIGHT CHANGE \(\d+D\)/i.test(txt));
 check('shows which weigh-in it compares to ("vs M/D")', /vs \d{1,2}\/\d{1,2}/.test(txt));
 check('value is -5.3 lb', /-5\.3 lb/.test(txt), (txt.match(/[-+][\d.]+ lb/g) || []).join(','));
 
-console.log('\n[C] Print Report week-to-week list uses the same rule');
-await page.goto(`${APP}/#reports`); await page.waitForTimeout(2200);
-await page.getByRole('button', { name: /custom/i }).first().click(); await page.waitForTimeout(500);
-const rep = await page.locator('main').innerText();
-check('report compares Drake against 9/24 (255 -> 249.7, -5.3)', /255 → 249\.7 lbs\)[\s\S]{0,40}-5\.3 lbs/.test(rep), (rep.match(/\([\d.]+ → [\d.]+ lbs\)[^\n]*\n?[^\n]*/) || [''])[0]);
+// [C] (old Print Report week-to-week list) retired with the Readiness Report in v5.4.5.
 await browser.close();
 
 console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Activity, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Activity, ChevronDown, ChevronUp, Search, ListPlus } from 'lucide-react';
+import RpeTeamEntryPanel from './RpeTeamEntryPanel';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { initialsFor } from '../../utils/athleteData';
 import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth, useMoreColumns, MoreColumnsToggle } from '../../components/DeepDiveUi';
@@ -97,12 +98,13 @@ const SORTS = [
   { id: 'name', label: 'Name (A–Z)', key: null },
 ];
 
-export default function RpeScreen({ settings, athletes, reportData, setSelectedProfileId, fetchProfileData, setScreen, setProfileEntryScreen }) {
+export default function RpeScreen({ addRpeSessions, settings, athletes, reportData, setSelectedProfileId, fetchProfileData, setScreen, setProfileEntryScreen }) {
   const [sport, setSport] = React.useState('ALL');
   const [windowWeeks, setWindowWeeks] = React.useState(6);
   const [sortBy, setSortBy] = React.useState('ratio');
   const [query, setQuery] = React.useState('');
   const [openId, setOpenId] = React.useState(null);
+  const [teamOpen, setTeamOpen] = React.useState(false);
   const [scrollRef, visibleWidth] = useVisibleWidth();
   const [more, toggleMore] = useMoreColumns('rpe');
   const spike = settings.rpeLoadSpikeRatio || 1.3;
@@ -139,6 +141,7 @@ export default function RpeScreen({ settings, athletes, reportData, setSelectedP
 
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {teamOpen && <RpeTeamEntryPanel athletes={athletes} reportData={reportData} settings={settings} addRpeSessions={addRpeSessions} onClose={() => setTeamOpen(false)} />}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
         <div>
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', letterSpacing: '0.1em', marginBottom: '4px' }}>PERFORMANCE &middot; RPE</div>
@@ -158,6 +161,11 @@ export default function RpeScreen({ settings, athletes, reportData, setSelectedP
           <select aria-label="Sort" value={sortBy} onChange={e => setSortBy(e.target.value)} className="input-glass" style={selectStyle}>
             {SORTS.map(s => <option key={s.id} value={s.id} style={optionStyle}>Sort: {s.label}</option>)}
           </select>
+          {addRpeSessions && (
+            <button type="button" data-testid="rpe-team-open" onClick={() => setTeamOpen(true)} className="input-glass" style={{ ...selectStyle, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 700 }}>
+              <ListPlus size={15} /> Team log
+            </button>
+          )}
         </div>
       </div>
 

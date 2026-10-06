@@ -78,24 +78,21 @@ const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeHigh
 
   console.log('\n[B] Per-sport numbers are right, read straight off each team\'s own card');
   const football = await cardFor('Football').innerText();
-  check('card carries a TEAM AVG RPE label', /TEAM AVG RPE/i.test(football));
-  check('card carries a LOG RESPONSE RATE label', /LOG RESPONSE RATE/i.test(football));
+  check('card has a 7-day chart', await page.locator('[data-sport="Football"] [data-testid="rpe-week-chart"]').count() === 1);
   // Football: 2 logs from 1 of 2 athletes -> 50%, avg (4+6)/2 = 5.0
-  check('Football avg is 5.0 / 10', /5\.0\s*\/\s*10/.test(football), football.replace(/\n/g, ' | '));
-  check('Football response rate is 50%', /50%/.test(football));
-  check('Football counts 2 sessions logged', /2 Sessions Logged/i.test(football));
+  check('Football avg is 5.0', /5\.0 avg today/.test(football), football.replace(/\n/g, ' | '));
+  check('Football response is 1/2 reported', /1\/2 reported/.test(football));
 
   const volleyball = await cardFor('Volleyball').innerText();
   // Volleyball logged nothing: an em dash rather than a fake 0.0 average.
-  check('Volleyball avg reads as no data, not 0.0', /—\s*\/\s*10/.test(volleyball), volleyball.replace(/\n/g, ' | '));
-  check('Volleyball response rate is 0%', /0%/.test(volleyball));
-  check('Volleyball reports 0/2 athletes', /0\/2 athletes/i.test(volleyball));
-  check('Volleyball shows "No Data" instead of a fabricated load label', /No Data/i.test(volleyball), volleyball.replace(/\n/g, ' | '));
+  check('Volleyball avg reads as no data, not 0.0', /No RPE today/.test(volleyball) && !/0\.0/.test(volleyball), volleyball.replace(/\n/g, ' | '));
+  check('Volleyball reports 0/2', /0\/2 reported/i.test(volleyball));
+  check('Volleyball shows no fabricated load label', !/Moderate|Heavy/i.test(volleyball), volleyball.replace(/\n/g, ' | '));
 
   const wrestling = await cardFor('Wrestling').innerText();
   check('Wrestling flagged as hard', /1 HARD/i.test(wrestling), wrestling.replace(/\n/g, ' | '));
-  check('Wrestling avg is 9.0', /9\.0\s*\/\s*10/.test(wrestling));
-  check('Wrestling correctly reads 100% (1 of 1)', /100%/.test(wrestling));
+  check('Wrestling avg is 9.0', /9\.0 avg today/.test(wrestling));
+  check('Wrestling correctly reads 1/1', /1\/1 reported/.test(wrestling));
 
   console.log('\n[C] Response rate counts athletes, not rows (panel-wide roll-up)');
   const text = await page.locator('body').innerText();

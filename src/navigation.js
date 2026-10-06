@@ -21,7 +21,7 @@ export const NAV_GROUPS = [
     { screen: 'rpe', label: 'RPE', requires: 'enableRpe' },
     { screen: 'strength', label: 'Strength', requires: 'enableLiftTracker' },
     { screen: 'power', label: 'Jumps & Sprints', requires: 'enableSpeedPower' },
-    { screen: 'reports', label: 'Print Report' },
+    { screen: 'reports', label: 'Readiness Report' },
   ] },
   { id: 'settings', label: 'Settings', icon: 'settings', screens: [
     { screen: 'settings', label: 'Settings' },

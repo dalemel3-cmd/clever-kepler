@@ -73,9 +73,9 @@ async function newPage(browser, { width = 1280, height = 860, settings = {} } = 
     check('sidebar still highlights Today on the Alerts screen', /Today/i.test(await page.locator('aside nav [aria-current="page"]').innerText()));
     await page.locator('aside nav').getByText('Performance', { exact: true }).click(); await page.waitForTimeout(900);
     const perf = page.getByRole('tablist', { name: 'Performance' });
-    check('Performance opens with Analytics / Print Report switcher', await perf.getByRole('tab', { name: /Print Report/i }).count() === 1);
-    await perf.getByRole('tab', { name: /Print Report/i }).click(); await page.waitForTimeout(900);
-    check('Print Report opens Reports', /READINESS REPORT/i.test(await page.locator('body').innerText()));
+    check('Performance opens with Analytics / Readiness Report switcher', await perf.getByRole('tab', { name: /Readiness Report/i }).count() === 1);
+    await perf.getByRole('tab', { name: /Readiness Report/i }).click(); await page.waitForTimeout(900);
+    check('Readiness Report opens Reports', /READINESS REPORT/i.test(await page.locator('body').innerText()));
     check('Reports raw log table is gone', !/CHRONOLOGICAL|LOG HISTORY/i.test(await page.locator('body').innerText()));
   }
 

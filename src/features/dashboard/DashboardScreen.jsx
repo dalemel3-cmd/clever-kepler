@@ -53,6 +53,21 @@ export default function DashboardScreen({
     };
   }).sort((a, b) => a.pct - b.pct);
 
+  // Last 7 Central days of team-average RPE, oldest first, for each team card's chart.
+  const allRpeLogs = (reportData || []).filter(isRpeLog);
+  const weekFor = (sport) => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(Date.now() - (6 - i) * 86400000);
+    const date = getCentralDateString(d);
+    const logs = allRpeLogs.filter(r => sportOf(r) === sport && r.created_at && getCentralDateString(new Date(r.created_at)) === date);
+    const wd = new Date(`${date}T12:00:00`);
+    return {
+      date, n: logs.length, isToday: i === 6,
+      avg: logs.length ? logs.reduce((acc, r) => acc + (Number(r.rpe) || 0), 0) / logs.length : null,
+      letter: wd.toLocaleDateString('en-US', { weekday: 'narrow' }),
+      label: wd.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }),
+    };
+  });
+
   const respondedIds = new Set(todaysRpeLogs.map(r => r.athlete_id));
   const rpeRate = athletes.length > 0 ? Math.round((respondedIds.size / athletes.length) * 100) : 0;
   const avgRpe = todaysRpeLogs.length > 0 ? (todaysRpeLogs.reduce((s, r) => s + (r.rpe || 0), 0) / todaysRpeLogs.length).toFixed(1) : '0.0';
@@ -247,9 +262,9 @@ export default function DashboardScreen({
       </div>
 
       {/* Split 2-Column Analytical Insights Grid */}
-      <div className="mt-space-lg grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
+      <div className="mt-space-lg grid grid-cols-1 xl:grid-cols-12 gap-space-lg">
         {/* Left Column: Load & Readiness */}
-        <div className="lg:col-span-6 flex flex-col gap-space-md">
+        <div className="xl:col-span-6 flex flex-col gap-space-md">
           <div className="p-space-md rounded-xl bg-surface-container border border-[#2a313d] shadow-sm flex flex-col justify-between h-full">
             <div>
               <div className="flex items-center justify-between pb-space-xs">
@@ -264,75 +279,55 @@ export default function DashboardScreen({
               <p className="font-body-sm text-body-sm text-on-surface-variant">Session RPE reported today, by team.</p>
               
               {/* RPE Distribution Visualization */}
-              <div className="mt-space-md grid grid-cols-2 gap-space-sm">
+              <div className="mt-space-md grid grid-cols-1 sm:grid-cols-2 gap-space-sm">
                 {rpeBySport.length === 0 ? (
                   <div className="col-span-2 text-center text-dim font-body-md py-4">No sports active on roster.</div>
                 ) : (
                   rpeBySport.map(s => {
                     const none = s.logCount === 0;
+                    const max = settings.rpeScaleMax || 10;
+                    const high = settings.rpeHighThreshold || 8;
+                    const week = weekFor(s.sport);
+                    const anyWeek = week.some(d => d.avg != null);
+                    const tone = (v) => v >= high ? '#f87171' : v >= Math.max(0, high - 2) ? '#b89c5b' : '#60a5fa';
                     return (
-                      <div key={s.sport} data-testid="rpe-sport-card" data-sport={s.sport} onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }} className="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d] cursor-pointer hover:border-primary/50 transition-colors">
-                        <div className="flex items-start justify-between gap-space-xs">
-                          <div className="flex flex-col min-w-0">
-                            <span className="font-label-sm text-label-sm text-on-surface-variant uppercase truncate" title={s.sport}>{s.sport}</span>
-                            <span className="font-body-sm text-body-sm text-dim">
-                              {s.logCount === 0 ? `${s.rosterCount} Athletes Listed` : `${s.logCount} Session${s.logCount !== 1 ? 's' : ''} Logged`}
-                            </span>
-                          </div>
+                      <div key={s.sport} data-testid="rpe-sport-card" data-sport={s.sport} onClick={() => { setSelectedSportFilter(s.sport); setScreen('athletes'); }} className="p-space-sm rounded-lg bg-[#0e182a] border border-[#2a313d] cursor-pointer hover:border-primary/50 transition-colors flex flex-col gap-2 min-w-0">
+                        <div className="flex items-center justify-between gap-space-xs">
+                          <span className="font-label-md text-label-md text-on-surface uppercase truncate font-bold" title={s.sport}>{s.sport}</span>
                           {s.hard > 0 ? (
-                            <span className="font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold whitespace-nowrap bg-error-container border-error/30 text-error">
-                              {s.hard} HARD
-                            </span>
-                          ) : (
-                            <span className={`font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold whitespace-nowrap ${none ? 'bg-surface-container-high border-[#2a313d] text-dim' : 'bg-primary/20 border-primary/30 text-primary'}`}>
-                              {none ? 'No Data' : (s.isHard ? 'Heavy Load' : 'Moderate/Recovery')}
-                            </span>
+                            <span className="font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold whitespace-nowrap bg-error-container border-error/30 text-error">{s.hard} HARD</span>
+                          ) : !none && (
+                            <span className="font-label-sm text-label-sm px-1.5 py-0.5 rounded border font-bold whitespace-nowrap bg-primary/20 border-primary/30 text-primary">{s.isHard ? 'Heavy' : 'Moderate'}</span>
                           )}
                         </div>
-                        <div className="mt-2 flex items-center gap-space-md">
-                          <div className="flex flex-col flex-1 min-w-0">
-                            <span className="font-label-sm text-[10px] text-dim uppercase tracking-widest">TEAM AVG RPE</span>
-                            <span className={`font-metric-val text-metric-val ${none ? 'text-dim' : (s.isHard ? 'text-error' : 'text-primary')}`}>
-                              {none ? '—' : s.avg.toFixed(1)} <span className="font-body-sm text-body-sm text-dim">/ {settings.rpeScaleMax || 10}</span>
-                            </span>
-                          </div>
-                          <div className="w-px h-9 bg-[#2a313d]" />
-                          <div className="flex flex-col flex-1 min-w-0">
-                            <span className="font-label-sm text-[10px] text-dim uppercase tracking-widest">LOG RESPONSE RATE</span>
-                            <span className="font-metric-val text-metric-val text-on-surface">{s.pct}%</span>
-                          </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className={`font-metric-val text-metric-val leading-none ${none ? 'text-dim' : ''}`} style={none ? undefined : { color: tone(s.avg) }}>
+                            {none ? <span className="font-body-sm text-body-sm">No RPE today</span> : <>{s.avg.toFixed(1)}<span className="font-body-sm text-body-sm text-dim"> avg today</span></>}
+                          </span>
+                          <span className="font-body-sm text-body-sm text-dim whitespace-nowrap">{s.responded}/{s.rosterCount} reported</span>
                         </div>
-                        <div className="mt-2 flex items-end gap-1 h-14">
-                           {(() => {
-                             const last7Days = Array.from({ length: 7 }, (_, i) => {
-                               const d = new Date();
-                               d.setDate(d.getDate() - (6 - i));
-                               return getCentralDateString(d);
-                             });
-                             const allRpeLogs = (reportData || []).filter(isRpeLog);
-                             const sportWeekLogs = allRpeLogs.filter(r => sportOf(r) === s.sport);
-                             return last7Days.map((dateStr, i) => {
-                               const dayLogs = sportWeekLogs.filter(r => r.created_at && getCentralDateString(new Date(r.created_at)) === dateStr);
-                               const dayAvg = dayLogs.length > 0 ? (dayLogs.reduce((acc, r) => acc + (r.rpe || 0), 0) / dayLogs.length) : null;
-                               
-                               if (dayAvg == null) {
-                                 return <div key={i} className="w-full bg-transparent rounded-sm h-2"></div>;
-                               }
-                               
-                               const pct = Math.min(100, (dayAvg / (settings.rpeScaleMax || 10)) * 100);
-                               // A logged-but-moderate day used to render bg-[#172338], which is
-                               // nearly the same navy as this card's own bg-[#0e182a] - a team that
-                               // trained normally (RPE 4-6) looked identical to a team that logged
-                               // nothing at all. Given its own visible color so any real day always
-                               // shows, distinct from both the hard/gold tiers and the empty stub.
-                               const barColor = dayAvg >= settings.rpeHighThreshold ? 'bg-[#f87171]' : (dayAvg >= Math.max(0, settings.rpeHighThreshold - 2) ? 'bg-[#b89c5b]' : 'bg-[#3b82f6]/60');
-                               return <div key={i} className={`w-full ${barColor} rounded-sm`} style={{ height: `${pct}%` }}></div>;
-                             });
-                           })()}
+                        <div className="w-full h-1.5 rounded-full bg-[#1b2638] overflow-hidden" aria-label={`${s.pct}% reported`}>
+                          <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: s.pct === 100 ? '#34d399' : '#b89c5b' }} />
                         </div>
-                        <span className="mt-1 block font-body-sm text-body-sm text-dim text-right">
-                          {s.responded}/{s.rosterCount} athletes reported
-                        </span>
+                        {anyWeek ? (
+                          <div data-testid="rpe-week-chart" className="mt-1">
+                            <div className="relative h-16 flex items-end gap-1">
+                              <div className="absolute left-0 right-0 border-t border-dashed border-[#f87171]/50 pointer-events-none" style={{ bottom: `${(high / max) * 100}%` }} title={`Hard: RPE ${high}+`} />
+                              {week.map(d => (
+                                <div key={d.date} className="flex-1 h-full flex flex-col justify-end items-center" title={d.avg == null ? `${d.label}: no sessions` : `${d.label}: avg RPE ${d.avg.toFixed(1)} · ${d.n} session${d.n === 1 ? '' : 's'}`}>
+                                  {d.avg == null
+                                    ? <div className="w-1 h-1 rounded-full bg-[#2a313d]" />
+                                    : <div className="w-full rounded-t-sm" style={{ height: `${Math.max(6, (d.avg / max) * 100)}%`, background: tone(d.avg), opacity: d.isToday ? 1 : 0.7 }} />}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex gap-1 mt-1">
+                              {week.map(d => <span key={d.date} className={`flex-1 text-center text-[10px] uppercase ${d.isToday ? 'text-on-surface font-bold' : 'text-dim'}`}>{d.letter}</span>)}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="font-body-sm text-body-sm text-dim">No RPE logged this week.</span>
+                        )}
                       </div>
                     );
                   })
@@ -343,7 +338,7 @@ export default function DashboardScreen({
         </div>
 
         {/* Right Column: Weigh-ins Remaining by Sport */}
-        <div className="lg:col-span-6 flex flex-col gap-space-md">
+        <div className="xl:col-span-6 flex flex-col gap-space-md">
           <div className="p-space-md rounded-xl bg-surface-container border border-[#2a313d] shadow-sm flex flex-col justify-between h-full">
             <div>
               <div className="flex items-center justify-between pb-space-xs">
@@ -389,9 +384,15 @@ export default function DashboardScreen({
                         {neverTracked ? (
                           <span className="font-body-sm text-body-sm text-dim">No weigh-ins logged for this team yet.</span>
                         ) : (
-                          <div className="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
-                            <div className={`${pct === 100 ? 'bg-status-success' : 'bg-primary'} h-3 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>
-                          </div>
+                          <>
+                            <div className="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
+                              <div className={`${pct === 100 ? 'bg-status-success' : 'bg-primary'} h-3 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>
+                            </div>
+                            {pct < 100 && (() => {
+                              const left = sportAthletes.filter(a => !athletesRecordedToday.has(a.id)).map(a => a.name).sort((x, y) => x.localeCompare(y));
+                              return <span data-testid="weighin-left" className="font-body-sm text-body-sm text-dim">Left: {left.slice(0, 6).join(', ')}{left.length > 6 ? ` +${left.length - 6} more` : ''}</span>;
+                            })()}
+                          </>
                         )}
                       </div>
                      );

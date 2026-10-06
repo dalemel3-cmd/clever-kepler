@@ -129,7 +129,7 @@ export default function EntryScreen({
           and overflow left a ~90px empty gap under the sub-tabs and a second scroller. */}
       <div className="flex flex-col w-full pb-20">
         {/* Top Command & Kiosk HUD Bar */}
-        <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-6 mt-6">
+        <div className="flex flex-col 2xl:flex-row 2xl:items-end justify-between gap-6 mb-6 mt-6">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 font-label-md text-xs uppercase tracking-wider text-[#bcc1ca]">
               <span className="text-[#b89c5b] font-bold">LOG</span>
@@ -147,10 +147,10 @@ export default function EntryScreen({
           </div>
           
           {/* Mode Selectors & Quick Action Hub */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center flex-wrap bg-[#0a1120] border border-[#2a313d] p-1 rounded-xl shadow-md">
+          <div data-testid="kiosk-mode-hub" className="grid grid-cols-2 gap-2 w-full 2xl:flex 2xl:flex-wrap 2xl:items-center 2xl:w-auto">
+            <div className="col-span-2 flex items-stretch bg-[#0a1120] border border-[#2a313d] p-1 rounded-xl shadow-md">
               <button 
-                className={`mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'both' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
+                className={`mode-btn flex flex-1 2xl:flex-none items-center justify-center gap-1.5 px-4 py-1.5 min-h-[44px] 2xl:min-h-0 whitespace-nowrap rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'both' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
                 onClick={() => {
                   setKioskTrackMode('both');
                   try { localStorage.setItem('shiloh_kiosk_track_mode', 'both'); } catch {}
@@ -161,7 +161,7 @@ export default function EntryScreen({
                 <span>Weight + Sleep</span>
               </button>
               <button 
-                className={`mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'sleep_only' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
+                className={`mode-btn flex flex-1 2xl:flex-none items-center justify-center gap-1.5 px-4 py-1.5 min-h-[44px] 2xl:min-h-0 whitespace-nowrap rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'sleep_only' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
                 onClick={() => {
                   setKioskTrackMode('sleep_only');
                   try { localStorage.setItem('shiloh_kiosk_track_mode', 'sleep_only'); } catch {}
@@ -173,7 +173,7 @@ export default function EntryScreen({
               </button>
               {settings?.enableRpe && (
                 <button 
-                  className={`mode-btn flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'rpe' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
+                  className={`mode-btn flex flex-1 2xl:flex-none items-center justify-center gap-1.5 px-4 py-1.5 min-h-[44px] 2xl:min-h-0 whitespace-nowrap rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'rpe' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
                   onClick={() => {
                     setKioskTrackMode('rpe');
                     setFocusedField('rpe');
@@ -186,7 +186,7 @@ export default function EntryScreen({
               )}
             </div>
             <button 
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#2a313d] font-headline-md text-sm uppercase transition-colors shadow-sm ${isBaselineTestingMode ? 'bg-[#d1b87a] text-[#061c41]' : 'bg-[#061c41] hover:bg-[#0a1120] text-[#d1b87a]'}`}
+              className={`flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] whitespace-nowrap rounded-xl border border-[#2a313d] font-headline-md text-sm uppercase transition-colors shadow-sm ${isBaselineTestingMode ? 'bg-[#d1b87a] text-[#061c41]' : 'bg-[#061c41] hover:bg-[#0a1120] text-[#d1b87a]'}`}
               onClick={() => setIsBaselineTestingMode(!isBaselineTestingMode)}
             >
               <span aria-hidden="true" className="material-symbols-outlined text-base">tune</span>
@@ -198,7 +198,7 @@ export default function EntryScreen({
                 setEditingAthleteId(null);
                 setNewAthlete({ name: '', sport: localSportFilter !== 'All' ? localSportFilter : '', team: '', grade: '', position: '' });
               }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold tracking-wider transition-all hover:bg-[#d1b87a] shadow-md active:scale-95"
+              className="flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] whitespace-nowrap rounded-xl bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold tracking-wider transition-all hover:bg-[#d1b87a] shadow-md active:scale-95"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-base font-bold">person_add</span>
               <span>+ Add Guest / Trial</span>
@@ -286,7 +286,7 @@ export default function EntryScreen({
               <button
                 key={sport}
                 onClick={() => setLocalSportFilter(sport)}
-                className={`sport-filter px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide whitespace-nowrap ${localSportFilter === sport ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca]'}`}
+                className={`sport-filter flex-none min-h-[40px] px-4 py-1.5 rounded-lg font-headline-md text-sm uppercase tracking-wide whitespace-nowrap ${localSportFilter === sport ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'bg-[#061c41] hover:bg-[#030a14] border border-[#2a313d] text-[#bcc1ca]'}`}
               >
                 {sport === 'All' ? 'All Roster' : sport}
               </button>

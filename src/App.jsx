@@ -1843,6 +1843,38 @@ export default function App() {
     }
   };
 
+  // RPE Team Log (RpeTeamEntryPanel): one request for a whole sheet of manual session-RPE
+  // rows - for days the kiosk iPads were down. On a network failure every row goes to the
+  // same offline queue the kiosk uses, so nothing typed is lost.
+  const addRpeSessions = async (rows) => {
+    const recs = rows.map(r => ({
+      athlete_id: r.athlete_id, athlete_name: r.athlete_name || 'Unknown', sport: r.sport || '',
+      weight_lbs: 0, sleep_hrs: 0, created_at: r.created_at, session_type: 'rpe', is_baseline: false,
+      rpe: r.rpe, session_minutes: r.session_minutes ?? null, session_label: r.session_label || null,
+    }));
+    const opt = recs.map((r, i) => ({ id: `opt_rpe_${Date.now()}_${i}`, ...r }));
+    setReportData(prev => [...opt, ...prev]);
+    try {
+      const { error } = await supabase.from('weigh_ins').insert(recs);
+      if (error) {
+        setReportData(prev => prev.filter(r => !opt.includes(r)));
+        if (/fetch|network/i.test(error.message || '')) throw error;
+        return { ok: false };
+      }
+      fetchReportData(true);
+      return { ok: true };
+    } catch (err) {
+      console.warn('RPE team log offline, queueing:', err);
+      try {
+        const offline = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]');
+        recs.forEach((r, i) => offline.push({ action: 'insert', record: r, queue_id: `q_${Date.now()}_${i}` }));
+        localStorage.setItem('shiloh_offline_weigh_ins', JSON.stringify(offline));
+        setUnsyncedQueueCount(offline.length);
+      } catch {}
+      return { ok: true, queued: true };
+    }
+  };
+
   // Corrects an existing log's date/time/weight (or RPE/duration/label) in place,
   // rather than creating a new row - used by the "Edit" action on a profile's log
   // history table, for weigh-ins, post-practice sweat checks, and Session RPE rows.
@@ -2637,6 +2669,7 @@ export default function App() {
             {screen === 'rpe' && (
               <RpeScreen
                 settings={settings}
+                addRpeSessions={addRpeSessions}
                 athletes={athletes}
                 reportData={reportData}
                 setSelectedProfileId={setSelectedProfileId}

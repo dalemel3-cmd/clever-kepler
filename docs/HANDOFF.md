@@ -3821,7 +3821,14 @@ The Reports tab is now the Readiness Report from the second design handoff (Part
 
 `ReportsScreen.jsx` has an "Include" row (Mass drop, Sweat loss, Sleep, Training load, Below best, New PRs, Weigh-in needed). Unchecked sections and their summary tiles leave the screen, PDF and CSV. Stored in localStorage `hpd_rr_sections`. `ReadinessReport` takes `include` (Set; null = all); `REPORT_SECTIONS` lists the keys. Replaces the old Weigh-in toggle.
 
-## 109. Next up
+## 109. RPE Team Log, Today charts, iPad Log layout (v5.4.7)
+
+- **RPE Team Log** (`src/features/rpe/RpeTeamEntryPanel.jsx`, opened by "Team log" on Performance > RPE): for days the kiosk iPads are down. Date (defaults to yesterday), time (3:30 PM default, Central), session label, team, default minutes; one RPE (+ optional minutes) per athlete. Validates RPE 1..rpeScaleMax and minutes 1..rpeMaxMinutes. Rows that already have that session on that date are flagged "Already logged". Saved by `addRpeSessions` in App.jsx: one `weigh_ins` insert; on a network error every row goes to `shiloh_offline_weigh_ins`.
+- **Today tab**: RPE team cards show avg today, reported count + bar, and a 7-day bar chart (day letters, today bold, dashed hard-RPE line, colored by tier). Teams with nothing this week say so instead of drawing empty space. Weigh-ins by sport lists who is left (first 6). The two panels stack until `xl`.
+- **Log tab (iPad)**: kiosk mode hub is a full-width grid below `2xl` (three mode buttons in one even row; Baseline + Add Guest beside each other, 44px targets). Sport chips are `flex-none` so labels never truncate; the strip scrolls.
+- Nav: "Print Report" renamed "Readiness Report".
+
+## 110. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
