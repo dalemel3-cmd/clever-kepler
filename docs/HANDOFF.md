@@ -3836,7 +3836,11 @@ The Reports tab is now the Readiness Report from the second design handoff (Part
 
 New toggle "Initial & best dates" (key `initial`, default on) in `PrintLeaderboard.jsx`: adds an "Initial (date)" column (first test value + M/D) and puts the date the best was set under the Best value; header reads "Best (date)". Rows carry `initial`, `initialDate`, `bestDate` from `buildPrintLeaderboard`.
 
-## 112. Next up
+## 112. Stale entry-script auto-recovery (v5.4.10)
+
+app_errors 2026-10-06 13:04: "Failed to load .../assets/index-DLXLdeaD.js" - a device opened a cached index.html from before a deploy. The index.html safety net now spots a failed `/assets/index-*.js` load and runs `__hpdHardReload()` once (sessionStorage `hpd_boot_reload` guards against loops; main.jsx clears it on a good start). The 10s Reload card remains the fallback.
+
+## 113. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

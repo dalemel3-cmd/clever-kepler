@@ -58,7 +58,16 @@
         window.addEventListener('error', function (e) {
           if (window.__hpdMounted) return;
           var t = e.target;
-          remember(t && t !== window && (t.src || t.href) ? 'Failed to load ' + (t.src || t.href) : (e.message || 'Script error'));
+          var src = t && t !== window && (t.src || t.href);
+          remember(src ? 'Failed to load ' + src : (e.message || 'Script error'));
+          // A cached index.html from before a deploy points at an /assets/index-*.js that
+          // no longer exists. Clear the stale cache and reload once, right away, instead
+          // of leaving the coach on "Loading..." for 10s (v5.4.10).
+          if (src && /\/assets\/index-[^/]+\.js/.test(src)) {
+            var tried = false;
+            try { tried = sessionStorage.getItem('hpd_boot_reload') === '1'; sessionStorage.setItem('hpd_boot_reload', '1'); } catch (x) {}
+            if (!tried) setTimeout(function () { window.__hpdHardReload(); }, 0);
+          }
         }, true);
         window.addEventListener('unhandledrejection', function (e) {
           if (!window.__hpdMounted) remember((e.reason && (e.reason.message || e.reason)) || 'Unhandled rejection');

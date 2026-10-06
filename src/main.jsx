@@ -7,6 +7,7 @@ import AuthGate from './auth/AuthGate.jsx'
 import { installGlobalErrorReporting, reportError, handleIfStaleChunk } from './errorReporting.js'
 
 installGlobalErrorReporting()
+try { sessionStorage.removeItem('hpd_boot_reload') } catch { /* storage unavailable */ }
 
 // Report anything the index.html startup safety net caught on a previous launch that
 // never got far enough to mount (see the inline script there).
