@@ -7,8 +7,11 @@ import { availableMetrics } from '../leaderboard/printLeaderboardData';
 import { displayName } from './readinessData';
 
 const DAY = 86400000;
-export const DROP_PCT = 5;      // metric 5%+ worse than the athlete's previous best
-export const SPIKE_AT = 1.5;    // A:C going into the test
+// Flag = jump/sprint at least DROP_PCT off the athlete's best mark AND body weight at
+// least WEIGHT_PCT below baseline. Both are editable on the printout (v5.5.1).
+export const DROP_PCT = 11;
+export const WEIGHT_PCT = 2;
+export const SPIKE_AT = 1.5;    // A:C going into the test - highlighted, not part of the flag
 export const WEIGH_IN_LOOKBACK = 3; // days a weigh-in can precede the test and still count
 
 export const perfMetrics = (performanceTests) => availableMetrics({ performanceTests }).filter(m => m.kind === 'test');
@@ -37,13 +40,14 @@ function seriesFor(metric, performanceTests) {
 }
 
 // One test result in context: vs previous best, weight vs baseline, load going in, flag.
-function contextFor({ metric, athlete, series, i, logs, base, settings }) {
+function contextFor({ metric, athlete, series, i, logs, base, settings, dropPct, weightPct }) {
   const { day, value } = series[i];
-  const lb = Number(settings.dehydrationThreshold) || 2;
-  const prior = series.slice(0, i).map(p => p.value);
-  const prevBest = prior.length ? (metric.lowerIsBetter ? Math.min(...prior) : Math.max(...prior)) : null;
-  const off = prevBest == null ? null : (metric.lowerIsBetter ? value / prevBest - 1 : 1 - value / prevBest) * 100;
-  const pb = prevBest != null && off < 0;
+  // Best mark up to and including this test, and how far this result is off it.
+  const upTo = series.slice(0, i + 1);
+  const bestP = upTo.reduce((b, p) => (metric.lowerIsBetter ? (p.value < b.value ? p : b) : (p.value > b.value ? p : b)), upTo[0]);
+  const best = bestP.value;
+  const off = (metric.lowerIsBetter ? value / best - 1 : 1 - value / best) * 100;
+  const pb = i > 0 && bestP === series[i] && series.slice(0, i).every(p => p.value !== value);
 
   // Weight: that day's weigh-in, else the latest one in the few days before.
   const start = dayStart(day);
@@ -64,22 +68,24 @@ function contextFor({ metric, athlete, series, i, logs, base, settings }) {
     }
   }
 
-  const drop = off != null && off >= DROP_PCT;
-  const low = dLb != null && dLb < -lb;
+  const drop = off >= dropPct;
+  const low = dPct != null && dPct <= -weightPct;
   const spike = ratio != null && ratio >= SPIKE_AT;
-  const flag = drop && (low || spike) ? 'red' : (drop || low || spike) ? 'gold' : null;
+  const flag = drop && low ? 'red' : null;
   const notes = [];
-  if (low) notes.push(`down ${Math.abs(dLb).toFixed(1)} lb (${Math.abs(dPct).toFixed(1)}%)`);
-  if (spike) notes.push(`A:C ${ratio.toFixed(2)} going in`);
-  if (drop) notes.push(`${metric.title.toLowerCase()} −${Math.round(off)}%`);
+  if (flag) {
+    notes.push(`${metric.title.toLowerCase()} ${off.toFixed(1)}% off best`);
+    notes.push(`down ${Math.abs(dPct).toFixed(1)}% body weight (${Math.abs(dLb).toFixed(1)} lb)`);
+    if (spike) notes.push(`A:C ${ratio.toFixed(2)} going in`);
+  }
   return {
     id: `${athlete.id}|${day}`, athleteId: athlete.id, name: displayName(athlete.name), sport: athlete.sport || '', pos: athlete.position || '',
-    day, value, valueText: value.toFixed(metric.decimals), prevBest, off, pb, first: prevBest == null,
-    curW, baseW, dLb, dPct, acute, ratio, drop, low, spike, flag, note: notes.join(', '),
+    day, value, valueText: value.toFixed(metric.decimals), best, bestText: best.toFixed(metric.decimals), bestDay: bestP.day, off, pb, first: i === 0,
+    weighDay: wi ? dayOf(wi) : null, curW, baseW, dLb, dPct, acute, ratio, drop, low, spike, flag, note: notes.join(', '),
   };
 }
 
-export function buildPerfReadiness({ metric, athletes = [], reportData = [], performanceTests = [], settings = {}, sport = 'ALL', day = null, withAthletePages = true }) {
+export function buildPerfReadiness({ metric, athletes = [], reportData = [], performanceTests = [], settings = {}, sport = 'ALL', day = null, withAthletePages = true, dropPct = DROP_PCT, weightPct = WEIGHT_PCT }) {
   if (!metric) return { days: [], day: null, rows: [], athletePages: [] };
   const roster = sport === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === sport);
   const byId = new Map(roster.map(a => [a.id, a]));
@@ -96,7 +102,7 @@ export function buildPerfReadiness({ metric, athletes = [], reportData = [], per
   }
   const ctx = (id, i) => {
     const a = byId.get(id);
-    return contextFor({ metric, athlete: a, series: series.get(id), i, logs: logsBy.get(id) || [], base: getAthleteBaseline(a, reportData), settings });
+    return contextFor({ metric, athlete: a, series: series.get(id), i, logs: logsBy.get(id) || [], base: getAthleteBaseline(a, reportData), settings, dropPct, weightPct });
   };
 
   const rank = { red: 0, gold: 1 };
@@ -110,8 +116,8 @@ export function buildPerfReadiness({ metric, athletes = [], reportData = [], per
   const athletePages = !withAthletePages ? [] : rows.map(r => {
     const s = series.get(r.athleteId);
     const hist = s.map((_, i) => ctx(r.athleteId, i)).reverse();
-    // "Tests 2+ lb down averaged X% below best, vs Y% otherwise" - only with both kinds.
-    const scored = hist.filter(h => h.off != null && h.dLb != null);
+    // "Tests 2%+ down in weight averaged X% off best, vs Y% otherwise" - only with both kinds.
+    const scored = hist.filter(h => !h.first && h.dPct != null);
     const lowSet = scored.filter(h => h.low), rest = scored.filter(h => !h.low);
     const avg = (xs) => xs.reduce((t, h) => t + h.off, 0) / xs.length;
     const summary = lowSet.length && rest.length
@@ -122,7 +128,6 @@ export function buildPerfReadiness({ metric, athletes = [], reportData = [], per
   return {
     days, day: pick, rows, athletePages,
     redCount: rows.filter(r => r.flag === 'red').length,
-    goldCount: rows.filter(r => r.flag === 'gold').length,
-    thresholds: { lb: Number(settings.dehydrationThreshold) || 2, drop: DROP_PCT, spike: SPIKE_AT },
+    thresholds: { drop: dropPct, weight: weightPct, spike: SPIKE_AT },
   };
 }

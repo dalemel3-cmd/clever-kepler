@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, Download, X } from 'lucide-react';
-import { buildPerfReadiness, perfMetrics } from './perfReadinessData';
+import { buildPerfReadiness, perfMetrics, DROP_PCT, WEIGHT_PCT } from './perfReadinessData';
 
 // Performance vs Readiness printout (docs/HANDOFF.md §114): a test day's jump/sprint
 // results next to body weight vs baseline and the training load going in, flagged
@@ -26,21 +26,25 @@ const longDay = (day) => new Date(`${day}T12:00:00`).toLocaleDateString('en-US',
 const sign = (n, dp = 1) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(dp)}`;
 
 const FlagPill = ({ flag }) => !flag ? <span style={{ color: C.faint }}>—</span> : (
-  <span style={{ padding: '2px 8px', borderRadius: 999, fontWeight: 700, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', background: flag === 'red' ? C.dangerBg : C.warningBg, color: flag === 'red' ? C.danger : C.gold900 }}>
-    {flag === 'red' ? 'Act' : 'Watch'}
-  </span>
+  <span style={{ padding: '2px 8px', borderRadius: 999, fontWeight: 700, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', background: C.dangerBg, color: C.danger }}>Flag</span>
 );
+const sub = { display: 'block', fontSize: 10, fontWeight: 500, color: C.faint, marginTop: 1 };
 
-// Shared cells for one result-in-context.
-function Cells({ r, unit }) {
+// Shared cells for one result-in-context: most recent, best mark, baseline, weight, load.
+function Cells({ r, unit, showDay = true }) {
   return (
     <>
-      <td style={td('right', { fontWeight: 700, color: C.navy900, whiteSpace: 'nowrap' })}>{r.valueText} <span style={{ fontWeight: 500, color: C.muted, fontSize: 11 }}>{unit}</span></td>
-      <td style={td('right', { whiteSpace: 'nowrap', fontWeight: 700, color: r.pb ? C.successDark : r.drop ? C.danger : C.muted })}>
-        {r.first ? <span style={{ fontWeight: 500, color: C.faint }}>1st test</span> : r.pb ? '▲ PB' : `−${Math.max(0, r.off).toFixed(1)}%`}
+      <td style={td('right', { fontWeight: 700, color: r.drop ? C.danger : C.navy900, whiteSpace: 'nowrap' })}>
+        {r.valueText} <span style={{ fontWeight: 500, color: C.muted, fontSize: 11 }}>{unit}</span>
+        {showDay && <span style={sub}>{md(r.day)}{r.first ? ' · 1st test' : ''}</span>}
       </td>
-      <td style={td('right', { whiteSpace: 'nowrap', color: r.low ? C.danger : C.text, fontWeight: r.low ? 700 : 500 })}>
-        {r.dLb == null ? <span style={{ color: C.faint }}>—</span> : <>{sign(r.dLb)} lb <span style={{ color: C.muted, fontWeight: 500 }}>({sign(r.dPct)}%)</span></>}
+      <td style={td('right', { whiteSpace: 'nowrap', fontWeight: 700, color: C.navy900 })}>
+        {r.pb && <span style={{ color: C.successDark, marginRight: 4 }}>{'\u25B2'}</span>}{r.bestText} <span style={{ fontWeight: 500, color: C.muted, fontSize: 11 }}>{unit}</span>
+        <span style={sub}>{md(r.bestDay)}{!r.first && r.off > 0 ? ` · ${r.off.toFixed(1)}% off` : ''}</span>
+      </td>
+      <td style={td('right', { whiteSpace: 'nowrap', color: C.text })}>{r.baseW == null ? <span style={{ color: C.faint }}>—</span> : `${r.baseW.toFixed(1)} lb`}</td>
+      <td style={td('right', { whiteSpace: 'nowrap', fontWeight: r.low ? 700 : 500, color: r.low ? C.danger : C.text })}>
+        {r.curW == null ? <span style={{ color: C.faint }}>—</span> : <>{r.curW.toFixed(1)} lb<span style={sub}>{md(r.weighDay)}{r.dPct != null ? ` · ${sign(r.dPct)}%` : ''}</span></>}
       </td>
       <td style={td('right', { color: C.muted })}>{r.acute == null ? '—' : `${r.acute} AU`}</td>
       <td style={td('right', { whiteSpace: 'nowrap', fontWeight: 700, color: r.spike ? C.danger : C.text })}>{r.ratio == null ? <span style={{ color: C.faint, fontWeight: 500 }}>—</span> : r.ratio.toFixed(2)}</td>
@@ -73,12 +77,11 @@ function Doc({ metric, data, team, showPages }) {
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '14px 0 6px', fontSize: 12 }}>
-            <span style={{ padding: '3px 10px', borderRadius: 999, fontWeight: 700, background: C.dangerBg, color: C.danger }}>{data.redCount} act</span>
-            <span style={{ padding: '3px 10px', borderRadius: 999, fontWeight: 700, background: C.warningBg, color: C.gold900 }}>{data.goldCount} watch</span>
+            <span style={{ padding: '3px 10px', borderRadius: 999, fontWeight: 700, background: C.dangerBg, color: C.danger }}>{data.redCount} flagged</span>
           </div>
           <p style={{ margin: '0 0 10px', fontSize: 11.5, color: C.muted, lineHeight: 1.5 }}>
-            <b style={{ color: C.danger }}>Act</b>: {metric.title} {t.drop}%+ below the athlete's previous best <i>and</i> more than {t.lb} lb below baseline or A:C {t.spike}+ going in.{' '}
-            <b style={{ color: C.gold900 }}>Watch</b>: one of those on its own. Weight = that day's weigh-in (or the latest in the 3 days before) vs baseline. Load = 7-day RPE load and acute:chronic ratio through the day before the test.
+            <b style={{ color: C.danger }}>Flag</b>: {metric.title} {t.drop}%+ off the athlete's best mark <i>and</i> body weight {t.weight}%+ below baseline. Red numbers show each one on its own.
+            Weight = that day's weigh-in (or the latest in the 3 days before). Load = 7-day RPE load and acute:chronic ratio through the day before the test; A:C {t.spike}+ in red.
           </p>
 
           {data.rows.length === 0 ? (
@@ -86,8 +89,8 @@ function Doc({ metric, data, team, showPages }) {
           ) : (
             <table style={table}>
               <thead><tr style={theadRow}>
-                <th style={th()}>Athlete</th><th style={th()}>Pos</th><th style={th('right')}>Result</th><th style={th('right')}>vs best</th>
-                <th style={th('right')}>Wt vs base</th><th style={th('right')}>7-day</th><th style={th('right')}>A:C</th><th style={th('center')}>Flag</th>
+                <th style={th()}>Athlete</th><th style={th()}>Pos</th><th style={th('right')}>Most recent</th><th style={th('right')}>Best</th>
+                <th style={th('right')}>Baseline</th><th style={th('right')}>Weight</th><th style={th('right')}>7-day</th><th style={th('right')}>A:C</th><th style={th('center')}>Flag</th>
               </tr></thead>
               <tbody>{data.rows.map(r => (
                 <React.Fragment key={r.id}>
@@ -97,7 +100,7 @@ function Doc({ metric, data, team, showPages }) {
                     <Cells r={r} unit={metric.unit} />
                   </tr>
                   {r.note && r.flag && (
-                    <tr style={rowLine}><td colSpan={8} style={td('left', { paddingTop: 0, fontSize: 11, color: r.flag === 'red' ? C.danger : C.gold900 })}>{r.note}</td></tr>
+                    <tr style={rowLine}><td colSpan={9} style={td('left', { paddingTop: 0, fontSize: 11, color: C.danger })}>{r.note}</td></tr>
                   )}
                 </React.Fragment>
               ))}</tbody>
@@ -112,18 +115,18 @@ function Doc({ metric, data, team, showPages }) {
               </div>
               <p data-testid="pr-summary" style={{ margin: '8px 0 10px', fontSize: 12, color: C.muted }}>
                 {p.summary
-                  ? <>Tests more than {t.lb} lb below baseline ({p.summary.lowN}) averaged <b style={{ color: C.text }}>{p.summary.lowAvg.toFixed(1)}% below best</b>, vs <b style={{ color: C.text }}>{p.summary.restAvg.toFixed(1)}%</b> otherwise ({p.summary.restN}).</>
+                  ? <>Tests with body weight {t.weight}%+ below baseline ({p.summary.lowN}) averaged <b style={{ color: C.text }}>{p.summary.lowAvg.toFixed(1)}% off best</b>, vs <b style={{ color: C.text }}>{p.summary.restAvg.toFixed(1)}%</b> otherwise ({p.summary.restN}).</>
                   : 'Not enough tests both at and below baseline weight to compare yet.'}
               </p>
               <table style={table}>
                 <thead><tr style={theadRow}>
-                  <th style={th()}>Date</th><th style={th('right')}>Result</th><th style={th('right')}>vs best</th>
-                  <th style={th('right')}>Wt vs base</th><th style={th('right')}>7-day</th><th style={th('right')}>A:C</th><th style={th('center')}>Flag</th>
+                  <th style={th()}>Date</th><th style={th('right')}>Result</th><th style={th('right')}>Best to date</th>
+                  <th style={th('right')}>Baseline</th><th style={th('right')}>Weight</th><th style={th('right')}>7-day</th><th style={th('right')}>A:C</th><th style={th('center')}>Flag</th>
                 </tr></thead>
                 <tbody>{p.hist.map(h => (
                   <tr key={h.id} style={rowLine}>
                     <td style={td('left', { color: C.muted, fontWeight: h.day === data.day ? 700 : 500 })}>{md(h.day)}</td>
-                    <Cells r={h} unit={metric.unit} />
+                    <Cells r={h} unit={metric.unit} showDay={false} />
                   </tr>
                 ))}</tbody>
               </table>
@@ -148,9 +151,21 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
   const [sport, setSport] = React.useState(() => (initialSport && initialSport !== 'ALL' ? initialSport : sports.includes('Football') ? 'Football' : 'ALL'));
   const [day, setDay] = React.useState(null);
   const [showPages, setShowPages] = React.useState(true);
+  // Flag thresholds, editable here and remembered on this device.
+  const [th2, setTh2] = React.useState(() => {
+    const d = { drop: DROP_PCT, weight: WEIGHT_PCT };
+    try { return { ...d, ...JSON.parse(localStorage.getItem('hpd_pr_thresholds') || '{}') }; } catch { return d; }
+  });
+  const setThreshold = (k, v) => setTh2(prev => {
+    const next = { ...prev, [k]: v };
+    try { localStorage.setItem('hpd_pr_thresholds', JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
+  const dropPct = Number(th2.drop) > 0 ? Number(th2.drop) : DROP_PCT;
+  const weightPct = Number(th2.weight) > 0 ? Number(th2.weight) : WEIGHT_PCT;
   const metric = metrics.find(m => m.key === metricKey) || metrics[0];
-  const data = React.useMemo(() => buildPerfReadiness({ metric, athletes, reportData, performanceTests, settings, sport, day, withAthletePages: showPages }),
-    [metric, athletes, reportData, performanceTests, settings, sport, day, showPages]);
+  const data = React.useMemo(() => buildPerfReadiness({ metric, athletes, reportData, performanceTests, settings, sport, day, withAthletePages: showPages, dropPct, weightPct }),
+    [metric, athletes, reportData, performanceTests, settings, sport, day, showPages, dropPct, weightPct]);
   const team = sport === 'ALL' ? 'All Sports' : sport;
 
   React.useEffect(() => {
@@ -161,8 +176,8 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
   }, [onClose]);
 
   const exportCsv = () => {
-    const rows = [['Date', 'Athlete', 'Sport', 'Pos', 'Result', 'Unit', 'Off best %', 'PB', 'Weight', 'Baseline', 'Wt vs base lb', 'Wt vs base %', '7-day load', 'A:C', 'Flag', 'Note']];
-    const add = (r) => rows.push([r.day, r.name, r.sport, r.pos, r.valueText, metric.unit, r.off == null ? '' : r.off.toFixed(1), r.pb ? 'yes' : '', r.curW ?? '', r.baseW ?? '', r.dLb == null ? '' : r.dLb.toFixed(1), r.dPct == null ? '' : r.dPct.toFixed(1), r.acute ?? '', r.ratio == null ? '' : r.ratio.toFixed(2), r.flag === 'red' ? 'act' : r.flag === 'gold' ? 'watch' : '', r.note]);
+    const rows = [['Date', 'Athlete', 'Sport', 'Pos', 'Result', 'Best', 'Best date', 'Unit', 'Off best %', 'Baseline lb', 'Weight lb', 'Weigh-in date', 'Wt vs base %', '7-day load', 'A:C', 'Flag', 'Note']];
+    const add = (r) => rows.push([r.day, r.name, r.sport, r.pos, r.valueText, r.bestText, r.bestDay, metric.unit, r.off.toFixed(1), r.baseW ?? '', r.curW ?? '', r.weighDay ?? '', r.dPct == null ? '' : r.dPct.toFixed(1), r.acute ?? '', r.ratio == null ? '' : r.ratio.toFixed(2), r.flag ? 'flag' : '', r.note]);
     if (showPages) data.athletePages.forEach(p => p.hist.forEach(add)); else data.rows.forEach(add);
     const blob = new Blob([rows.map(r => r.map(csvCell).join(',')).join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
@@ -202,6 +217,20 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
           <select id="pr-day" className="input-glass" style={field} value={data.day || ''} onChange={e => setDay(e.target.value)}>
             {data.days.map(d => <option key={d} value={d} style={opt}>{new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', year: 'numeric' })}</option>)}
           </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label htmlFor="pr-drop" style={label}>Flag: jump off best ≥</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <input id="pr-drop" data-testid="pr-drop" type="text" inputMode="decimal" className="input-glass" style={{ ...field, width: 64 }} value={th2.drop} onChange={e => setThreshold('drop', e.target.value.replace(/[^0-9.]/g, ''))} />
+            <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>%</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label htmlFor="pr-weight" style={label}>and weight down ≥</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <input id="pr-weight" data-testid="pr-weight" type="text" inputMode="decimal" className="input-glass" style={{ ...field, width: 64 }} value={th2.weight} onChange={e => setThreshold('weight', e.target.value.replace(/[^0-9.]/g, ''))} />
+            <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>%</span>
+          </div>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 40, fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>
           <input data-testid="pr-pages-toggle" type="checkbox" checked={showPages} onChange={e => setShowPages(e.target.checked)} /> Athlete pages

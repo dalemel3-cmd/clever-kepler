@@ -3853,7 +3853,11 @@ For S&C/medical staff, mainly football: does being down in weight, or a heavy we
 - Opened from Performance > Jumps & Sprints ("Perf vs readiness") and the Readiness Report toolbar. Both call `ensureReportWindow(180)` so older weigh-ins/RPE are loaded.
 - Test: `tests/perf-readiness.js` (15).
 
-## 115. Next up
+## 115. Perf vs Readiness: actual numbers + new flag rule (v5.5.1)
+
+Columns: Most recent (value + date), Best (best mark to date + date + % off), Baseline (lb), Weight (lb, weigh-in date, % vs baseline), 7-day, A:C, Flag. The Act/Watch tiers are gone: a single **Flag** = metric `DROP_PCT` (11)%+ off best mark AND body weight `WEIGHT_PCT` (2)%+ below baseline. Both thresholds are inputs on the printout toolbar, stored in localStorage `hpd_pr_thresholds`. A metric drop or weight drop on its own is shown in red but not flagged; A:C >= 1.5 is shown in red only. Athlete-page summary compares tests 2%+ down in weight vs the rest.
+
+## 116. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
