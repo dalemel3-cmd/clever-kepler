@@ -3844,7 +3844,16 @@ app_errors 2026-10-06 13:04: "Failed to load .../assets/index-DLXLdeaD.js" - a d
 
 Toggle `recent` ("Most recent", default on): "Recent (date)" column = latest test value + M/D (`recent`, `recentDate` on rows). When Initial or Recent is on, `colsFor` narrows progression/change/best so the name keeps ~150px; names use a 2-line clamp (`nameClamp`) instead of an ellipsis. Sparklines now fill their column width.
 
-## 114. Next up
+## 114. Performance vs Readiness printout (v5.5.0)
+
+For S&C/medical staff, mainly football: does being down in weight, or a heavy week, line up with a jump/sprint drop?
+- Data: `src/features/reports/perfReadinessData.js` (`buildPerfReadiness`, `perfMetrics`). Jumps/sprints only (lifts excluded - only metrics that lead to an intervention). Per athlete per test day: result, % vs *previous* best (PB / 1st test), weight that day (or latest real weigh-in within 3 days before) vs `getAthleteBaseline` in lb and %, and 7-day load + A:C from `computeAcuteChronicLoad` with `now` = midnight Central of the test day.
+- Flags: **Act** = drop >= 5% AND (more than `dehydrationThreshold` lb below baseline OR A:C >= 1.5); **Watch** = any one of those alone. Flags trigger on lb; % is shown for context. Each flagged row gets a plain note ("down 6.0 lb (3.0%), vertical jump -10%").
+- View: `PerfReadinessReport.jsx` portal (body class `pr-printing`, Letter 0.5in). Controls: metric, team (defaults to Football), test day (defaults to latest), athlete pages toggle; PDF and CSV. Athlete pages = every test of that metric with the same columns plus a summary (avg % below best when more than X lb down vs otherwise, shown only when both kinds exist).
+- Opened from Performance > Jumps & Sprints ("Perf vs readiness") and the Readiness Report toolbar. Both call `ensureReportWindow(180)` so older weigh-ins/RPE are loaded.
+- Test: `tests/perf-readiness.js` (15).
+
+## 115. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

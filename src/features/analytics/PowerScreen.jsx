@@ -111,8 +111,9 @@ const SORTS = [
 ];
 
 const PrintLeaderboard = React.lazy(() => import('../leaderboard/PrintLeaderboard'));
+const PerfReadinessReport = React.lazy(() => import('../reports/PerfReadinessReport'));
 
-export default function PowerScreen({ athletes, performanceTests, liftLogs = [], settings = {}, setSelectedProfileId, fetchProfileData, setScreen, setProfileEntryScreen }) {
+export default function PowerScreen({ athletes, performanceTests, liftLogs = [], reportData = [], ensureReportWindow, settings = {}, setSelectedProfileId, fetchProfileData, setScreen, setProfileEntryScreen }) {
   const tests = React.useMemo(() => performanceTests || [], [performanceTests]);
   const [testKey, setTestKey] = React.useState(TEST_TYPES[1]?.key || TEST_TYPES[0].key);
   const variants = React.useMemo(() => variantsFor(tests, testKey), [tests, testKey]);
@@ -126,6 +127,7 @@ export default function PowerScreen({ athletes, performanceTests, liftLogs = [],
   const [openId, setOpenId] = React.useState(null);
   const [scrollRef, visibleWidth] = useVisibleWidth();
   const [printLbOpen, setPrintLbOpen] = React.useState(false);
+  const [perfReadyOpen, setPerfReadyOpen] = React.useState(false);
   const [more, toggleMore] = useMoreColumns('power');
   const tt = TEST_TYPE_BY_KEY[testKey];
   const unit = tt?.unit || '';
@@ -184,7 +186,23 @@ export default function PowerScreen({ athletes, performanceTests, liftLogs = [],
           <button type="button" onClick={() => setPrintLbOpen(true)} className="input-glass" style={{ ...selectStyle, cursor: 'pointer', textTransform: 'uppercase', color: 'var(--color-accent)' }}>
             Printable leaderboard
           </button>
+          <button type="button" data-testid="pr-open" onClick={() => { ensureReportWindow?.(180); setPerfReadyOpen(true); }} className="input-glass" style={{ ...selectStyle, cursor: 'pointer', textTransform: 'uppercase', color: 'var(--color-accent)' }}>
+            Perf vs readiness
+          </button>
         </div>
+        {perfReadyOpen && (
+          <React.Suspense fallback={null}>
+            <PerfReadinessReport
+              athletes={athletes}
+              reportData={reportData}
+              performanceTests={tests}
+              settings={settings}
+              initialMetricKey={`test:${testKey}:${variant}`}
+              initialSport={sport}
+              onClose={() => setPerfReadyOpen(false)}
+            />
+          </React.Suspense>
+        )}
         {printLbOpen && (
           <React.Suspense fallback={null}>
             <PrintLeaderboard

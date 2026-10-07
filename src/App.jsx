@@ -2697,6 +2697,8 @@ export default function App() {
                 athletes={athletes}
                 performanceTests={performanceTests}
                 liftLogs={liftLogs}
+                reportData={reportData}
+                ensureReportWindow={ensureReportWindow}
                 settings={settings}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}

@@ -1,0 +1,128 @@
+// Data for the Performance vs Readiness printout (docs/HANDOFF.md §114). Pure functions.
+// Puts a jump/sprint result next to the two things staff can act on: body weight vs the
+// athlete's baseline, and the training load they carried into the test. Lifts are left
+// out on purpose - only metrics that can lead to an intervention.
+import { centralWallTimeToISO, computeAcuteChronicLoad, getAthleteBaseline, getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
+import { availableMetrics } from '../leaderboard/printLeaderboardData';
+import { displayName } from './readinessData';
+
+const DAY = 86400000;
+export const DROP_PCT = 5;      // metric 5%+ worse than the athlete's previous best
+export const SPIKE_AT = 1.5;    // A:C going into the test
+export const WEIGH_IN_LOOKBACK = 3; // days a weigh-in can precede the test and still count
+
+export const perfMetrics = (performanceTests) => availableMetrics({ performanceTests }).filter(m => m.kind === 'test');
+
+const isRealWeighIn = (r) => hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r);
+const dayOf = (r) => getCentralDateString(new Date(r.created_at));
+// Midnight Central at the start of a calendar day: "before the test" cut-off.
+const dayStart = (day) => new Date(centralWallTimeToISO(day, '00:00')).getTime();
+
+// Best result per athlete per day for one metric, oldest first.
+function seriesFor(metric, performanceTests) {
+  const by = new Map();
+  for (const t of performanceTests || []) {
+    if (t.test_type !== metric.testType || (t.test_variant || 'untagged') !== metric.variant) continue;
+    const v = Number(t.metric);
+    if (!(v > 0)) continue;
+    const d = dayOf(t);
+    if (!by.has(t.athlete_id)) by.set(t.athlete_id, new Map());
+    const m = by.get(t.athlete_id);
+    const cur = m.get(d);
+    if (cur == null || (metric.lowerIsBetter ? v < cur : v > cur)) m.set(d, v);
+  }
+  const out = new Map();
+  for (const [id, m] of by) out.set(id, [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([day, value]) => ({ day, value })));
+  return out;
+}
+
+// One test result in context: vs previous best, weight vs baseline, load going in, flag.
+function contextFor({ metric, athlete, series, i, logs, base, settings }) {
+  const { day, value } = series[i];
+  const lb = Number(settings.dehydrationThreshold) || 2;
+  const prior = series.slice(0, i).map(p => p.value);
+  const prevBest = prior.length ? (metric.lowerIsBetter ? Math.min(...prior) : Math.max(...prior)) : null;
+  const off = prevBest == null ? null : (metric.lowerIsBetter ? value / prevBest - 1 : 1 - value / prevBest) * 100;
+  const pb = prevBest != null && off < 0;
+
+  // Weight: that day's weigh-in, else the latest one in the few days before.
+  const start = dayStart(day);
+  const wi = logs.filter(r => isRealWeighIn(r) && dayOf(r) <= day && start - new Date(r.created_at).getTime() < WEIGH_IN_LOOKBACK * DAY)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+  const baseW = base && Number(base.weight_lbs) > 0 ? Number(base.weight_lbs) : null;
+  const curW = wi ? Number(wi.weight_lbs) : null;
+  const dLb = baseW != null && curW != null ? curW - baseW : null;
+  const dPct = dLb != null ? (dLb / baseW) * 100 : null;
+
+  // Load carried into the test: windows end at the start of the test day.
+  let acute = null, ratio = null;
+  if (settings.enableRpe) {
+    const rpe = logs.filter(isRpeLog);
+    if (rpe.some(r => new Date(r.created_at).getTime() < start)) {
+      const ac = computeAcuteChronicLoad(rpe, { chronicWeeks: settings.rpeChronicWeeks || 4, trackDuration: settings.rpeTrackDuration !== false, now: start });
+      acute = Math.round(ac.acuteLoad); ratio = ac.ratio;
+    }
+  }
+
+  const drop = off != null && off >= DROP_PCT;
+  const low = dLb != null && dLb < -lb;
+  const spike = ratio != null && ratio >= SPIKE_AT;
+  const flag = drop && (low || spike) ? 'red' : (drop || low || spike) ? 'gold' : null;
+  const notes = [];
+  if (low) notes.push(`down ${Math.abs(dLb).toFixed(1)} lb (${Math.abs(dPct).toFixed(1)}%)`);
+  if (spike) notes.push(`A:C ${ratio.toFixed(2)} going in`);
+  if (drop) notes.push(`${metric.title.toLowerCase()} −${Math.round(off)}%`);
+  return {
+    id: `${athlete.id}|${day}`, athleteId: athlete.id, name: displayName(athlete.name), sport: athlete.sport || '', pos: athlete.position || '',
+    day, value, valueText: value.toFixed(metric.decimals), prevBest, off, pb, first: prevBest == null,
+    curW, baseW, dLb, dPct, acute, ratio, drop, low, spike, flag, note: notes.join(', '),
+  };
+}
+
+export function buildPerfReadiness({ metric, athletes = [], reportData = [], performanceTests = [], settings = {}, sport = 'ALL', day = null, withAthletePages = true }) {
+  if (!metric) return { days: [], day: null, rows: [], athletePages: [] };
+  const roster = sport === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === sport);
+  const byId = new Map(roster.map(a => [a.id, a]));
+  const all = seriesFor(metric, performanceTests);
+  const series = new Map([...all].filter(([id]) => byId.has(id)));
+  const days = [...new Set([...series.values()].flatMap(s => s.map(p => p.day)))].sort().reverse();
+  const pick = day && days.includes(day) ? day : days[0] || null;
+
+  const logsBy = new Map();
+  for (const r of reportData) {
+    if (!byId.has(r.athlete_id)) continue;
+    if (!logsBy.has(r.athlete_id)) logsBy.set(r.athlete_id, []);
+    logsBy.get(r.athlete_id).push(r);
+  }
+  const ctx = (id, i) => {
+    const a = byId.get(id);
+    return contextFor({ metric, athlete: a, series: series.get(id), i, logs: logsBy.get(id) || [], base: getAthleteBaseline(a, reportData), settings });
+  };
+
+  const rank = { red: 0, gold: 1 };
+  const rows = [];
+  for (const [id, s] of series) {
+    const i = s.findIndex(p => p.day === pick);
+    if (i >= 0) rows.push(ctx(id, i));
+  }
+  rows.sort((x, y) => (rank[x.flag] ?? 2) - (rank[y.flag] ?? 2) || (y.off ?? -999) - (x.off ?? -999) || x.name.localeCompare(y.name));
+
+  const athletePages = !withAthletePages ? [] : rows.map(r => {
+    const s = series.get(r.athleteId);
+    const hist = s.map((_, i) => ctx(r.athleteId, i)).reverse();
+    // "Tests 2+ lb down averaged X% below best, vs Y% otherwise" - only with both kinds.
+    const scored = hist.filter(h => h.off != null && h.dLb != null);
+    const lowSet = scored.filter(h => h.low), rest = scored.filter(h => !h.low);
+    const avg = (xs) => xs.reduce((t, h) => t + h.off, 0) / xs.length;
+    const summary = lowSet.length && rest.length
+      ? { lowN: lowSet.length, lowAvg: avg(lowSet), restN: rest.length, restAvg: avg(rest) } : null;
+    return { athleteId: r.athleteId, name: r.name, sport: r.sport, pos: r.pos, hist, summary };
+  });
+
+  return {
+    days, day: pick, rows, athletePages,
+    redCount: rows.filter(r => r.flag === 'red').length,
+    goldCount: rows.filter(r => r.flag === 'gold').length,
+    thresholds: { lb: Number(settings.dehydrationThreshold) || 2, drop: DROP_PCT, spike: SPIKE_AT },
+  };
+}

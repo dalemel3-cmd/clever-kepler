@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, Download } from 'lucide-react';
 import ReadinessReport, { REPORT_SECTIONS } from './ReadinessReport';
+const PerfReadinessReport = React.lazy(() => import('./PerfReadinessReport'));
 import { buildReadinessReport } from './readinessData';
 
 // Reports tab = the Readiness Report (design handoff Part 2, docs/HANDOFF.md §107). The
@@ -25,6 +26,7 @@ export default function ReportsScreen({
   });
   const showWeighIn = include.has('weighin');
   const [printing, setPrinting] = useState(false);
+  const [perfOpen, setPerfOpen] = useState(false);
   const sport = reportSportFilter || 'ALL';
 
   // Days-since-weigh-in needs history beyond the default window.
@@ -75,6 +77,7 @@ export default function ReportsScreen({
           </select>
         </label>
         <div className="ml-auto flex gap-2">
+          {settings.enableSpeedPower && <button data-testid="pr-open" onClick={() => { ensureReportWindow?.(180); setPerfOpen(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50">Perf vs readiness</button>}
           <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50"><Download size={16} /> CSV</button>
           <button data-testid="rr-print" onClick={() => setPrinting(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#061c41] text-white text-sm font-bold hover:bg-[#133b78]"><Printer size={16} /> Export PDF</button>
         </div>
@@ -91,6 +94,11 @@ export default function ReportsScreen({
       <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-x-auto" style={{ padding: '0.5in' }}>
         <div style={{ minWidth: 680 }}>{doc}</div>
       </div>
+      {perfOpen && (
+        <React.Suspense fallback={null}>
+          <PerfReadinessReport athletes={athletes} reportData={reportData} performanceTests={performanceTests} settings={settings} initialSport={sport} onClose={() => setPerfOpen(false)} />
+        </React.Suspense>
+      )}
       {printing && createPortal(
         <div className="rr-print-root">
           <style>{`
