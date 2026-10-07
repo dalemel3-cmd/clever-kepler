@@ -38,6 +38,9 @@ const tests = [
   vj(uuid(3), 20, 26), vj(uuid(3), 2, 27.5),
   vj(uuid(4), 20, 24), vj(uuid(4), 2, 23.8),
   vj(uuid(5), 2, 20),
+  { id: uuid(9001), athlete_id: uuid(1), test_type: '10yd_fly', test_variant: 'build10_fly10', metric: 1.20, created_at: at(20, 15) },
+  { id: uuid(9002), athlete_id: uuid(1), test_type: '10yd_fly', test_variant: 'build10_fly10', metric: 1.38, created_at: at(3, 15) },
+  { id: uuid(9003), athlete_id: uuid(3), test_type: '10yd_fly', test_variant: 'build10_fly10', metric: 1.25, created_at: at(2, 15) },
 ];
 const SEED = { enableRpe: true, enableSpeedPower: true, rpeTrackDuration: true, rpeChronicWeeks: 4, rpeLoadSpikeRatio: 1.3, dehydrationThreshold: 2, dataWindowDays: 60 };
 
@@ -92,10 +95,21 @@ const SEED = { enableRpe: true, enableSpeedPower: true, rpeTrackDuration: true, 
   await page.waitForTimeout(200);
   const h2 = await doc.locator('thead').first().innerText();
   const cells = await page.getByTestId('pr-row').first().locator('td').count();
-  check('column toggles hide Pos / 7-day / A:C (header + cells)', !/\bPOS\b|7-DAY|A:C/i.test(h2) && /MOST RECENT/i.test(h2) && cells === 6, `${h2} | ${cells}`);
+  check('column toggles hide Pos / 7-day / A:C (header + cells)', !/\bPOS\b|7-DAY|A:C/i.test(h2) && /MOST RECENT/i.test(h2) && cells === 7, `${h2} | ${cells}`);
   check('athlete pages follow the toggles', !/7-DAY/i.test(await page.getByTestId('pr-athlete-page').first().locator('thead').innerText()));
   check('column choice remembered', JSON.parse(await page.evaluate(() => localStorage.getItem('hpd_pr_columns'))).ac === false);
   for (const k of ['pos', 'load', 'ac']) await page.getByTestId(`pr-col-${k}`).click();
+  await page.waitForTimeout(200);
+  check('compare defaults to 10yd Fly', /10yd Fly/i.test(await page.locator('#pr-cmp option:checked').innerText()));
+  const cmpHead = await doc.locator('thead').first().innerText();
+  check('compare column header names the metric', /10YD FLY/i.test(cmpHead), cmpHead);
+  const dd = (await page.getByTestId('pr-row').allInnerTexts()).find(r => r.includes('Dry Dan')) || '';
+  check('Dry Dan fly: latest 1.38 (on/before test day), best 1.20, 15% off -> red', /1\.38/.test(dd) && /best 1\.20/.test(dd) && /15\.0% off/.test(dd), dd);
+  const lou = (await page.getByTestId('pr-row').allInnerTexts()).find(r => r.includes('Light Lou')) || '';
+  check('no fly result -> dash', /—/.test(lou));
+  await page.getByTestId('pr-cmp-select').selectOption('');
+  check('compare None hides the column', !/10YD FLY/i.test(await doc.locator('thead').first().innerText()));
+  await page.getByTestId('pr-cmp-select').selectOption({ label: '10yd Fly' }).catch(async () => { const v = await page.locator('#pr-cmp option').nth(1).getAttribute('value'); await page.getByTestId('pr-cmp-select').selectOption(v); });
   await page.waitForTimeout(200);
   check('athlete pages: one per tested athlete', await page.getByTestId('pr-athlete-page').count() === 5);
   await page.getByTestId('pr-pages-toggle').uncheck();

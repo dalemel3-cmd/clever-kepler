@@ -3861,7 +3861,11 @@ Columns: Most recent (value + date), Best (best mark to date + date + % off), Ba
 
 Toolbar "Columns" row toggles every column except Athlete/Date (`PR_COLUMNS` in `PerfReadinessReport.jsx`): Pos, Most recent, Best, Baseline, Weight, 7-day, A:C, Flag. Applies to the team table and athlete pages (note row `colSpan` follows). Stored in localStorage `hpd_pr_columns`. Hiding Flag hides the column only; flags still sort rows and write notes. CSV always exports every column.
 
-## 117. Next up
+## 117. Perf vs Readiness compare column (v5.5.3)
+
+"Compare to" selector (defaults to the 10yd Fly variant with the most results; any other jump/sprint, or None) adds a column next to A:C: the athlete's latest result of that metric on or before the row's test day, its date, best to that point and % off (red at the jump-drop threshold, ▲ for a new best). Built in `buildPerfReadiness` via `compareMetric` (`row.cmp`). Hidden when the compare metric is the main metric or None, and via the Columns "Compare" toggle. Not part of the flag.
+
+## 118. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

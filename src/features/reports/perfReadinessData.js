@@ -85,7 +85,7 @@ function contextFor({ metric, athlete, series, i, logs, base, settings, dropPct,
   };
 }
 
-export function buildPerfReadiness({ metric, athletes = [], reportData = [], performanceTests = [], settings = {}, sport = 'ALL', day = null, withAthletePages = true, dropPct = DROP_PCT, weightPct = WEIGHT_PCT }) {
+export function buildPerfReadiness({ metric, athletes = [], reportData = [], performanceTests = [], settings = {}, sport = 'ALL', day = null, withAthletePages = true, dropPct = DROP_PCT, weightPct = WEIGHT_PCT, compareMetric = null }) {
   if (!metric) return { days: [], day: null, rows: [], athletePages: [] };
   const roster = sport === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === sport);
   const byId = new Map(roster.map(a => [a.id, a]));
@@ -100,9 +100,24 @@ export function buildPerfReadiness({ metric, athletes = [], reportData = [], per
     if (!logsBy.has(r.athlete_id)) logsBy.set(r.athlete_id, []);
     logsBy.get(r.athlete_id).push(r);
   }
+  // Comparison metric (e.g. 10yd Fly next to a vertical): the athlete's latest result on
+  // or before the row's day, and how far it is off their best to that point.
+  const cmpAll = compareMetric && compareMetric.key !== metric.key ? seriesFor(compareMetric, performanceTests) : null;
+  const cmpFor = (id, day) => {
+    const s = cmpAll?.get(id);
+    if (!s) return null;
+    const upTo = s.filter(p => p.day <= day);
+    if (!upTo.length) return null;
+    const last = upTo[upTo.length - 1];
+    const best = compareMetric.lowerIsBetter ? Math.min(...upTo.map(p => p.value)) : Math.max(...upTo.map(p => p.value));
+    const off = (compareMetric.lowerIsBetter ? last.value / best - 1 : 1 - last.value / best) * 100;
+    return { valueText: last.value.toFixed(compareMetric.decimals), bestText: best.toFixed(compareMetric.decimals), day: last.day, off, drop: off >= dropPct, pb: upTo.length > 1 && last.value === best && upTo.slice(0, -1).every(p => p.value !== best) };
+  };
   const ctx = (id, i) => {
     const a = byId.get(id);
-    return contextFor({ metric, athlete: a, series: series.get(id), i, logs: logsBy.get(id) || [], base: getAthleteBaseline(a, reportData), settings, dropPct, weightPct });
+    const c = contextFor({ metric, athlete: a, series: series.get(id), i, logs: logsBy.get(id) || [], base: getAthleteBaseline(a, reportData), settings, dropPct, weightPct });
+    c.cmp = cmpAll ? cmpFor(id, c.day) : null;
+    return c;
   };
 
   const rank = { red: 0, gold: 1 };

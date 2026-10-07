@@ -32,10 +32,10 @@ const sub = { display: 'block', fontSize: 10, fontWeight: 500, color: C.faint, m
 
 // Shared cells for one result-in-context: most recent, best mark, baseline, weight, load.
 // Toggleable columns (Athlete / Date always show). Keys match the toolbar buttons.
-export const PR_COLUMNS = [['pos', 'Pos'], ['recent', 'Most recent'], ['best', 'Best'], ['base', 'Baseline'], ['weight', 'Weight'], ['load', '7-day'], ['ac', 'A:C'], ['flag', 'Flag']];
+export const PR_COLUMNS = [['pos', 'Pos'], ['recent', 'Most recent'], ['best', 'Best'], ['base', 'Baseline'], ['weight', 'Weight'], ['load', '7-day'], ['ac', 'A:C'], ['cmp', 'Compare'], ['flag', 'Flag']];
 const ALL_ON = Object.fromEntries(PR_COLUMNS.map(([k]) => [k, true]));
 
-function Cells({ r, unit, showDay = true, cols = ALL_ON }) {
+function Cells({ r, unit, showDay = true, cols = ALL_ON, cmpUnit = '' }) {
   return (
     <>
       {cols.recent && (
@@ -64,6 +64,14 @@ function Cells({ r, unit, showDay = true, cols = ALL_ON }) {
       {cols.ac && (
       <td style={td('right', { whiteSpace: 'nowrap', fontWeight: 700, color: r.spike ? C.danger : C.text })}>{r.ratio == null ? <span style={{ color: C.faint, fontWeight: 500 }}>—</span> : r.ratio.toFixed(2)}</td>
       )}
+      {cols.cmp && cmpUnit !== null && (
+        <td data-testid="pr-cmp" style={td('right', { whiteSpace: 'nowrap', fontWeight: 700, color: r.cmp?.drop ? C.danger : C.navy900 })}>
+          {!r.cmp ? <span style={{ color: C.faint, fontWeight: 500 }}>—</span> : <>
+            {r.cmp.pb && <span style={{ color: C.successDark, marginRight: 4 }}>{'\u25B2'}</span>}{r.cmp.valueText} <span style={{ fontWeight: 500, color: C.muted, fontSize: 11 }}>{cmpUnit}</span>
+            <span style={sub}>{md(r.cmp.day)} · best {r.cmp.bestText}{r.cmp.off > 0 ? ` · ${r.cmp.off.toFixed(1)}% off` : ''}</span>
+          </>}
+        </td>
+      )}
       {cols.flag && (
       <td style={td('center')}><FlagPill flag={r.flag} /></td>
       )}
@@ -71,7 +79,9 @@ function Cells({ r, unit, showDay = true, cols = ALL_ON }) {
   );
 }
 
-function Doc({ metric, data, team, showPages, cols = ALL_ON }) {
+function Doc({ metric, data, team, showPages, cols: colsIn = ALL_ON, cmp = null }) {
+  const cols = { ...colsIn, cmp: colsIn.cmp && !!cmp };
+  const cmpUnit = cmp ? cmp.unit : null;
   const H = (k, label, align = 'right') => cols[k] && <th style={th(align)}>{label}</th>;
   const span = 1 + PR_COLUMNS.filter(([k]) => cols[k]).length;
   const t = data.thresholds;
@@ -110,14 +120,14 @@ function Doc({ metric, data, team, showPages, cols = ALL_ON }) {
             <table style={table}>
               <thead><tr style={theadRow}>
                 <th style={th()}>Athlete</th>{H('pos', 'Pos', 'left')}{H('recent', 'Most recent')}{H('best', 'Best')}
-                {H('base', 'Baseline')}{H('weight', 'Weight')}{H('load', '7-day')}{H('ac', 'A:C')}{H('flag', 'Flag', 'center')}
+                {H('base', 'Baseline')}{H('weight', 'Weight')}{H('load', '7-day')}{H('ac', 'A:C')}{H('cmp', cmp ? cmp.title : '')}{H('flag', 'Flag', 'center')}
               </tr></thead>
               <tbody>{data.rows.map(r => (
                 <React.Fragment key={r.id}>
                   <tr data-testid="pr-row" style={{ ...rowLine, borderBottom: r.note && r.flag ? 'none' : rowLine.borderBottom }}>
                     <td style={td('left', { fontWeight: 700, color: C.navy900 })}>{r.name}</td>
                     {cols.pos && <td style={td('left', { color: C.muted })}>{r.pos || ''}</td>}
-                    <Cells r={r} unit={metric.unit} cols={cols} />
+                    <Cells r={r} unit={metric.unit} cols={cols} cmpUnit={cmpUnit} />
                   </tr>
                   {r.note && r.flag && (
                     <tr style={rowLine}><td colSpan={span} style={td('left', { paddingTop: 0, fontSize: 11, color: C.danger })}>{r.note}</td></tr>
@@ -141,12 +151,12 @@ function Doc({ metric, data, team, showPages, cols = ALL_ON }) {
               <table style={table}>
                 <thead><tr style={theadRow}>
                   <th style={th()}>Date</th>{H('recent', 'Result')}{H('best', 'Best to date')}
-                  {H('base', 'Baseline')}{H('weight', 'Weight')}{H('load', '7-day')}{H('ac', 'A:C')}{H('flag', 'Flag', 'center')}
+                  {H('base', 'Baseline')}{H('weight', 'Weight')}{H('load', '7-day')}{H('ac', 'A:C')}{H('cmp', cmp ? cmp.title : '')}{H('flag', 'Flag', 'center')}
                 </tr></thead>
                 <tbody>{p.hist.map(h => (
                   <tr key={h.id} style={rowLine}>
                     <td style={td('left', { color: C.muted, fontWeight: h.day === data.day ? 700 : 500 })}>{md(h.day)}</td>
-                    <Cells r={h} unit={metric.unit} showDay={false} cols={cols} />
+                    <Cells r={h} unit={metric.unit} showDay={false} cols={cols} cmpUnit={cmpUnit} />
                   </tr>
                 ))}</tbody>
               </table>
@@ -193,8 +203,15 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
   const dropPct = Number(th2.drop) > 0 ? Number(th2.drop) : DROP_PCT;
   const weightPct = Number(th2.weight) > 0 ? Number(th2.weight) : WEIGHT_PCT;
   const metric = metrics.find(m => m.key === metricKey) || metrics[0];
-  const data = React.useMemo(() => buildPerfReadiness({ metric, athletes, reportData, performanceTests, settings, sport, day, withAthletePages: showPages, dropPct, weightPct }),
-    [metric, athletes, reportData, performanceTests, settings, sport, day, showPages, dropPct, weightPct]);
+  // Compare column: defaults to the 10yd Fly variant with the most results.
+  const [cmpKey, setCmpKey] = React.useState(() => {
+    const fly = metrics.filter(m => m.testType === '10yd_fly');
+    const count = (m) => (performanceTests || []).filter(t => t.test_type === m.testType && (t.test_variant || 'untagged') === m.variant).length;
+    return fly.sort((a, b) => count(b) - count(a))[0]?.key || '';
+  });
+  const cmpMetric = cmpKey && cmpKey !== metric?.key ? metrics.find(m => m.key === cmpKey) || null : null;
+  const data = React.useMemo(() => buildPerfReadiness({ metric, athletes, reportData, performanceTests, settings, sport, day, withAthletePages: showPages, dropPct, weightPct, compareMetric: cmpMetric }),
+    [metric, athletes, reportData, performanceTests, settings, sport, day, showPages, dropPct, weightPct, cmpMetric]);
   const team = sport === 'ALL' ? 'All Sports' : sport;
 
   React.useEffect(() => {
@@ -205,8 +222,8 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
   }, [onClose]);
 
   const exportCsv = () => {
-    const rows = [['Date', 'Athlete', 'Sport', 'Pos', 'Result', 'Best', 'Best date', 'Unit', 'Off best %', 'Baseline lb', 'Weight lb', 'Weigh-in date', 'Wt vs base %', '7-day load', 'A:C', 'Flag', 'Note']];
-    const add = (r) => rows.push([r.day, r.name, r.sport, r.pos, r.valueText, r.bestText, r.bestDay, metric.unit, r.off.toFixed(1), r.baseW ?? '', r.curW ?? '', r.weighDay ?? '', r.dPct == null ? '' : r.dPct.toFixed(1), r.acute ?? '', r.ratio == null ? '' : r.ratio.toFixed(2), r.flag ? 'flag' : '', r.note]);
+    const rows = [['Date', 'Athlete', 'Sport', 'Pos', 'Result', 'Best', 'Best date', 'Unit', 'Off best %', 'Baseline lb', 'Weight lb', 'Weigh-in date', 'Wt vs base %', '7-day load', 'A:C', 'Compare metric', 'Compare result', 'Compare date', 'Compare off best %', 'Flag', 'Note']];
+    const add = (r) => rows.push([r.day, r.name, r.sport, r.pos, r.valueText, r.bestText, r.bestDay, metric.unit, r.off.toFixed(1), r.baseW ?? '', r.curW ?? '', r.weighDay ?? '', r.dPct == null ? '' : r.dPct.toFixed(1), r.acute ?? '', r.ratio == null ? '' : r.ratio.toFixed(2), cmpMetric?.title ?? '', r.cmp?.valueText ?? '', r.cmp?.day ?? '', r.cmp ? r.cmp.off.toFixed(1) : '', r.flag ? 'flag' : '', r.note]);
     if (showPages) data.athletePages.forEach(p => p.hist.forEach(add)); else data.rows.forEach(add);
     const blob = new Blob([rows.map(r => r.map(csvCell).join(',')).join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
@@ -232,6 +249,13 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
           <label htmlFor="pr-metric" style={label}>Metric</label>
           <select id="pr-metric" className="input-glass" style={field} value={metric?.key || ''} onChange={e => { setMetricKey(e.target.value); setDay(null); }}>
             {metrics.map(x => <option key={x.key} value={x.key} style={opt}>{x.title}{!['Result', 'Time'].includes(x.measure) ? ` (${x.measure})` : ''}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label htmlFor="pr-cmp" style={label}>Compare to</label>
+          <select id="pr-cmp" data-testid="pr-cmp-select" className="input-glass" style={field} value={cmpKey} onChange={e => setCmpKey(e.target.value)}>
+            <option value="" style={opt}>None</option>
+            {metrics.filter(x => x.key !== metric?.key).map(x => <option key={x.key} value={x.key} style={opt}>{x.title}{!['Result', 'Time'].includes(x.measure) ? ` (${x.measure})` : ''}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -292,7 +316,7 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
       ) : (
         <div style={{ padding: 16 }}>
           <div className="pr-sheet" style={{ maxWidth: 816, margin: '0 auto', background: '#fff', padding: '0.5in', boxShadow: '0 10px 40px rgba(0,0,0,0.4)', overflowX: 'auto' }}>
-            <div style={{ minWidth: 640 }}><Doc metric={metric} data={data} team={team} showPages={showPages} cols={cols} /></div>
+            <div style={{ minWidth: 640 }}><Doc metric={metric} data={data} team={team} showPages={showPages} cols={cols} cmp={cmpMetric} /></div>
           </div>
         </div>
       )}
