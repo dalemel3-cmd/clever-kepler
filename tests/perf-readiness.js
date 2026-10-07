@@ -88,6 +88,15 @@ const SEED = { enableRpe: true, enableSpeedPower: true, rpeTrackDuration: true, 
   check('custom thresholds (0.5% / 1.5%) -> Dry Dan + Light Lou', f2.length === 2 && f2.some(x => /Light Lou/.test(x)), JSON.stringify(f2));
   check('thresholds remembered', JSON.parse(await page.evaluate(() => localStorage.getItem('hpd_pr_thresholds'))).weight === '1.5');
   await page.getByTestId('pr-drop').fill('11'); await page.getByTestId('pr-weight').fill('2'); await page.waitForTimeout(200);
+  for (const k of ['pos', 'load', 'ac']) await page.getByTestId(`pr-col-${k}`).click();
+  await page.waitForTimeout(200);
+  const h2 = await doc.locator('thead').first().innerText();
+  const cells = await page.getByTestId('pr-row').first().locator('td').count();
+  check('column toggles hide Pos / 7-day / A:C (header + cells)', !/\bPOS\b|7-DAY|A:C/i.test(h2) && /MOST RECENT/i.test(h2) && cells === 6, `${h2} | ${cells}`);
+  check('athlete pages follow the toggles', !/7-DAY/i.test(await page.getByTestId('pr-athlete-page').first().locator('thead').innerText()));
+  check('column choice remembered', JSON.parse(await page.evaluate(() => localStorage.getItem('hpd_pr_columns'))).ac === false);
+  for (const k of ['pos', 'load', 'ac']) await page.getByTestId(`pr-col-${k}`).click();
+  await page.waitForTimeout(200);
   check('athlete pages: one per tested athlete', await page.getByTestId('pr-athlete-page').count() === 5);
   await page.getByTestId('pr-pages-toggle').uncheck();
   check('athlete pages toggle off', await page.getByTestId('pr-athlete-page').count() === 0);

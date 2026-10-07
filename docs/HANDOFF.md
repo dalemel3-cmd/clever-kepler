@@ -3857,7 +3857,11 @@ For S&C/medical staff, mainly football: does being down in weight, or a heavy we
 
 Columns: Most recent (value + date), Best (best mark to date + date + % off), Baseline (lb), Weight (lb, weigh-in date, % vs baseline), 7-day, A:C, Flag. The Act/Watch tiers are gone: a single **Flag** = metric `DROP_PCT` (11)%+ off best mark AND body weight `WEIGHT_PCT` (2)%+ below baseline. Both thresholds are inputs on the printout toolbar, stored in localStorage `hpd_pr_thresholds`. A metric drop or weight drop on its own is shown in red but not flagged; A:C >= 1.5 is shown in red only. Athlete-page summary compares tests 2%+ down in weight vs the rest.
 
-## 116. Next up
+## 116. Perf vs Readiness column toggles (v5.5.2)
+
+Toolbar "Columns" row toggles every column except Athlete/Date (`PR_COLUMNS` in `PerfReadinessReport.jsx`): Pos, Most recent, Best, Baseline, Weight, 7-day, A:C, Flag. Applies to the team table and athlete pages (note row `colSpan` follows). Stored in localStorage `hpd_pr_columns`. Hiding Flag hides the column only; flags still sort rows and write notes. CSV always exports every column.
+
+## 117. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

@@ -31,29 +31,49 @@ const FlagPill = ({ flag }) => !flag ? <span style={{ color: C.faint }}>—</spa
 const sub = { display: 'block', fontSize: 10, fontWeight: 500, color: C.faint, marginTop: 1 };
 
 // Shared cells for one result-in-context: most recent, best mark, baseline, weight, load.
-function Cells({ r, unit, showDay = true }) {
+// Toggleable columns (Athlete / Date always show). Keys match the toolbar buttons.
+export const PR_COLUMNS = [['pos', 'Pos'], ['recent', 'Most recent'], ['best', 'Best'], ['base', 'Baseline'], ['weight', 'Weight'], ['load', '7-day'], ['ac', 'A:C'], ['flag', 'Flag']];
+const ALL_ON = Object.fromEntries(PR_COLUMNS.map(([k]) => [k, true]));
+
+function Cells({ r, unit, showDay = true, cols = ALL_ON }) {
   return (
     <>
+      {cols.recent && (
       <td style={td('right', { fontWeight: 700, color: r.drop ? C.danger : C.navy900, whiteSpace: 'nowrap' })}>
-        {r.valueText} <span style={{ fontWeight: 500, color: C.muted, fontSize: 11 }}>{unit}</span>
-        {showDay && <span style={sub}>{md(r.day)}{r.first ? ' · 1st test' : ''}</span>}
-      </td>
+          {r.valueText} <span style={{ fontWeight: 500, color: C.muted, fontSize: 11 }}>{unit}</span>
+          {showDay && <span style={sub}>{md(r.day)}{r.first ? ' · 1st test' : ''}</span>}
+        </td>
+      )}
+      {cols.best && (
       <td style={td('right', { whiteSpace: 'nowrap', fontWeight: 700, color: C.navy900 })}>
-        {r.pb && <span style={{ color: C.successDark, marginRight: 4 }}>{'\u25B2'}</span>}{r.bestText} <span style={{ fontWeight: 500, color: C.muted, fontSize: 11 }}>{unit}</span>
-        <span style={sub}>{md(r.bestDay)}{!r.first && r.off > 0 ? ` · ${r.off.toFixed(1)}% off` : ''}</span>
-      </td>
+          {r.pb && <span style={{ color: C.successDark, marginRight: 4 }}>{'\u25B2'}</span>}{r.bestText} <span style={{ fontWeight: 500, color: C.muted, fontSize: 11 }}>{unit}</span>
+          <span style={sub}>{md(r.bestDay)}{!r.first && r.off > 0 ? ` · ${r.off.toFixed(1)}% off` : ''}</span>
+        </td>
+      )}
+      {cols.base && (
       <td style={td('right', { whiteSpace: 'nowrap', color: C.text })}>{r.baseW == null ? <span style={{ color: C.faint }}>—</span> : `${r.baseW.toFixed(1)} lb`}</td>
+      )}
+      {cols.weight && (
       <td style={td('right', { whiteSpace: 'nowrap', fontWeight: r.low ? 700 : 500, color: r.low ? C.danger : C.text })}>
-        {r.curW == null ? <span style={{ color: C.faint }}>—</span> : <>{r.curW.toFixed(1)} lb<span style={sub}>{md(r.weighDay)}{r.dPct != null ? ` · ${sign(r.dPct)}%` : ''}</span></>}
-      </td>
+          {r.curW == null ? <span style={{ color: C.faint }}>—</span> : <>{r.curW.toFixed(1)} lb<span style={sub}>{md(r.weighDay)}{r.dPct != null ? ` · ${sign(r.dPct)}%` : ''}</span></>}
+        </td>
+      )}
+      {cols.load && (
       <td style={td('right', { color: C.muted })}>{r.acute == null ? '—' : `${r.acute} AU`}</td>
+      )}
+      {cols.ac && (
       <td style={td('right', { whiteSpace: 'nowrap', fontWeight: 700, color: r.spike ? C.danger : C.text })}>{r.ratio == null ? <span style={{ color: C.faint, fontWeight: 500 }}>—</span> : r.ratio.toFixed(2)}</td>
+      )}
+      {cols.flag && (
       <td style={td('center')}><FlagPill flag={r.flag} /></td>
+      )}
     </>
   );
 }
 
-function Doc({ metric, data, team, showPages }) {
+function Doc({ metric, data, team, showPages, cols = ALL_ON }) {
+  const H = (k, label, align = 'right') => cols[k] && <th style={th(align)}>{label}</th>;
+  const span = 1 + PR_COLUMNS.filter(([k]) => cols[k]).length;
   const t = data.thresholds;
   const today = new Date().toLocaleDateString('en-US');
   const title = `${metric.title}${metric.measure && !['Result', 'Time'].includes(metric.measure) ? ` · ${metric.measure}` : ''}`;
@@ -89,18 +109,18 @@ function Doc({ metric, data, team, showPages }) {
           ) : (
             <table style={table}>
               <thead><tr style={theadRow}>
-                <th style={th()}>Athlete</th><th style={th()}>Pos</th><th style={th('right')}>Most recent</th><th style={th('right')}>Best</th>
-                <th style={th('right')}>Baseline</th><th style={th('right')}>Weight</th><th style={th('right')}>7-day</th><th style={th('right')}>A:C</th><th style={th('center')}>Flag</th>
+                <th style={th()}>Athlete</th>{H('pos', 'Pos', 'left')}{H('recent', 'Most recent')}{H('best', 'Best')}
+                {H('base', 'Baseline')}{H('weight', 'Weight')}{H('load', '7-day')}{H('ac', 'A:C')}{H('flag', 'Flag', 'center')}
               </tr></thead>
               <tbody>{data.rows.map(r => (
                 <React.Fragment key={r.id}>
                   <tr data-testid="pr-row" style={{ ...rowLine, borderBottom: r.note && r.flag ? 'none' : rowLine.borderBottom }}>
                     <td style={td('left', { fontWeight: 700, color: C.navy900 })}>{r.name}</td>
-                    <td style={td('left', { color: C.muted })}>{r.pos || ''}</td>
-                    <Cells r={r} unit={metric.unit} />
+                    {cols.pos && <td style={td('left', { color: C.muted })}>{r.pos || ''}</td>}
+                    <Cells r={r} unit={metric.unit} cols={cols} />
                   </tr>
                   {r.note && r.flag && (
-                    <tr style={rowLine}><td colSpan={9} style={td('left', { paddingTop: 0, fontSize: 11, color: C.danger })}>{r.note}</td></tr>
+                    <tr style={rowLine}><td colSpan={span} style={td('left', { paddingTop: 0, fontSize: 11, color: C.danger })}>{r.note}</td></tr>
                   )}
                 </React.Fragment>
               ))}</tbody>
@@ -120,13 +140,13 @@ function Doc({ metric, data, team, showPages }) {
               </p>
               <table style={table}>
                 <thead><tr style={theadRow}>
-                  <th style={th()}>Date</th><th style={th('right')}>Result</th><th style={th('right')}>Best to date</th>
-                  <th style={th('right')}>Baseline</th><th style={th('right')}>Weight</th><th style={th('right')}>7-day</th><th style={th('right')}>A:C</th><th style={th('center')}>Flag</th>
+                  <th style={th()}>Date</th>{H('recent', 'Result')}{H('best', 'Best to date')}
+                  {H('base', 'Baseline')}{H('weight', 'Weight')}{H('load', '7-day')}{H('ac', 'A:C')}{H('flag', 'Flag', 'center')}
                 </tr></thead>
                 <tbody>{p.hist.map(h => (
                   <tr key={h.id} style={rowLine}>
                     <td style={td('left', { color: C.muted, fontWeight: h.day === data.day ? 700 : 500 })}>{md(h.day)}</td>
-                    <Cells r={h} unit={metric.unit} showDay={false} />
+                    <Cells r={h} unit={metric.unit} showDay={false} cols={cols} />
                   </tr>
                 ))}</tbody>
               </table>
@@ -151,6 +171,15 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
   const [sport, setSport] = React.useState(() => (initialSport && initialSport !== 'ALL' ? initialSport : sports.includes('Football') ? 'Football' : 'ALL'));
   const [day, setDay] = React.useState(null);
   const [showPages, setShowPages] = React.useState(true);
+  // Column toggles, remembered on this device.
+  const [cols, setCols] = React.useState(() => {
+    try { return { ...ALL_ON, ...JSON.parse(localStorage.getItem('hpd_pr_columns') || '{}') }; } catch { return ALL_ON; }
+  });
+  const toggleCol = (k) => setCols(prev => {
+    const next = { ...prev, [k]: !prev[k] };
+    try { localStorage.setItem('hpd_pr_columns', JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
   // Flag thresholds, editable here and remembered on this device.
   const [th2, setTh2] = React.useState(() => {
     const d = { drop: DROP_PCT, weight: WEIGHT_PCT };
@@ -235,6 +264,17 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 40, fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>
           <input data-testid="pr-pages-toggle" type="checkbox" checked={showPages} onChange={e => setShowPages(e.target.checked)} /> Athlete pages
         </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={label}>Columns</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {PR_COLUMNS.map(([k, t]) => (
+              <button key={k} type="button" data-testid={`pr-col-${k}`} aria-pressed={!!cols[k]} onClick={() => toggleCol(k)}
+                style={{ ...field, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${cols[k] ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: cols[k] ? 'rgba(184,156,91,0.18)' : 'transparent', color: cols[k] ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center' }}>
           <button type="button" onClick={exportCsv} disabled={!metric} style={{ ...field, display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer', textTransform: 'uppercase' }}>
             <Download size={16} aria-hidden="true" /> CSV
@@ -252,7 +292,7 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
       ) : (
         <div style={{ padding: 16 }}>
           <div className="pr-sheet" style={{ maxWidth: 816, margin: '0 auto', background: '#fff', padding: '0.5in', boxShadow: '0 10px 40px rgba(0,0,0,0.4)', overflowX: 'auto' }}>
-            <div style={{ minWidth: 640 }}><Doc metric={metric} data={data} team={team} showPages={showPages} /></div>
+            <div style={{ minWidth: 640 }}><Doc metric={metric} data={data} team={team} showPages={showPages} cols={cols} /></div>
           </div>
         </div>
       )}
