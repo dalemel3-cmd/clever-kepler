@@ -25,6 +25,9 @@ export default function ReportsScreen({
     return next;
   });
   const showWeighIn = include.has('weighin');
+  // Lifts print as the set ("225 × 3"); est. 1RM in brackets is optional.
+  const [showE1rm, setShowE1rm] = useState(() => { try { return localStorage.getItem('hpd_rr_e1rm') === '1'; } catch { return false; } });
+  const toggleE1rm = (v) => { setShowE1rm(v); try { localStorage.setItem('hpd_rr_e1rm', v ? '1' : '0'); } catch { /* ignore */ } };
   const [printing, setPrinting] = useState(false);
   const [perfOpen, setPerfOpen] = useState(false);
   const sport = reportSportFilter || 'ALL';
@@ -32,8 +35,8 @@ export default function ReportsScreen({
   // Days-since-weigh-in needs history beyond the default window.
   useEffect(() => { ensureReportWindow?.(90); }, [ensureReportWindow]);
 
-  const data = useMemo(() => buildReadinessReport({ athletes, reportData, liftLogs, performanceTests, settings, sport }),
-    [athletes, reportData, liftLogs, performanceTests, settings, sport]);
+  const data = useMemo(() => buildReadinessReport({ athletes, reportData, liftLogs, performanceTests, settings, sport, showE1rm }),
+    [athletes, reportData, liftLogs, performanceTests, settings, sport, showE1rm]);
   const scopeLabel = sport === 'ALL' ? 'All Sports' : sport;
 
   useEffect(() => {
@@ -88,6 +91,11 @@ export default function ReportsScreen({
               <input data-testid={`rr-include-${k}`} type="checkbox" checked={include.has(k)} onChange={() => toggle(k)} /> {label}
             </label>
           ))}
+          {settings.enableLiftTracker && (
+            <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+              <input data-testid="rr-e1rm" type="checkbox" checked={showE1rm} onChange={e => toggleE1rm(e.target.checked)} /> Est. 1RM on lifts
+            </label>
+          )}
         </div>
       </div>
       {reportLoading && <p className="text-sm text-slate-500">Loading report data…</p>}

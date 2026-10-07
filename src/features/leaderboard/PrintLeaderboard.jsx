@@ -23,7 +23,7 @@ const colsFor = (show, top) => {
   // With value columns on, the chart/change/best narrow so the name keeps its room.
   const tight = show.initial || show.recent;
   return ['40px', 'minmax(0,1fr)', show.pos && '36px', show.cls && '42px', top ? (tight ? '96px' : '128px') : (tight ? '80px' : '110px'),
-    show.initial && '62px', show.recent && '62px', show.first && (tight ? '62px' : '84px'), show.week && (tight ? '62px' : '84px'), tight ? '96px' : '112px'].filter(Boolean).join(' ');
+    show.initial && '62px', show.recent && '62px', show.first && (tight ? '62px' : '84px'), show.week && (tight ? '62px' : '84px'), show.e1rm && '64px', show.lift ? '104px' : (tight ? '96px' : '112px')].filter(Boolean).join(' ');
 };
 const nameClamp = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.15, wordBreak: 'break-word' };
 const toneColor = (t) => (t === 'up' ? C.success : t === 'down' ? C.danger : C.faint);
@@ -38,7 +38,9 @@ const colHead = (cols, size, padding) => ({
   display: 'grid', gridTemplateColumns: cols, gap: 8, padding, borderBottom: `1px solid ${C.borderStrong}`,
   fontWeight: 700, fontSize: size, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.faint,
 });
-const HeadCells = ({ show }) => (<><div>Rk</div><div>Athlete</div>{show.pos && <div>Pos</div>}{show.cls && <div>Class</div>}<div>Progression</div>{show.initial && <div style={{ textAlign: 'right' }}>Initial (date)</div>}{show.recent && <div style={{ textAlign: 'right' }}>Recent (date)</div>}{show.first && <div style={{ textAlign: 'right' }}>{show.week ? 'vs 1st' : 'Change'}</div>}{show.week && <div style={{ textAlign: 'right' }}>vs Last Wk</div>}<div style={{ textAlign: 'right' }}>{show.initial ? 'Best (date)' : 'Best'}</div></>);
+const HeadCells = ({ show }) => (<><div>Rk</div><div>Athlete</div>{show.pos && <div>Pos</div>}{show.cls && <div>Class</div>}<div>Progression</div>{show.initial && <div style={{ textAlign: 'right' }}>Initial (date)</div>}{show.recent && <div style={{ textAlign: 'right' }}>Recent (date)</div>}{show.first && <div style={{ textAlign: 'right' }}>{show.week ? 'vs 1st' : 'Change'}</div>}{show.week && <div style={{ textAlign: 'right' }}>vs Last Wk</div>}{show.e1rm && <div style={{ textAlign: 'right' }}>Est. 1RM</div>}<div style={{ textAlign: 'right' }}>{show.lift ? (show.initial ? 'Best set (date)' : 'Best set') : (show.initial ? 'Best (date)' : 'Best')}</div></>);
+// Lifts show the set itself ("225 × 3"); jumps/sprints show the number.
+const V = (r, k, show) => (show.lift ? (r[`${k}Set`] || r[k === 'best' ? 'value' : k]) : r[k === 'best' ? 'value' : k]);
 const changeNote = (show) => [show.initial && 'Initial = first test (date); date under Best = when it was set', show.recent && 'Recent = latest test (date)',show.first && 'latest vs. first test', show.week && 'latest vs. last result a week+ ago'].filter(Boolean).join(' · ');
 
 function TopPage({ m, team, period, data, show }) {
@@ -49,7 +51,7 @@ function TopPage({ m, team, period, data, show }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold700 }}>Top 10 Leaderboard</div>
           <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 56, lineHeight: 1.02, textTransform: 'uppercase', color: C.navy900 }}>{m.title}</div>
-          <div style={{ fontSize: 15, color: C.muted, marginTop: 4 }}>{team} · Best {m.measure} ({m.unit}) · {period} · {data.total} athlete{data.total === 1 ? '' : 's'} tested</div>
+          <div style={{ fontSize: 15, color: C.muted, marginTop: 4 }}>{team} · {show.lift ? 'Best set (lb × reps)' : `Best ${m.measure} (${m.unit})`} · {period} · {data.total} athlete{data.total === 1 ? '' : 's'} tested</div>
         </div>
         <img src={LOGO} alt="Shiloh Christian Human Performance" style={{ height: 100, flexShrink: 0, margin: '-12px -12px -12px 0' }} />
       </div>
@@ -72,20 +74,21 @@ function TopPage({ m, team, period, data, show }) {
             </svg>
             {show.initial && (
               <div data-testid="lb-initial" style={{ textAlign: 'right', lineHeight: 1.1 }}>
-                <div style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 20, color: C.navy700 }}>{r.initial}</div>
+                <div style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: show.lift ? 17 : 20, color: C.navy700, whiteSpace: 'nowrap' }}>{V(r, 'initial', show)}</div>
                 <div style={{ fontSize: 11, color: C.faint }}>{r.initialDate}</div>
               </div>
             )}
             {show.recent && (
               <div data-testid="lb-recent" style={{ textAlign: 'right', lineHeight: 1.1 }}>
-                <div style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 20, color: C.navy700 }}>{r.recent}</div>
+                <div style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: show.lift ? 17 : 20, color: C.navy700, whiteSpace: 'nowrap' }}>{V(r, 'recent', show)}</div>
                 <div style={{ fontSize: 11, color: C.faint }}>{r.recentDate}</div>
               </div>
             )}
             {show.first && <div data-testid="lb-change-first" style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>}
             {show.week && <div data-testid="lb-change-week" style={{ textAlign: 'right', fontSize: 15, fontWeight: 700, color: toneColor(r.changeWeekTone) }}>{r.changeWeek}</div>}
+            {show.e1rm && <div data-testid="lb-e1rm" style={{ textAlign: 'right', fontFamily: DISPLAY, fontWeight: 500, fontSize: 18, color: C.navy700 }}>{r.value}</div>}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 5 }}>
-              <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 30, color: C.navy900 }}>{r.value}</span>
+              <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: show.lift ? 24 : 30, color: C.navy900, whiteSpace: 'nowrap' }}>{V(r, 'best', show)}</span>
               <span style={{ fontFamily: DISPLAY, fontWeight: 400, fontSize: 13, textTransform: 'uppercase', color: C.muted }}>{m.unit}</span>
               {show.initial && <span data-testid="lb-best-date" style={{ position: 'absolute', right: 0, bottom: -12, fontSize: 11, color: C.faint }}>{r.bestDate}</span>}
             </div>
@@ -94,7 +97,7 @@ function TopPage({ m, team, period, data, show }) {
         {data.top.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 15 }}>No {m.title} results for this team in this period.</div>}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, gap: 16 }}>
-        <div style={{ fontSize: 11, color: C.muted }}>Progression: each test{data.testSpan ? ` ${data.testSpan}` : ''}, up = improvement{changeNote(show) ? ` · Change: ${changeNote(show)}` : ''}</div>
+        <div style={{ fontSize: 11, color: C.muted }}>Progression: each test{data.testSpan ? ` ${data.testSpan}` : ''}, up = improvement{changeNote(show) ? ` · Change: ${changeNote(show)}` : ''}{show.lift ? ' · Ranked by est. 1RM; change = est. 1RM lb' : ''}</div>
         <div style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontSize: 15, letterSpacing: '0.05em', color: C.gold700, whiteSpace: 'nowrap' }}>Champions for Life</div>
       </div>
     </div>
@@ -110,7 +113,7 @@ function RosterPage({ m, team, period, pg, pageCount, show }) {
           <img src={LOGO} alt="Shiloh Christian Human Performance" style={{ height: 64, flexShrink: 0, margin: '-8px -6px -8px -10px' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 30, lineHeight: 1.05, textTransform: 'uppercase', color: C.navy900 }}>{m.title} · Full Roster</div>
-            <div style={{ fontSize: 13, color: C.muted }}>{team} · Best {m.measure} ({m.unit}) · {period}</div>
+            <div style={{ fontSize: 13, color: C.muted }}>{team} · {show.lift ? 'Best set (lb × reps)' : `Best ${m.measure} (${m.unit})`} · {period}</div>
           </div>
         </div>
         <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold700, whiteSpace: 'nowrap' }}>
@@ -131,20 +134,21 @@ function RosterPage({ m, team, period, pg, pageCount, show }) {
             </svg>
             {show.initial && (
               <div style={{ textAlign: 'right', lineHeight: 1 }}>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 15, color: C.navy700 }}>{r.initial}</span>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: show.lift ? 13 : 15, color: C.navy700, whiteSpace: 'nowrap' }}>{V(r, 'initial', show)}</span>
                 <span style={{ fontSize: 9, color: C.faint, marginLeft: 4 }}>{r.initialDate}</span>
               </div>
             )}
             {show.recent && (
               <div style={{ textAlign: 'right', lineHeight: 1 }}>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: 15, color: C.navy700 }}>{r.recent}</span>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 500, fontSize: show.lift ? 13 : 15, color: C.navy700, whiteSpace: 'nowrap' }}>{V(r, 'recent', show)}</span>
                 <span style={{ fontSize: 9, color: C.faint, marginLeft: 4 }}>{r.recentDate}</span>
               </div>
             )}
             {show.first && <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: toneColor(r.changeTone) }}>{r.change}</div>}
             {show.week && <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: toneColor(r.changeWeekTone) }}>{r.changeWeek}</div>}
+            {show.e1rm && <div style={{ textAlign: 'right', fontFamily: DISPLAY, fontWeight: 500, fontSize: 14, color: C.navy700 }}>{r.value}</div>}
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 4 }}>
-              <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 20, color: C.navy900 }}>{r.value}</span>
+              <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: show.lift ? 16 : 20, color: C.navy900, whiteSpace: 'nowrap' }}>{V(r, 'best', show)}</span>
               <span style={{ fontFamily: DISPLAY, fontWeight: 400, fontSize: 11, textTransform: 'uppercase', color: C.muted }}>{m.unit}</span>
               {show.initial && <span style={{ fontSize: 9, color: C.faint }}>{r.bestDate}</span>}
             </div>
@@ -196,11 +200,13 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
   const [scope, setScope] = React.useState('full');
   const [sport, setSport] = React.useState(initialSport);
   const [frame, setFrame] = React.useState('season');
+  const [from, setFrom] = React.useState('');
+  const [to, setTo] = React.useState('');
   const [periodOverride, setPeriodOverride] = React.useState('');
   const [busy, setBusy] = React.useState('');
   // Column toggles, remembered on this device.
   const [show, setShow] = React.useState(() => {
-    const d = { pos: true, cls: true, initial: true, recent: true, first: true, week: false };
+    const d = { pos: true, cls: true, initial: true, recent: true, first: true, week: false, e1rm: false };
     try { return { ...d, ...JSON.parse(localStorage.getItem('hpd_lb_columns') || '{}') }; } catch { return d; }
   });
   const toggleCol = (k) => setShow(prev => {
@@ -212,8 +218,9 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
   const [scale, setScale] = React.useState(1);
 
   const m = metrics.find(x => x.key === metricKey) || metrics[0];
+  const showEff = { ...show, lift: m?.kind === 'lift', e1rm: !!show.e1rm && m?.kind === 'lift' };
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
-  const bounds = timeframeBounds(frame, { seasonStartDate: settings.seasonStartDate });
+  const bounds = timeframeBounds(frame, { seasonStartDate: settings.seasonStartDate, from, to });
   const autoPeriod = (() => {
     if (frame === 'all' || (!bounds.start && !bounds.end)) return 'All Time';
     if (frame === 'season') return `${settings.seasonName || 'Season'} ${new Date().getFullYear()}`.trim();
@@ -298,9 +305,21 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label htmlFor="lb-frame" style={label}>Period</label>
           <select id="lb-frame" className="input-glass" style={field} value={frame} onChange={e => setFrame(e.target.value)}>
-            {TIMEFRAMES.filter(t => t.id !== 'custom').map(t => <option key={t.id} value={t.id} style={opt}>{t.label}</option>)}
+            {TIMEFRAMES.map(t => <option key={t.id} value={t.id} style={opt}>{t.label}</option>)}
           </select>
         </div>
+        {frame === 'custom' && (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="lb-from" style={label}>From</label>
+              <input id="lb-from" type="date" className="input-glass" style={field} value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="lb-to" style={label}>To</label>
+              <input id="lb-to" type="date" className="input-glass" style={field} value={to} min={from || undefined} onChange={e => setTo(e.target.value)} />
+            </div>
+          </>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label htmlFor="lb-period" style={label}>Period label</label>
           <input id="lb-period" className="input-glass" style={{ ...field, width: 170 }} placeholder={autoPeriod} value={periodOverride} onChange={e => setPeriodOverride(e.target.value)} />
@@ -308,7 +327,7 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={label}>Columns</span>
           <div style={{ display: 'flex', gap: 6 }}>
-            {[['pos', 'Pos'], ['cls', 'Class'], ['initial', 'Initial & best dates'], ['recent', 'Most recent'], ['first', '1st test vs now'], ['week', 'Last week vs now']].map(([k, t]) => (
+            {[['pos', 'Pos'], ['cls', 'Class'], ['initial', 'Initial & best dates'], ['recent', 'Most recent'], ['first', '1st test vs now'], ['week', 'Last week vs now'], ...(m?.kind === 'lift' ? [['e1rm', 'Est. 1RM']] : [])].map(([k, t]) => (
               <button key={k} type="button" data-testid={`lb-col-${k}`} aria-pressed={!!show[k]} onClick={() => toggleCol(k)}
                 style={{ ...field, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${show[k] ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: show[k] ? 'rgba(184,156,91,0.18)' : 'transparent', color: show[k] ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
                 {t}
@@ -335,8 +354,8 @@ export default function PrintLeaderboard({ athletes, liftLogs, performanceTests,
       ) : (
         <div className="lb-sheets-wrap" style={{ height: (PAGE_H * data.pageCount + 24 * (data.pageCount - 1)) * scale + 48, display: 'flex', justifyContent: 'center' }}>
           <div ref={sheetsRef} className="lb-sheets" style={{ width: PAGE_W, padding: '24px 0', display: 'flex', flexDirection: 'column', gap: 24, transform: `scale(${scale})`, transformOrigin: 'top center' }}>
-            <TopPage m={m} team={team} period={period} data={data} show={show} />
-            {data.pages.map(pg => <RosterPage key={pg.n} m={m} team={team} period={period} pg={pg} pageCount={data.pageCount} show={show} />)}
+            <TopPage m={m} team={team} period={period} data={data} show={showEff} />
+            {data.pages.map(pg => <RosterPage key={pg.n} m={m} team={team} period={period} pg={pg} pageCount={data.pageCount} show={showEff} />)}
           </div>
         </div>
       )}

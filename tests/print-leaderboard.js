@@ -69,7 +69,7 @@ const tests = [
 
   console.log('\n[B] Ranking, change and labels');
   const p1 = await pages.nth(0).innerText();
-  check('title + subline', /SQUAT/.test(p1) && /Football · Best Est\. 1RM \(lb\) · .* · 35 athletes tested/.test(p1), p1.slice(0, 200));
+  check('title + subline', /SQUAT/.test(p1) && /Football · Best set \(lb × reps\) · .* · 35 athletes tested/.test(p1), p1.slice(0, 200));
   const rows = pages.nth(0).getByTestId('lb-row');
   // Player 02's best (425, first test) beats Player 01's (415) even though Player 02 has
   // declined since: rank is by best in the period, change is latest vs first.
@@ -92,6 +92,22 @@ const tests = [
   await page.locator('#lb-scope').selectOption('top'); await page.waitForTimeout(300);
   check('one page', await pages.count() === 1);
   await page.locator('#lb-scope').selectOption('full');
+
+  console.log('\n[C2] Lifts show the set; est. 1RM is a toggle; custom dates');
+  const r1s = await pages.nth(0).getByTestId('lb-row').first().innerText();
+  check('best shown as weight × reps', /\d+ × \d+/.test(r1s), r1s);
+  check('est. 1RM column off by default', await pages.nth(0).getByTestId('lb-e1rm').count() === 0);
+  await page.getByTestId('lb-col-e1rm').click(); await page.waitForTimeout(200);
+  check('est. 1RM toggle adds the column', await pages.nth(0).getByTestId('lb-e1rm').count() > 0 && /EST\. 1RM/i.test(await pages.nth(0).innerText()));
+  await page.getByTestId('lb-col-e1rm').click();
+  await page.locator('#lb-frame').selectOption('custom'); await page.waitForTimeout(200);
+  check('custom period shows From / To', await page.locator('#lb-from').count() === 1 && await page.locator('#lb-to').count() === 1);
+  const d = (n) => new Date(Date.now() - n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  await page.locator('#lb-from').fill(d(3)); await page.locator('#lb-to').fill(d(0)); await page.waitForTimeout(300);
+  const narrow = await pages.count();
+  const lbl = await pages.nth(0).innerText();
+  check('custom range filters results and labels the period', narrow >= 1 && /\w{3} \d{1,2}, \d{4} – \w{3} \d{1,2}, \d{4}/.test(lbl), lbl.slice(0, 200));
+  await page.locator('#lb-frame').selectOption('season'); await page.waitForTimeout(300);
 
   console.log('\n[D] Sprint metric: lower is better');
   await page.locator('#lb-metric').selectOption({ label: '10yd Fly' }); await page.waitForTimeout(400);

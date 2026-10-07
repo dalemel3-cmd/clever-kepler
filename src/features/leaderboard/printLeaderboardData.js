@@ -51,18 +51,21 @@ const fmtSigned = (d, decimals) => (d > 0 ? '+' : '−') + Math.abs(d).toFixed(d
 // One result per athlete per test day (their best that day), oldest first.
 function sessionsFor(metric, athleteIds, { liftLogs, performanceTests, bounds }) {
   const byAthlete = new Map();
-  const add = (athleteId, day, value) => {
+  // For lifts, the actual set behind each day's best ("225 × 3"), keyed athlete|day.
+  const sets = new Map();
+  const add = (athleteId, day, value, set) => {
     if (!byAthlete.has(athleteId)) byAthlete.set(athleteId, new Map());
     const m = byAthlete.get(athleteId);
     const cur = m.get(day);
     const better = cur == null || (metric.lowerIsBetter ? value < cur : value > cur);
-    if (better) m.set(day, value);
+    if (better) { m.set(day, value); if (set) sets.set(`${athleteId}|${day}`, set); }
   };
+  byAthlete.sets = sets;
   if (metric.kind === 'lift') {
     for (const l of liftLogs || []) {
       if (l.lift_type !== metric.lift || !athleteIds.has(l.athlete_id) || !inBounds(l, bounds)) continue;
       const v = estimate1RM(Number(l.weight_lbs), Number(l.reps));
-      if (v > 0) add(l.athlete_id, getCentralDateString(new Date(l.created_at)), Math.round(v));
+      if (v > 0) add(l.athlete_id, getCentralDateString(new Date(l.created_at)), Math.round(v), `${+Number(l.weight_lbs).toFixed(1)} × ${Number(l.reps)}`);
     }
   } else {
     for (const t of performanceTests || []) {
@@ -112,7 +115,9 @@ export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], pe
     || y.lastDay.localeCompare(x.lastDay)
     || (x.athlete.name || '').localeCompare(y.athlete.name || ''));
 
+  const setOf = (id, day) => sessions.sets.get(`${id}|${day}`) || '';
   const rows = list.map(({ athlete, points, best }, k) => {
+    const bestDay = points.find(p => p.value === best).day;
     const latest = points[points.length - 1].value;
     const diff = (base) => {
       if (base == null) return { text: '—', tone: 'flat' };
@@ -137,7 +142,9 @@ export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], pe
       change: first.text, changeTone: first.tone,
       initial: points[0].value.toFixed(metric.decimals), initialDate: md(points[0].day),
       recent: latest.toFixed(metric.decimals), recentDate: md(points[points.length - 1].day),
-      bestDate: md(points.find(p => p.value === best).day),
+      bestDate: md(bestDay),
+      // Lifts: the set itself; value/initial/recent above stay the est. 1RM.
+      bestSet: setOf(athlete.id, bestDay), initialSet: setOf(athlete.id, points[0].day), recentSet: setOf(athlete.id, points[points.length - 1].day),
       changeWeek: week.text, changeWeekTone: week.tone,
       ...sparkline(points, slotIndex, allDays.length, metric.lowerIsBetter),
     };

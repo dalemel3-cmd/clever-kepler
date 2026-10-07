@@ -3865,7 +3865,13 @@ Toolbar "Columns" row toggles every column except Athlete/Date (`PR_COLUMNS` in 
 
 "Compare to" selector (defaults to the 10yd Fly variant with the most results; any other jump/sprint, or None) adds a column next to A:C: the athlete's latest result of that metric on or before the row's test day, its date, best to that point and % off (red at the jump-drop threshold, ▲ for a new best). Built in `buildPerfReadiness` via `compareMetric` (`row.cmp`). Hidden when the compare metric is the main metric or None, and via the Columns "Compare" toggle. Not part of the flag.
 
-## 118. Next up
+## 118. Custom leaderboard dates; lifts as weight × reps (v5.5.4)
+
+- `PrintLeaderboard.jsx`: Period now includes "Custom dates" with From/To date inputs (`timeframeBounds(..., { from, to })`); the period label reads e.g. "Sep 1, 2026 – Oct 7, 2026" unless overridden.
+- Lifts: `buildPrintLeaderboard` keeps the set behind each day's best (`bestSet`, `initialSet`, `recentSet` = "225 × 3"); the sheet shows those instead of est. 1RM. Ranking and the change columns still use est. 1RM (footer says so). New Columns toggle "Est. 1RM" (lifts only, default off) adds an Est. 1RM column. Subline reads "Best set (lb × reps)".
+- Readiness Report: Strength flags and New PRs show the set; "Est. 1RM on lifts" checkbox (localStorage `hpd_rr_e1rm`) appends "(est. N)".
+
+## 119. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

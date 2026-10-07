@@ -34,7 +34,7 @@ const baselineDateLabel = (v) => {
 const at = (r) => new Date(r.created_at).getTime();
 const isRealWeighIn = (r) => hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r);
 
-export function buildReadinessReport({ athletes, reportData = [], liftLogs = [], performanceTests = [], settings, sport = 'ALL', now = Date.now() }) {
+export function buildReadinessReport({ athletes, reportData = [], liftLogs = [], performanceTests = [], settings, sport = 'ALL', now = Date.now(), showE1rm = false }) {
   const roster = (sport === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === sport));
   const ids = new Set(roster.map(a => a.id));
   const logsBy = new Map();
@@ -151,18 +151,23 @@ export function buildReadinessReport({ athletes, reportData = [], liftLogs = [],
       const day = (l) => getCentralDateString(new Date(l.created_at));
       const lastDay = day(sorted[sorted.length - 1]);
       const e1 = (l) => estimate1RM(Number(l.weight_lbs), Number(l.reps));
-      const latest = Math.max(...sorted.filter(l => day(l) === lastDay).map(e1));
+      // Show the actual set ("225 × 3"); est. 1RM (what flags/PRs are judged on) optional.
+      const top = (ls) => ls.reduce((b, l) => (e1(l) > e1(b) ? l : b), ls[0]);
+      const setTxt = (l) => `${+Number(l.weight_lbs).toFixed(1)} × ${Number(l.reps)}${showE1rm ? ` (est. ${Math.round(e1(l))})` : ''}`;
+      const latestSet = top(sorted.filter(l => day(l) === lastDay));
+      const latest = e1(latestSet);
       const before = sorted.filter(l => day(l) !== lastDay);
-      const best = Math.max(...sorted.map(e1));
+      const bestSet = top(sorted);
+      const best = e1(bestSet);
       const off = (1 - latest / best) * 100;
-      if (before.length && off >= FLAG_PCT) addFlag(`Strength · ${lift}`, { id: aid, name: displayName(a.name), sport: a.sport || '', latest: `${Math.round(latest)} lb est.`, best: `${Math.round(best)} lb est.`, off });
+      if (before.length && off >= FLAG_PCT) addFlag(`Strength · ${lift}`, { id: aid, name: displayName(a.name), sport: a.sport || '', latest: setTxt(latestSet), best: setTxt(bestSet), off });
       let prev = null, lastPr = null;
       for (const l of sorted) {
         const v = e1(l);
         if (prev != null && v > prev) lastPr = l;
         if (prev == null || v > prev) prev = v;
       }
-      if (lastPr && now - at(lastPr) < PR_DAYS * DAY) prs.push({ id: `${aid}|${lift}`, name: displayName(a.name), sport: a.sport || '', what: lift, val: String(Math.round(e1(lastPr))) });
+      if (lastPr && now - at(lastPr) < PR_DAYS * DAY) prs.push({ id: `${aid}|${lift}`, name: displayName(a.name), sport: a.sport || '', what: lift, val: setTxt(lastPr) });
     }
   }
   const flags = [...flagGroups.entries()]
