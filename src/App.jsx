@@ -2816,6 +2816,7 @@ export default function App() {
                 setConfirmModal={setConfirmModal}
                 handleBackFromProfile={handleBackFromProfile}
                 performanceTests={performanceTests}
+                liftLogs={liftLogs}
                 addPerformanceTest={addPerformanceTest}
                 updatePerformanceTest={updatePerformanceTest}
                 deletePerformanceTest={deletePerformanceTest}

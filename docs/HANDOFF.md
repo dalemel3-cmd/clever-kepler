@@ -3871,7 +3871,16 @@ Toolbar "Columns" row toggles every column except Athlete/Date (`PR_COLUMNS` in 
 - Lifts: `buildPrintLeaderboard` keeps the set behind each day's best (`bestSet`, `initialSet`, `recentSet` = "225 × 3"); the sheet shows those instead of est. 1RM. Ranking and the change columns still use est. 1RM (footer says so). New Columns toggle "Est. 1RM" (lifts only, default off) adds an Est. 1RM column. Subline reads "Best set (lb × reps)".
 - Readiness Report: Strength flags and New PRs show the set; "Est. 1RM on lifts" checkbox (localStorage `hpd_rr_e1rm`) appends "(est. N)".
 
-## 119. Next up
+## 119. Athlete Progress Card (v5.6.0)
+
+Design handoff "HPD Athlete Reports" (3rd zip), report #1. Opened from an athlete's profile ("Progress Card" button).
+- Data: `src/features/reports/progressCardData.js` (`buildProgressCard`). Metrics = every lift (est. 1RM series, shown as the set "225 × 3") and jump/sprint variant the athlete has, most-tested first, capped at 7 + Body Mass (real weigh-ins, thinned to ~12 points). PR = latest test strictly better than every earlier one. Change = latest vs first test (lifts in est. lb). Rank = by best, within same sport + position (or sport if no position). Focus = up to 2 metrics with latest >= 3% below best. Tiles: New PRs, Improved since first month (x / metrics with 2+ tests), Top 5 in position.
+- View: `ProgressCard.jsx` portal (body class `pc-printing`, Letter 0.5in, fixed 720x956 content box so it is always one page). Toolbar: Coach's note on/off + text (saved per athlete in localStorage `hpd_pc_note_<id>`), Next test date, Est. 1RM on/off.
+- Sparkline per handoff: 130x44, negated for lower-is-better, best dot gold r4.5, latest navy r3.5; month labels one per month.
+- Not built yet: Recruiting One-Sheet and Weight Room Card - both need data the app doesn't store (photo, height, wingspan, jersey, film URL, GPA/ACT/NCAA ID, contacts; and a program/session model).
+- Test: `tests/progress-card.js` (14).
+
+## 120. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

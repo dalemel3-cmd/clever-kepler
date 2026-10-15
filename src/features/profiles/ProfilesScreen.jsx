@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+const ProgressCard = React.lazy(() => import('../reports/ProgressCard'));
 import { User, Search, X, ArrowUpRight, ArrowUp, ArrowDown, ChevronLeft, ChevronDown, ChevronUp, RefreshCw, Plus, TrendingUp, Clock, Zap, Activity, Trash2, Pencil, Target } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
@@ -77,6 +78,7 @@ export default function ProfilesScreen({
   setConfirmModal,
   handleBackFromProfile,
   performanceTests,
+  liftLogs = [],
   updatePerformanceTest,
   deletePerformanceTest
 }) {
@@ -96,6 +98,7 @@ export default function ProfilesScreen({
   // shorter page and opens either one only when they actually need it.
   const [postPracticeOpen, setPostPracticeOpen] = useState(false);
   const [logLedgerOpen, setLogLedgerOpen] = useState(false);
+  const [progressCardOpen, setProgressCardOpen] = useState(false);
   if (!selectedProfileId) {
     return (
       <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -421,7 +424,15 @@ export default function ProfilesScreen({
             <button onClick={() => handleEditClick(athlete)} style={{ background: 'rgba(255,255,255,0.04)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               EDIT INFO
             </button>
+            <button data-testid="pc-open" onClick={() => setProgressCardOpen(true)} style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--color-accent)', border: '1px solid rgba(184,156,91,0.5)', borderRadius: '10px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              PROGRESS CARD
+            </button>
           </div>
+          {progressCardOpen && (
+            <React.Suspense fallback={null}>
+              <ProgressCard athlete={athlete} athletes={athletes} liftLogs={liftLogs} performanceTests={performanceTests || []} reportData={reportData} settings={settings} onClose={() => setProgressCardOpen(false)} />
+            </React.Suspense>
+          )}
         </div>
 
         {/* Executive KPI Stat Grid */}
