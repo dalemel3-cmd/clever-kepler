@@ -14,7 +14,8 @@ const athletes = [
   { id: uuid(3), name: 'Vb Val', sport: 'Volleyball' },
 ];
 const L = (a, lt, w, r) => ({ id: uuid(Math.floor(Math.random() * 1e9)), athlete_id: a, lift_type: lt, weight_lbs: w, reps: r, created_at: new Date(Date.now() - 86400000 * 3).toISOString() });
-const lifts = [L(uuid(1), 'Hang Clean', 205, 1), L(uuid(1), 'Bench', 226, 1), L(uuid(1), 'Front Squat', 335, 1), L(uuid(1), 'Deadlift', 405, 1), L(uuid(2), 'Bench', 185, 1)];
+const old = { id: uuid(777), athlete_id: uuid(1), lift_type: 'Bench', weight_lbs: 300, reps: 1, created_at: new Date(Date.now() - 86400000 * 100).toISOString() };
+const lifts = [old, L(uuid(1), 'Hang Clean', 205, 1), L(uuid(1), 'Bench', 226, 1), L(uuid(1), 'Front Squat', 335, 1), L(uuid(1), 'Deadlift', 405, 1), L(uuid(2), 'Bench', 185, 1)];
 const SEED = { enableLiftTracker: true, liftTypes: ['Front Squat', 'Bench', 'Hang Clean', 'Deadlift'] };
 
 async function run(cloud) {
@@ -84,8 +85,12 @@ async function run(cloud) {
   const c1 = cards.first();
   const t1 = await c1.innerText();
   check(`${tag} header: week · phase · 3-Day, name, maxes`, /WEEK 3 · STRENGTH \+ POWER · 3-DAY/i.test(t1) && /Caleb Osmon/i.test(t1), t1.slice(0, 160));
-  const maxes = await c1.getByTestId('wr-max').allInnerTexts();
-  check(`${tag} maxes strip from best est. 1RM`, maxes.join('|').replace(/\n/g, ' ') === 'CLEAN 205|BENCH 226|SQUAT 335|TBDL 405', JSON.stringify(maxes));
+  let maxes = await c1.getByTestId('wr-max').allInnerTexts();
+  check(`${tag} all-time window uses the 100-day-old 300 bench`, /BENCH 300/.test(maxes.join('|').replace(/\n/g, ' ')), JSON.stringify(maxes));
+  await page.getByTestId('wr-window').selectOption('6w'); await page.waitForTimeout(300);
+  maxes = await c1.getByTestId('wr-max').allInnerTexts();
+  check(`${tag} 6-week window -> recent maxes only`, maxes.join('|').replace(/\n/g, ' ') === 'CLEAN 205|BENCH 226|SQUAT 335|TBDL 405', JSON.stringify(maxes));
+  check(`${tag} footer names the window`, /Maxes: last 6 weeks/i.test(await c1.innerText()));
   const wts = await c1.getByTestId('wr-wt').allInnerTexts();
   // Hang clean 205 x 65/70/75/75% -> 135/145/155/155; squat 335 x 70% -> 235; bench 226 x 70% -> 160
   check(`${tag} working weights = max(45, round5(max x %))`, wts.slice(0, 4).join(',') === '135,145,155,155' && wts.includes('235') && wts.includes('160'), wts.filter(Boolean).join(','));
@@ -93,6 +98,17 @@ async function run(cloud) {
   const t2 = await cards.nth(1).innerText();
   check(`${tag} athlete with no clean max -> blank WT, dash in strip`, /Luke Farver/i.test(t2) && /CLEAN\s*—/.test(t2));
   check(`${tag} 3 days -> compact layout (3 columns)`, await c1.getByTestId('wr-day').count() === 3);
+  await page.getByTestId('wr-edit-maxes').click();
+  check(`${tag} max editor shows Lift Tracker max as placeholder`, (await page.getByLabel('Caleb Osmon Bench max').getAttribute('placeholder')) === '226');
+  await page.getByLabel('Caleb Osmon Bench max').fill('250');
+  await page.getByLabel('Luke Farver Clean max').fill('180');
+  await page.getByTestId('wr-edit-maxes').click(); await page.waitForTimeout(400);
+  const ovMax = (await c1.getByTestId('wr-max').allInnerTexts()).join('|').replace(/\n/g, ' ');
+  check(`${tag} override replaces the max, marked with *`, /BENCH 250\*/.test(ovMax) && /entered by staff/.test(await c1.innerText()), ovMax);
+  const ovWt = await c1.getByTestId('wr-wt').allInnerTexts();
+  check(`${tag} bench 70% of 250 -> 175`, ovWt.includes('175'), ovWt.filter(Boolean).join(','));
+  check(`${tag} override for an athlete with no logs fills their card`, /CLEAN\s*180\*/.test(await cards.nth(1).innerText()));
+  if (cloud) check('[cloud] overrides + window saved with the program', upserts.some(u => [].concat(u).some(r => r.max_map?.window === '6w' && r.max_map?.overrides?.[athletes[0].id]?.bench === '250')));
   await page.getByTestId('wr-toggle-vel').click();
   check(`${tag} velocity toggle`, !/Target .* m\/s/.test(await c1.innerText()));
   await page.emulateMedia({ media: 'print' });

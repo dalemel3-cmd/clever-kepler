@@ -3893,7 +3893,11 @@ Handoff "HPD Athlete Reports" #3. New screen Log > **Programs** (`src/features/p
 
 Programs are a printing tool, not a logging area, so nothing is cached on the device. `usePrograms` lists `id,name,week_label,phase,sport,updated_at,archived_at` only (a few hundred bytes each) and `load(id)` fetches the full row when a program is opened. Search box + Archive/Unarchive (`archived_at`, added to `db/014_programs.sql`); archived programs stay in the table for reprints. Delete asks first. The only device storage left is the temporary `hpd_programs` fallback used while the table doesn't exist; it uploads and clears itself on the first load after the table is created. Sizes: a 2-day week is ~3.7 KB, 4-day ~7 KB (500 programs ≈ 3.5 MB of the 500 MB database).
 
-## 122. Next up
+## 122. Max window + max overrides (v5.7.2)
+
+`max_map.window` ('all' | 'season' | '12w' | '6w'; builder "Max window" and the print view) limits which Lift Tracker sets count toward a max (`windowStart`, season = Settings season start). `max_map.overrides[athleteId][key]` = coach-entered max from the print view's "Edit maxes" table (placeholder shows the Lift Tracker max); it wins over the logs, is shown with * on the card plus "* entered by staff" in the footer, and is saved with the program on blur / Done so reprints keep it. Lift Tracker data is never changed. Footer also names the window ("Maxes: last 6 weeks").
+
+## 123. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

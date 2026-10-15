@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, Trash2, Copy, Printer, ChevronUp, ChevronDown, Save, Archive, Search } from 'lucide-react';
 import { usePrograms } from './usePrograms';
-import { MAX_KEYS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
+import { MAX_KEYS, MAX_WINDOWS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
 const WeightRoomCard = React.lazy(() => import('./WeightRoomCard'));
 
 // Log > Programs: build a week of training (2-4 sessions) and print Weight Room Cards
@@ -177,6 +177,13 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
               </div>
               <div>
                 <span style={lbl}>Maxes come from (best est. 1RM in Lift Tracker)</span>
+                <div style={{ marginTop: '6px' }}>
+                  <Field label="Max window">
+                    <select data-testid="pb-window" className="input-glass" style={{ ...small, width: '170px' }} value={draft.max_map?.window || 'all'} onChange={e => set('max_map', { ...draft.max_map, window: e.target.value })}>
+                      {MAX_WINDOWS.map(([k, l]) => <option key={k} value={k} style={opt}>{l}</option>)}
+                    </select>
+                  </Field>
+                </div>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '6px' }}>
                   {MAX_KEYS.map(([k, l]) => (
                     <Field key={k} label={l}>
@@ -210,7 +217,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
       </div>
       {printing && draft && (
         <React.Suspense fallback={null}>
-          <WeightRoomCard program={draft} athletes={athletes} liftLogs={liftLogs} onClose={() => setPrinting(false)} />
+          <WeightRoomCard program={draft} athletes={athletes} liftLogs={liftLogs} settings={settings} onSaveProgram={async (p) => { setDraft(p); await save(p); }} onClose={() => setPrinting(false)} />
         </React.Suspense>
       )}
     </div>

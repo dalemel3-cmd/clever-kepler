@@ -2,6 +2,7 @@
 // docs/HANDOFF.md §120). Pure functions: the program shape, the athlete's maxes from
 // Lift Tracker, and the working-weight math from the handoff.
 import { estimate1RM } from '../lifts/liftRanking';
+import { getCentralDateString } from '../../utils/athleteData';
 
 // The %-of-max keys a block can use, in the order the card's Maxes strip shows them.
 export const MAX_KEYS = [
@@ -24,20 +25,38 @@ export function defaultMaxMap(liftTypes = []) {
 export const round5 = (v) => Math.round(v / 5) * 5;
 export const workingWeight = (max, pct) => (max > 0 && pct > 0 ? Math.max(45, round5(max * pct)) : '');
 
-// Athlete's maxes: best est. 1RM per mapped lift (blank when none logged).
-export function maxesFor(athleteId, liftLogs = [], maxMap = {}) {
+// How far back a max can come from (program setting, stored as max_map.window).
+export const MAX_WINDOWS = [
+  ['all', 'All time'], ['season', 'This season'], ['12w', 'Last 12 weeks'], ['6w', 'Last 6 weeks'],
+];
+export function windowStart(win, seasonStartDate) {
+  if (win === '6w' || win === '12w') return getCentralDateString(new Date(Date.now() - (win === '6w' ? 42 : 84) * 86400000));
+  if (win === 'season') return seasonStartDate || null;
+  return null;
+}
+
+// Athlete's maxes: best est. 1RM per mapped lift inside the max window (blank when none
+// logged). A coach-entered override (max_map.overrides[athleteId][key]) wins and is
+// flagged so the card can mark it; Lift Tracker data is never changed.
+export function maxesFor(athleteId, liftLogs = [], maxMap = {}, { seasonStartDate } = {}) {
   const out = {};
+  const entered = {};
+  const from = windowStart(maxMap.window || 'all', seasonStartDate);
+  const ov = maxMap.overrides?.[athleteId] || {};
   for (const [key] of MAX_KEYS) {
     const lift = maxMap[key];
     if (!lift) { out[key] = null; continue; }
+    if (Number(ov[key]) > 0) { out[key] = Math.round(Number(ov[key])); entered[key] = true; continue; }
     let best = 0;
     for (const l of liftLogs) {
       if (l.athlete_id !== athleteId || l.lift_type !== lift) continue;
+      if (from && getCentralDateString(new Date(l.created_at)) < from) continue;
       const v = estimate1RM(Number(l.weight_lbs), Number(l.reps));
       if (v > best) best = v;
     }
     out[key] = best > 0 ? Math.round(best) : null;
   }
+  out.entered = entered;
   return out;
 }
 
@@ -90,8 +109,8 @@ export function sampleProgram(liftTypes = []) {
 }
 
 // One printable card for one athlete: maxes + every set's working weight.
-export function buildCard(program, athlete, liftLogs, { showVelocity = true } = {}) {
-  const maxes = maxesFor(athlete.id, liftLogs, program.max_map || {});
+export function buildCard(program, athlete, liftLogs, { showVelocity = true, seasonStartDate } = {}) {
+  const maxes = maxesFor(athlete.id, liftLogs, program.max_map || {}, { seasonStartDate });
   const days = (program.days || []).map(d => ({
     ...d,
     dateLabel: d.date ? new Date(`${d.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : '',

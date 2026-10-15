@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X } from 'lucide-react';
-import { buildCard, MAX_KEYS } from './programData';
+import { buildCard, maxesFor, MAX_KEYS, MAX_WINDOWS } from './programData';
 import { displayName } from '../reports/readinessData';
 
 // Weight Room Card (design handoff "HPD Athlete Reports" #3, docs/HANDOFF.md §120).
@@ -95,6 +95,7 @@ function Day({ d, wide, showRecord }) {
 }
 
 function Card({ program, card, showRecord }) {
+  const windowLabel = (MAX_WINDOWS.find(([k]) => k === (program.max_map?.window || 'all')) || MAX_WINDOWS[0])[1].toLowerCase();
   const n = card.days.length || 1;
   const wide = n <= 2;
   return (
@@ -112,7 +113,7 @@ function Card({ program, card, showRecord }) {
           {MAX_KEYS.filter(([k]) => program.max_map?.[k]).map(([k, l]) => (
             <div key={k} data-testid="wr-max" style={{ background: C.navy900, padding: '4px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 44 }}>
               <span style={{ fontWeight: 700, fontSize: 7.5, letterSpacing: '0.08em', ...upper, color: C.gold300 }}>{l}</span>
-              <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17, lineHeight: 1.1, color: C.white }}>{card.maxes[k] ?? '—'}</span>
+              <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17, lineHeight: 1.1, color: C.white }}>{card.maxes[k] ?? '—'}{card.maxes.entered?.[k] ? '*' : ''}</span>
             </div>
           ))}
         </div>
@@ -122,7 +123,7 @@ function Card({ program, card, showRecord }) {
         {card.days.map((d, i) => <Day key={d.id || i} d={d} wide={wide} showRecord={showRecord} />)}
       </div>
       <div style={{ marginTop: 8, paddingTop: 6, display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.muted }}>
-        <span>Shiloh Christian Human Performance · Weights rounded to 5 lb · Record your last set</span>
+        <span>Shiloh Christian Human Performance · Weights rounded to 5 lb · Record your last set · Maxes: {windowLabel}{Object.keys(card.maxes.entered || {}).length ? ' · * entered by staff' : ''}</span>
         <span>Champions for Life</span>
       </div>
     </div>
@@ -134,7 +135,10 @@ const field = { height: 40, padding: '0 10px', fontSize: 13, fontWeight: 700, bo
 const opt = { background: 'var(--navy-900)', color: 'var(--color-text)' };
 const toggleBtn = (on) => ({ ...field, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${on ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: on ? 'rgba(184,156,91,0.18)' : 'transparent', color: on ? 'var(--color-accent)' : 'var(--color-text-muted)' });
 
-export default function WeightRoomCard({ program, athletes, liftLogs, onClose }) {
+export default function WeightRoomCard({ program: programIn, athletes, liftLogs, settings = {}, onSaveProgram, onClose }) {
+  const [program, setProgram] = React.useState(programIn);
+  const [editMaxes, setEditMaxes] = React.useState(false);
+  const seasonStartDate = settings.seasonStartDate;
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
   const [who, setWho] = React.useState(program.sport && sports.includes(program.sport) ? `sport:${program.sport}` : '');
   const [showVelocity, setShowVelocity] = React.useState(true);
@@ -145,7 +149,18 @@ export default function WeightRoomCard({ program, athletes, liftLogs, onClose })
     const a = athletes.find(x => x.id === who);
     return a ? [a] : [];
   }, [who, athletes]);
-  const cards = React.useMemo(() => roster.map(a => buildCard(program, a, liftLogs, { showVelocity })), [roster, program, liftLogs, showVelocity]);
+  const cards = React.useMemo(() => roster.map(a => buildCard(program, a, liftLogs, { showVelocity, seasonStartDate })), [roster, program, liftLogs, showVelocity, seasonStartDate]);
+  const usedKeys = MAX_KEYS.filter(([k]) => program.max_map?.[k]);
+  // Overrides live on the program (max_map.overrides) so a reprint keeps them.
+  const setOverride = (athleteId, key, raw) => {
+    const v = raw.replace(/[^0-9.]/g, '');
+    const all = { ...(program.max_map?.overrides || {}) };
+    const mine = { ...(all[athleteId] || {}) };
+    if (v) mine[key] = v; else delete mine[key];
+    if (Object.keys(mine).length) all[athleteId] = mine; else delete all[athleteId];
+    setProgram(p => ({ ...p, max_map: { ...p.max_map, overrides: all } }));
+  };
+  const persist = () => { onSaveProgram?.(program); };
 
   React.useEffect(() => {
     const fit = () => setScale(Math.min(1, (window.innerWidth - 32) / W));
@@ -185,6 +200,13 @@ export default function WeightRoomCard({ program, athletes, liftLogs, onClose })
             <button type="button" data-testid="wr-toggle-rec" aria-pressed={showRecord} onClick={() => setShowRecord(!showRecord)} style={toggleBtn(showRecord)}>Record column</button>
           </div>
         </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label htmlFor="wr-window" style={label}>Max window</label>
+          <select id="wr-window" data-testid="wr-window" className="input-glass" style={field} value={program.max_map?.window || 'all'} onChange={e => { const next = { ...program, max_map: { ...program.max_map, window: e.target.value } }; setProgram(next); onSaveProgram?.(next); }}>
+            {MAX_WINDOWS.map(([k, l]) => <option key={k} value={k} style={opt}>{l}</option>)}
+          </select>
+        </div>
+        <button type="button" data-testid="wr-edit-maxes" aria-pressed={editMaxes} disabled={!cards.length} onClick={() => { if (editMaxes) persist(); setEditMaxes(!editMaxes); }} style={{ ...toggleBtn(editMaxes), alignSelf: 'flex-end' }}>{editMaxes ? 'Done editing maxes' : 'Edit maxes'}</button>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>{cards.length} card{cards.length === 1 ? '' : 's'}</span>
           <button type="button" data-testid="wr-print" disabled={!cards.length} onClick={() => window.print()} style={{ ...field, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-accent)', color: '#030a14', border: 'none', cursor: 'pointer', textTransform: 'uppercase', opacity: cards.length ? 1 : 0.5 }}>
@@ -195,6 +217,31 @@ export default function WeightRoomCard({ program, athletes, liftLogs, onClose })
           </button>
         </div>
       </div>
+      {editMaxes && cards.length > 0 && (
+        <div className="wr-controls" data-testid="wr-max-editor" style={{ margin: '16px auto 0', maxWidth: 900, padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 10 }}>Type a max to use it on the card instead of the Lift Tracker number (the athlete's logs aren't changed). Leave blank to use the Lift Tracker max shown in grey.</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: 13, width: '100%' }}>
+              <thead><tr><th style={{ textAlign: 'left', padding: '4px 8px', ...label }}>Athlete</th>{usedKeys.map(([k, l]) => <th key={k} style={{ padding: '4px 8px', ...label }}>{l}</th>)}</tr></thead>
+              <tbody>{roster.map(a => {
+                const fromLogs = maxesFor(a.id, liftLogs, { ...program.max_map, overrides: {} }, { seasonStartDate });
+                const ov = program.max_map?.overrides?.[a.id] || {};
+                return (
+                  <tr key={a.id} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <td style={{ padding: '4px 8px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap' }}>{a.name}</td>
+                    {usedKeys.map(([k, l]) => (
+                      <td key={k} style={{ padding: '4px 8px' }}>
+                        <input data-testid={`wr-ov-${k}`} aria-label={`${a.name} ${l} max`} className="input-glass" inputMode="decimal" value={ov[k] ?? ''} placeholder={fromLogs[k] ? String(fromLogs[k]) : '—'}
+                          onChange={e => setOverride(a.id, k, e.target.value)} onBlur={persist} style={{ ...field, height: 34, width: 80, fontWeight: ov[k] ? 800 : 500 }} />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {!cards.length ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)' }}>Pick a team or an athlete to build their cards.</div>
       ) : (
