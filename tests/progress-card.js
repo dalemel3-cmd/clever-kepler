@@ -60,6 +60,10 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   check('Front Squat change since first test in est. lb, rank in DB group', /\+44 lb est\. since/.test(fs) && /#2 of 3 DB/.test(fs), JSON.stringify(fs));
   const vt = metrics.find(m => /VERTICAL/i.test(m)) || '';
   check('Vertical: +1.5 in since first, no PR (best was earlier)', /\+1\.5 in since/.test(vt) && !/\bPR\b/.test(vt), vt);
+  const bench = metrics.find(m => /^BENCH/i.test(m)) || '';
+  check('big number = personal best (Bench 205 × 1), chart labels most recent (190 × 1)', /205 × 1/.test(bench) && (await page.getByTestId('pc-metric').filter({ hasText: /^BENCH/i }).getByTestId('pc-recent').textContent()) === '190 × 1', bench);
+  const vtRecent = await page.getByTestId('pc-metric').filter({ hasText: /VERTICAL/i }).getByTestId('pc-recent').textContent();
+  check('vertical: best 26.0 in the box, 25.5 on the chart', /26\.0/.test(vt) && vtRecent === '25.5', `${vt} | ${vtRecent}`);
   const tiles = await page.getByTestId('pc-tile').allInnerTexts();
   check('tiles: 1 PR, 3/3 improved, 2 in top 5 DB', /^1\b/.test(tiles[0]) && /3 \/ 3/.test(tiles[1]) && /^2\b/.test(tiles[2]), JSON.stringify(tiles));
   const focus = await page.getByTestId('pc-focus').allInnerTexts();
@@ -72,6 +76,13 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   await page.getByTestId('pc-toggle-e1rm').click();
   check('est. 1RM toggle adds the estimate', /Est\. 1RM 248 lb/.test(await card.innerText()));
   await page.getByTestId('pc-toggle-e1rm').click();
+  await page.getByTestId('pc-toggle-lifts').click(); await page.waitForTimeout(200);
+  const noLifts = await page.getByTestId('pc-metric').allInnerTexts();
+  check('lifts toggle hides lifts', noLifts.length === 2 && !noLifts.some(m => /BENCH|SQUAT/i.test(m)), JSON.stringify(noLifts.map(m => m.split('\n')[0])));
+  await page.getByTestId('pc-toggle-lifts').click();
+  await page.getByTestId('pc-toggle-focus').click(); await page.waitForTimeout(200);
+  check('focus toggle hides Focus Next Block, note becomes 02', await page.getByTestId('pc-focus-section').count() === 0 && /02\s*COACH'S NOTE/i.test(await page.getByTestId('pc-note').innerText()));
+  await page.getByTestId('pc-toggle-focus').click();
   const box = await card.evaluate(el => [el.scrollHeight, el.clientHeight]);
   check('content fits the page box', box[0] <= box[1], JSON.stringify(box));
   await page.emulateMedia({ media: 'print' });

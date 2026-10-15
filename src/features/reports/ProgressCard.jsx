@@ -36,6 +36,12 @@ function Spark({ m }) {
         <line x1="6" y1="40" x2="124" y2="40" style={{ stroke: C.border }} strokeWidth="1" />
         {m.dots.length > 1 && <polyline points={m.pts} fill="none" style={{ stroke: C.navy900 }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
         {m.dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={d.r} style={{ fill: fill(d.kind), stroke: C.navy900 }} strokeWidth="1.5" />)}
+        {m.kind !== 'mass' && (() => {
+          // Most recent result labelled at the latest dot (above it, or below if near the top).
+          const d = m.dots[m.dots.length - 1];
+          const above = d.y > 14;
+          return <text data-testid="pc-recent" x={Math.min(d.x, 124)} y={above ? d.y - 7 : d.y + 14} textAnchor={m.dots.length > 1 ? 'end' : 'middle'} style={{ fontFamily: BODY, fontWeight: 700, fontSize: 9.5, fill: C.navy900, stroke: C.white, strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }}>{m.latestText}</text>;
+        })()}
       </svg>
       <div style={{ position: 'relative', height: 11, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.muted }}>
         {m.months.map((mo, i) => <span key={i} style={{ position: 'absolute', left: Math.min(124, Math.max(0, mo.x)), transform: mo.x <= 8 ? 'none' : mo.x >= 120 ? 'translateX(-100%)' : 'translateX(-50%)', whiteSpace: 'nowrap' }}>{mo.text}</span>)}
@@ -44,7 +50,7 @@ function Spark({ m }) {
   );
 }
 
-function Card({ card, showNote, note, nextTest, today }) {
+function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
   const t = card.tiles;
   const tiles = [
     { n: t.prs, label: 'New PRs', sub: 'Best result came from the latest test', color: C.gold700 },
@@ -77,7 +83,7 @@ function Card({ card, showNote, note, nextTest, today }) {
         <SectionHead n="01" title="Your Numbers" right={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 11, color: C.muted }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: C.gold500 }} />Personal best</span>
-            <span>Charts: up = better</span>
+            <span>Big number = personal best · Chart label = most recent · up = better</span>
           </div>
         )} />
       </div>
@@ -88,11 +94,12 @@ function Card({ card, showNote, note, nextTest, today }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, flex: '1 1 auto' }}>
               <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: m.kind === 'lift' ? 24 : 30, lineHeight: 1, color: C.navy900, whiteSpace: 'nowrap' }}>{m.latestText}</span>
+                <span data-testid="pc-best" style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: m.kind === 'lift' ? 24 : 30, lineHeight: 1, color: C.navy900, whiteSpace: 'nowrap' }}>{m.bestText}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>{m.unit}</span>
+                {m.kind !== 'mass' && m.bestDay && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.gold700, whiteSpace: 'nowrap' }}>Best · {new Date(`${m.bestDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
                 {m.isPR && <span data-testid="pc-pr" style={{ padding: '2px 7px', borderRadius: 999, fontWeight: 700, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', background: C.gold500, color: C.navy900 }}>PR</span>}
               </div>
-              {m.showE1rm && m.latestE1rm != null && <div style={{ fontSize: 11, color: C.muted }}>Est. 1RM {m.latestE1rm} lb</div>}
+              {m.showE1rm && m.bestE1rm != null && <div style={{ fontSize: 11, color: C.muted }}>Est. 1RM {m.bestE1rm} lb</div>}
               <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 10, rowGap: 1, fontSize: 12 }}>
                 <span style={{ fontWeight: 700, whiteSpace: 'nowrap', color: m.delta ? tone(m) : C.muted }}>{m.delta ? `${m.delta} since ${m.since}` : m.tests > 1 ? `No change since ${m.since}` : 'First test'}</span>
                 {m.rankText && <span style={{ whiteSpace: 'nowrap', color: C.muted }}>{m.rankText}</span>}
@@ -103,8 +110,8 @@ function Card({ card, showNote, note, nextTest, today }) {
         ))}
       </div>
 
-      <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: showNote ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', gap: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {(showNote || showFocus) && <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: showNote && showFocus ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', gap: 24 }}>
+        {showFocus && <div data-testid="pc-focus-section" style={{ display: 'flex', flexDirection: 'column' }}>
           <SectionHead n="02" title="Focus Next Block" />
           {card.focus.length ? card.focus.map(f => (
             <div key={f.label} data-testid="pc-focus" style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '9px 0', borderBottom: `1px solid ${C.border}` }}>
@@ -117,17 +124,17 @@ function Card({ card, showNote, note, nextTest, today }) {
               <span style={{ fontSize: 12, lineHeight: 1.45, color: C.muted }}>Every latest result is within 3% of your best. Stay consistent and retest after the next block.</span>
             </div>
           )}
-        </div>
+        </div>}
         {showNote && (
           <div data-testid="pc-note" style={{ display: 'flex', flexDirection: 'column' }}>
-            <SectionHead n="03" title="Coach's Note" />
+            <SectionHead n={showFocus ? '03' : '02'} title="Coach's Note" />
             <p style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.55, color: note ? C.text : C.muted, whiteSpace: 'pre-wrap' }}>{note || 'Write a note in the toolbar above to add it here.'}</p>
             <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.muted }}>
               <span>Human Performance Staff</span>{nextTest && <span>Next test · {new Date(`${nextTest}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       <div style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.muted }}>
         <span>Shiloh Christian Human Performance · Progress Card · {today}</span>
@@ -146,12 +153,14 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 export default function ProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, settings, onClose }) {
   const [showNote, setShowNote] = React.useState(() => load('hpd_pc_shownote', true));
   const [showE1rm, setShowE1rm] = React.useState(() => load('hpd_pc_e1rm', false));
+  const [showLifts, setShowLifts] = React.useState(() => load('hpd_pc_lifts', true));
+  const [showFocus, setShowFocus] = React.useState(() => load('hpd_pc_focus', true));
   // Coach's note and next test date are kept per athlete on this device.
   const noteKey = `hpd_pc_note_${athlete.id}`;
   const [note, setNote] = React.useState(() => load(noteKey, ''));
   const [nextTest, setNextTest] = React.useState(() => load('hpd_pc_nexttest', ''));
-  const card = React.useMemo(() => buildProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, settings, showE1rm }),
-    [athlete, athletes, liftLogs, performanceTests, reportData, settings, showE1rm]);
+  const card = React.useMemo(() => buildProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, settings, showE1rm, includeLifts: showLifts }),
+    [athlete, athletes, liftLogs, performanceTests, reportData, settings, showE1rm, showLifts]);
   const [scale, setScale] = React.useState(1);
   const today = new Date().toLocaleDateString('en-US');
 
@@ -180,6 +189,8 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={label}>Show</span>
           <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" data-testid="pc-toggle-lifts" aria-pressed={showLifts} onClick={() => { setShowLifts(!showLifts); save('hpd_pc_lifts', !showLifts); }} style={toggleBtn(showLifts)}>Lifts</button>
+            <button type="button" data-testid="pc-toggle-focus" aria-pressed={showFocus} onClick={() => { setShowFocus(!showFocus); save('hpd_pc_focus', !showFocus); }} style={toggleBtn(showFocus)}>Focus next block</button>
             <button type="button" data-testid="pc-toggle-note" aria-pressed={showNote} onClick={() => { setShowNote(!showNote); save('hpd_pc_shownote', !showNote); }} style={toggleBtn(showNote)}>Coach's note</button>
             <button type="button" data-testid="pc-toggle-e1rm" aria-pressed={showE1rm} onClick={() => { setShowE1rm(!showE1rm); save('hpd_pc_e1rm', !showE1rm); }} style={toggleBtn(showE1rm)}>Est. 1RM</button>
           </div>
@@ -209,7 +220,7 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
       </div>
       <div className="pc-sheet-wrap" style={{ height: (H + 96) * scale + 48, display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
         <div className="pc-sheet" style={{ width: W + 96, padding: 48, boxSizing: 'border-box', background: '#fff', boxShadow: '0 10px 40px rgba(0,0,0,0.4)', transform: `scale(${scale})`, transformOrigin: 'top center', height: H + 96 }}>
-          {card && <Card card={card} showNote={showNote} note={note} nextTest={nextTest} today={today} />}
+          {card && <Card card={card} showNote={showNote} showFocus={showFocus} note={note} nextTest={nextTest} today={today} />}
         </div>
       </div>
     </div>,

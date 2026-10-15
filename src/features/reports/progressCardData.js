@@ -83,7 +83,7 @@ function spark(pts, lowerIsBetter, bestIdx, neutral) {
   return { pts: dots.map(d => `${d.x},${d.y}`).join(' '), dots, months };
 }
 
-export function buildProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], settings = {}, now = new Date(), showE1rm = false }) {
+export function buildProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], settings = {}, now = new Date(), showE1rm = false, includeLifts = true }) {
   if (!athlete) return null;
   const liftTypes = settings.liftTypes?.length ? settings.liftTypes : ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'];
   const peers = athletes.filter(a => (a.sport || 'General') === (athlete.sport || 'General') && (!athlete.position || a.position === athlete.position));
@@ -113,7 +113,8 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
       key: def.key, kind: def.kind, label: def.label, unit: def.unit, lowerIsBetter: def.lowerIsBetter,
       tests: pts.length, firstDay: pts[0].day, lastDay: latest.day,
       latestText: def.kind === 'lift' ? latest.set : latest.value.toFixed(dp),
-      latestE1rm: def.kind === 'lift' ? Math.round(latest.value) : null, showE1rm,
+      latestE1rm: def.kind === 'lift' ? Math.round(latest.value) : null, bestE1rm: def.kind === 'lift' ? Math.round(best.value) : null, showE1rm,
+      latestDay: latest.day, latestIsBest: bestIdx === pts.length - 1,
       isPR,
       delta: pts.length < 2 || +d.toFixed(dp) === 0 ? null : `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(dp)} ${def.unit}${def.kind === 'lift' ? ' est.' : ''}`,
       deltaTone: pts.length < 2 ? 'flat' : better ? 'up' : 'down',
@@ -125,7 +126,8 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
   }
   // Order: most-tested first so the card leads with what the athlete actually does.
   metrics.sort((a, b) => b.tests - a.tests || a.label.localeCompare(b.label));
-  const shown = metrics.slice(0, MAX_METRICS - 1);
+  const pool = includeLifts ? metrics : metrics.filter(m => m.kind !== 'lift');
+  const shown = pool.slice(0, MAX_METRICS - 1);
 
   // Body mass: real weigh-ins only, one per day (latest of the day). Neutral color, no PR.
   const wByDay = new Map();
@@ -143,7 +145,7 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
   if (wPts.length) {
     const d = wPts[wPts.length - 1].value - wPts[0].value;
     mass = {
-      key: 'mass', kind: 'mass', label: 'Body Mass', unit: 'lb', tests: wPts.length, latestText: wPts[wPts.length - 1].value.toFixed(1), isPR: false,
+      key: 'mass', kind: 'mass', label: 'Body Mass', unit: 'lb', tests: wPts.length, latestText: wPts[wPts.length - 1].value.toFixed(1), bestText: wPts[wPts.length - 1].value.toFixed(1), latestIsBest: true, isPR: false,
       delta: wPts.length < 2 || +d.toFixed(1) === 0 ? null : `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)} lb`, deltaTone: 'neutral', since: monthOf(wPts[0].day), rankText: '',
       firstDay: wPts[0].day, lastDay: wPts[wPts.length - 1].day,
       ...spark(wSpark, false, -1, true),
@@ -171,6 +173,6 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
       improved: scored.filter(m => m.deltaTone === 'up').length, scored: scored.length,
       top: shown.filter(m => m.rankN > 1 && m.rank <= TOP_RANK).length,
     },
-    metrics: cardMetrics, focus, hiddenCount: Math.max(0, metrics.length - shown.length),
+    metrics: cardMetrics, focus, hiddenCount: Math.max(0, pool.length - shown.length),
   };
 }

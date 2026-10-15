@@ -3897,7 +3897,11 @@ Programs are a printing tool, not a logging area, so nothing is cached on the de
 
 `max_map.window` ('all' | 'season' | '12w' | '6w'; builder "Max window" and the print view) limits which Lift Tracker sets count toward a max (`windowStart`, season = Settings season start). `max_map.overrides[athleteId][key]` = coach-entered max from the print view's "Edit maxes" table (placeholder shows the Lift Tracker max); it wins over the logs, is shown with * on the card plus "* entered by staff" in the footer, and is saved with the program on blur / Done so reprints keep it. Lift Tracker data is never changed. Footer also names the window ("Maxes: last 6 weeks").
 
-## 123. Next up
+## 123. Progress Card: PB first, recent on chart, toggles (v5.7.3)
+
+Your Numbers now leads with the personal best (`bestText`, "Best · Mon D" in gold; est. 1RM line uses the best set). The most recent result is a label at the latest sparkline dot (white halo so it reads over the line; body mass has none). Toolbar toggles: **Lifts** (`includeLifts` in `buildProgressCard` - tiles, focus and the 8-metric cap follow), **Focus next block** (Coach's Note renumbers to 02), Coach's note, Est. 1RM; all stored in localStorage (`hpd_pc_lifts`, `hpd_pc_focus`, ...).
+
+## 124. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
