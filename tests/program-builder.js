@@ -22,7 +22,7 @@ async function run(cloud) {
   const page = await (await browser.newContext({ viewport: { width: 1366, height: 1000 } })).newPage();
   await stubAuth(page);
   await page.addInitScript((s) => localStorage.setItem('hpd_settings', JSON.stringify(s)), SEED);
-  const upserts = [];
+  const upserts = []; const selects = []; const server = new Map();
   await page.route(SUPA, async (route) => {
     const req = route.request(); const url = req.url(); const method = req.method();
     const hdrs = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
@@ -34,8 +34,12 @@ async function run(cloud) {
     if (url.includes('/rest/v1/lift_logs') && method === 'GET') return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(lifts) });
     if (url.includes('/rest/v1/programs')) {
       if (!cloud) return route.fulfill({ status: 404, headers: hdrs, body: JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.programs' in the schema cache" }) });
-      if (method === 'POST') { upserts.push(JSON.parse(req.postData())); return route.fulfill({ status: 201, headers: hdrs, body: '[]' }); }
-      return route.fulfill({ status: 200, headers: hdrs, body: '[]' });
+      if (method === 'POST') { const body = JSON.parse(req.postData()); upserts.push(body); [].concat(body).forEach(r => server.set(r.id, r)); return route.fulfill({ status: 201, headers: hdrs, body: '[]' }); }
+      if (method === 'DELETE') return route.fulfill({ status: 204, headers: hdrs, body: '' });
+      const u = new URL(url); const sel = u.searchParams.get('select') || ''; selects.push(sel);
+      const idEq = u.searchParams.get('id');
+      if (idEq) { const r = server.get(idEq.replace('eq.', '')); return route.fulfill({ status: 200, headers: { ...hdrs, 'content-range': '0-0/1' }, body: JSON.stringify(r || null) }); }
+      return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([...server.values()].map(r => Object.fromEntries(sel.split(',').map(k => [k, r[k] ?? null])))) });
     }
     return route.fulfill({ status: 200, headers: hdrs, body: '[]' });
   });
@@ -60,6 +64,19 @@ async function run(cloud) {
   check(`${tag} saved + listed`, await page.getByTestId('pb-item').count() === 1);
   if (cloud) check('[cloud] save upserts to programs', upserts.length >= 1 && (upserts.flat()[0].days || []).length === 3, JSON.stringify(upserts).slice(0, 120));
   else check('[local] saved in localStorage', JSON.parse(await page.evaluate(() => localStorage.getItem('hpd_programs')))[0].days.length === 3);
+  if (cloud) {
+    check('[cloud] nothing stored on the device', await page.evaluate(() => localStorage.getItem('hpd_programs')) === null);
+    check('[cloud] list loads summary columns only (no days)', selects.length > 0 && selects.every(x => x === '*' || !/days/.test(x)) && selects.some(x => /^id,name/.test(x)), JSON.stringify(selects));
+    await page.reload(); await page.waitForTimeout(2000);
+    check('[cloud] list after reload comes from the server', await page.getByTestId('pb-item').count() === 1);
+    await page.getByTestId('pb-item').first().click(); await page.waitForTimeout(600);
+    check('[cloud] opening loads the full program', await page.getByTestId('pb-day').count() === 3);
+  }
+  await page.getByTestId('pb-search').fill('zzz');
+  check(`${tag} search filters the list`, await page.getByTestId('pb-item').count() === 0);
+  await page.getByTestId('pb-search').fill('sample');
+  check(`${tag} search finds by name`, await page.getByTestId('pb-item').count() === 1);
+  await page.getByTestId('pb-search').fill('');
   await page.getByTestId('pb-print').click(); await page.waitForTimeout(800);
   await page.getByTestId('wr-who').selectOption('sport:Football'); await page.waitForTimeout(400);
   const cards = page.getByTestId('wr-card');
@@ -84,7 +101,12 @@ async function run(cloud) {
   const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
   const mb = pdf.toString('latin1').match(/\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)\s*\]/);
   check(`${tag} PDF: 2 landscape Letter pages`, pages === 2 && mb && Math.round(+mb[1]) === 792 && Math.round(+mb[2]) === 612, `${pages} ${mb && mb[0]}`);
-  if (!cloud) { await page.emulateMedia({ media: 'screen' }); await c1.screenshot({ path: process.env.SHOT || '/dev/null' }).catch(() => {}); }
+  await page.emulateMedia({ media: 'screen' });
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  await page.getByTestId('pb-archive').click(); await page.waitForTimeout(400);
+  check(`${tag} archive hides it from the list`, await page.getByTestId('pb-item').count() === 0 && await page.getByTestId('pb-show-archived').count() === 1);
+  await page.getByTestId('pb-show-archived').click();
+  check(`${tag} archived view lists it`, await page.getByTestId('pb-item').count() === 1);
   await browser.close();
 }
 (async () => { await run(false); await run(true); console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0); })();

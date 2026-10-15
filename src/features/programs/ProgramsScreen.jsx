@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Trash2, Copy, Printer, ChevronUp, ChevronDown, Save } from 'lucide-react';
+import { Plus, Trash2, Copy, Printer, ChevronUp, ChevronDown, Save, Archive, Search } from 'lucide-react';
 import { usePrograms } from './usePrograms';
 import { MAX_KEYS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
 const WeightRoomCard = React.lazy(() => import('./WeightRoomCard'));
@@ -103,7 +103,10 @@ function DayEditor({ d, i, onChange, onDelete, canDelete }) {
 export default function ProgramsScreen({ athletes, liftLogs, settings }) {
   const liftTypes = settings.liftTypes?.length ? settings.liftTypes : ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'];
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
-  const { programs, mode, save, remove } = usePrograms();
+  const { programs, mode, load, save, setArchived, remove } = usePrograms();
+  const [query, setQuery] = React.useState('');
+  const [showArchived, setShowArchived] = React.useState(false);
+  const [opening, setOpening] = React.useState(false);
   const [draft, setDraft] = React.useState(null);
   const [dirty, setDirty] = React.useState(false);
   const [msg, setMsg] = React.useState('');
@@ -111,7 +114,11 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
   const edit = (p) => { setDraft(clone(p)); setDirty(false); setMsg(''); };
   const change = (p) => { setDraft(p); setDirty(true); setMsg(''); };
   const set = (k, v) => change({ ...draft, [k]: v });
-  const doSave = async () => { const res = await save(draft); setDirty(false); setMsg(res.ok ? (res.local ? 'Saved on this device.' : 'Saved.') : 'Saved on this device; the cloud copy failed - try again.'); };
+  const open = async (p) => { setOpening(true); const full = await load(p.id); setOpening(false); if (full) edit(full); else setMsg('Could not open that program - check the connection and try again.'); };
+  const doSave = async () => { const res = await save(draft); if (res.ok) setDirty(false); setMsg(res.ok ? (res.local ? 'Saved in this browser.' : 'Saved.') : "Couldn't save - check the connection and try again."); return res.ok; };
+  const q = query.trim().toLowerCase();
+  const visible = programs.filter(p => (showArchived ? p.archived_at : !p.archived_at) && (!q || [p.name, p.week_label, p.phase, p.sport].some(v => String(v || '').toLowerCase().includes(q))));
+  const archivedCount = programs.filter(p => p.archived_at).length;
 
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -128,20 +135,30 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
       </div>
       {mode === 'local' && (
         <div data-testid="pb-local" style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(184,156,91,0.12)', border: '1px solid rgba(184,156,91,0.4)', fontSize: '13px', color: 'var(--color-text)' }}>
-          Programs are saved on this device only until the <b>programs</b> table is created in Supabase (run <code>db/014_programs.sql</code>). After that they sync to every device automatically.
+          The <b>programs</b> table isn't set up in Supabase yet (run <code>db/014_programs.sql</code>), so programs are only kept in this browser for now. They upload automatically the first time the app loads after it's created.
         </div>
       )}
+      {mode === 'error' && <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', fontSize: '13px' }}>Couldn't reach the server to load programs. Programs need a connection - they aren't stored on the device.</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '16px', alignItems: 'start' }}>
         <div className="card-glass" style={{ ...card, gridColumn: 'span 1' }}>
-          <span style={lbl}>Programs</span>
-          {programs.length === 0 && <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>None yet. Start a new one or from the sample.</span>}
-          {programs.map(p => (
-            <button key={p.id} type="button" data-testid="pb-item" onClick={() => edit(p)} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', border: `1px solid ${draft?.id === p.id ? 'var(--color-accent)' : 'rgba(255,255,255,0.1)'}`, background: draft?.id === p.id ? 'rgba(184,156,91,0.12)' : 'transparent', color: 'var(--color-text)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+            <span style={lbl}>{showArchived ? 'Archived' : 'Programs'}</span>
+            {(archivedCount > 0 || showArchived) && <button type="button" data-testid="pb-show-archived" onClick={() => setShowArchived(!showArchived)} style={{ background: 'none', border: 'none', color: 'var(--color-accent)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>{showArchived ? 'Back to current' : `Archived (${archivedCount})`}</button>}
+          </div>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <Search size={15} style={{ position: 'absolute', left: '10px', color: 'var(--color-text-muted)', pointerEvents: 'none' }} />
+            <input type="search" data-testid="pb-search" className="input-glass" placeholder="Search programs" value={query} onChange={e => setQuery(e.target.value)} style={{ ...inp, width: '100%', paddingLeft: '32px' }} aria-label="Search programs" />
+          </div>
+          {visible.length === 0 && <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{q ? `No programs match "${query}".` : showArchived ? 'Nothing archived.' : 'None yet. Start a new one or from the sample.'}</span>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '60vh', overflowY: 'auto' }}>
+          {visible.map(p => (
+            <button key={p.id} type="button" data-testid="pb-item" disabled={opening} onClick={() => open(p)} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', border: `1px solid ${draft?.id === p.id ? 'var(--color-accent)' : 'rgba(255,255,255,0.1)'}`, background: draft?.id === p.id ? 'rgba(184,156,91,0.12)' : 'transparent', color: 'var(--color-text)' }}>
               <div style={{ fontWeight: 800 }}>{p.name}</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{[p.week_label, p.phase, `${(p.days || []).length}-day`, p.sport].filter(Boolean).join(' · ')}</div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{[p.week_label, p.phase, p.dayCount ? `${p.dayCount}-day` : '', p.sport].filter(Boolean).join(' · ')}</div>
             </button>
           ))}
+          </div>
         </div>
 
         {draft && (
@@ -173,13 +190,18 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="button" data-testid="pb-save" style={btn(true)} onClick={doSave}><Save size={16} /> {dirty ? 'Save' : 'Saved'}</button>
-                <button type="button" data-testid="pb-print" style={btn(false)} onClick={async () => { if (dirty) await doSave(); setPrinting(true); }}><Printer size={16} /> Print cards</button>
+                <button type="button" data-testid="pb-print" style={btn(false)} onClick={async () => { if (dirty && !(await doSave())) return; setPrinting(true); }}><Printer size={16} /> Print cards</button>
                 <button type="button" style={btn(false)} onClick={() => { const c = clone(draft); c.id = newProgram().id; c.name = `${draft.name} (copy)`; edit(c); setDirty(true); }}><Copy size={16} /> Duplicate</button>
-                {programs.some(p => p.id === draft.id) && <button type="button" style={btn(false)} onClick={async () => { await remove(draft.id); setDraft(null); }}><Trash2 size={16} /> Delete</button>}
+                {programs.some(p => p.id === draft.id) && (
+                  <button type="button" data-testid="pb-archive" style={btn(false)} onClick={async () => { const res = await setArchived(draft, !draft.archived_at); if (res.ok) { setDraft(null); setMsg(''); } }}>
+                    <Archive size={16} /> {draft.archived_at ? 'Unarchive' : 'Archive'}
+                  </button>
+                )}
+                {programs.some(p => p.id === draft.id) && <button type="button" style={btn(false)} onClick={async () => { if (window.confirm(`Delete "${draft.name}" for good? Archive keeps it for reprints.`)) { await remove(draft.id); setDraft(null); } }}><Trash2 size={16} /> Delete</button>}
                 <span role="status" style={{ fontSize: '13px', color: dirty ? 'var(--color-text-muted)' : '#10b981' }}>{dirty ? 'Unsaved changes' : msg}</span>
               </div>
             </div>
-            {draft.days.map((d, i) => (
+            {(draft.days || []).map((d, i) => (
               <DayEditor key={d.id || i} d={d} i={i} canDelete={draft.days.length > 1} onChange={nd => set('days', draft.days.map((x, j) => (j === i ? nd : x)))} onDelete={() => set('days', draft.days.filter((_, j) => j !== i))} />
             ))}
             {draft.days.length < 4 && <button type="button" data-testid="pb-add-day" style={{ ...btn(false), alignSelf: 'flex-start' }} onClick={() => set('days', [...draft.days, newDay()])}><Plus size={16} /> Add day ({draft.days.length + 1} of 4)</button>}

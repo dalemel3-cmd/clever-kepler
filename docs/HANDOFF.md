@@ -3889,7 +3889,11 @@ Handoff "HPD Athlete Reports" #3. New screen Log > **Programs** (`src/features/p
 - Card (`WeightRoomCard.jsx`): Letter landscape, 0.4in margin, fixed 976x732 box (one page per athlete). Print for one athlete or a whole team. Maxes = best est. 1RM per mapped lift (`maxesFor`); WT = max(45, round5(max × pct)); blank when the athlete has no max. 1-2 days = wide layout, 3-4 = compact. Toggles: velocity targets, Record column.
 - Test: `tests/program-builder.js` (36: local and cloud modes).
 
-## 121. Next up
+## 121. Programs: web-side only, light list, archive (v5.7.1)
+
+Programs are a printing tool, not a logging area, so nothing is cached on the device. `usePrograms` lists `id,name,week_label,phase,sport,updated_at,archived_at` only (a few hundred bytes each) and `load(id)` fetches the full row when a program is opened. Search box + Archive/Unarchive (`archived_at`, added to `db/014_programs.sql`); archived programs stay in the table for reprints. Delete asks first. The only device storage left is the temporary `hpd_programs` fallback used while the table doesn't exist; it uploads and clears itself on the first load after the table is created. Sizes: a 2-day week is ~3.7 KB, 4-day ~7 KB (500 programs ≈ 3.5 MB of the 500 MB database).
+
+## 122. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
