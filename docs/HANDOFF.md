@@ -3901,7 +3901,11 @@ Programs are a printing tool, not a logging area, so nothing is cached on the de
 
 Your Numbers now leads with the personal best (`bestText`, "Best · Mon D" in gold; est. 1RM line uses the best set). The most recent result is a label at the latest sparkline dot (white halo so it reads over the line; body mass has none). Toolbar toggles: **Lifts** (`includeLifts` in `buildProgressCard` - tiles, focus and the 8-metric cap follow), **Focus next block** (Coach's Note renumbers to 02), Coach's note, Est. 1RM; all stored in localStorage (`hpd_pc_lifts`, `hpd_pc_focus`, ...).
 
-## 124. Next up
+## 124. Progress Card: fixed metric list, N/A, team rank (v5.7.4)
+
+`CARD_METRICS` in `progressCardData.js` is the card's fixed list, in print order: Vertical (Hands on Hips) `vertical_jump:hands_on_hips`, Vertical (Arm Swing) `vertical_jump:arm_swing`, Broad Jump `board_jump` (any technique), Fly 10 `10yd_fly` (any), Bench Press / Hang Clean / Front Squat / Back Squat ("Back Squat" or "Squat") / Deadlift / Trap Bar Deadlift ("Trap Bar Deadlift", "TBDL", "Trap Bar DL") matched case-insensitively against `lift_type`, then Body Mass. Untested metrics render as an "N/A · Not tested yet" row. Toolbar "Metrics" row toggles each one (localStorage `hpd_pc_hidden`); "All lifts" flips every lift. Rank (`#n of N {Sport}`) and the "Top 5 in {Sport}" tile now compare against the whole team, not the position group. Spacing tightened so all 11 rows + both bottom sections stay on one page.
+
+## 125. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

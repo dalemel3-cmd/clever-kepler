@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X } from 'lucide-react';
-import { buildProgressCard } from './progressCardData';
+import { buildProgressCard, CARD_METRICS } from './progressCardData';
 
 // Athlete Progress Card (design handoff "HPD Athlete Reports" #1, docs/HANDOFF.md §119).
 // One US Letter page, portrait, 0.5in margins: the 7.5 x 10in content box is a fixed
@@ -55,13 +55,13 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
   const tiles = [
     { n: t.prs, label: 'New PRs', sub: 'Best result came from the latest test', color: C.gold700 },
     { n: `${t.improved} / ${t.scored}`, label: `Improved since ${card.firstMonth || 'first test'}`, sub: 'First test to latest', color: C.navy900 },
-    { n: t.top, label: `Top 5 in ${card.groupLabel}`, sub: `Rank among ${card.groupLabel}s by best result`, color: C.navy900 },
+    { n: t.top, label: `Top 5 in ${card.groupLabel}`, sub: `Rank on the ${card.groupLabel} team by best result`, color: C.navy900 },
   ];
   const tone = (m) => (m.deltaTone === 'up' ? C.positive : m.deltaTone === 'down' ? C.danger : C.navy900);
   return (
     <div className="pc-page" data-testid="progress-card" style={{ width: W, height: H, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', background: C.white, color: C.text, fontFamily: BODY, overflow: 'hidden', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, padding: '6px 0 16px', borderTop: `10px solid ${C.navy900}`, borderBottom: `3px solid ${C.gold500}` }}>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, padding: '4px 0 12px', borderTop: `10px solid ${C.navy900}`, borderBottom: `3px solid ${C.gold500}` }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold700 }}>Human Performance · Progress Card</div>
           <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 48, lineHeight: 1.02, textTransform: 'uppercase', color: C.navy900 }}>{card.name}</div>
           <div style={{ fontSize: 14, color: C.muted }}>{[card.sport, card.pos, card.classYear && `Class of ${card.classYear}`, card.span && `Testing ${card.span}`].filter(Boolean).join(' · ')}</div>
@@ -69,9 +69,9 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
         <img src="/hp-logo.png" alt="Shiloh Christian Human Performance" style={{ height: 88, flexShrink: 0, margin: '6px -12px 0 0' }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1, background: C.border, border: `1px solid ${C.border}`, marginTop: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1, background: C.border, border: `1px solid ${C.border}`, marginTop: 12 }}>
         {tiles.map(tl => (
-          <div key={tl.label} data-testid="pc-tile" style={{ background: C.white, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div key={tl.label} data-testid="pc-tile" style={{ background: C.white, padding: '9px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 34, lineHeight: 1, color: tl.color }}>{tl.n}</div>
             <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.navy900 }}>{tl.label}</div>
             <div style={{ fontSize: 11, color: C.muted }}>{tl.sub}</div>
@@ -79,7 +79,7 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
         ))}
       </div>
 
-      <div style={{ marginTop: 22 }}>
+      <div style={{ marginTop: 14 }}>
         <SectionHead n="01" title="Your Numbers" right={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 11, color: C.muted }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: C.gold500 }} />Personal best</span>
@@ -89,8 +89,19 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 24 }}>
         {card.metrics.length === 0 && <p style={{ gridColumn: '1 / -1', color: C.muted, fontSize: 13 }}>No results logged for this athlete yet.</p>}
-        {card.metrics.map(m => (
-          <div key={m.key} data-testid="pc-metric" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+        {card.metrics.map(m => m.na ? (
+          <div key={m.key} data-testid="pc-metric" data-na="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted }}>{m.label}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1, color: C.border }}>N/A</span>
+                <span style={{ fontSize: 12, color: C.muted }}>{m.kind === 'mass' ? 'No weigh-ins yet' : 'Not tested yet'}</span>
+              </div>
+            </div>
+            <svg width="130" height="44" viewBox="0 0 130 44" aria-hidden="true"><line x1="6" y1="40" x2="124" y2="40" style={{ stroke: C.border }} strokeWidth="1" strokeDasharray="3 3" /></svg>
+          </div>
+        ) : (
+          <div key={m.key} data-testid="pc-metric" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, flex: '1 1 auto' }}>
               <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -110,7 +121,7 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
         ))}
       </div>
 
-      {(showNote || showFocus) && <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: showNote && showFocus ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', gap: 24 }}>
+      {(showNote || showFocus) && <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: showNote && showFocus ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', gap: 24 }}>
         {showFocus && <div data-testid="pc-focus-section" style={{ display: 'flex', flexDirection: 'column' }}>
           <SectionHead n="02" title="Focus Next Block" />
           {card.focus.length ? card.focus.map(f => (
@@ -153,14 +164,18 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 export default function ProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, settings, onClose }) {
   const [showNote, setShowNote] = React.useState(() => load('hpd_pc_shownote', true));
   const [showE1rm, setShowE1rm] = React.useState(() => load('hpd_pc_e1rm', false));
-  const [showLifts, setShowLifts] = React.useState(() => load('hpd_pc_lifts', true));
+  // Metrics toggled off (by CARD_METRICS key), remembered on this device.
+  const [hidden, setHidden] = React.useState(() => load('hpd_pc_hidden', {}));
+  const setHide = (next) => { setHidden(next); save('hpd_pc_hidden', next); };
+  const liftKeys = CARD_METRICS.filter(m => m.kind === 'lift').map(m => m.key);
+  const liftsOn = liftKeys.some(k => !hidden[k]);
   const [showFocus, setShowFocus] = React.useState(() => load('hpd_pc_focus', true));
   // Coach's note and next test date are kept per athlete on this device.
   const noteKey = `hpd_pc_note_${athlete.id}`;
   const [note, setNote] = React.useState(() => load(noteKey, ''));
   const [nextTest, setNextTest] = React.useState(() => load('hpd_pc_nexttest', ''));
-  const card = React.useMemo(() => buildProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, settings, showE1rm, includeLifts: showLifts }),
-    [athlete, athletes, liftLogs, performanceTests, reportData, settings, showE1rm, showLifts]);
+  const card = React.useMemo(() => buildProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden }),
+    [athlete, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden]);
   const [scale, setScale] = React.useState(1);
   const today = new Date().toLocaleDateString('en-US');
 
@@ -189,10 +204,18 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={label}>Show</span>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" data-testid="pc-toggle-lifts" aria-pressed={showLifts} onClick={() => { setShowLifts(!showLifts); save('hpd_pc_lifts', !showLifts); }} style={toggleBtn(showLifts)}>Lifts</button>
+            <button type="button" data-testid="pc-toggle-lifts" aria-pressed={liftsOn} onClick={() => setHide({ ...hidden, ...Object.fromEntries(liftKeys.map(k => [k, liftsOn])) })} style={toggleBtn(liftsOn)}>All lifts</button>
             <button type="button" data-testid="pc-toggle-focus" aria-pressed={showFocus} onClick={() => { setShowFocus(!showFocus); save('hpd_pc_focus', !showFocus); }} style={toggleBtn(showFocus)}>Focus next block</button>
             <button type="button" data-testid="pc-toggle-note" aria-pressed={showNote} onClick={() => { setShowNote(!showNote); save('hpd_pc_shownote', !showNote); }} style={toggleBtn(showNote)}>Coach's note</button>
             <button type="button" data-testid="pc-toggle-e1rm" aria-pressed={showE1rm} onClick={() => { setShowE1rm(!showE1rm); save('hpd_pc_e1rm', !showE1rm); }} style={toggleBtn(showE1rm)}>Est. 1RM</button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexBasis: '100%' }}>
+          <span style={label}>Metrics</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {CARD_METRICS.map(m => (
+              <button key={m.key} type="button" data-testid={`pc-metric-toggle-${m.key}`} aria-pressed={!hidden[m.key]} onClick={() => setHide({ ...hidden, [m.key]: !hidden[m.key] })} style={{ ...toggleBtn(!hidden[m.key]), height: 32, fontSize: 12 }}>{m.label}</button>
+            ))}
           </div>
         </div>
         {showNote && (
@@ -209,7 +232,6 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
           </>
         )}
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center' }}>
-          {card?.hiddenCount > 0 && <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>{card.hiddenCount} more metric{card.hiddenCount === 1 ? '' : 's'} not shown (8 fit on one page)</span>}
           <button type="button" data-testid="pc-print" onClick={() => window.print()} style={{ ...field, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-accent)', color: '#030a14', border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}>
             <Printer size={16} aria-hidden="true" /> PDF / Print
           </button>

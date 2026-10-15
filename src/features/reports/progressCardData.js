@@ -1,44 +1,51 @@
 // Data for the Athlete Progress Card (design handoff "HPD Athlete Reports" #1,
-// docs/HANDOFF.md §119). Pure functions. One athlete: every metric they have results
-// for (lifts, jumps/sprints, body mass), each with its per-test-day series, PR, change
-// since first test, position-group rank and a sparkline; plus focus areas.
+// docs/HANDOFF.md §119, §124). Pure functions. One athlete: a fixed list of metrics
+// (CARD_METRICS; N/A when untested), each with its per-test-day series, PR, change since
+// first test, team rank and a sparkline; plus focus areas.
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 import { estimate1RM } from '../lifts/liftRanking';
-import { TEST_TYPES, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL } from '../analytics/testVariants';
+import { TEST_TYPES } from '../analytics/testVariants';
 import { gradYearFor } from '../leaderboard/printLeaderboardData';
 import { displayName } from './readinessData';
 
-export const MAX_METRICS = 8;
 export const FOCUS_PCT = 3;   // handoff: latest >= 3% below best -> focus area
-export const TOP_RANK = 5;    // handoff: "Top 5 in {Pos}"
+export const TOP_RANK = 5;    // "Top 5 in {team}"
+
+// The card's fixed metric list, in print order (v5.7.4). Every one shows - "N/A" when the
+// athlete hasn't tested it - unless a coach toggles it off. Lifts match the app's lift
+// names (Settings) by alias; tests match a test type, optionally one technique.
+export const CARD_METRICS = [
+  { key: 'vj_hoh', label: 'Vertical (Hands on Hips)', kind: 'test', testType: 'vertical_jump', variant: 'hands_on_hips' },
+  { key: 'vj_arm', label: 'Vertical (Arm Swing)', kind: 'test', testType: 'vertical_jump', variant: 'arm_swing' },
+  { key: 'broad', label: 'Broad Jump', kind: 'test', testType: 'board_jump' },
+  { key: 'fly10', label: 'Fly 10', kind: 'test', testType: '10yd_fly' },
+  { key: 'bench', label: 'Bench Press', kind: 'lift', aliases: ['Bench', 'Bench Press'] },
+  { key: 'hang_clean', label: 'Hang Clean', kind: 'lift', aliases: ['Hang Clean'] },
+  { key: 'front_squat', label: 'Front Squat', kind: 'lift', aliases: ['Front Squat'] },
+  { key: 'back_squat', label: 'Back Squat', kind: 'lift', aliases: ['Back Squat', 'Squat'] },
+  { key: 'deadlift', label: 'Deadlift', kind: 'lift', aliases: ['Deadlift'] },
+  { key: 'tbdl', label: 'Trap Bar Deadlift', kind: 'lift', aliases: ['Trap Bar Deadlift', 'TBDL', 'Trap Bar DL'] },
+  { key: 'mass', label: 'Body Mass', kind: 'mass' },
+];
 
 const dayOf = (r) => getCentralDateString(new Date(r.created_at));
 const monthOf = (day) => new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short' });
 const mdOf = (day) => new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const fmtSet = (l) => `${+Number(l.weight_lbs).toFixed(1)} × ${Number(l.reps)}`;
 
-// Every metric definition with a per-athlete accessor that returns day -> {value, set?}.
-function metricDefs({ liftTypes, liftLogs, performanceTests }) {
-  const defs = [];
-  const liftsWithData = new Set(liftLogs.map(l => l.lift_type));
-  for (const lift of liftTypes) {
-    if (!liftsWithData.has(lift)) continue;
-    defs.push({ key: `lift:${lift}`, kind: 'lift', label: lift, unit: 'lb', decimals: 0, lowerIsBetter: false,
-      rows: liftLogs.filter(l => l.lift_type === lift && Number(l.weight_lbs) > 0 && Number(l.reps) > 0),
-      val: (l) => estimate1RM(Number(l.weight_lbs), Number(l.reps)), set: fmtSet });
+// Data rows + value accessor for one catalog metric.
+function metricDef(m, { liftLogs, performanceTests }) {
+  const norm = (x) => String(x || '').trim().toLowerCase();
+  if (m.kind === 'lift') {
+    const names = new Set(m.aliases.map(norm));
+    return { ...m, unit: 'lb', decimals: 0, lowerIsBetter: false,
+      rows: liftLogs.filter(l => names.has(norm(l.lift_type)) && Number(l.weight_lbs) > 0 && Number(l.reps) > 0),
+      val: (l) => estimate1RM(Number(l.weight_lbs), Number(l.reps)), set: fmtSet };
   }
-  for (const tt of TEST_TYPES) {
-    const variants = [...new Set(performanceTests.filter(t => t.test_type === tt.key).map(t => t.test_variant || 'untagged'))];
-    for (const v of variants) {
-      const vName = v === 'untagged' ? UNTAGGED_VARIANT_LABEL : (VARIANT_LABEL[v] || v);
-      defs.push({ key: `test:${tt.key}:${v}`, kind: 'test',
-        label: tt.variants.length > 1 || v === 'untagged' ? `${tt.label} · ${vName}` : tt.label,
-        unit: tt.unit === 'sec' ? 's' : tt.unit, decimals: tt.unit === 'sec' ? 2 : 1, lowerIsBetter: tt.better === 'asc',
-        rows: performanceTests.filter(t => t.test_type === tt.key && (t.test_variant || 'untagged') === v && Number(t.metric) > 0),
-        val: (t) => Number(t.metric) });
-    }
-  }
-  return defs;
+  const tt = TEST_TYPES.find(t => t.key === m.testType) || { unit: 'in', better: 'desc' };
+  return { ...m, unit: tt.unit === 'sec' ? 's' : tt.unit, decimals: tt.unit === 'sec' ? 2 : 1, lowerIsBetter: tt.better === 'asc',
+    rows: performanceTests.filter(t => t.test_type === m.testType && (!m.variant || (t.test_variant || 'untagged') === m.variant) && Number(t.metric) > 0),
+    val: (t) => Number(t.metric) };
 }
 
 // Best result per athlete per day, oldest first: athleteId -> [{day, value, set}]
@@ -83,19 +90,18 @@ function spark(pts, lowerIsBetter, bestIdx, neutral) {
   return { pts: dots.map(d => `${d.x},${d.y}`).join(' '), dots, months };
 }
 
-export function buildProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], settings = {}, now = new Date(), showE1rm = false, includeLifts = true }) {
+export function buildProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], now = new Date(), showE1rm = false, hidden = {} }) {
   if (!athlete) return null;
-  const liftTypes = settings.liftTypes?.length ? settings.liftTypes : ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'];
-  const peers = athletes.filter(a => (a.sport || 'General') === (athlete.sport || 'General') && (!athlete.position || a.position === athlete.position));
-  const peerIds = new Set(peers.map(a => a.id));
-  const groupLabel = athlete.position || athlete.sport || 'team';
-  const defs = metricDefs({ liftTypes, liftLogs, performanceTests });
+  // Rank against the whole team (same sport), not the position group.
+  const peerIds = new Set(athletes.filter(a => (a.sport || 'General') === (athlete.sport || 'General')).map(a => a.id));
+  const groupLabel = athlete.sport || 'team';
+  const defs = CARD_METRICS.filter(m => m.kind !== 'mass' && !hidden[m.key]).map(m => metricDef(m, { liftLogs, performanceTests }));
 
   const metrics = [];
   for (const def of defs) {
     const all = seriesBy(def);
     const pts = all.get(athlete.id);
-    if (!pts?.length) continue;
+    if (!pts?.length) { metrics.push({ key: def.key, kind: def.kind, label: def.label, unit: def.unit, na: true, tests: 0 }); continue; }
     const best = bestOf(pts, def.lowerIsBetter);
     const bestIdx = pts.indexOf(best);
     const latest = pts[pts.length - 1];
@@ -124,10 +130,7 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
       ...spark(pts, def.lowerIsBetter, bestIdx, false),
     });
   }
-  // Order: most-tested first so the card leads with what the athlete actually does.
-  metrics.sort((a, b) => b.tests - a.tests || a.label.localeCompare(b.label));
-  const pool = includeLifts ? metrics : metrics.filter(m => m.kind !== 'lift');
-  const shown = pool.slice(0, MAX_METRICS - 1);
+  const shown = metrics.filter(m => !m.na);
 
   // Body mass: real weigh-ins only, one per day (latest of the day). Neutral color, no PR.
   const wByDay = new Map();
@@ -151,7 +154,8 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
       ...spark(wSpark, false, -1, true),
     };
   }
-  const cardMetrics = mass ? [...shown, mass] : shown;
+  const massRow = hidden.mass ? null : (mass || { key: 'mass', kind: 'mass', label: 'Body Mass', unit: 'lb', na: true, tests: 0 });
+  const cardMetrics = massRow ? [...metrics, massRow] : metrics;
 
   const scored = shown.filter(m => m.tests > 1);
   const focus = shown.filter(m => m.tests > 1 && m.offBest >= FOCUS_PCT).sort((a, b) => b.offBest - a.offBest).slice(0, 2)
@@ -173,6 +177,6 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
       improved: scored.filter(m => m.deltaTone === 'up').length, scored: scored.length,
       top: shown.filter(m => m.rankN > 1 && m.rank <= TOP_RANK).length,
     },
-    metrics: cardMetrics, focus, hiddenCount: Math.max(0, pool.length - shown.length),
+    metrics: cardMetrics, focus,
   };
 }
