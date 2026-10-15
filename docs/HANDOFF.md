@@ -3880,7 +3880,16 @@ Design handoff "HPD Athlete Reports" (3rd zip), report #1. Opened from an athlet
 - Not built yet: Recruiting One-Sheet and Weight Room Card - both need data the app doesn't store (photo, height, wingspan, jersey, film URL, GPA/ACT/NCAA ID, contacts; and a program/session model).
 - Test: `tests/progress-card.js` (14).
 
-## 120. Next up
+## 120. Program Builder + Weight Room Card (v5.7.0)
+
+Handoff "HPD Athlete Reports" #3. New screen Log > **Programs** (`src/features/programs/`).
+- Storage: `programs` table (`db/014_programs.sql`: name, week_label, phase, sport, `days` jsonb, `max_map` jsonb, RLS = approved coaches, realtime). `usePrograms` reads/upserts it and mirrors to localStorage `hpd_programs`; if the table is missing (PGRST205/42P01) it runs device-only and the screen shows a banner. Programs made before the table existed are pushed up on the first load after it does.
+  - **The migration was NOT applied from this session** (the Supabase connector's apply_migration needs an approval that never arrives here). Run `db/014_programs.sql` in the Supabase SQL editor.
+- Builder: program name / week / phase / default team; "Maxes come from" maps Clean/Bench/Squat/TBDL/OHP to Lift Tracker lifts (defaults picked from Settings lift types). Days (1-4): date, focus, warm-up title + lines, finisher title + lines, exercise blocks (code auto 1a→1b, "new group" → 2a; name, note, % of max key, velocity, prescription either text "3x 8 ea" or set-by-set reps/%/tempo), reorder/delete. "Start from sample" loads the handoff's week; Duplicate/Delete.
+- Card (`WeightRoomCard.jsx`): Letter landscape, 0.4in margin, fixed 976x732 box (one page per athlete). Print for one athlete or a whole team. Maxes = best est. 1RM per mapped lift (`maxesFor`); WT = max(45, round5(max × pct)); blank when the athlete has no max. 1-2 days = wide layout, 3-4 = compact. Toggles: velocity targets, Record column.
+- Test: `tests/program-builder.js` (36: local and cloud modes).
+
+## 121. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

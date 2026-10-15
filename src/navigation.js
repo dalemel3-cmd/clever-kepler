@@ -11,6 +11,7 @@ export const NAV_GROUPS = [
   { id: 'log', label: 'Log', icon: 'touch_app', screens: [
     { screen: 'entry', label: 'Weigh-In & RPE' },
     { screen: 'lifts', label: 'Lifts', requires: 'enableLiftTracker' },
+    { screen: 'programs', label: 'Programs', requires: 'enableLiftTracker' },
   ] },
   { id: 'teams', label: 'Teams', icon: 'group', screens: [
     { screen: 'groups', label: 'By Sport' },

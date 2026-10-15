@@ -27,6 +27,7 @@ import { useAlertStatus } from './features/alerts/useAlertStatus';
 import { usePerformanceTests } from './features/analytics/usePerformanceTests';
 import { useLiftLogs } from './features/lifts/useLiftLogs';
 const LiftScreen = lazy(SCREEN_LOADERS.LiftScreen = () => import('./features/lifts/LiftScreen'));
+const ProgramsScreen = lazy(SCREEN_LOADERS.ProgramsScreen = () => import('./features/programs/ProgramsScreen'));
 const GroupsScreen = lazy(SCREEN_LOADERS.GroupsScreen = () => import('./features/groups/GroupsScreen'));
 const AthletesScreen = lazy(SCREEN_LOADERS.AthletesScreen = () => import('./features/athletes/AthletesScreen'));
 const EntryScreen = lazy(SCREEN_LOADERS.EntryScreen = () => import('./features/entry/EntryScreen'));
@@ -2821,6 +2822,10 @@ export default function App() {
                 updatePerformanceTest={updatePerformanceTest}
                 deletePerformanceTest={deletePerformanceTest}
               />
+            )}
+
+            {screen === 'programs' && settings.enableLiftTracker && (
+              <ProgramsScreen athletes={athletes} liftLogs={liftLogs} settings={settings} />
             )}
 
             {screen === 'lifts' && settings.enableLiftTracker && (
