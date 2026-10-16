@@ -94,15 +94,23 @@ function Day({ d, wide, showRecord }) {
   );
 }
 
-function Card({ program, card, showRecord }) {
-  const windowLabel = (MAX_WINDOWS.find(([k]) => k === (program.max_map?.window || 'all')) || MAX_WINDOWS[0])[1].toLowerCase();
+const Card = React.memo(function Card({ programMeta, maxMapBase, athleteOverrides, athlete, liftLogs, showVelocity, seasonStartDate, showRecord }) {
+  const programForCard = React.useMemo(() => ({
+    ...programMeta,
+    max_map: athleteOverrides ? { ...maxMapBase, overrides: { [athlete.id]: athleteOverrides } } : maxMapBase,
+  }), [programMeta, maxMapBase, athleteOverrides, athlete.id]);
+  const card = React.useMemo(
+    () => buildCard(programForCard, athlete, liftLogs, { showVelocity, seasonStartDate }),
+    [programForCard, athlete, liftLogs, showVelocity, seasonStartDate]
+  );
+  const windowLabel = (MAX_WINDOWS.find(([k]) => k === (maxMapBase?.window || 'all')) || MAX_WINDOWS[0])[1].toLowerCase();
   const n = card.days.length || 1;
   const wide = n <= 2;
   return (
     <div className="wr-page" data-testid="wr-card" style={{ width: W, height: H, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', background: C.white, color: C.text, fontFamily: BODY, overflow: 'hidden', breakAfter: 'page', pageBreakAfter: 'always', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
       <div style={{ display: 'flex', alignItems: 'stretch', borderTop: `8px solid ${C.navy900}`, borderBottom: `3px solid ${C.gold500}` }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, padding: '8px 0' }}>
-          <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.14em', ...upper, color: C.gold700 }}>{[program.week_label, program.phase, `${n}-Day`].filter(Boolean).join(' · ')}</div>
+          <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.14em', ...upper, color: C.gold700 }}>{[programMeta.week_label, programMeta.phase, `${n}-Day`].filter(Boolean).join(' · ')}</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 32, lineHeight: 1.05, ...upper, color: C.navy900 }}>{displayName(card.athlete.name)}</span>
             <span style={{ fontSize: 13, color: C.muted }}>{[card.athlete.sport, card.athlete.position].filter(Boolean).join(' · ')}</span>
@@ -110,7 +118,7 @@ function Card({ program, card, showRecord }) {
         </div>
         <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 1, padding: '8px 14px 8px 0' }}>
           <div style={{ fontWeight: 700, fontSize: 8, letterSpacing: '0.12em', ...upper, color: C.muted, paddingRight: 8 }}>Maxes</div>
-          {MAX_KEYS.filter(([k]) => program.max_map?.[k]).map(([k, l]) => (
+          {MAX_KEYS.filter(([k]) => maxMapBase?.[k]).map(([k, l]) => (
             <div key={k} data-testid="wr-max" style={{ background: C.navy900, padding: '4px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 44 }}>
               <span style={{ fontWeight: 700, fontSize: 7.5, letterSpacing: '0.08em', ...upper, color: C.gold300 }}>{l}</span>
               <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17, lineHeight: 1.1, color: C.white }}>{card.maxes[k] ?? '—'}{card.maxes.entered?.[k] ? '*' : ''}</span>
@@ -128,7 +136,7 @@ function Card({ program, card, showRecord }) {
       </div>
     </div>
   );
-}
+});
 
 const label = { fontSize: 11, fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' };
 const field = { height: 40, padding: '0 10px', fontSize: 13, fontWeight: 700, borderRadius: 10 };
@@ -149,8 +157,24 @@ export default function WeightRoomCard({ program: programIn, athletes, liftLogs,
     const a = athletes.find(x => x.id === who);
     return a ? [a] : [];
   }, [who, athletes]);
-  const cards = React.useMemo(() => roster.map(a => buildCard(program, a, liftLogs, { showVelocity, seasonStartDate })), [roster, program, liftLogs, showVelocity, seasonStartDate]);
-  const usedKeys = MAX_KEYS.filter(([k]) => program.max_map?.[k]);
+
+  // Separate base max_map (lift keys + window) from overrides so editing one athlete's
+  // override only re-renders that athlete's Card instead of all 70+ cards on the team.
+  const maxMapBase = React.useMemo(() => {
+    const { overrides: _ov, ...rest } = program.max_map || {};
+    return rest;
+  }, [program.max_map]);
+  const programMeta = React.useMemo(
+    () => ({ id: program.id, name: program.name, week_label: program.week_label, phase: program.phase, sport: program.sport, days: program.days }),
+    [program.id, program.name, program.week_label, program.phase, program.sport, program.days]
+  );
+  const fromLogsByAthlete = React.useMemo(() => {
+    const m = new Map();
+    for (const a of roster) m.set(a.id, maxesFor(a.id, liftLogs, maxMapBase, { seasonStartDate }));
+    return m;
+  }, [roster, liftLogs, maxMapBase, seasonStartDate]);
+
+  const usedKeys = MAX_KEYS.filter(([k]) => maxMapBase?.[k]);
   // Overrides live on the program (max_map.overrides) so a reprint keeps them.
   const progRef = React.useRef(program);
   progRef.current = program;
@@ -226,10 +250,10 @@ export default function WeightRoomCard({ program: programIn, athletes, liftLogs,
             {MAX_WINDOWS.map(([k, l]) => <option key={k} value={k} style={opt}>{l}</option>)}
           </select>
         </div>
-        <button type="button" data-testid="wr-edit-maxes" aria-pressed={editMaxes} disabled={!cards.length} onClick={() => { if (editMaxes) persist(); setEditMaxes(!editMaxes); }} style={{ ...toggleBtn(editMaxes), alignSelf: 'flex-end' }}>{editMaxes ? 'Done editing maxes' : 'Edit maxes'}</button>
+        <button type="button" data-testid="wr-edit-maxes" aria-pressed={editMaxes} disabled={!roster.length} onClick={() => { if (editMaxes) persist(); setEditMaxes(!editMaxes); }} style={{ ...toggleBtn(editMaxes), alignSelf: 'flex-end' }}>{editMaxes ? 'Done editing maxes' : 'Edit maxes'}</button>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>{cards.length} card{cards.length === 1 ? '' : 's'}</span>
-          <button type="button" data-testid="wr-print" disabled={!cards.length} onClick={() => window.print()} style={{ ...field, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-accent)', color: '#030a14', border: 'none', cursor: 'pointer', textTransform: 'uppercase', opacity: cards.length ? 1 : 0.5 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>{roster.length} card{roster.length === 1 ? '' : 's'}</span>
+          <button type="button" data-testid="wr-print" disabled={!roster.length} onClick={() => window.print()} style={{ ...field, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-accent)', color: '#030a14', border: 'none', cursor: 'pointer', textTransform: 'uppercase', opacity: roster.length ? 1 : 0.5 }}>
             <Printer size={16} aria-hidden="true" /> PDF / Print
           </button>
           <button type="button" onClick={handleClose} aria-label="Close weight room cards" style={{ ...field, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer' }}>
@@ -237,14 +261,14 @@ export default function WeightRoomCard({ program: programIn, athletes, liftLogs,
           </button>
         </div>
       </div>
-      {editMaxes && cards.length > 0 && (
+      {editMaxes && roster.length > 0 && (
         <div className="wr-controls" data-testid="wr-max-editor" style={{ margin: '16px auto 0', maxWidth: 900, padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)' }}>
           <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 10 }}>Type a max to use it on the card instead of the Lift Tracker number (the athlete's logs aren't changed). Leave blank to use the Lift Tracker max shown in grey.</div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ borderCollapse: 'collapse', fontSize: 13, width: '100%' }}>
               <thead><tr><th style={{ textAlign: 'left', padding: '4px 8px', ...label }}>Athlete</th>{usedKeys.map(([k, l]) => <th key={k} style={{ padding: '4px 8px', ...label }}>{l}</th>)}</tr></thead>
               <tbody>{roster.map(a => {
-                const fromLogs = maxesFor(a.id, liftLogs, { ...program.max_map, overrides: {} }, { seasonStartDate });
+                const fromLogs = fromLogsByAthlete.get(a.id) || {};
                 const ov = program.max_map?.overrides?.[a.id] || {};
                 return (
                   <tr key={a.id} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -262,12 +286,24 @@ export default function WeightRoomCard({ program: programIn, athletes, liftLogs,
           </div>
         </div>
       )}
-      {!cards.length ? (
+      {!roster.length ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)' }}>Pick a team or an athlete to build their cards.</div>
       ) : (
-        <div className="wr-sheets-wrap" style={{ height: (H * cards.length + 24 * (cards.length - 1)) * scale + 48, display: 'flex', justifyContent: 'center' }}>
+        <div className="wr-sheets-wrap" style={{ height: (H * roster.length + 24 * (roster.length - 1)) * scale + 48, display: 'flex', justifyContent: 'center' }}>
           <div className="wr-sheets" style={{ width: W, padding: '24px 0', display: 'flex', flexDirection: 'column', gap: 24, transform: `scale(${scale})`, transformOrigin: 'top center' }}>
-            {cards.map(c => <Card key={c.athlete.id} program={program} card={c} showRecord={showRecord} />)}
+            {roster.map(a => (
+              <Card
+                key={a.id}
+                programMeta={programMeta}
+                maxMapBase={maxMapBase}
+                athleteOverrides={program.max_map?.overrides?.[a.id]}
+                athlete={a}
+                liftLogs={liftLogs}
+                showVelocity={showVelocity}
+                seasonStartDate={seasonStartDate}
+                showRecord={showRecord}
+              />
+            ))}
           </div>
         </div>
       )}

@@ -2,7 +2,8 @@ import React from 'react';
 import { Plus, Trash2, Copy, Printer, ChevronUp, ChevronDown, Save, Archive, Search } from 'lucide-react';
 import { usePrograms } from './usePrograms';
 import { MAX_KEYS, MAX_WINDOWS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
-const WeightRoomCard = React.lazy(() => import('./WeightRoomCard'));
+const loadWeightRoomCard = () => import('./WeightRoomCard');
+const WeightRoomCard = React.lazy(loadWeightRoomCard);
 
 // Log > Programs: build a week of training (2-4 sessions) and print Weight Room Cards
 // with working weights from each athlete's maxes (docs/HANDOFF.md §120).
@@ -21,8 +22,8 @@ function Field({ label, children, grow }) {
   return <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: grow ? '1 1 200px' : '0 1 auto', minWidth: 0 }}><span style={lbl}>{label}</span>{children}</label>;
 }
 
-function BlockEditor({ b, onChange, onMove, onDelete, canUp, canDown }) {
-  const set = (k, v) => onChange({ ...b, [k]: v });
+const BlockEditor = React.memo(function BlockEditor({ b, idx, onChangeIdx, onMoveIdx, onDeleteIdx, canUp, canDown }) {
+  const set = (k, v) => onChangeIdx(idx, { ...b, [k]: v });
   const loaded = b.sets?.length > 0;
   const setRow = (i, k, v) => set('sets', b.sets.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
   return (
@@ -39,15 +40,15 @@ function BlockEditor({ b, onChange, onMove, onDelete, canUp, canDown }) {
         </Field>
         <Field label="Velocity (m/s)"><input className="input-glass" style={{ ...small, width: '96px' }} value={b.velocity} placeholder=".55–.65" onChange={e => set('velocity', e.target.value)} aria-label="Velocity target" /></Field>
         <div style={{ display: 'flex', gap: '4px', marginLeft: 'auto' }}>
-          <button type="button" style={iconBtn} disabled={!canUp} onClick={() => onMove(-1)} aria-label="Move exercise up"><ChevronUp size={16} /></button>
-          <button type="button" style={iconBtn} disabled={!canDown} onClick={() => onMove(1)} aria-label="Move exercise down"><ChevronDown size={16} /></button>
-          <button type="button" style={iconBtn} onClick={onDelete} aria-label="Delete exercise"><Trash2 size={15} /></button>
+          <button type="button" style={iconBtn} disabled={!canUp} onClick={() => onMoveIdx(idx, -1)} aria-label="Move exercise up"><ChevronUp size={16} /></button>
+          <button type="button" style={iconBtn} disabled={!canDown} onClick={() => onMoveIdx(idx, 1)} aria-label="Move exercise down"><ChevronDown size={16} /></button>
+          <button type="button" style={iconBtn} onClick={() => onDeleteIdx(idx)} aria-label="Delete exercise"><Trash2 size={15} /></button>
         </div>
       </div>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={lbl}>Prescription</span>
-        <button type="button" data-testid="pb-mode-rx" onClick={() => onChange({ ...b, sets: [] })} style={{ ...btn(!loaded), height: '30px', fontSize: '11px' }}>Sets × reps text</button>
-        <button type="button" data-testid="pb-mode-sets" onClick={() => onChange({ ...b, sets: b.sets?.length ? b.sets : [newSet('5', b.maxKey ? '70' : '', '')] })} style={{ ...btn(loaded), height: '30px', fontSize: '11px' }}>Set by set</button>
+        <button type="button" data-testid="pb-mode-rx" onClick={() => onChangeIdx(idx, { ...b, sets: [] })} style={{ ...btn(!loaded), height: '30px', fontSize: '11px' }}>Sets × reps text</button>
+        <button type="button" data-testid="pb-mode-sets" onClick={() => onChangeIdx(idx, { ...b, sets: b.sets?.length ? b.sets : [newSet('5', b.maxKey ? '70' : '', '')] })} style={{ ...btn(loaded), height: '30px', fontSize: '11px' }}>Set by set</button>
         {!loaded && <input className="input-glass" data-testid="pb-rx" style={{ ...small, flex: '1 1 160px' }} value={b.rx} placeholder="e.g. 3x 8 ea" onChange={e => set('rx', e.target.value)} aria-label="Sets and reps" />}
       </div>
       {loaded && (
@@ -67,12 +68,26 @@ function BlockEditor({ b, onChange, onMove, onDelete, canUp, canDown }) {
       )}
     </div>
   );
-}
+});
 
-function DayEditor({ d, i, onChange, onDelete, canDelete }) {
-  const set = (k, v) => onChange({ ...d, [k]: v });
-  const setBlock = (j, nb) => set('blocks', d.blocks.map((b, k) => (k === j ? nb : b)));
-  const move = (j, dir) => { const arr = [...d.blocks]; const t = arr[j + dir]; arr[j + dir] = arr[j]; arr[j] = t; set('blocks', arr); };
+const DayEditor = React.memo(function DayEditor({ d, i, onChangeDay, onDeleteDay, canDelete }) {
+  const dRef = React.useRef(d);
+  dRef.current = d;
+  const set = (k, v) => onChangeDay(i, { ...dRef.current, [k]: v });
+  const setBlock = React.useCallback((j, nb) => {
+    const cur = dRef.current;
+    onChangeDay(i, { ...cur, blocks: cur.blocks.map((b, k) => (k === j ? nb : b)) });
+  }, [i, onChangeDay]);
+  const move = React.useCallback((j, dir) => {
+    const cur = dRef.current;
+    const arr = [...cur.blocks];
+    const t = arr[j + dir]; arr[j + dir] = arr[j]; arr[j] = t;
+    onChangeDay(i, { ...cur, blocks: arr });
+  }, [i, onChangeDay]);
+  const delBlock = React.useCallback((j) => {
+    const cur = dRef.current;
+    onChangeDay(i, { ...cur, blocks: cur.blocks.filter((_, k) => k !== j) });
+  }, [i, onChangeDay]);
   const last = d.blocks[d.blocks.length - 1];
   return (
     <div data-testid="pb-day" className="card-glass" style={card}>
@@ -80,7 +95,7 @@ function DayEditor({ d, i, onChange, onDelete, canDelete }) {
         <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '20px', textTransform: 'uppercase', alignSelf: 'center', marginRight: '6px' }}>Day {i + 1}</h3>
         <Field label="Date"><input type="date" className="input-glass" style={inp} value={d.date} onChange={e => set('date', e.target.value)} aria-label={`Day ${i + 1} date`} /></Field>
         <Field label="Focus" grow><input className="input-glass" style={inp} value={d.focus} placeholder="e.g. Lower + Power" onChange={e => set('focus', e.target.value)} aria-label={`Day ${i + 1} focus`} /></Field>
-        {canDelete && <button type="button" style={{ ...btn(false), marginLeft: 'auto' }} onClick={onDelete}><Trash2 size={15} /> Remove day</button>}
+        {canDelete && <button type="button" style={{ ...btn(false), marginLeft: 'auto' }} onClick={() => onDeleteDay(i)}><Trash2 size={15} /> Remove day</button>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
         <Field label="Pre-lift title"><input className="input-glass" style={inp} value={d.warmTitle} onChange={e => set('warmTitle', e.target.value)} /></Field>
@@ -90,7 +105,7 @@ function DayEditor({ d, i, onChange, onDelete, canDelete }) {
       </div>
       <span style={lbl}>Exercises</span>
       {d.blocks.map((b, j) => (
-        <BlockEditor key={b.id || j} b={b} onChange={nb => setBlock(j, nb)} onMove={dir => move(j, dir)} onDelete={() => set('blocks', d.blocks.filter((_, k) => k !== j))} canUp={j > 0} canDown={j < d.blocks.length - 1} />
+        <BlockEditor key={b.id || j} b={b} idx={j} onChangeIdx={setBlock} onMoveIdx={move} onDeleteIdx={delBlock} canUp={j > 0} canDown={j < d.blocks.length - 1} />
       ))}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <button type="button" data-testid="pb-add-ex" style={btn(false)} onClick={() => set('blocks', [...d.blocks, newBlock(last ? nextCode(last.code) : '1a')])}><Plus size={15} /> Exercise ({last ? nextCode(last.code) : '1a'})</button>
@@ -98,12 +113,18 @@ function DayEditor({ d, i, onChange, onDelete, canDelete }) {
       </div>
     </div>
   );
-}
+});
 
 export default function ProgramsScreen({ athletes, liftLogs, settings }) {
-  const liftTypes = settings.liftTypes?.length ? settings.liftTypes : ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'];
+  // Include any lift types actually logged in Lift Tracker alongside settings.liftTypes
+  // so real team lifts (e.g. Front Squat) are always available in "Maxes come from".
+  const liftTypes = React.useMemo(() => {
+    const base = settings.liftTypes?.length ? settings.liftTypes : ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'];
+    const logged = (liftLogs || []).map(l => l?.lift_type).filter(Boolean);
+    return Array.from(new Set([...base, ...logged]));
+  }, [settings.liftTypes, liftLogs]);
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
-  const { programs, mode, load, save, setArchived, remove } = usePrograms();
+  const { programs, mode, load, prefetch, save, setArchived, remove } = usePrograms();
   const [query, setQuery] = React.useState('');
   const [showArchived, setShowArchived] = React.useState(false);
   const [opening, setOpening] = React.useState(false);
@@ -111,9 +132,23 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
   const [dirty, setDirty] = React.useState(false);
   const [msg, setMsg] = React.useState('');
   const [printing, setPrinting] = React.useState(false);
+
+  // Preload WeightRoomCard chunk on mount so clicking "Print cards" opens with zero chunk-fetch delay.
+  React.useEffect(() => { loadWeightRoomCard().catch(() => {}); }, []);
+
   const edit = (p) => { setDraft(clone(p)); setDirty(false); setMsg(''); };
   const change = (p) => { setDraft(p); setDirty(true); setMsg(''); };
   const set = (k, v) => change({ ...draft, [k]: v });
+  const onChangeDay = React.useCallback((idx, nd) => {
+    setDraft(prev => prev ? { ...prev, days: prev.days.map((x, j) => (j === idx ? nd : x)) } : prev);
+    setDirty(true);
+    setMsg('');
+  }, []);
+  const onDeleteDay = React.useCallback((idx) => {
+    setDraft(prev => prev ? { ...prev, days: prev.days.filter((_, j) => j !== idx) } : prev);
+    setDirty(true);
+    setMsg('');
+  }, []);
   const open = async (p) => { setOpening(true); const full = await load(p.id); setOpening(false); if (full) edit(full); else setMsg('Could not open that program - check the connection and try again.'); };
   const doSave = async () => { const res = await save(draft); if (res.ok) setDirty(false); setMsg(res.ok ? (res.local ? 'Saved in this browser.' : 'Saved.') : "Couldn't save - check the connection and try again."); return res.ok; };
   const q = query.trim().toLowerCase();
@@ -153,7 +188,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
           {visible.length === 0 && <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{q ? `No programs match "${query}".` : showArchived ? 'Nothing archived.' : 'None yet. Start a new one or from the sample.'}</span>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '60vh', overflowY: 'auto' }}>
           {visible.map(p => (
-            <button key={p.id} type="button" data-testid="pb-item" disabled={opening} onClick={() => open(p)} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', border: `1px solid ${draft?.id === p.id ? 'var(--color-accent)' : 'rgba(255,255,255,0.1)'}`, background: draft?.id === p.id ? 'rgba(184,156,91,0.12)' : 'transparent', color: 'var(--color-text)' }}>
+            <button key={p.id} type="button" data-testid="pb-item" disabled={opening} onMouseEnter={() => prefetch?.(p.id)} onFocus={() => prefetch?.(p.id)} onClick={() => open(p)} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', border: `1px solid ${draft?.id === p.id ? 'var(--color-accent)' : 'rgba(255,255,255,0.1)'}`, background: draft?.id === p.id ? 'rgba(184,156,91,0.12)' : 'transparent', color: 'var(--color-text)' }}>
               <div style={{ fontWeight: 800 }}>{p.name}</div>
               <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{[p.week_label, p.phase, p.dayCount ? `${p.dayCount}-day` : '', p.sport].filter(Boolean).join(' · ')}</div>
             </button>
@@ -197,7 +232,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="button" data-testid="pb-save" style={btn(true)} onClick={doSave}><Save size={16} /> {dirty ? 'Save' : 'Saved'}</button>
-                <button type="button" data-testid="pb-print" style={btn(false)} onClick={async () => { if (dirty && !(await doSave())) return; setPrinting(true); }}><Printer size={16} /> Print cards</button>
+                <button type="button" data-testid="pb-print" style={btn(false)} onClick={() => { setPrinting(true); if (dirty) doSave(); }}><Printer size={16} /> Print cards</button>
                 <button type="button" style={btn(false)} onClick={() => { const c = clone(draft); c.id = newProgram().id; c.name = `${draft.name} (copy)`; edit(c); setDirty(true); }}><Copy size={16} /> Duplicate</button>
                 {programs.some(p => p.id === draft.id) && (
                   <button type="button" data-testid="pb-archive" style={btn(false)} onClick={async () => { const res = await setArchived(draft, !draft.archived_at); if (res.ok) { setDraft(null); setMsg(''); } else setMsg("Couldn't update archive status — check connection."); }}>
@@ -209,7 +244,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
               </div>
             </div>
             {(draft.days || []).map((d, i) => (
-              <DayEditor key={d.id || i} d={d} i={i} canDelete={draft.days.length > 1} onChange={nd => set('days', draft.days.map((x, j) => (j === i ? nd : x)))} onDelete={() => set('days', draft.days.filter((_, j) => j !== i))} />
+              <DayEditor key={d.id || i} d={d} i={i} canDelete={draft.days.length > 1} onChangeDay={onChangeDay} onDeleteDay={onDeleteDay} />
             ))}
             {draft.days.length < 4 && <button type="button" data-testid="pb-add-day" style={{ ...btn(false), alignSelf: 'flex-start' }} onClick={() => set('days', [...draft.days, newDay()])}><Plus size={16} /> Add day ({draft.days.length + 1} of 4)</button>}
           </div>

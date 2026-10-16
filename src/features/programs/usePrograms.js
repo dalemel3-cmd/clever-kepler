@@ -17,18 +17,37 @@ const toRow = (p) => ({ id: p.id, name: p.name || 'Untitled', week_label: p.week
 const summary = ({ days, max_map, ...rest }) => ({ ...rest, dayCount: Array.isArray(days) ? days.length : rest.dayCount });
 const byUpdated = (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0);
 
+// In-memory session cache so switching sub-tabs or re-opening a program is instant (0ms)
+// without writing to localStorage in cloud mode.
+let memList = null;
+let memMode = 'loading';
+const memFull = new Map();
+
 export function usePrograms() {
-  const [list, setList] = useState([]);
-  const [mode, setMode] = useState('loading'); // 'cloud' | 'local' | 'error' | 'loading'
+  const [list, setList] = useState(() => memList || []);
+  const [mode, setMode] = useState(() => memMode); // 'cloud' | 'local' | 'error' | 'loading'
   const mounted = useRef(true);
+
+  const updateList = useCallback((updater) => {
+    setList(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      memList = next;
+      return next;
+    });
+  }, []);
+
+  const updateMode = useCallback((m) => {
+    memMode = m;
+    setMode(m);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('programs').select(LIST_COLS).order('updated_at', { ascending: false });
       if (!mounted.current) return;
       if (error) {
-        if (isMissingTable(error)) { setMode('local'); setList(readFallback().map(summary).sort(byUpdated)); }
-        else setMode('error');
+        if (isMissingTable(error)) { updateMode('local'); updateList(readFallback().map(summary).sort(byUpdated)); }
+        else updateMode('error');
         return;
       }
       const pending = readFallback();
@@ -36,18 +55,27 @@ export function usePrograms() {
         const { error: upErr } = await supabase.from('programs').upsert(pending.map(toRow));
         if (!upErr) { writeFallback([]); return refresh(); }
       }
-      setList(data || []);
-      setMode('cloud');
-    } catch { if (mounted.current) setMode('error'); }
-  }, []);
+      updateList(data || []);
+      updateMode('cloud');
+    } catch { if (mounted.current) updateMode('error'); }
+  }, [updateList, updateMode]);
 
   useEffect(() => { mounted.current = true; refresh(); return () => { mounted.current = false; }; }, [refresh]);
 
   // Full program (days + maxes) for the editor / printing.
   const load = useCallback(async (id) => {
     if (mode === 'local') return readFallback().find(p => p.id === id) || null;
+    if (memFull.has(id)) return memFull.get(id);
     const { data, error } = await supabase.from('programs').select('*').eq('id', id).maybeSingle();
+    if (!error && data) memFull.set(id, data);
     return error ? null : data;
+  }, [mode]);
+
+  const prefetch = useCallback((id) => {
+    if (mode === 'local' || !id || memFull.has(id)) return;
+    supabase.from('programs').select('*').eq('id', id).maybeSingle().then(({ data, error }) => {
+      if (!error && data) memFull.set(id, data);
+    }).catch(() => {});
   }, [mode]);
 
   const save = useCallback(async (program) => {
@@ -55,35 +83,47 @@ export function usePrograms() {
     if (mode === 'local') {
       const next = [row, ...readFallback().filter(p => p.id !== row.id)];
       writeFallback(next);
-      setList(next.map(summary).sort(byUpdated));
+      updateList(next.map(summary).sort(byUpdated));
       return { ok: true, local: true, row };
     }
+    const prevList = memList || [];
+    const prevFull = memFull.get(row.id);
+    memFull.set(row.id, row);
+    updateList(prev => [summary(row), ...prev.filter(p => p.id !== row.id)].sort(byUpdated));
     const { error } = await supabase.from('programs').upsert(row);
     if (error) {
       if (isMissingTable(error)) {
-        setMode('local');
+        updateMode('local');
         const next = [row, ...readFallback().filter(p => p.id !== row.id)];
         writeFallback(next);
-        setList(next.map(summary).sort(byUpdated));
+        updateList(next.map(summary).sort(byUpdated));
         return { ok: true, local: true, row };
       }
+      if (prevFull) memFull.set(row.id, prevFull); else memFull.delete(row.id);
+      updateList(prevList);
       return { ok: false, error };
     }
-    setList(prev => [summary(row), ...prev.filter(p => p.id !== row.id)].sort(byUpdated));
     return { ok: true, row };
-  }, [mode]);
+  }, [mode, updateList, updateMode]);
 
   const setArchived = useCallback(async (program, archived) => {
     return save({ ...program, archived_at: archived ? new Date().toISOString() : null });
   }, [save]);
 
   const remove = useCallback(async (id) => {
-    if (mode === 'local') { const next = readFallback().filter(p => p.id !== id); writeFallback(next); setList(next.map(summary).sort(byUpdated)); return { ok: true }; }
+    if (mode === 'local') { const next = readFallback().filter(p => p.id !== id); writeFallback(next); updateList(next.map(summary).sort(byUpdated)); return { ok: true }; }
+    const prevList = memList || [];
+    const prevFull = memFull.get(id);
+    memFull.delete(id);
+    updateList(prev => prev.filter(p => p.id !== id));
     const { error } = await supabase.from('programs').delete().eq('id', id);
-    if (error) return { ok: false, error };
-    setList(prev => prev.filter(p => p.id !== id));
+    if (error) {
+      if (prevFull) memFull.set(id, prevFull);
+      updateList(prevList);
+      return { ok: false, error };
+    }
     return { ok: true };
-  }, [mode]);
+  }, [mode, updateList]);
 
-  return { programs: list, mode, load, save, setArchived, remove, refresh };
+  return { programs: list, mode, load, prefetch, save, setArchived, remove, refresh };
 }

@@ -3934,7 +3934,16 @@ Your Numbers now leads with the personal best (`bestText`, "Best · Mon D" in go
   - `EntryScreen.jsx` & `AthletesScreen.jsx` & `DeepDiveUi.jsx`: excluded post-practice sweat checks and RPE rows from `lastLoggedWeight` ghost placeholder; honored explicit baselines on single-weigh-in athletes in `badgeFor`; added `[]` dependency array to `useVisibleWidth`.
   - Standardized `getCentralDateString` across `SpeedPowerPanel.jsx`, `AthleteComparisonPanel.jsx` (plus daily-best deduplication), `powerMetrics.js`, and `athleteData.js`.
 
-## 127. Next up
+## 127. Program Builder & Weight Room Card speed pass (v5.7.7)
+
+After `db/014_programs.sql` went live in `v5.7.6`, the coach tested `Log > Programs` and reported that it worked but felt slow. Four concrete bottlenecks were removed so every interaction is immediate (`0ms` UI latency):
+
+- **`programData.js` (`maxesFor` WeakMap indexing):** `maxesFor` previously scanned the entire `liftLogs` array (~810 rows) from scratch for each of the 5 max keys (`squat`, `bench`, `clean`, `deadlift`, `press`) × 74 athletes — and called `getCentralDateString(new Date(l.created_at))` (`Intl.DateTimeFormat`) plus `estimate1RM` inside the inner loop when a max window was active. Added two `WeakMap` caches (`logsByAthleteCache` keyed by the `liftLogs` array reference, and `logMetaCache` keyed by each log object) so each athlete lookup only scans their own sets with pre-parsed dates and 1RMs.
+- **`usePrograms.js` (in-memory session cache, hover prefetch, optimistic writes):** Added `memList` and `memFull` (`Map`) in module memory (keeping `localStorage` untouched in cloud mode as required by `tests/program-builder.js`). Switching back to `Programs` renders the list immediately while refreshing in the background; hovering/focusing a row prefetches its `days`/`max_map`; and `save()` / `remove()` update `list` and `memFull` optimistically before awaiting Supabase, rolling back only on server error.
+- **`ProgramsScreen.jsx` (memoized editors, preloaded print modal, live lift types):** Wrapped `DayEditor` and `BlockEditor` in `React.memo` with stable `useCallback` handlers so typing in one exercise block or set row no longer re-renders every day and block in the program. Preloaded `WeightRoomCard` on `ProgramsScreen` mount (`loadWeightRoomCard()`) and changed **Print cards** to open immediately (`setPrinting(true)`) while saving in the background (`if (dirty) doSave()`). Merged distinct `lift_type` values from `liftLogs` into the **"Maxes come from"** dropdowns so logged lifts like `Front Squat` and `Belt Squat` appear even if not manually added to `settings.liftTypes`.
+- **`WeightRoomCard.jsx` (per-athlete card memoization):** Wrapped `<Card>` in `React.memo`, split `maxMapBase` from per-athlete `athleteOverrides={program.max_map?.overrides?.[a.id]}`, and memoized `fromLogsByAthlete` so typing a max override for one athlete in **Edit maxes** only re-renders that single athlete's card instead of all 74 cards.
+
+## 128. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

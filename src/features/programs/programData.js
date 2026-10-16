@@ -35,6 +35,43 @@ export function windowStart(win, seasonStartDate) {
   return null;
 }
 
+// Cache per-log 1RM + Central date and per-array athlete index via WeakMap so rendering
+// a 70-athlete team or typing in the maxes editor is O(athlete's sets) with zero
+// repeated Intl.DateTimeFormat calls instead of O(athletes * 5 * allLiftLogs).
+const logMetaCache = new WeakMap();
+const getLogMeta = (l) => {
+  let m = logMetaCache.get(l);
+  if (!m) {
+    const w = Number(l.weight_lbs);
+    const r = Number(l.reps);
+    const valid = w > 0 && r > 0;
+    m = {
+      valid,
+      est: valid ? estimate1RM(w, r) : 0,
+      day: valid && l.created_at ? getCentralDateString(new Date(l.created_at)) : '',
+    };
+    logMetaCache.set(l, m);
+  }
+  return m;
+};
+
+const logsByAthleteCache = new WeakMap();
+const getAthleteLogs = (liftLogs, athleteId) => {
+  if (!Array.isArray(liftLogs) || !liftLogs.length) return [];
+  let byAth = logsByAthleteCache.get(liftLogs);
+  if (!byAth) {
+    byAth = new Map();
+    for (const l of liftLogs) {
+      if (!l || !l.athlete_id) continue;
+      let arr = byAth.get(l.athlete_id);
+      if (!arr) { arr = []; byAth.set(l.athlete_id, arr); }
+      arr.push(l);
+    }
+    logsByAthleteCache.set(liftLogs, byAth);
+  }
+  return byAth.get(athleteId) || [];
+};
+
 // Athlete's maxes: best est. 1RM per mapped lift inside the max window (blank when none
 // logged). A coach-entered override (max_map.overrides[athleteId][key]) wins and is
 // flagged so the card can mark it; Lift Tracker data is never changed.
@@ -43,17 +80,18 @@ export function maxesFor(athleteId, liftLogs = [], maxMap = {}, { seasonStartDat
   const entered = {};
   const from = windowStart(maxMap.window || 'all', seasonStartDate);
   const ov = maxMap.overrides?.[athleteId] || {};
+  const myLogs = getAthleteLogs(liftLogs, athleteId);
   for (const [key] of MAX_KEYS) {
     const lift = maxMap[key];
     if (!lift) { out[key] = null; continue; }
     if (Number(ov[key]) > 0) { out[key] = Math.round(Number(ov[key])); entered[key] = true; continue; }
     let best = 0;
-    for (const l of liftLogs) {
-      if (l.athlete_id !== athleteId || l.lift_type !== lift) continue;
-      if (!(Number(l.weight_lbs) > 0) || !(Number(l.reps) > 0)) continue;
-      if (from && getCentralDateString(new Date(l.created_at)) < from) continue;
-      const v = estimate1RM(Number(l.weight_lbs), Number(l.reps));
-      if (v > best) best = v;
+    for (const l of myLogs) {
+      if (l.lift_type !== lift) continue;
+      const meta = getLogMeta(l);
+      if (!meta.valid) continue;
+      if (from && meta.day < from) continue;
+      if (meta.est > best) best = meta.est;
     }
     out[key] = best > 0 ? Math.round(best) : null;
   }
