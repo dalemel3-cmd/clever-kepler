@@ -90,7 +90,6 @@ async function run(cloud) {
   await page.getByTestId('wr-window').selectOption('6w'); await page.waitForTimeout(300);
   maxes = await c1.getByTestId('wr-max').allInnerTexts();
   check(`${tag} 6-week window -> recent maxes only`, maxes.join('|').replace(/\n/g, ' ') === 'CLEAN 205|BENCH 226|SQUAT 335|TBDL 405', JSON.stringify(maxes));
-  check(`${tag} footer names the window`, /Maxes: last 6 weeks/i.test(await c1.innerText()));
   const wts = await c1.getByTestId('wr-wt').allInnerTexts();
   // Hang clean 205 x 65/70/75/75% -> 135/145/155/155; squat 335 x 70% -> 235; bench 226 x 70% -> 160
   check(`${tag} working weights = max(45, round5(max x %))`, wts.slice(0, 4).join(',') === '135,145,155,155' && wts.includes('235') && wts.includes('160'), wts.filter(Boolean).join(','));

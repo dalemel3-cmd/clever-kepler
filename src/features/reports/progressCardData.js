@@ -49,7 +49,9 @@ function metricDef(m, { liftLogs, performanceTests }) {
 }
 
 // Best result per athlete per day, oldest first: athleteId -> [{day, value, set}]
+const seriesCache = new WeakMap();
 function seriesBy(def) {
+  if (seriesCache.has(def)) return seriesCache.get(def);
   const by = new Map();
   for (const r of def.rows) {
     const v = def.val(r);
@@ -61,6 +63,7 @@ function seriesBy(def) {
   }
   const out = new Map();
   for (const [id, m] of by) out.set(id, [...m.values()].sort((a, b) => a.day.localeCompare(b.day)));
+  seriesCache.set(def, out);
   return out;
 }
 
@@ -90,18 +93,47 @@ function spark(pts, lowerIsBetter, bestIdx, neutral) {
   return { pts: dots.map(d => `${d.x},${d.y}`).join(' '), dots, months };
 }
 
+const reportIndexCache = new WeakMap();
+function getReportIndex(reportData) {
+  if (reportIndexCache.has(reportData)) return reportIndexCache.get(reportData);
+  const weighByAthlete = new Map();
+  const rpeByAthlete = new Map();
+  const rpeDaysBySport = new Map();
+  for (const r of reportData) {
+    const aId = r.athlete_id;
+    if (isRpeLog(r)) {
+      const d = dayOf(r);
+      const s = r.sport || 'General';
+      if (!rpeByAthlete.has(aId)) rpeByAthlete.set(aId, []);
+      rpeByAthlete.get(aId).push(r);
+      if (!rpeDaysBySport.has(s)) rpeDaysBySport.set(s, new Set());
+      rpeDaysBySport.get(s).add(d);
+    } else if (hasWeight(r) && !isPostPracticeLog(r)) {
+      if (!weighByAthlete.has(aId)) weighByAthlete.set(aId, []);
+      weighByAthlete.get(aId).push(r);
+    }
+  }
+  const idx = { weighByAthlete, rpeByAthlete, rpeDaysBySport };
+  reportIndexCache.set(reportData, idx);
+  return idx;
+}
+
 export const TRAINING_DAYS = 28; // training strip window
 
 export function buildProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], now = new Date(), showE1rm = false, hidden = {} }) {
   if (!athlete) return null;
+  const { weighByAthlete, rpeByAthlete, rpeDaysBySport } = getReportIndex(reportData);
   // Rank against the whole team (same sport), not the position group.
   const peerIds = new Set(athletes.filter(a => (a.sport || 'General') === (athlete.sport || 'General')).map(a => a.id));
   const groupLabel = athlete.sport || 'team';
   const defs = CARD_METRICS.filter(m => m.kind !== 'mass' && !hidden[m.key]).map(m => metricDef(m, { liftLogs, performanceTests }));
 
   // Latest real weigh-in, for "x BW" on lifts.
-  const lastWeigh = reportData.filter(r => r.athlete_id === athlete.id && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r))
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+  const myWeighs = weighByAthlete.get(athlete.id) || [];
+  let lastWeigh = null;
+  for (const r of myWeighs) {
+    if (!lastWeigh || new Date(r.created_at) > new Date(lastWeigh.created_at)) lastWeigh = r;
+  }
   const bodyWeight = lastWeigh ? Number(lastWeigh.weight_lbs) : null;
 
   const metrics = [];
@@ -142,8 +174,7 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
 
   // Body mass: real weigh-ins only, one per day (latest of the day). Neutral color, no PR.
   const wByDay = new Map();
-  for (const r of reportData) {
-    if (r.athlete_id !== athlete.id || !hasWeight(r) || isPostPracticeLog(r) || isRpeLog(r)) continue;
+  for (const r of myWeighs) {
     const d = dayOf(r);
     const cur = wByDay.get(d);
     if (!cur || new Date(r.created_at) > new Date(cur.at)) wByDay.set(d, { day: d, value: Number(r.weight_lbs), at: r.created_at });
@@ -180,17 +211,21 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
   // Training strip: last 4 weeks of session RPE. "Logged" = days this athlete logged an
   // RPE out of the days anyone on their team did (the team's session days).
   const cutoff = getCentralDateString(new Date(now.getTime() - (TRAINING_DAYS - 1) * 86400000));
-  const teamIds = new Set(athletes.filter(a => (a.sport || 'General') === (athlete.sport || 'General')).map(a => a.id));
-  const rpeIn = reportData.filter(r => isRpeLog(r) && dayOf(r) >= cutoff);
-  const mine = rpeIn.filter(r => r.athlete_id === athlete.id);
-  const teamDays = new Set(rpeIn.filter(r => teamIds.has(r.athlete_id)).map(dayOf));
-  const myDays = new Set(mine.map(dayOf));
+  const sportKey = athlete.sport || 'General';
+  const myRpe = (rpeByAthlete.get(athlete.id) || []).filter(r => dayOf(r) >= cutoff);
+  const sportRpeDays = rpeDaysBySport.get(sportKey) || new Set();
+  let teamDaysCount = 0;
+  for (const d of sportRpeDays) {
+    if (d >= cutoff) teamDaysCount++;
+  }
+  const myDays = new Set(myRpe.map(dayOf));
   const training = {
-    sessions: mine.length,
-    avgRpe: mine.length ? mine.reduce((t, r) => t + Number(r.rpe), 0) / mine.length : null,
-    loggedDays: myDays.size, teamDays: teamDays.size,
-    rate: teamDays.size ? Math.round((myDays.size / teamDays.size) * 100) : null,
-    last: mine.length ? mdOf(mine.map(dayOf).sort().pop()) : null,
+    sessions: myRpe.length,
+    avgRpe: myRpe.length ? myRpe.reduce((t, r) => t + Number(r.rpe), 0) / myRpe.length : null,
+    loggedDays: myDays.size,
+    teamDays: teamDaysCount,
+    rate: teamDaysCount ? Math.round((myDays.size / teamDaysCount) * 100) : null,
+    last: myRpe.length ? mdOf(myRpe.map(dayOf).sort().pop()) : null,
   };
 
   return {

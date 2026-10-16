@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Printer, Download } from 'lucide-react';
 import ReadinessReport, { REPORT_SECTIONS } from './ReadinessReport';
 const PerfReadinessReport = React.lazy(() => import('./PerfReadinessReport'));
+const ProgressCard = React.lazy(() => import('./ProgressCard'));
 import { buildReadinessReport } from './readinessData';
 
 // Reports tab = the Readiness Report (design handoff Part 2, docs/HANDOFF.md §107). The
@@ -30,6 +31,7 @@ export default function ReportsScreen({
   const toggleE1rm = (v) => { setShowE1rm(v); try { localStorage.setItem('hpd_rr_e1rm', v ? '1' : '0'); } catch { /* ignore */ } };
   const [printing, setPrinting] = useState(false);
   const [perfOpen, setPerfOpen] = useState(false);
+  const [progressCardsOpen, setProgressCardsOpen] = useState(false);
   const sport = reportSportFilter || 'ALL';
 
   // Days-since-weigh-in needs history beyond the default window.
@@ -81,6 +83,7 @@ export default function ReportsScreen({
         </label>
         <div className="ml-auto flex gap-2">
           {settings.enableSpeedPower && <button data-testid="pr-open" onClick={() => { ensureReportWindow?.(180); setPerfOpen(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50">Perf vs readiness</button>}
+          <button data-testid="pc-report-open" onClick={() => { ensureReportWindow?.(90); setProgressCardsOpen(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50">Progress cards</button>
           <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50"><Download size={16} /> CSV</button>
           <button data-testid="rr-print" onClick={() => setPrinting(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#061c41] text-white text-sm font-bold hover:bg-[#133b78]"><Printer size={16} /> Export PDF</button>
         </div>
@@ -105,6 +108,19 @@ export default function ReportsScreen({
       {perfOpen && (
         <React.Suspense fallback={null}>
           <PerfReadinessReport athletes={athletes} reportData={reportData} performanceTests={performanceTests} settings={settings} initialSport={sport} onClose={() => setPerfOpen(false)} />
+        </React.Suspense>
+      )}
+      {progressCardsOpen && (
+        <React.Suspense fallback={null}>
+          <ProgressCard
+            athletes={athletes}
+            liftLogs={liftLogs}
+            performanceTests={performanceTests}
+            reportData={reportData}
+            settings={settings}
+            initialWho={sport !== 'ALL' ? `sport:${sport}` : `sport:${sportsList[0] || 'Football'}`}
+            onClose={() => setProgressCardsOpen(false)}
+          />
         </React.Suspense>
       )}
       {printing && createPortal(

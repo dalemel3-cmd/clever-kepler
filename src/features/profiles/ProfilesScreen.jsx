@@ -99,6 +99,7 @@ export default function ProfilesScreen({
   const [postPracticeOpen, setPostPracticeOpen] = useState(false);
   const [logLedgerOpen, setLogLedgerOpen] = useState(false);
   const [progressCardOpen, setProgressCardOpen] = useState(false);
+  const [progressCardWho, setProgressCardWho] = useState(null);
   if (!selectedProfileId) {
     return (
       <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -424,13 +425,16 @@ export default function ProfilesScreen({
             <button onClick={() => handleEditClick(athlete)} style={{ background: 'rgba(255,255,255,0.04)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               EDIT INFO
             </button>
-            <button data-testid="pc-open" onClick={() => setProgressCardOpen(true)} style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--color-accent)', border: '1px solid rgba(184,156,91,0.5)', borderRadius: '10px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <button data-testid="pc-open" onClick={() => { setProgressCardWho(athlete.id); setProgressCardOpen(true); }} style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--color-accent)', border: '1px solid rgba(184,156,91,0.5)', borderRadius: '10px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               PROGRESS CARD
+            </button>
+            <button data-testid="pc-team-open" onClick={() => { setProgressCardWho(`sport:${athlete.sport || 'General'}`); setProgressCardOpen(true); }} style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--color-accent)', border: '1px solid rgba(184,156,91,0.5)', borderRadius: '10px', padding: '12px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              {athlete.sport ? `${athlete.sport.toUpperCase()} CARDS` : 'TEAM CARDS'}
             </button>
           </div>
           {progressCardOpen && (
             <React.Suspense fallback={null}>
-              <ProgressCard athlete={athlete} athletes={athletes} liftLogs={liftLogs} performanceTests={performanceTests || []} reportData={reportData} settings={settings} onClose={() => setProgressCardOpen(false)} />
+              <ProgressCard athlete={athlete} athletes={athletes} liftLogs={liftLogs} performanceTests={performanceTests || []} reportData={reportData} settings={settings} initialWho={progressCardWho} onClose={() => setProgressCardOpen(false)} />
             </React.Suspense>
           )}
         </div>

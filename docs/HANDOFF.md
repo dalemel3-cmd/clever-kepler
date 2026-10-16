@@ -3943,7 +3943,17 @@ After `db/014_programs.sql` went live in `v5.7.6`, the coach tested `Log > Progr
 - **`ProgramsScreen.jsx` (memoized editors, preloaded print modal, live lift types):** Wrapped `DayEditor` and `BlockEditor` in `React.memo` with stable `useCallback` handlers so typing in one exercise block or set row no longer re-renders every day and block in the program. Preloaded `WeightRoomCard` on `ProgramsScreen` mount (`loadWeightRoomCard()`) and changed **Print cards** to open immediately (`setPrinting(true)`) while saving in the background (`if (dirty) doSave()`). Merged distinct `lift_type` values from `liftLogs` into the **"Maxes come from"** dropdowns so logged lifts like `Front Squat` and `Belt Squat` appear even if not manually added to `settings.liftTypes`.
 - **`WeightRoomCard.jsx` (per-athlete card memoization):** Wrapped `<Card>` in `React.memo`, split `maxMapBase` from per-athlete `athleteOverrides={program.max_map?.overrides?.[a.id]}`, and memoized `fromLogsByAthlete` so typing a max override for one athlete in **Edit maxes** only re-renders that single athlete's card instead of all 74 cards.
 
-## 128. Next up
+## 128. Weight Room Card footer removal & Team Progress Cards (v5.7.8)
+
+- **Weight Room Card clean footer:** Removed the bottom tagline / staff footer (`Shiloh Christian Human Performance · Weights rounded to 5 lb · Record your last set · Maxes: all time · Champions for Life`) from `WeightRoomCard.jsx` per the coach's request, leaving more vertical space for workout days and exercises on the printed landscape Letter cards. Also removed `"Champions for Life"` from the footer of `ProgressCard.jsx`.
+- **Bulk Progress Cards for Teams:**
+  - `ProgressCard.jsx`: added a **"Print for"** select in the modal toolbar allowing coaches to choose between any individual athlete or a whole team (e.g. `Football Team (74 cards)`).
+  - Multi-page printing: `@media print` renders each athlete's card on its own page (`break-after: page; page-break-after: always;`) and sets button label to `PDF / Print (N cards)`.
+  - Team notes: typing in "Coach's note" when a team is selected applies a team-wide note to all cards in the team (`hpd_pc_teamnote_<sport>`), while any athlete with an individual custom note preserves their specific note.
+  - `progressCardData.js`: cached `seriesBy` and `reportData` indexing (`getReportIndex` for weighs and RPE) with `WeakMap`s so building progress cards for 74 athletes takes under 5ms.
+  - Direct entry points: added a **TEAM CARDS** button next to `PROGRESS CARD` on athlete profiles in `ProfilesScreen.jsx`, and a **Progress cards** button next to `Perf vs readiness` on `ReportsScreen.jsx`.
+
+## 129. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

@@ -189,12 +189,13 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
 
       <div style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.muted }}>
         <span>Shiloh Christian Human Performance · Progress Card · {today}</span>
-        <span>Champions for Life</span>
       </div>
     </div>
     </div>
   );
 }
+
+const MemoCard = React.memo(Card);
 
 const label = { fontSize: 11, fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' };
 const field = { height: 40, padding: '0 10px', fontSize: 13, fontWeight: 700, borderRadius: 10 };
@@ -202,7 +203,52 @@ const toggleBtn = (on) => ({ ...field, cursor: 'pointer', whiteSpace: 'nowrap', 
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
 
-export default function ProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, settings, onClose }) {
+export default function ProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], settings: _settings, initialWho, onClose }) {
+  const sports = React.useMemo(() => {
+    const set = new Set();
+    athletes.forEach(a => { if (a.sport) set.add(a.sport); });
+    return Array.from(set).sort();
+  }, [athletes]);
+
+  const athleteCounts = React.useMemo(() => {
+    const counts = {};
+    athletes.forEach(a => {
+      if (!a.archived_at) {
+        const s = a.sport || 'General';
+        counts[s] = (counts[s] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [athletes]);
+
+  const athletesSorted = React.useMemo(() => {
+    return [...athletes]
+      .filter(a => !a.archived_at)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [athletes]);
+
+  const [who, setWho] = React.useState(() => {
+    if (initialWho) return initialWho;
+    if (athlete?.id) return athlete.id;
+    if (athlete?.sport) return `sport:${athlete.sport}`;
+    return sports[0] ? `sport:${sports[0]}` : (athletesSorted[0]?.id || '');
+  });
+
+  const roster = React.useMemo(() => {
+    if (who.startsWith('sport:')) {
+      const s = who.slice(6);
+      return athletes
+        .filter(a => !a.archived_at && (a.sport || 'General') === s)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
+    const a = athletes.find(x => x.id === who) || athlete;
+    return a ? [a] : [];
+  }, [who, athletes, athlete]);
+
+  const isTeam = who.startsWith('sport:');
+  const teamSport = isTeam ? who.slice(6) : null;
+  const activeAthlete = isTeam ? null : (athletes.find(x => x.id === who) || athlete);
+
   const [showNote, setShowNote] = React.useState(() => load('hpd_pc_shownote', true));
   const [showE1rm, setShowE1rm] = React.useState(() => load('hpd_pc_e1rm', false));
   const [showTraining, setShowTraining] = React.useState(() => load('hpd_pc_training', true));
@@ -213,13 +259,29 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
   const liftKeys = CARD_METRICS.filter(m => m.kind === 'lift').map(m => m.key);
   const liftsOn = liftKeys.some(k => !hidden[k]);
   const [showFocus, setShowFocus] = React.useState(() => load('hpd_pc_focus', true));
-  // Coach's note and next test date are kept per athlete on this device.
-  const noteKey = `hpd_pc_note_${athlete.id}`;
+
+  // Coach's note: if team, team note is stored at `hpd_pc_teamnote_${teamSport}`
+  // If individual, stored at `hpd_pc_note_${activeAthlete.id}`
+  const noteKey = activeAthlete ? `hpd_pc_note_${activeAthlete.id}` : (teamSport ? `hpd_pc_teamnote_${teamSport}` : 'hpd_pc_note_common');
   const [note, setNote] = React.useState(() => load(noteKey, ''));
   React.useEffect(() => { setNote(load(noteKey, '')); }, [noteKey]);
   const [nextTest, setNextTest] = React.useState(() => load('hpd_pc_nexttest', ''));
-  const card = React.useMemo(() => buildProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden }),
-    [athlete, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden]);
+
+  const getNoteFor = (a) => {
+    const individual = load(`hpd_pc_note_${a.id}`, '');
+    if (individual) return individual;
+    if (isTeam) return note;
+    return note;
+  };
+
+  const cardsByAthlete = React.useMemo(() => {
+    const map = new Map();
+    for (const a of roster) {
+      map.set(a.id, buildProgressCard({ athlete: a, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden }));
+    }
+    return map;
+  }, [roster, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden]);
+
   const [scale, setScale] = React.useState(1);
   const today = new Date().toLocaleDateString('en-US');
 
@@ -240,12 +302,34 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
           html body.pc-printing > *:not(.pc-print-root), html body.pc-printing > #root { display: none !important; }
           .pc-print-root { position: static !important; background: #fff !important; overflow: visible !important; }
           .pc-controls { display: none !important; }
-          .pc-sheet-wrap { height: auto !important; padding: 0 !important; display: block !important; }
-          .pc-sheet { transform: none !important; padding: 0 !important; box-shadow: none !important; width: auto !important; height: auto !important; }
+          .pc-sheets-wrap { height: auto !important; padding: 0 !important; display: block !important; }
+          .pc-sheets { transform: none !important; padding: 0 !important; box-shadow: none !important; width: auto !important; gap: 0 !important; display: block !important; }
+          .pc-sheet { transform: none !important; padding: 0 !important; box-shadow: none !important; width: auto !important; height: auto !important; break-after: page; page-break-after: always; }
+          .pc-sheet:last-child { break-after: auto !important; page-break-after: auto !important; }
           .pc-page { overflow: hidden !important; }
         }
       `}</style>
       <div className="pc-controls" style={{ position: 'sticky', top: 0, zIndex: 1, background: 'rgba(3,10,20,0.96)', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '14px 16px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label htmlFor="pc-who" style={label}>Print for</label>
+          <select id="pc-who" data-testid="pc-who" className="input-glass" style={field} value={who} onChange={e => setWho(e.target.value)}>
+            <option value="" style={{ background: '#061c41', color: '#fff' }}>Choose team or athlete…</option>
+            <optgroup label="Whole team (one page each)" style={{ background: '#061c41', color: '#fff' }}>
+              {sports.map(s => (
+                <option key={s} value={`sport:${s}`} style={{ background: '#061c41', color: '#fff' }}>
+                  {s} Team ({athleteCounts[s] || 0} {athleteCounts[s] === 1 ? 'card' : 'cards'})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Individual athlete" style={{ background: '#061c41', color: '#fff' }}>
+              {athletesSorted.map(a => (
+                <option key={a.id} value={a.id} style={{ background: '#061c41', color: '#fff' }}>
+                  {a.name} ({a.sport || 'General'})
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={label}>Show</span>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -268,9 +352,9 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
         {showNote && (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 280px' }}>
-              <label htmlFor="pc-note" style={label}>Coach's note</label>
+              <label htmlFor="pc-note" style={label}>Coach's note {isTeam ? `(${teamSport} team)` : (activeAthlete ? `(${activeAthlete.name})` : '')}</label>
               <textarea id="pc-note" data-testid="pc-note-input" className="input-glass" rows={2} maxLength={420} value={note} onChange={e => { setNote(e.target.value); save(noteKey, e.target.value); }}
-                placeholder="e.g. Strong block. Add contrast sets on lower days." style={{ ...field, height: 'auto', minHeight: 40, padding: '8px 10px', fontWeight: 500, resize: 'vertical' }} />
+                placeholder={isTeam ? `e.g. Strong block across ${teamSport}. Retest after the next cycle.` : "e.g. Strong block. Add contrast sets on lower days."} style={{ ...field, height: 'auto', minHeight: 40, padding: '8px 10px', fontWeight: 500, resize: 'vertical' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label htmlFor="pc-next" style={label}>Next test</label>
@@ -280,18 +364,30 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
         )}
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', alignItems: 'center' }}>
           <button type="button" data-testid="pc-print" onClick={() => window.print()} style={{ ...field, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-accent)', color: '#030a14', border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}>
-            <Printer size={16} aria-hidden="true" /> PDF / Print
+            <Printer size={16} aria-hidden="true" /> {roster.length > 1 ? `PDF / Print (${roster.length} cards)` : 'PDF / Print'}
           </button>
           <button type="button" onClick={onClose} aria-label="Close progress card" style={{ ...field, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer' }}>
             <X size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
-      <div className="pc-sheet-wrap" style={{ height: (H + 96) * scale + 48, display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
-        <div className="pc-sheet" style={{ width: W + 96, padding: 48, boxSizing: 'border-box', background: '#fff', boxShadow: '0 10px 40px rgba(0,0,0,0.4)', transform: `scale(${scale})`, transformOrigin: 'top center', height: H + 96 }}>
-          {card && <Card card={card} showNote={showNote} showFocus={showFocus} showTraining={showTraining} showXbw={showXbw} note={note} nextTest={nextTest} today={today} />}
+      {!roster.length ? (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)' }}>Pick a team or an athlete to build progress cards.</div>
+      ) : (
+        <div className="pc-sheets-wrap" style={{ height: ((H + 96) * roster.length + 32 * (roster.length - 1)) * scale + 48, display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+          <div className="pc-sheets" style={{ width: W + 96, display: 'flex', flexDirection: 'column', gap: 32, transform: `scale(${scale})`, transformOrigin: 'top center' }}>
+            {roster.map(a => {
+              const c = cardsByAthlete.get(a.id);
+              if (!c) return null;
+              return (
+                <div key={a.id} className="pc-sheet" style={{ width: W + 96, padding: 48, boxSizing: 'border-box', background: '#fff', boxShadow: '0 10px 40px rgba(0,0,0,0.4)', height: H + 96 }}>
+                  <MemoCard card={c} showNote={showNote} showFocus={showFocus} showTraining={showTraining} showXbw={showXbw} note={getNoteFor(a)} nextTest={nextTest} today={today} />
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>,
     document.body
   );

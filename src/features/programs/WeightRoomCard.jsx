@@ -103,7 +103,6 @@ const Card = React.memo(function Card({ programMeta, maxMapBase, athleteOverride
     () => buildCard(programForCard, athlete, liftLogs, { showVelocity, seasonStartDate }),
     [programForCard, athlete, liftLogs, showVelocity, seasonStartDate]
   );
-  const windowLabel = (MAX_WINDOWS.find(([k]) => k === (maxMapBase?.window || 'all')) || MAX_WINDOWS[0])[1].toLowerCase();
   const n = card.days.length || 1;
   const wide = n <= 2;
   return (
@@ -129,10 +128,6 @@ const Card = React.memo(function Card({ programMeta, maxMapBase, athleteOverride
       </div>
       <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `repeat(${n},minmax(0,1fr))`, gap: wide ? 16 : 8, marginTop: 10 }}>
         {card.days.map((d, i) => <Day key={d.id || i} d={d} wide={wide} showRecord={showRecord} />)}
-      </div>
-      <div style={{ marginTop: 8, paddingTop: 6, display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.muted }}>
-        <span>Shiloh Christian Human Performance · Weights rounded to 5 lb · Record your last set · Maxes: {windowLabel}{Object.keys(card.maxes.entered || {}).length ? ' · * entered by staff' : ''}</span>
-        <span>Champions for Life</span>
       </div>
     </div>
   );
