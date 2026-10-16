@@ -32,7 +32,7 @@ function Spark({ m }) {
   const fill = (k) => (k === 'best' ? C.gold500 : k === 'last' ? C.navy900 : C.white);
   return (
     <div style={{ flex: 'none', width: 130, display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <svg width="130" height="44" viewBox="0 0 130 44" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
+      <svg width="130" height="42" viewBox="0 0 130 44" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
         <line x1="6" y1="40" x2="124" y2="40" style={{ stroke: C.border }} strokeWidth="1" />
         {m.dots.length > 1 && <polyline points={m.pts} fill="none" style={{ stroke: C.navy900 }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
         {m.dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={d.r} style={{ fill: fill(d.kind), stroke: C.navy900 }} strokeWidth="1.5" />)}
@@ -50,7 +50,22 @@ function Spark({ m }) {
   );
 }
 
-function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
+function Card({ card, showNote, showFocus = true, showTraining = true, showXbw = true, note, nextTest, today }) {
+  // Shrink-to-fit: if everything switched on runs past one page, scale the content down
+  // (never up) so the card is always exactly one Letter page.
+  const innerRef = React.useRef(null);
+  const [fit, setFit] = React.useState(1);
+  React.useLayoutEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    // Measure the content's own height at zoom 1, then pick the zoom that fits H.
+    const prevZoom = el.style.zoom, prevMin = el.style.minHeight, prevW = el.style.width;
+    el.style.zoom = '1'; el.style.minHeight = '0px'; el.style.width = `${W}px`;
+    const natural = el.getBoundingClientRect().height;
+    el.style.zoom = prevZoom; el.style.minHeight = prevMin; el.style.width = prevW;
+    const next = natural > H ? Math.max(0.7, Math.floor((H / natural) * 1000) / 1000) : 1;
+    if (Math.abs(next - fit) > 0.002) setFit(next);
+  });
   const t = card.tiles;
   const tiles = [
     { n: t.prs, label: 'New PRs', sub: 'Best result came from the latest test', color: C.gold700 },
@@ -59,7 +74,8 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
   ];
   const tone = (m) => (m.deltaTone === 'up' ? C.positive : m.deltaTone === 'down' ? C.danger : C.navy900);
   return (
-    <div className="pc-page" data-testid="progress-card" style={{ width: W, height: H, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', background: C.white, color: C.text, fontFamily: BODY, overflow: 'hidden', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="pc-page" data-testid="progress-card" data-fit={fit} style={{ width: W, height: H, boxSizing: 'border-box', background: C.white, color: C.text, fontFamily: BODY, overflow: 'hidden', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div ref={innerRef} style={{ width: W / fit, minHeight: H / fit, display: 'flex', flexDirection: 'column', zoom: fit < 1 ? fit : undefined }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, padding: '4px 0 12px', borderTop: `10px solid ${C.navy900}`, borderBottom: `3px solid ${C.gold500}` }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold700 }}>Human Performance · Progress Card</div>
@@ -71,13 +87,36 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1, background: C.border, border: `1px solid ${C.border}`, marginTop: 12 }}>
         {tiles.map(tl => (
-          <div key={tl.label} data-testid="pc-tile" style={{ background: C.white, padding: '9px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 34, lineHeight: 1, color: tl.color }}>{tl.n}</div>
+          <div key={tl.label} data-testid="pc-tile" style={{ background: C.white, padding: '7px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1, color: tl.color }}>{tl.n}</div>
             <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.navy900 }}>{tl.label}</div>
-            <div style={{ fontSize: 11, color: C.muted }}>{tl.sub}</div>
           </div>
         ))}
       </div>
+
+      {showTraining && (() => {
+        const t = card.training;
+        const cells = t.sessions ? [
+          ['Sessions', String(t.sessions), 'Last 4 weeks'],
+          ['Avg RPE', t.avgRpe.toFixed(1), 'Session effort, 1–10'],
+          ['Logged', t.rate != null ? `${t.loggedDays} / ${t.teamDays}` : String(t.loggedDays), t.rate != null ? `${t.rate}% of team session days` : 'Days with a session RPE'],
+          ['Last', t.last, 'Most recent session'],
+        ] : null;
+        return (
+          <div data-testid="pc-training" style={{ marginTop: 10, display: 'flex', alignItems: 'stretch', border: `1px solid ${C.border}`, background: C.navy50 }}>
+            <div style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '0 12px', background: C.navy900, color: C.white, fontFamily: DISPLAY, fontWeight: 600, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Training</div>
+            {cells ? cells.map(([l, v, sub]) => (
+              <div key={l} style={{ flex: 1, minWidth: 0, padding: '6px 12px', borderLeft: `1px solid ${C.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 18, lineHeight: 1.1, color: C.navy900, whiteSpace: 'nowrap' }}>{v}</span>
+                  <span style={{ fontWeight: 700, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.navy900, whiteSpace: 'nowrap' }}>{l}</span>
+                </div>
+                <div style={{ fontSize: 10, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
+              </div>
+            )) : <div style={{ padding: '8px 12px', fontSize: 12, color: C.muted }}>No session RPE logged in the last 4 weeks.</div>}
+          </div>
+        );
+      })()}
 
       <div style={{ marginTop: 14 }}>
         <SectionHead n="01" title="Your Numbers" right={(
@@ -102,18 +141,19 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
           </div>
         ) : (
           <div key={m.key} data-testid="pc-metric" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, flex: '1 1 auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: '1 1 auto' }}>
               <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span data-testid="pc-best" style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: m.kind === 'lift' ? 24 : 30, lineHeight: 1, color: C.navy900, whiteSpace: 'nowrap' }}>{m.bestText}</span>
+                <span data-testid="pc-best" style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: m.kind === 'lift' ? 21 : 26, lineHeight: 1, color: C.navy900, whiteSpace: 'nowrap' }}>{m.bestText}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>{m.unit}</span>
                 {m.kind !== 'mass' && m.bestDay && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.gold700, whiteSpace: 'nowrap' }}>Best · {new Date(`${m.bestDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
                 {m.isPR && <span data-testid="pc-pr" style={{ padding: '2px 7px', borderRadius: 999, fontWeight: 700, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', background: C.gold500, color: C.navy900 }}>PR</span>}
               </div>
               {m.showE1rm && m.bestE1rm != null && <div style={{ fontSize: 11, color: C.muted }}>Est. 1RM {m.bestE1rm} lb</div>}
-              <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 10, rowGap: 1, fontSize: 12 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 8, rowGap: 0, fontSize: 11 }}>
                 <span style={{ fontWeight: 700, whiteSpace: 'nowrap', color: m.delta ? tone(m) : C.muted }}>{m.delta ? `${m.delta} since ${m.since}` : m.tests > 1 ? `No change since ${m.since}` : 'First test'}</span>
                 {m.rankText && <span style={{ whiteSpace: 'nowrap', color: C.muted }}>{m.rankText}</span>}
+                {showXbw && m.xbw && <span data-testid="pc-xbw" style={{ whiteSpace: 'nowrap', fontWeight: 700, color: C.navy700 }}>{m.xbw}</span>}
               </div>
             </div>
             <Spark m={m} />
@@ -152,6 +192,7 @@ function Card({ card, showNote, showFocus = true, note, nextTest, today }) {
         <span>Champions for Life</span>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -164,6 +205,8 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 export default function ProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, settings, onClose }) {
   const [showNote, setShowNote] = React.useState(() => load('hpd_pc_shownote', true));
   const [showE1rm, setShowE1rm] = React.useState(() => load('hpd_pc_e1rm', false));
+  const [showTraining, setShowTraining] = React.useState(() => load('hpd_pc_training', true));
+  const [showXbw, setShowXbw] = React.useState(() => load('hpd_pc_xbw', true));
   // Metrics toggled off (by CARD_METRICS key), remembered on this device.
   const [hidden, setHidden] = React.useState(() => load('hpd_pc_hidden', {}));
   const setHide = (next) => { setHidden(next); save('hpd_pc_hidden', next); };
@@ -207,6 +250,8 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
             <button type="button" data-testid="pc-toggle-lifts" aria-pressed={liftsOn} onClick={() => setHide({ ...hidden, ...Object.fromEntries(liftKeys.map(k => [k, liftsOn])) })} style={toggleBtn(liftsOn)}>All lifts</button>
             <button type="button" data-testid="pc-toggle-focus" aria-pressed={showFocus} onClick={() => { setShowFocus(!showFocus); save('hpd_pc_focus', !showFocus); }} style={toggleBtn(showFocus)}>Focus next block</button>
             <button type="button" data-testid="pc-toggle-note" aria-pressed={showNote} onClick={() => { setShowNote(!showNote); save('hpd_pc_shownote', !showNote); }} style={toggleBtn(showNote)}>Coach's note</button>
+            <button type="button" data-testid="pc-toggle-training" aria-pressed={showTraining} onClick={() => { setShowTraining(!showTraining); save('hpd_pc_training', !showTraining); }} style={toggleBtn(showTraining)}>Training</button>
+            <button type="button" data-testid="pc-toggle-xbw" aria-pressed={showXbw} onClick={() => { setShowXbw(!showXbw); save('hpd_pc_xbw', !showXbw); }} style={toggleBtn(showXbw)}>× BW</button>
             <button type="button" data-testid="pc-toggle-e1rm" aria-pressed={showE1rm} onClick={() => { setShowE1rm(!showE1rm); save('hpd_pc_e1rm', !showE1rm); }} style={toggleBtn(showE1rm)}>Est. 1RM</button>
           </div>
         </div>
@@ -242,7 +287,7 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
       </div>
       <div className="pc-sheet-wrap" style={{ height: (H + 96) * scale + 48, display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
         <div className="pc-sheet" style={{ width: W + 96, padding: 48, boxSizing: 'border-box', background: '#fff', boxShadow: '0 10px 40px rgba(0,0,0,0.4)', transform: `scale(${scale})`, transformOrigin: 'top center', height: H + 96 }}>
-          {card && <Card card={card} showNote={showNote} showFocus={showFocus} note={note} nextTest={nextTest} today={today} />}
+          {card && <Card card={card} showNote={showNote} showFocus={showFocus} showTraining={showTraining} showXbw={showXbw} note={note} nextTest={nextTest} today={today} />}
         </div>
       </div>
     </div>,

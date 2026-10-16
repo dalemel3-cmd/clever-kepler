@@ -3905,7 +3905,14 @@ Your Numbers now leads with the personal best (`bestText`, "Best · Mon D" in go
 
 `CARD_METRICS` in `progressCardData.js` is the card's fixed list, in print order: Vertical (Hands on Hips) `vertical_jump:hands_on_hips`, Vertical (Arm Swing) `vertical_jump:arm_swing`, Broad Jump `board_jump` (any technique), Fly 10 `10yd_fly` (any), Bench Press / Hang Clean / Front Squat / Back Squat ("Back Squat" or "Squat") / Deadlift / Trap Bar Deadlift ("Trap Bar Deadlift", "TBDL", "Trap Bar DL") matched case-insensitively against `lift_type`, then Body Mass. Untested metrics render as an "N/A · Not tested yet" row. Toolbar "Metrics" row toggles each one (localStorage `hpd_pc_hidden`); "All lifts" flips every lift. Rank (`#n of N {Sport}`) and the "Top 5 in {Sport}" tile now compare against the whole team, not the position group. Spacing tightened so all 11 rows + both bottom sections stay on one page.
 
-## 125. Next up
+## 125. Progress Card: Training strip, × BW, shrink-to-fit (v5.7.5)
+
+- **Training strip** (under the tiles, toggle "Training", `hpd_pc_training`): last `TRAINING_DAYS` (28) of session RPE - sessions, avg RPE, "Logged x / y" = days this athlete logged an RPE out of days anyone on their team did (team session days), last session date. "No session RPE logged in the last 4 weeks." when empty. Deliberately no A:C/spike data on an athlete-facing card.
+- **× BW** (toggle, `hpd_pc_xbw`): each lift's best est. 1RM ÷ the athlete's latest real weigh-in, on the rank line ("1.37× BW"); omitted with no weigh-in.
+- **Shrink-to-fit**: `Card` measures its content at zoom 1 and applies CSS `zoom` (>= 0.7) when it would exceed the 956px page box. `zoom`, not `transform`, because a transformed element's unscaled layout box still paginated onto a second PDF page.
+- Month labels under sparklines skip any label closer than 24px to the previous one.
+
+## 126. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

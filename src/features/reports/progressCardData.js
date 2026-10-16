@@ -84,11 +84,13 @@ function spark(pts, lowerIsBetter, bestIdx, neutral) {
   const months = [];
   for (const i of [...new Set(labelIdx)]) {
     const text = monthOf(pts[i].day);
-    if (months.length && months[months.length - 1].text === text) continue;
+    if (months.length && (months[months.length - 1].text === text || dots[i].x - months[months.length - 1].x < 24)) continue;
     months.push({ x: dots[i].x, text });
   }
   return { pts: dots.map(d => `${d.x},${d.y}`).join(' '), dots, months };
 }
+
+export const TRAINING_DAYS = 28; // training strip window
 
 export function buildProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], now = new Date(), showE1rm = false, hidden = {} }) {
   if (!athlete) return null;
@@ -96,6 +98,11 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
   const peerIds = new Set(athletes.filter(a => (a.sport || 'General') === (athlete.sport || 'General')).map(a => a.id));
   const groupLabel = athlete.sport || 'team';
   const defs = CARD_METRICS.filter(m => m.kind !== 'mass' && !hidden[m.key]).map(m => metricDef(m, { liftLogs, performanceTests }));
+
+  // Latest real weigh-in, for "x BW" on lifts.
+  const lastWeigh = reportData.filter(r => r.athlete_id === athlete.id && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+  const bodyWeight = lastWeigh ? Number(lastWeigh.weight_lbs) : null;
 
   const metrics = [];
   for (const def of defs) {
@@ -127,6 +134,7 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
       since: monthOf(pts[0].day),
       rank, rankN: groupBests.length, rankText: groupBests.length > 1 ? `#${rank} of ${groupBests.length} ${groupLabel}` : '',
       bestText: def.kind === 'lift' ? best.set : best.value.toFixed(dp), bestDay: best.day, offBest,
+      xbw: def.kind === 'lift' && bodyWeight > 0 ? `${(best.value / bodyWeight).toFixed(2)}× BW` : null,
       ...spark(pts, def.lowerIsBetter, bestIdx, false),
     });
   }
@@ -169,7 +177,24 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
   })() : '';
   const firstMonth = days.length ? monthOf(days[0]) : '';
 
+  // Training strip: last 4 weeks of session RPE. "Logged" = days this athlete logged an
+  // RPE out of the days anyone on their team did (the team's session days).
+  const cutoff = getCentralDateString(new Date(now.getTime() - (TRAINING_DAYS - 1) * 86400000));
+  const teamIds = new Set(athletes.filter(a => (a.sport || 'General') === (athlete.sport || 'General')).map(a => a.id));
+  const rpeIn = reportData.filter(r => isRpeLog(r) && dayOf(r) >= cutoff);
+  const mine = rpeIn.filter(r => r.athlete_id === athlete.id);
+  const teamDays = new Set(rpeIn.filter(r => teamIds.has(r.athlete_id)).map(dayOf));
+  const myDays = new Set(mine.map(dayOf));
+  const training = {
+    sessions: mine.length,
+    avgRpe: mine.length ? mine.reduce((t, r) => t + Number(r.rpe), 0) / mine.length : null,
+    loggedDays: myDays.size, teamDays: teamDays.size,
+    rate: teamDays.size ? Math.round((myDays.size / teamDays.size) * 100) : null,
+    last: mine.length ? mdOf(mine.map(dayOf).sort().pop()) : null,
+  };
+
   return {
+    training, bodyWeight,
     name: displayName(athlete.name), sport: athlete.sport || '', pos: athlete.position || '', classYear: gradYearFor(athlete.grade, now),
     span, firstMonth, groupLabel,
     tiles: {
