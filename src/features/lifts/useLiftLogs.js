@@ -52,18 +52,19 @@ export function useLiftLogs() {
   }, []);
   const queue = useInsertQueue({ table: 'lift_logs', queueKey: QUEUE_KEY, onSaved: markSaved, onRejected: dropRows });
 
+  const { isQueued } = queue; // stable callback - depend on it, not on the queue object
   const syncFromServer = useCallback((serverRows) => {
     setRows(prev => {
       const byId = new Map();
       for (const r of prev) {
-        if (r.pending || queue.isQueued(r.id) || String(r.id).startsWith('opt_')) byId.set(r.id, r);
+        if (r.pending || isQueued(r.id) || String(r.id).startsWith('opt_')) byId.set(r.id, r);
       }
       serverRows.forEach(r => byId.set(r.id, r));
       const next = [...byId.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       writeCache(next);
       return next;
     });
-  }, [queue]);
+  }, [isQueued]);
 
   useEffect(() => {
     mounted.current = true;

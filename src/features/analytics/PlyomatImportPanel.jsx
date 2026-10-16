@@ -68,6 +68,9 @@ export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebr
         const msg = res?.error?.message || (typeof res?.error === 'string' ? res.error : null);
         if (code === 'not_configured') {
           setError("Plyomat sync isn't configured correctly — PLYOMAT_API_KEY is not set for this project. Ask whoever manages the Supabase project to add it in Edge Function Secrets.");
+        } else if (code === 'unauthorized' || code === 'invalid_key') {
+          // Keep the coach-facing wording for a bad key; the raw detail is still shown.
+          setError(`Plyomat sync isn't configured correctly — the API key looks invalid${msg ? ` (${msg})` : ''}. Ask whoever manages the Supabase project to check PLYOMAT_API_KEY.`);
         } else if (msg) {
           setError(msg);
         } else {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { reportDataError } from '../errorReporting';
 
@@ -139,5 +139,9 @@ export function useInsertQueue({ table, queueKey, onSaved, onRejected }) {
     return () => clearInterval(t);
   }, [pending.length, flush]);
 
-  return { insert, enqueue, flush, patchQueued, dropQueued, isQueued, pendingCount: pending.length };
+  // Memoized: callers list `queue` in effect/callback deps. A fresh object every render
+  // made those effects re-run on every render - v5.7.6-5.7.9 refetched all of lift_logs
+  // and performance_tests (and re-subscribed realtime) ~140 times a second (v5.7.10).
+  return useMemo(() => ({ insert, enqueue, flush, patchQueued, dropQueued, isQueued, pendingCount: pending.length }),
+    [insert, enqueue, flush, patchQueued, dropQueued, isQueued, pending.length]);
 }

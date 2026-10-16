@@ -3965,7 +3965,13 @@ After `db/014_programs.sql` went live in `v5.7.6`, the coach tested `Log > Progr
   3. *UI & Diagnostics (`PlyomatImportPanel.jsx`):* Surfaces the real error message from the API/service, catches exceptions, and logs them to `app_errors` via `reportDataError(err, 'plyomat:api-sync')`.
   4. *Defensive plan builder (`plyomatImport.js`):* Guarded `matchAthlete` and `buildImportPlanFromApiSets` so null/undefined athlete or roster lists default to empty arrays without throwing.
 
-## 130. Next up
+## 130. Hotfix: lift/test refetch loop (v5.7.10)
+
+Symptom (from the night of 2026-10-15, after v5.7.6): constant RECONNECTING, app_errors filling with "Timed out acquiring connection from connection pool" / "upstream request timeout", Supabase SQL timing out. Cause: v5.7.6 added `syncFromServer` (deps `[queue]`) to the mount effect of `useLiftLogs` and `usePerformanceTests`; `useInsertQueue` returned a new object literal every render, so the effect re-ran on every App render - a full `select *` of both tables plus a realtime channel teardown/resubscribe, and the resulting setRows re-rendered App again: an unbounded loop (measured: 2,774 fetches of each table in 20s on the dashboard, i.e. ~140/s per open device). Fix: `useInsertQueue` returns `useMemo(...)`; the hooks depend on the stable `isQueued` callback, not the queue object. Measured after: 1 fetch of each table on load. Rule: never put a hook's returned object in a dependency array unless that hook memoizes it.
+
+Also: v5.7.9 lost the coach-facing "API key looks invalid" Plyomat message for `unauthorized`; restored (raw detail appended). `tests/program-builder.js` no longer expects the "* entered by staff" footer text that v5.7.8 removed.
+
+## 131. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

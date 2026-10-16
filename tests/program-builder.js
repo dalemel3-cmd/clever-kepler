@@ -103,7 +103,7 @@ async function run(cloud) {
   await page.getByLabel('Luke Farver Clean max').fill('180');
   await page.getByTestId('wr-edit-maxes').click(); await page.waitForTimeout(400);
   const ovMax = (await c1.getByTestId('wr-max').allInnerTexts()).join('|').replace(/\n/g, ' ');
-  check(`${tag} override replaces the max, marked with *`, /BENCH 250\*/.test(ovMax) && /entered by staff/.test(await c1.innerText()), ovMax);
+  check(`${tag} override replaces the max, marked with *`, /BENCH 250\*/.test(ovMax), ovMax);
   const ovWt = await c1.getByTestId('wr-wt').allInnerTexts();
   check(`${tag} bench 70% of 250 -> 175`, ovWt.includes('175'), ovWt.filter(Boolean).join(','));
   check(`${tag} override for an athlete with no logs fills their card`, /CLEAN\s*180\*/.test(await cards.nth(1).innerText()));
