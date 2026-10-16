@@ -64,6 +64,7 @@ function sessionsFor(metric, athleteIds, { liftLogs, performanceTests, bounds })
   if (metric.kind === 'lift') {
     for (const l of liftLogs || []) {
       if (l.lift_type !== metric.lift || !athleteIds.has(l.athlete_id) || !inBounds(l, bounds)) continue;
+      if (!(Number(l.weight_lbs) > 0) || !(Number(l.reps) > 0)) continue;
       const v = estimate1RM(Number(l.weight_lbs), Number(l.reps));
       if (v > 0) add(l.athlete_id, getCentralDateString(new Date(l.created_at)), Math.round(v), `${+Number(l.weight_lbs).toFixed(1)} × ${Number(l.reps)}`);
     }

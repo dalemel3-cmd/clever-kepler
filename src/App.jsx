@@ -477,7 +477,7 @@ export default function App() {
   // Speed & Power test results - lifted here (rather than fetched inside
   // SpeedPowerPanel itself) so Profiles can also read best-test data without opening a
   // second realtime subscription to the same table.
-  const { performanceTests, pendingTestCount, flushTestQueue, addTest: addPerformanceTest, addTests: addPerformanceTests, updateTest: updatePerformanceTest, deleteTest: deletePerformanceTest, importPlan: importPlyomatPlan, advancePlyomatSyncCheckpoint } = usePerformanceTests();
+  const { performanceTests, pendingTestCount, flushTestQueue, addTest: addPerformanceTest, addTests: addPerformanceTests, updateTest: updatePerformanceTest, deleteTest: deletePerformanceTest, importPlan: importPlyomatPlan, advancePlyomatSyncCheckpoint, reassignTestAthlete, removeAthleteTests } = usePerformanceTests();
 
   // "Sync from Plyomat" checkpoint (db/010) - read once so the panel knows whether this
   // is a first-ever sync (fetch everything) or an incremental one (?since=<this value>).
@@ -520,7 +520,7 @@ export default function App() {
   // Lift Tracker (Bench/Squat/Deadlift/etc.) - same lifted-to-App-level reasoning as
   // Speed & Power above, so Profiles can eventually read best-lift data without a
   // second realtime subscription to the same table.
-  const { liftLogs, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType, pendingLiftCount, flushLiftQueue } = useLiftLogs();
+  const { liftLogs, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType, pendingLiftCount, flushLiftQueue, reassignLiftAthlete, removeAthleteLifts } = useLiftLogs();
 
   // Settings & PWA State
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
@@ -783,15 +783,15 @@ export default function App() {
   }, []);
 
   const handleSignOut = () => {
-    // Signing out on a device that still holds unsynced weigh-ins would strand them:
-    // the queue can only upload while authenticated. Warn before that happens.
-    let pending = 0;
-    try { pending = JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch {}
+    // Signing out on a device that still holds unsynced logs would strand them:
+    // the queues can only upload while authenticated. Warn before that happens.
+    let pending = (pendingLiftCount || 0) + (pendingTestCount || 0);
+    try { pending += JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch {}
     setConfirmModal({
       isOpen: true,
       title: pending > 0 ? `Sign Out With ${pending} Unsynced ${pending === 1 ? 'Log' : 'Logs'}?` : 'Sign Out',
       message: pending > 0
-        ? `This device still has ${pending} weigh-in ${pending === 1 ? 'record' : 'records'} waiting to upload, and they can only sync while signed in. Connect and let them sync first if you can.`
+        ? `This device still has ${pending} unsynced ${pending === 1 ? 'record' : 'records'} waiting to upload, and they can only sync while signed in. Connect and let them sync first if you can.`
         : 'Sign out of this device? Kiosk devices normally stay signed in.',
       isDanger: pending > 0,
       actionText: 'Sign Out',
@@ -1570,7 +1570,7 @@ export default function App() {
   // back to the existing behavior of just deselecting the profile.
   const handleBackFromProfile = () => {
     setSelectedProfileId(null);
-    if (['athletes', 'rpe', 'strength', 'power'].includes(profileEntryScreen)) {
+    if (['athletes', 'rpe', 'strength', 'power', 'lifts', 'analytics', 'dashboard', 'alerts'].includes(profileEntryScreen)) {
       setScreen(profileEntryScreen);
     }
     setProfileEntryScreen(null);
@@ -1858,8 +1858,10 @@ export default function App() {
     try {
       const { error } = await supabase.from('weigh_ins').insert(recs);
       if (error) {
+        const isNet = /failed to fetch|networkerror|load failed|network request failed|fetch|network/i.test(error.message || '')
+          || (typeof navigator !== 'undefined' && navigator.onLine === false);
+        if (isNet) throw error;
         setReportData(prev => prev.filter(r => !opt.includes(r)));
-        if (/fetch|network/i.test(error.message || '')) throw error;
         return { ok: false };
       }
       fetchReportData(true);
@@ -2023,10 +2025,10 @@ export default function App() {
     }
 
     // 2. Update athlete record in state, localStorage, and cloud athletes table via structured metadata
-    const targetAthlete = athletes.find(a => a.id === athleteId);
+    const targetAthlete = athletesAll.find(a => a.id === athleteId);
     const updatedMeta = targetAthlete ? encodeAthleteMeta(targetAthlete.raw_position || targetAthlete.position || '', weightVal, dateStr, logId) : '';
 
-    const nextAthletes = athletes.map(a => a.id === athleteId ? { ...a, baseline_weight: Number(weightVal), baseline_date: dateStr, baseline_log_id: logId, raw_position: updatedMeta } : a);
+    const nextAthletes = athletesAll.map(a => a.id === athleteId ? { ...a, baseline_weight: Number(weightVal), baseline_date: dateStr, baseline_log_id: logId, raw_position: updatedMeta } : a);
     setAthletes(nextAthletes);
     try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch {}
     try {
@@ -2096,7 +2098,7 @@ export default function App() {
     }
 
     // 2. Update athlete records across state, localStorage, and cloud metadata
-    const nextAthletes = await Promise.all(athletes.map(async a => {
+    const nextAthletes = await Promise.all(athletesAll.map(async a => {
       const matchingLog = selectedLogs.find(l => l.athlete_id === a.id);
       if (matchingLog) {
         const newMeta = encodeAthleteMeta(a.raw_position || a.position || '', matchingLog.weight_lbs, matchingLog.created_at, matchingLog.id);
@@ -2331,7 +2333,7 @@ export default function App() {
       setConfirmModal({
         isOpen: true,
         title: 'Delete Athlete Profile',
-        message: 'Are you sure you want to delete this athlete profile and all associated weigh-in records?',
+        message: 'Are you sure you want to delete this athlete profile and all associated weigh-in, lift, and test records?',
         isDanger: true,
         actionText: 'Delete Athlete',
         onConfirm: () => handleDeleteAthlete(true)
@@ -2340,8 +2342,11 @@ export default function App() {
     }
     setSaving(true);
     try {
-      // Delete associated weigh-ins first to prevent foreign key constraint errors
-      await supabase.from('weigh_ins').delete().eq('athlete_id', editingAthleteId);
+      // Delete associated records first to prevent ON DELETE NO ACTION foreign key errors
+      for (const table of ['weigh_ins', 'lift_logs', 'performance_tests', 'alert_status']) {
+        const { error: childErr } = await supabase.from(table).delete().eq('athlete_id', editingAthleteId);
+        if (childErr) throw new Error(`deleting ${table.replace('_', ' ')}: ${childErr.message}`);
+      }
 
       const { error } = await supabase
         .from('athletes')
@@ -2350,7 +2355,14 @@ export default function App() {
         
       if (error) throw error;
       
-      setAthletes(prev => prev.filter(a => a.id !== editingAthleteId));
+      setAthletes(prev => {
+        const next = prev.filter(a => a.id !== editingAthleteId);
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch {}
+        return next;
+      });
+      setReportData(prev => prev.filter(r => r.athlete_id !== editingAthleteId));
+      removeAthleteLifts(editingAthleteId);
+      removeAthleteTests(editingAthleteId);
       setIsAddingAthlete(false);
       setEditingAthleteId(null);
       setNewAthlete({ name: '', sport: '', team: '', grade: '', position: '' });
@@ -2418,7 +2430,13 @@ export default function App() {
       setReportData(prev => prev.map(log => (log.athlete_id === mergeSourceId
         ? { ...log, athlete_id: targetAthlete.id, athlete_name: targetAthlete.name, sport: targetAthlete.sport }
         : log)));
-      setAthletes(prev => prev.filter(a => a.id !== mergeSourceId));
+      reassignLiftAthlete(mergeSourceId, targetAthlete.id, targetAthlete.name, targetAthlete.sport || '');
+      reassignTestAthlete(mergeSourceId, targetAthlete.id, targetAthlete.name, targetAthlete.sport || '');
+      setAthletes(prev => {
+        const next = prev.filter(a => a.id !== mergeSourceId);
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch {}
+        return next;
+      });
       setMergeSourceId('');
       setMergeTargetId('');
       showToast(`Merged into ${targetAthlete.name}: weigh-ins, lifts and test results moved, duplicate removed.`);
@@ -2651,6 +2669,7 @@ export default function App() {
               <AnalyticsScreen
                 settings={settings}
                 athletes={athletes}
+                allAthletes={athletesAll}
                 reportData={reportData}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}

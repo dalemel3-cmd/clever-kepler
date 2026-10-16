@@ -200,11 +200,11 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
                 <button type="button" data-testid="pb-print" style={btn(false)} onClick={async () => { if (dirty && !(await doSave())) return; setPrinting(true); }}><Printer size={16} /> Print cards</button>
                 <button type="button" style={btn(false)} onClick={() => { const c = clone(draft); c.id = newProgram().id; c.name = `${draft.name} (copy)`; edit(c); setDirty(true); }}><Copy size={16} /> Duplicate</button>
                 {programs.some(p => p.id === draft.id) && (
-                  <button type="button" data-testid="pb-archive" style={btn(false)} onClick={async () => { const res = await setArchived(draft, !draft.archived_at); if (res.ok) { setDraft(null); setMsg(''); } }}>
+                  <button type="button" data-testid="pb-archive" style={btn(false)} onClick={async () => { const res = await setArchived(draft, !draft.archived_at); if (res.ok) { setDraft(null); setMsg(''); } else setMsg("Couldn't update archive status — check connection."); }}>
                     <Archive size={16} /> {draft.archived_at ? 'Unarchive' : 'Archive'}
                   </button>
                 )}
-                {programs.some(p => p.id === draft.id) && <button type="button" style={btn(false)} onClick={async () => { if (window.confirm(`Delete "${draft.name}" for good? Archive keeps it for reprints.`)) { await remove(draft.id); setDraft(null); } }}><Trash2 size={16} /> Delete</button>}
+                {programs.some(p => p.id === draft.id) && <button type="button" style={btn(false)} onClick={async () => { if (window.confirm(`Delete "${draft.name}" for good? Archive keeps it for reprints.`)) { const res = await remove(draft.id); if (res.ok) { setDraft(null); setMsg(''); } else setMsg("Couldn't delete — check connection."); } }}><Trash2 size={16} /> Delete</button>}
                 <span role="status" style={{ fontSize: '13px', color: dirty ? 'var(--color-text-muted)' : '#10b981' }}>{dirty ? 'Unsaved changes' : msg}</span>
               </div>
             </div>

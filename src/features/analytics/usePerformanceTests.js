@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { reportDataError } from '../../errorReporting';
 import { useInsertQueue, newRowId } from '../../utils/insertQueue';
 import { normalizeName as normKey } from './normalizeName';
+import { defaultVariantFor } from './plyomatImport';
 
 const CACHE_KEY = 'shiloh_performance_tests';
 const QUEUE_KEY = 'hpd_pending_performance_tests';
@@ -35,49 +36,6 @@ export function usePerformanceTests() {
     });
   }, []);
 
-  useEffect(() => {
-    mounted.current = true;
-    (async () => {
-      try {
-        const { data, error } = await supabase.from('performance_tests').select('*').order('created_at', { ascending: false });
-        if (error) reportDataError(error, 'performance_tests:fetch');
-        else if (data && mounted.current) { mergeRows(data); rescueRef.current(data); }
-      } catch { /* offline - the cache already loaded from localStorage covers this */ }
-    })();
-
-    let channel;
-    try {
-      channel = supabase
-        .channel('shiloh_performance_tests_bus')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'performance_tests' }, (payload) => {
-          if (payload.new && Object.keys(payload.new).length) mergeRows([payload.new]);
-        })
-        .subscribe();
-    } catch {}
-
-    return () => {
-      mounted.current = false;
-      if (channel && typeof supabase.removeChannel === 'function') {
-        try { supabase.removeChannel(channel); } catch {}
-      }
-    };
-  }, [mergeRows]);
-
-  // Columns are listed explicitly rather than spreading the row: the Technique field
-  // added in v4.19.0 once reached the optimistic row but never the database because it
-  // was missing from this list. Any column added to the table has to be added here too.
-  const toPayload = (o) => ({
-    id: o.id,
-    athlete_id: o.athlete_id,
-    athlete_name: o.athlete_name || 'Unknown',
-    sport: o.sport || '',
-    test_type: o.test_type,
-    test_variant: o.test_variant || null,
-    metric: o.metric,
-    unit: o.unit || 'sec',
-    source: 'manual',
-    created_at: o.created_at,
-  });
   const markSaved = useCallback((ids, data) => {
     const byId = new Map((data || []).map(r => [r.id, r]));
     const idSet = new Set(ids);
@@ -96,6 +54,64 @@ export function usePerformanceTests() {
     });
   }, []);
   const queue = useInsertQueue({ table: 'performance_tests', queueKey: QUEUE_KEY, onSaved: markSaved, onRejected: dropRows });
+
+  const syncFromServer = useCallback((serverRows) => {
+    setRows(prev => {
+      const byId = new Map();
+      for (const r of prev) {
+        if (r.pending || queue.isQueued(r.id) || String(r.id).startsWith('opt_')) byId.set(r.id, r);
+      }
+      serverRows.forEach(r => byId.set(r.id, r));
+      const next = [...byId.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      writeCache(next);
+      return next;
+    });
+  }, [queue]);
+
+  useEffect(() => {
+    mounted.current = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.from('performance_tests').select('*').order('created_at', { ascending: false });
+        if (error) reportDataError(error, 'performance_tests:fetch');
+        else if (data && mounted.current) { syncFromServer(data); rescueRef.current(data); }
+      } catch { /* offline - the cache already loaded from localStorage covers this */ }
+    })();
+
+    let channel;
+    try {
+      channel = supabase
+        .channel('shiloh_performance_tests_bus')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'performance_tests' }, (payload) => {
+          if (payload.eventType === 'DELETE' && payload.old?.id) dropRows([payload.old.id]);
+          else if (payload.new && Object.keys(payload.new).length) mergeRows([payload.new]);
+        })
+        .subscribe();
+    } catch {}
+
+    return () => {
+      mounted.current = false;
+      if (channel && typeof supabase.removeChannel === 'function') {
+        try { supabase.removeChannel(channel); } catch {}
+      }
+    };
+  }, [mergeRows, syncFromServer, dropRows]);
+
+  // Columns are listed explicitly rather than spreading the row: the Technique field
+  // added in v4.19.0 once reached the optimistic row but never the database because it
+  // was missing from this list. Any column added to the table has to be added here too.
+  const toPayload = (o) => ({
+    id: o.id,
+    athlete_id: o.athlete_id,
+    athlete_name: o.athlete_name || 'Unknown',
+    sport: o.sport || '',
+    test_type: o.test_type,
+    test_variant: o.test_variant || null,
+    metric: o.metric,
+    unit: o.unit || 'sec',
+    source: 'manual',
+    created_at: o.created_at,
+  });
 
   // Pre-v5.3.3 'opt_...' rows that never uploaded: re-queue any the server doesn't have
   // (same athlete, test, technique and time). See useLiftLogs for the same rescue.
@@ -184,8 +200,16 @@ export function usePerformanceTests() {
     for (const r of plan.needsReview) {
       const d = decisions[r.csvName];
       if (d === 'link') {
+        const sport = r.candidate.sport || r.suggestedSport || '';
         for (const row of r.rows || []) {
-          tests.push({ ...row, athlete_id: r.candidate.id, athlete_name: r.candidate.name, pendingAthleteKey: null });
+          tests.push({
+            ...row,
+            athlete_id: r.candidate.id,
+            athlete_name: r.candidate.name,
+            sport: sport || row.sport || '',
+            test_variant: row.test_variant || defaultVariantFor(row.test_type, sport || row.sport || ''),
+            pendingAthleteKey: null,
+          });
         }
       } else if (d === 'create') {
         toCreate.push({ name: r.csvName, sport: r.suggestedSport, grade: r.suggestedGrade });
@@ -259,5 +283,21 @@ export function usePerformanceTests() {
     }
   }, []);
 
-  return { performanceTests: rows, pendingTestCount: queue.pendingCount, flushTestQueue: queue.flush, addTest, addTests, updateTest, deleteTest, importPlan, advancePlyomatSyncCheckpoint };
+  const reassignTestAthlete = useCallback((sourceId, targetId, targetName, targetSport) => {
+    setRows(prev => {
+      const next = prev.map(r => (r.athlete_id === sourceId ? { ...r, athlete_id: targetId, athlete_name: targetName, sport: targetSport } : r));
+      writeCache(next);
+      return next;
+    });
+  }, []);
+
+  const removeAthleteTests = useCallback((athleteId) => {
+    setRows(prev => {
+      const next = prev.filter(r => r.athlete_id !== athleteId);
+      writeCache(next);
+      return next;
+    });
+  }, []);
+
+  return { performanceTests: rows, pendingTestCount: queue.pendingCount, flushTestQueue: queue.flush, addTest, addTests, updateTest, deleteTest, reassignTestAthlete, removeAthleteTests, importPlan, advancePlyomatSyncCheckpoint };
 }

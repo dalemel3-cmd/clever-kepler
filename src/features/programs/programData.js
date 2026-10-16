@@ -50,6 +50,7 @@ export function maxesFor(athleteId, liftLogs = [], maxMap = {}, { seasonStartDat
     let best = 0;
     for (const l of liftLogs) {
       if (l.athlete_id !== athleteId || l.lift_type !== lift) continue;
+      if (!(Number(l.weight_lbs) > 0) || !(Number(l.reps) > 0)) continue;
       if (from && getCentralDateString(new Date(l.created_at)) < from) continue;
       const v = estimate1RM(Number(l.weight_lbs), Number(l.reps));
       if (v > best) best = v;

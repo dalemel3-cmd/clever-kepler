@@ -22,13 +22,15 @@ export const displayName = (s) => String(s || '').split(' ').map(w => {
   return t.replace(/^Mc(\w)/, (_, c) => `Mc${c.toUpperCase()}`).replace(/-(\w)/g, (_, c) => `-${c.toUpperCase()}`);
 }).join(' ');
 
-const mdy = (d) => d.toLocaleDateString('en-US');
+const mdy = (d) => new Date(`${getCentralDateString(d)}T12:00:00`).toLocaleDateString('en-US');
 // Baseline dates are stored as ISO strings, but a few older ones are display strings
 // ("Sep 7"). Show the ISO ones as M/D/YYYY and pass anything else through.
 const baselineDateLabel = (v) => {
   if (!v) return '—';
-  const d = new Date(v);
-  return /^\d{4}-\d{2}-\d{2}/.test(String(v)) && !isNaN(d) ? mdy(d) : String(v);
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(`${s}T12:00:00`).toLocaleDateString('en-US');
+  const d = new Date(s);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) && !isNaN(d) ? mdy(d) : s;
 };
 
 const at = (r) => new Date(r.created_at).getTime();
@@ -113,20 +115,28 @@ export function buildReadinessReport({ athletes, reportData = [], liftLogs = [],
       if (!tt) continue;
       const asc = tt.better === 'asc';
       const sorted = [...rows].sort((x, y) => at(x) - at(y));
-      const latest = sorted[sorted.length - 1];
+      // One session result per Central test day = the athlete's best attempt that day.
+      const byDay = new Map();
+      for (const r of sorted) {
+        const d = getCentralDateString(new Date(r.created_at));
+        const prev = byDay.get(d);
+        if (!prev || (asc ? Number(r.metric) < Number(prev.metric) : Number(r.metric) > Number(prev.metric))) byDay.set(d, r);
+      }
+      const daily = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, r]) => r);
+      const latest = daily[daily.length - 1];
       const unit = tt.unit === 'sec' ? 's' : tt.unit;
       const dp = tt.unit === 'sec' ? 2 : 1;
       const vName = variant === 'untagged' ? UNTAGGED_VARIANT_LABEL : (VARIANT_LABEL[variant] || variant);
       const title = tt.variants.length > 1 || variant === 'untagged' ? `${tt.label} · ${vName}` : tt.label;
       const a = athleteById.get(aid);
-      const vals = sorted.map(r => Number(r.metric));
+      const vals = daily.map(r => Number(r.metric));
       const best = asc ? Math.min(...vals) : Math.max(...vals);
       const lv = Number(latest.metric);
       const off = (asc ? lv / best - 1 : 1 - lv / best) * 100;
-      if (sorted.length > 1 && off >= FLAG_PCT) addFlag(title, { id: aid, name: displayName(a.name), sport: a.sport || '', latest: `${lv.toFixed(dp)} ${unit}`, best: `${best.toFixed(dp)} ${unit}`, off });
-      // PB in the last 14 days that beat an earlier result (a first-ever test isn't a PB).
+      if (daily.length > 1 && off >= FLAG_PCT) addFlag(title, { id: aid, name: displayName(a.name), sport: a.sport || '', latest: `${lv.toFixed(dp)} ${unit}`, best: `${best.toFixed(dp)} ${unit}`, off });
+      // PB in the last 14 days that beat an earlier session's best (a first-ever test day isn't a PB).
       let prev = null, lastPb = null;
-      for (const r of sorted) {
+      for (const r of daily) {
         const v = Number(r.metric);
         if (prev != null && (asc ? v < prev : v > prev)) lastPb = r;
         if (prev == null || (asc ? v < prev : v > prev)) prev = v;
@@ -138,7 +148,7 @@ export function buildReadinessReport({ athletes, reportData = [], liftLogs = [],
   if (settings.enableLiftTracker) {
     const groups = new Map();
     for (const l of liftLogs) {
-      if (!ids.has(l.athlete_id)) continue;
+      if (!ids.has(l.athlete_id) || !(Number(l.weight_lbs) > 0) || !(Number(l.reps) > 0)) continue;
       const k = `${l.athlete_id}|${l.lift_type}`;
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(l);
@@ -149,20 +159,24 @@ export function buildReadinessReport({ athletes, reportData = [], liftLogs = [],
       const sorted = [...rows].sort((x, y) => at(x) - at(y));
       // Latest session = the athlete's best set on their most recent lifting day.
       const day = (l) => getCentralDateString(new Date(l.created_at));
-      const lastDay = day(sorted[sorted.length - 1]);
       const e1 = (l) => estimate1RM(Number(l.weight_lbs), Number(l.reps));
       // Show the actual set ("225 × 3"); est. 1RM (what flags/PRs are judged on) optional.
-      const top = (ls) => ls.reduce((b, l) => (e1(l) > e1(b) ? l : b), ls[0]);
       const setTxt = (l) => `${+Number(l.weight_lbs).toFixed(1)} × ${Number(l.reps)}${showE1rm ? ` (est. ${Math.round(e1(l))})` : ''}`;
-      const latestSet = top(sorted.filter(l => day(l) === lastDay));
+      const byDay = new Map();
+      for (const l of sorted) {
+        const d = day(l);
+        const prev = byDay.get(d);
+        if (!prev || e1(l) > e1(prev)) byDay.set(d, l);
+      }
+      const daily = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, l]) => l);
+      const latestSet = daily[daily.length - 1];
       const latest = e1(latestSet);
-      const before = sorted.filter(l => day(l) !== lastDay);
-      const bestSet = top(sorted);
+      const bestSet = daily.reduce((b, l) => (e1(l) > e1(b) ? l : b), daily[0]);
       const best = e1(bestSet);
       const off = (1 - latest / best) * 100;
-      if (before.length && off >= FLAG_PCT) addFlag(`Strength · ${lift}`, { id: aid, name: displayName(a.name), sport: a.sport || '', latest: setTxt(latestSet), best: setTxt(bestSet), off });
+      if (daily.length > 1 && off >= FLAG_PCT) addFlag(`Strength · ${lift}`, { id: aid, name: displayName(a.name), sport: a.sport || '', latest: setTxt(latestSet), best: setTxt(bestSet), off });
       let prev = null, lastPr = null;
-      for (const l of sorted) {
+      for (const l of daily) {
         const v = e1(l);
         if (prev != null && v > prev) lastPr = l;
         if (prev == null || v > prev) prev = v;

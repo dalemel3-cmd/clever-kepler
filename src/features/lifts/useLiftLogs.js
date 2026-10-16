@@ -33,47 +33,6 @@ export function useLiftLogs() {
     });
   }, []);
 
-  useEffect(() => {
-    mounted.current = true;
-    (async () => {
-      try {
-        const { data, error } = await supabase.from('lift_logs').select('*').order('created_at', { ascending: false });
-        if (error) reportDataError(error, 'lift_logs:fetch');
-        else if (data && mounted.current) { mergeRows(data); rescueRef.current(data); }
-      } catch { /* offline - the cache already loaded from localStorage covers this */ }
-    })();
-
-    let channel;
-    try {
-      channel = supabase
-        .channel('shiloh_lift_logs_bus')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'lift_logs' }, (payload) => {
-          if (payload.new && Object.keys(payload.new).length) mergeRows([payload.new]);
-        })
-        .subscribe();
-    } catch {}
-
-    return () => {
-      mounted.current = false;
-      if (channel && typeof supabase.removeChannel === 'function') {
-        try { supabase.removeChannel(channel); } catch {}
-      }
-    };
-  }, [mergeRows]);
-
-  const toPayload = (o) => ({
-    id: o.id,
-    athlete_id: o.athlete_id,
-    athlete_name: o.athlete_name || 'Unknown',
-    sport: o.sport || '',
-    lift_type: o.lift_type,
-    weight_lbs: o.weight_lbs,
-    reps: o.reps,
-    source: o.source || 'manual',
-    created_at: o.created_at,
-  });
-  // Rows the server accepted: take its copy (or just clear the pending mark when the
-  // row already existed - a retry of a save whose response was lost).
   const markSaved = useCallback((ids, data) => {
     const byId = new Map((data || []).map(r => [r.id, r]));
     const idSet = new Set(ids);
@@ -92,6 +51,60 @@ export function useLiftLogs() {
     });
   }, []);
   const queue = useInsertQueue({ table: 'lift_logs', queueKey: QUEUE_KEY, onSaved: markSaved, onRejected: dropRows });
+
+  const syncFromServer = useCallback((serverRows) => {
+    setRows(prev => {
+      const byId = new Map();
+      for (const r of prev) {
+        if (r.pending || queue.isQueued(r.id) || String(r.id).startsWith('opt_')) byId.set(r.id, r);
+      }
+      serverRows.forEach(r => byId.set(r.id, r));
+      const next = [...byId.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      writeCache(next);
+      return next;
+    });
+  }, [queue]);
+
+  useEffect(() => {
+    mounted.current = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.from('lift_logs').select('*').order('created_at', { ascending: false });
+        if (error) reportDataError(error, 'lift_logs:fetch');
+        else if (data && mounted.current) { syncFromServer(data); rescueRef.current(data); }
+      } catch { /* offline - the cache already loaded from localStorage covers this */ }
+    })();
+
+    let channel;
+    try {
+      channel = supabase
+        .channel('shiloh_lift_logs_bus')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lift_logs' }, (payload) => {
+          if (payload.eventType === 'DELETE' && payload.old?.id) dropRows([payload.old.id]);
+          else if (payload.new && Object.keys(payload.new).length) mergeRows([payload.new]);
+        })
+        .subscribe();
+    } catch {}
+
+    return () => {
+      mounted.current = false;
+      if (channel && typeof supabase.removeChannel === 'function') {
+        try { supabase.removeChannel(channel); } catch {}
+      }
+    };
+  }, [mergeRows, syncFromServer, dropRows]);
+
+  const toPayload = (o) => ({
+    id: o.id,
+    athlete_id: o.athlete_id,
+    athlete_name: o.athlete_name || 'Unknown',
+    sport: o.sport || '',
+    lift_type: o.lift_type,
+    weight_lbs: o.weight_lbs,
+    reps: o.reps,
+    source: o.source || 'manual',
+    created_at: o.created_at,
+  });
 
   // Before v5.3.3 a set that failed to upload stayed in this device's cache as an
   // 'opt_...' row and was never retried. Once the server list is in, any such row the
@@ -193,5 +206,21 @@ export function useLiftLogs() {
     }
   }, [mergeRows, queue]);
 
-  return { liftLogs: rows, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType, pendingLiftCount: queue.pendingCount, flushLiftQueue: queue.flush };
+  const reassignLiftAthlete = useCallback((sourceId, targetId, targetName, targetSport) => {
+    setRows(prev => {
+      const next = prev.map(r => (r.athlete_id === sourceId ? { ...r, athlete_id: targetId, athlete_name: targetName, sport: targetSport } : r));
+      writeCache(next);
+      return next;
+    });
+  }, []);
+
+  const removeAthleteLifts = useCallback((athleteId) => {
+    setRows(prev => {
+      const next = prev.filter(r => r.athlete_id !== athleteId);
+      writeCache(next);
+      return next;
+    });
+  }, []);
+
+  return { liftLogs: rows, addLift, addLifts, updateLift, deleteLift, bulkUpdateLiftType, reassignLiftAthlete, removeAthleteLifts, pendingLiftCount: queue.pendingCount, flushLiftQueue: queue.flush };
 }

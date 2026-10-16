@@ -3,7 +3,7 @@ import { X, User } from 'lucide-react';
 import { KioskNumpad } from '../../components/KioskNumpad';
 import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 import AthleteCard from './AthleteCard';
-import { isPlausibleWeight, parseWeightInput, initialsFor, cleanDecimalTyping } from '../../utils/athleteData';
+import { isPlausibleWeight, parseWeightInput, initialsFor, cleanDecimalTyping, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 export default function EntryScreen({
   entrySportFilter,
@@ -83,7 +83,7 @@ export default function EntryScreen({
     // that are actually candidates rather than for every row in the table.
     let best = null;
     for (const r of reportData) {
-      if (r.athlete_id !== selectedAthleteId || !(Number(r.weight_lbs) > 0)) continue;
+      if (r.athlete_id !== selectedAthleteId || !hasWeight(r) || isPostPracticeLog(r) || isRpeLog(r)) continue;
       if (!best || new Date(r.created_at) > new Date(best.created_at)) best = r;
     }
     return best ? parseFloat(best.weight_lbs) : null;

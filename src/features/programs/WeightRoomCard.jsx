@@ -152,24 +152,43 @@ export default function WeightRoomCard({ program: programIn, athletes, liftLogs,
   const cards = React.useMemo(() => roster.map(a => buildCard(program, a, liftLogs, { showVelocity, seasonStartDate })), [roster, program, liftLogs, showVelocity, seasonStartDate]);
   const usedKeys = MAX_KEYS.filter(([k]) => program.max_map?.[k]);
   // Overrides live on the program (max_map.overrides) so a reprint keeps them.
+  const progRef = React.useRef(program);
+  progRef.current = program;
+  const ovDirtyRef = React.useRef(false);
   const setOverride = (athleteId, key, raw) => {
     const v = raw.replace(/[^0-9.]/g, '');
-    const all = { ...(program.max_map?.overrides || {}) };
-    const mine = { ...(all[athleteId] || {}) };
-    if (v) mine[key] = v; else delete mine[key];
-    if (Object.keys(mine).length) all[athleteId] = mine; else delete all[athleteId];
-    setProgram(p => ({ ...p, max_map: { ...p.max_map, overrides: all } }));
+    ovDirtyRef.current = true;
+    setProgram(p => {
+      const all = { ...(p.max_map?.overrides || {}) };
+      const mine = { ...(all[athleteId] || {}) };
+      if (v) mine[key] = v; else delete mine[key];
+      if (Object.keys(mine).length) all[athleteId] = mine; else delete all[athleteId];
+      const next = { ...p, max_map: { ...p.max_map, overrides: all } };
+      progRef.current = next;
+      return next;
+    });
   };
-  const persist = () => { onSaveProgram?.(program); };
+  const persist = () => {
+    if (!ovDirtyRef.current) return;
+    ovDirtyRef.current = false;
+    onSaveProgram?.(progRef.current);
+  };
+  const handleClose = React.useCallback(() => {
+    if (ovDirtyRef.current) {
+      ovDirtyRef.current = false;
+      onSaveProgram?.(progRef.current);
+    }
+    onClose();
+  }, [onClose, onSaveProgram]);
 
   React.useEffect(() => {
     const fit = () => setScale(Math.min(1, (window.innerWidth - 32) / W));
     fit(); window.addEventListener('resize', fit);
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') handleClose(); };
     window.addEventListener('keydown', onKey);
     document.body.classList.add('wr-printing');
     return () => { window.removeEventListener('resize', fit); window.removeEventListener('keydown', onKey); document.body.classList.remove('wr-printing'); };
-  }, [onClose]);
+  }, [handleClose]);
 
   return createPortal(
     <div className="wr-print-root" role="dialog" aria-modal="true" aria-label="Weight room cards" style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#0b1220', overflowY: 'auto' }}>
@@ -181,6 +200,7 @@ export default function WeightRoomCard({ program: programIn, athletes, liftLogs,
           .wr-controls { display: none !important; }
           .wr-sheets-wrap { height: auto !important; display: block !important; }
           .wr-sheets { transform: none !important; padding: 0 !important; gap: 0 !important; }
+          .wr-page { overflow: hidden !important; }
           .wr-page:last-child { break-after: auto !important; page-break-after: auto !important; }
         }
       `}</style>
@@ -212,7 +232,7 @@ export default function WeightRoomCard({ program: programIn, athletes, liftLogs,
           <button type="button" data-testid="wr-print" disabled={!cards.length} onClick={() => window.print()} style={{ ...field, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-accent)', color: '#030a14', border: 'none', cursor: 'pointer', textTransform: 'uppercase', opacity: cards.length ? 1 : 0.5 }}>
             <Printer size={16} aria-hidden="true" /> PDF / Print
           </button>
-          <button type="button" onClick={onClose} aria-label="Close weight room cards" style={{ ...field, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer' }}>
+          <button type="button" onClick={handleClose} aria-label="Close weight room cards" style={{ ...field, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer' }}>
             <X size={18} aria-hidden="true" />
           </button>
         </div>

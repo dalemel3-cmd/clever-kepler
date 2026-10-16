@@ -61,7 +61,7 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
     // Measure the content's own height at zoom 1, then pick the zoom that fits H.
     const prevZoom = el.style.zoom, prevMin = el.style.minHeight, prevW = el.style.width;
     el.style.zoom = '1'; el.style.minHeight = '0px'; el.style.width = `${W}px`;
-    const natural = el.getBoundingClientRect().height;
+    const natural = el.offsetHeight;
     el.style.zoom = prevZoom; el.style.minHeight = prevMin; el.style.width = prevW;
     const next = natural > H ? Math.max(0.7, Math.floor((H / natural) * 1000) / 1000) : 1;
     if (Math.abs(next - fit) > 0.002) setFit(next);
@@ -216,6 +216,7 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
   // Coach's note and next test date are kept per athlete on this device.
   const noteKey = `hpd_pc_note_${athlete.id}`;
   const [note, setNote] = React.useState(() => load(noteKey, ''));
+  React.useEffect(() => { setNote(load(noteKey, '')); }, [noteKey]);
   const [nextTest, setNextTest] = React.useState(() => load('hpd_pc_nexttest', ''));
   const card = React.useMemo(() => buildProgressCard({ athlete, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden }),
     [athlete, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden]);
@@ -241,6 +242,7 @@ export default function ProgressCard({ athlete, athletes, liftLogs, performanceT
           .pc-controls { display: none !important; }
           .pc-sheet-wrap { height: auto !important; padding: 0 !important; display: block !important; }
           .pc-sheet { transform: none !important; padding: 0 !important; box-shadow: none !important; width: auto !important; height: auto !important; }
+          .pc-page { overflow: hidden !important; }
         }
       `}</style>
       <div className="pc-controls" style={{ position: 'sticky', top: 0, zIndex: 1, background: 'rgba(3,10,20,0.96)', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '14px 16px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>

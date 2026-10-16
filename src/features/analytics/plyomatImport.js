@@ -17,7 +17,7 @@ import { normalizeName } from './normalizeName.js';
 // permanently untagged/pre-tracking data. Fly 10 always tags to today's one protocol;
 // a jump tags from the team's default if known, else null (flagged, not guessed at -
 // same discipline as the coach-review queue this file already has for name matches).
-const defaultVariantFor = (testType, sport) => {
+export const defaultVariantFor = (testType, sport) => {
   if (testType === '10yd_fly') return 'build10_fly10';
   if (testType === 'vertical_jump' || testType === 'board_jump') return TEAM_VARIANT_DEFAULTS[sport] || null;
   return null;
@@ -94,8 +94,8 @@ export const GROUP_SPORT_MAP = {
   'golf': 'Golf',
   'track & field': 'Track & Field',
   'wrestling': 'Wrestling',
-  'vbb': 'VBB',
-  'socc': 'SOCC',
+  'vbb': 'Volleyball',
+  'socc': 'WSOC',
 };
 
 // "Sophmore" is Plyomat's spelling, not a typo on this end - match what the file says.

@@ -24,7 +24,8 @@ const badgeFor = (athlete, logs, settings) => {
   const latestWeight = Number(weightLogs[0].weight_lbs);
   const baseInfo = getAthleteBaseline(athlete, logs);
   const baselineWeight = baseInfo ? Number(baseInfo.weight_lbs) : (weightLogs.length > 1 ? Number(weightLogs[weightLogs.length - 1].weight_lbs) : null);
-  const delta = (baselineWeight != null && weightLogs.length > 1) ? (latestWeight - baselineWeight) : 0;
+  const hasRealBaseline = weightLogs.length > 1 || (baseInfo && baseInfo.id !== weightLogs[0].id);
+  const delta = (baselineWeight != null && hasRealBaseline) ? (latestWeight - baselineWeight) : 0;
   if (delta <= -settings.dehydrationThreshold) return { tone: 'danger', label: `${delta.toFixed(1)} lb` };
   return { tone: 'success', label: 'Current' };
 };

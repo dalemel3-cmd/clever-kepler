@@ -69,7 +69,7 @@ export function useVisibleWidth() {
     const ro = new ResizeObserver(() => setWidth(el.clientWidth));
     ro.observe(el);
     return () => ro.disconnect();
-  });
+  }, []);
   return [ref, width];
 }
 

@@ -5,6 +5,7 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, UNTAGGED_VARIANT_LABEL, formatMetric } from './SpeedPowerPanel';
+import { getCentralDateString } from '../../utils/athleteData';
 
 // Distinct enough at a glance, and consistent for a given selection order - the same
 // athlete keeps the same color as long as they stay in the same selection slot.
@@ -72,26 +73,38 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
     const rows = new Map(); // date -> { date, [athleteId]: value }
     const stats = new Map(); // athleteId -> { attempts: [...], best, latest }
 
+    const isBetter = (a, b) => (activeTest.better === 'desc' ? a > b : a < b);
+
     for (const t of performanceTests) {
       if (t.test_type !== testType || !selectedIds.includes(t.athlete_id)) continue;
       if (activeTest.variants.length > 1 && (t.test_variant || 'untagged') !== variant) continue;
-      const day = String(t.created_at || '').slice(0, 10);
-      if (!day) continue;
+      const day = t.created_at ? getCentralDateString(new Date(t.created_at)) : '';
+      const val = Number(t.metric);
+      if (!day || !isFinite(val)) continue;
       if (!rows.has(day)) rows.set(day, { date: day });
-      rows.get(day)[t.athlete_id] = Number(t.metric);
+      const prevDayVal = rows.get(day)[t.athlete_id];
+      if (prevDayVal == null || isBetter(val, prevDayVal)) {
+        rows.get(day)[t.athlete_id] = val;
+      }
 
-      if (!stats.has(t.athlete_id)) stats.set(t.athlete_id, { attempts: [] });
-      stats.get(t.athlete_id).attempts.push({ date: day, value: Number(t.metric) });
+      if (!stats.has(t.athlete_id)) stats.set(t.athlete_id, { attempts: [], byDay: new Map() });
+      const st = stats.get(t.athlete_id);
+      st.attempts.push({ date: day, value: val, at: new Date(t.created_at).getTime() || 0 });
+      const prevBest = st.byDay.get(day);
+      if (!prevBest || isBetter(val, prevBest.value)) {
+        st.byDay.set(day, { date: day, value: val });
+      }
     }
 
-    for (const [id, s] of stats) {
-      s.attempts.sort((a, b) => a.date.localeCompare(b.date));
-      s.latest = s.attempts[s.attempts.length - 1];
+    for (const [, s] of stats) {
+      s.attempts.sort((a, b) => a.at - b.at || a.date.localeCompare(b.date));
+      const daily = [...s.byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+      s.latest = daily[daily.length - 1] || s.attempts[s.attempts.length - 1];
       s.best = s.attempts.reduce((best, a) => {
         if (!best) return a;
         return activeTest.better === 'desc' ? (a.value > best.value ? a : best) : (a.value < best.value ? a : best);
       }, null);
-      s.trend = s.attempts.length >= 2 ? s.latest.value - s.attempts[s.attempts.length - 2].value : null;
+      s.trend = daily.length >= 2 ? daily[daily.length - 1].value - daily[daily.length - 2].value : (s.attempts.length >= 2 ? s.attempts[s.attempts.length - 1].value - s.attempts[s.attempts.length - 2].value : null);
     }
 
     return {

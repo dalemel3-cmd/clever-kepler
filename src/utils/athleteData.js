@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.7.5';
+export const APP_VERSION = 'v5.7.6';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -242,7 +242,7 @@ export const getAthleteBaseline = (athlete, allLogs = []) => {
     const dStr = r.created_at || r.date || '';
     if (typeof dStr === 'string' && dStr.includes(SEASON_START_DATE)) return true;
     const parsed = new Date(dStr);
-    return !isNaN(parsed.getTime()) && parsed.toLocaleDateString() === seasonStartDisplay();
+    return !isNaN(parsed.getTime()) && (getCentralDateString(parsed) === SEASON_START_DATE || parsed.toLocaleDateString() === seasonStartDisplay());
   });
   if (seasonStartLog && seasonStartLog.weight_lbs) {
     baseWeight = parseFloat(seasonStartLog.weight_lbs);

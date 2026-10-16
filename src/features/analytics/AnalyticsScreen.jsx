@@ -29,6 +29,7 @@ const isMorningWeighIn = (r) => hasWeight(r) && !isPostPracticeLog(r) && !isRpeL
 export default function AnalyticsScreen({
   settings,
   athletes,
+  allAthletes,
   reportData,
   setSelectedProfileId,
   fetchProfileData,
@@ -516,7 +517,7 @@ export default function AnalyticsScreen({
             addTests={addPerformanceTests}
           />
           <PlyomatImportPanel
-            athletes={athletes}
+            athletes={allAthletes || athletes}
             existingTests={performanceTests}
             onImport={onPlyomatImport}
             lastSyncedAt={plyomatLastSyncedAt}

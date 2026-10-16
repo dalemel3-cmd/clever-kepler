@@ -178,7 +178,7 @@ const fontEmbedCSS = () => {
         css = css.split(u).join(data);
       }
       return css;
-    })().catch(() => '');
+    })().catch(() => { fontCssPromise = null; return ''; });
   }
   return fontCssPromise;
 };

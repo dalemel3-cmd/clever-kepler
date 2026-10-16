@@ -73,7 +73,7 @@ export default function SpeedPowerPanel({ athletes, sportFilter, openProfile, ca
     return performanceTests.some(t =>
       t.athlete_id === athleteId &&
       t.test_type === testType &&
-      String(t.created_at || '').slice(0, 10) === testDate &&
+      t.created_at && getCentralDateString(new Date(t.created_at)) === testDate &&
       Math.abs(Number(t.metric) - v) < 1e-9 &&
       (!needsVariantPicker || (t.test_variant || null) === (variant || null))
     );

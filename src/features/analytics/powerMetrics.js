@@ -3,6 +3,7 @@
 // times ('asc'), higher for jumps ('desc'), the same rule the Speed & Power leaderboard
 // and the Profile PBs use, so a PB here is always the PB shown everywhere else.
 import { TEST_TYPE_BY_KEY } from './testVariants';
+import { getCentralDateString } from '../../utils/athleteData';
 
 const DAY = 86400000;
 const t = (r) => new Date(r.created_at).getTime();
@@ -57,7 +58,7 @@ export function buildPowerRows(athletes, tests, { testKey, variant, windowWeeks 
     const first = inWindow[0];
     const windowVals = inWindow.map(r => Number(r.metric));
     const windowBest = windowVals.length ? (asc ? Math.min(...windowVals) : Math.max(...windowVals)) : null;
-    const testDays = new Set(sorted.map(r => r.created_at.slice(0, 10)));
+    const testDays = new Set(sorted.map(r => getCentralDateString(new Date(r.created_at))));
     rows.push({
       athlete: a,
       pb: Number(pb.metric),

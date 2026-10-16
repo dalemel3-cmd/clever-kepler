@@ -3912,7 +3912,29 @@ Your Numbers now leads with the personal best (`bestText`, "Best · Mon D" in go
 - **Shrink-to-fit**: `Card` measures its content at zoom 1 and applies CSS `zoom` (>= 0.7) when it would exceed the 956px page box. `zoom`, not `transform`, because a transformed element's unscaled layout box still paginated onto a second PDF page.
 - Month labels under sparklines skip any label closer than 24px to the previous one.
 
-## 126. Next up
+## 126. Three-batch flaw audit & live database cleanup (v5.7.6)
+
+- **Batch 1 — Live Supabase DB (`cwfpjlomlvkburugolky`):**
+  - Applied `db/014_programs.sql` (`public.programs` table, `programs_updated_at_idx`, `approved_coaches_full_access` RLS policy, and `supabase_realtime` publication) in production.
+  - Backfilled 4 untagged `vertical_jump`/`board_jump` rows (`Maddyn stam`, `KJ Shelton`, `Evie Fryer` on WSOC; `Caleb Stevens` on MBB, plus his missing `sport = 'MBB'`) to `test_variant = 'arm_swing'`. Left `Hailey Schisler` (`Cheer & Dance`, 1 row) untagged pending technique confirmation.
+  - Resynced denormalized `athlete_name` and `sport` across `weigh_ins` (35 rows for `ADAM HENRY` and `BROOKS RAMSEY`), `lift_logs` (4 rows for `Wyatt Wagner` and `Briggs Harrison`), and `performance_tests` (2 rows for `Kherington Petten`).
+  - Merged duplicate `Eli Winant` (`e3d48e9b-6e0c-446a-97a3-dd740c338742` → `63ad22cb-3862-49f2-8455-db3cb044fa6a`, moving his 1 jump row) and archived the duplicate plus 5 blank-sport staff/test records (`Clay Lavigne`, `Blakelee Winn`, `Andrew Jordan`, `Mason Melancon`, `Jodi Unger`).
+- **Batch 2 — Printables, Reports & Program Builder:**
+  - `src/styles.css`: removed legacy unscoped `@media print` rules on `table`, `th`, `td`, `tr:nth-child(even) td`, `.card-glass`, and `* { overflow: visible !important; max-height: none !important; }` that overrode inline dark headers, row colors, and single-page overflow boxes in `ReadinessReport`, `PerfReadinessReport`, `ProgressCard`, and `WeightRoomCard`.
+  - `ProgressCard.jsx`: shrink-to-fit now measures `el.offsetHeight` instead of `el.getBoundingClientRect().height` (which measured the 0.55× mobile preview scale and skipped shrinking on narrow screens); synced Coach's Note state when `athlete.id` changes.
+  - `WeightRoomCard.jsx`: flushes edited max overrides via refs on `Escape` or modal close even if the input hasn't blurred yet.
+  - `usePrograms.js` & `ProgramsScreen.jsx`: `remove()` now checks `{ error }` from Supabase delete before mutating state; `save()` falls back to local mode on `isMissingTable(error)`.
+  - `readinessData.js`: grouped `performanceTests` and `liftLogs` by Central calendar day (taking each day's best) before checking `Below best` and `New PRs` so intra-session fatigue attempts don't false-flag and Day-1 multi-attempt sets don't count as PRs; fixed `YYYY-MM-DD` UTC midnight date shift in `baselineDateLabel` and `mdy`.
+  - `PerfReadinessReport.jsx`: bound `#pr-cmp` `<select>` to `cmpMetric?.key || ''`.
+  - `PrintLeaderboard.jsx` & `printLeaderboardData.js` & `programData.js`: reset `fontCssPromise` on fetch error so offline PNG export doesn't poison later font embedding; guarded `weight_lbs > 0 && reps > 0`.
+- **Batch 3 — Core Sync, Roster & Timezone Consistency:**
+  - `App.jsx`: `handleMakeDateBaselineMarker` and `handleBulkTeamBaseline` now map over `athletesAll` so archived athletes aren't dropped from memory/`shiloh_roster`; `addRpeSessions` keeps optimistic rows in `reportData` on network errors (including iPad Safari `Load failed`); `handleDeleteAthlete` deletes child rows across `weigh_ins`, `lift_logs`, `performance_tests`, and `alert_status` and cleans local caches; `handleMergeAthletes` updates in-memory/cached lifts and tests (`reassignLiftAthlete`, `reassignTestAthlete`); `handleBackFromProfile` returns to `lifts` and `analytics` too; `handleSignOut` counts pending lifts and tests.
+  - `usePerformanceTests.js` & `useLiftLogs.js`: added `syncFromServer` pruning of server-deleted rows on fetch (preserving pending/queued/`opt_` rows) and handled `DELETE` realtime events.
+  - `plyomatImport.js`, `AnalyticsScreen.jsx`, `usePerformanceTests.js`: passed `allAthletes={athletesAll}` so archived athletes aren't recreated as duplicates on Plyomat sync; mapped `'vbb'` → `'Volleyball'` and `'socc'` → `'WSOC'`; filled in candidate `sport` and default `test_variant` when linking `needsReview` rows.
+  - `EntryScreen.jsx` & `AthletesScreen.jsx` & `DeepDiveUi.jsx`: excluded post-practice sweat checks and RPE rows from `lastLoggedWeight` ghost placeholder; honored explicit baselines on single-weigh-in athletes in `badgeFor`; added `[]` dependency array to `useVisibleWidth`.
+  - Standardized `getCentralDateString` across `SpeedPowerPanel.jsx`, `AthleteComparisonPanel.jsx` (plus daily-best deduplication), `powerMetrics.js`, and `athleteData.js`.
+
+## 127. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

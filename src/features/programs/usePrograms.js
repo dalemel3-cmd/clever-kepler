@@ -59,7 +59,16 @@ export function usePrograms() {
       return { ok: true, local: true, row };
     }
     const { error } = await supabase.from('programs').upsert(row);
-    if (error) return { ok: false, error };
+    if (error) {
+      if (isMissingTable(error)) {
+        setMode('local');
+        const next = [row, ...readFallback().filter(p => p.id !== row.id)];
+        writeFallback(next);
+        setList(next.map(summary).sort(byUpdated));
+        return { ok: true, local: true, row };
+      }
+      return { ok: false, error };
+    }
     setList(prev => [summary(row), ...prev.filter(p => p.id !== row.id)].sort(byUpdated));
     return { ok: true, row };
   }, [mode]);
@@ -69,9 +78,11 @@ export function usePrograms() {
   }, [save]);
 
   const remove = useCallback(async (id) => {
-    if (mode === 'local') { const next = readFallback().filter(p => p.id !== id); writeFallback(next); setList(next.map(summary)); return; }
-    await supabase.from('programs').delete().eq('id', id);
+    if (mode === 'local') { const next = readFallback().filter(p => p.id !== id); writeFallback(next); setList(next.map(summary).sort(byUpdated)); return { ok: true }; }
+    const { error } = await supabase.from('programs').delete().eq('id', id);
+    if (error) return { ok: false, error };
     setList(prev => prev.filter(p => p.id !== id));
+    return { ok: true };
   }, [mode]);
 
   return { programs: list, mode, load, save, setArchived, remove, refresh };

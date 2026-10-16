@@ -253,7 +253,7 @@ export default function PerfReadinessReport({ athletes, reportData, performanceT
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label htmlFor="pr-cmp" style={label}>Compare to</label>
-          <select id="pr-cmp" data-testid="pr-cmp-select" className="input-glass" style={field} value={cmpKey} onChange={e => setCmpKey(e.target.value)}>
+          <select id="pr-cmp" data-testid="pr-cmp-select" className="input-glass" style={field} value={cmpMetric?.key || ''} onChange={e => setCmpKey(e.target.value)}>
             <option value="" style={opt}>None</option>
             {metrics.filter(x => x.key !== metric?.key).map(x => <option key={x.key} value={x.key} style={opt}>{x.title}{!['Result', 'Time'].includes(x.measure) ? ` (${x.measure})` : ''}</option>)}
           </select>
