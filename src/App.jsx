@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Users, Plus, CheckCircle, RefreshCw, Grid, Activity, Settings } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import { reportDataError } from './errorReporting';
+import { allowFetch } from './utils/fetchBrake';
 import './styles.css';
 import { AppSidebar } from './components/AppSidebar';
 import { AppHeader } from './components/AppHeader';
@@ -22,6 +23,8 @@ import { useExecutiveInsights } from './features/dashboard/useExecutiveInsights'
 // screen can't hit "Failed to fetch dynamically imported module" when a deploy
 // replaces the files before the coach first opens one of them.
 const SCREEN_LOADERS = {};
+// Every weigh_ins column the app reads (no select('*') on the sync path).
+const WEIGH_IN_COLS = 'id,created_at,athlete_id,athlete_name,sport,weight_lbs,sleep_hrs,session_type,is_baseline,rpe,session_minutes,session_label';
 const AlertsScreen = lazy(SCREEN_LOADERS.AlertsScreen = () => import('./features/alerts/AlertsScreen'));
 import { useAlertStatus } from './features/alerts/useAlertStatus';
 import { usePerformanceTests } from './features/analytics/usePerformanceTests';
@@ -167,15 +170,16 @@ export default function App() {
   // Once widened for this session it stays widened - re-narrowing on every range click
   // would just re-trigger the same fetch each time the coach flips back to 30 days.
   const extraReportWindowDays = React.useRef(0);
+  const braked = React.useRef(null);
   // Every query that participates in the change-probe fingerprint MUST use this same
   // window. The probe compares a row count against the count from the last full fetch;
   // when the two used different windows the counts could never match, so the probe
   // full-fetched on every single heartbeat and pollIdleStreak never backed off -
   // silently undoing the adaptive-sync egress work the moment anyone opened 60/90 days.
-  const effectiveWindowDays = React.useCallback(
-    () => Math.max(settingsRef.current.dataWindowDays, extraReportWindowDays.current),
-    []
-  );
+  // The live sync always uses the normal window (v5.8.0). Reports that need longer
+  // history load it once, separately, via ensureReportWindow -> reportHistory, instead of
+  // widening every later sync to 90-180 days for the rest of the session.
+  const effectiveWindowDays = React.useCallback(() => settingsRef.current.dataWindowDays, []);
   const syncInFlight = React.useRef(false);
   const manualSaveInFlight = React.useRef(false);
   const kioskSaveInFlight = React.useRef(false);
@@ -580,6 +584,40 @@ export default function App() {
 
     // Live sync: realtime database changes plus a device-to-device broadcast channel (iPad <-> PC)
     let channel;
+    // v5.8.0: apply one weigh_ins change from realtime directly (insert/update/delete),
+    // instead of re-downloading the whole live window on every check-in from any device.
+    const applyWeighInChange = (payload) => {
+      const type = payload?.eventType;
+      const row = payload?.new;
+      const oldId = payload?.old?.id;
+      if (type === 'DELETE' && !oldId) return;
+      if (type !== 'DELETE' && !row?.id) return;
+      lastCloudSyncAtRef.current = Date.now();
+      setReportData(prev => {
+        let next;
+        if (type === 'DELETE') {
+          next = prev.filter(r => r.id !== oldId);
+        } else {
+          const cutoff = Date.now() - settingsRef.current.dataWindowDays * 86400000;
+          const t = new Date(row.created_at).getTime();
+          // A device's own optimistic/offline copy of this row is replaced by the real one.
+          const isTwin = (r) => (String(r.id).startsWith('opt_') || String(r.id).startsWith('offline_'))
+            && r.athlete_id === row.athlete_id && Math.abs(new Date(r.created_at) - t) < 5000;
+          let rec = row;
+          try {
+            const p = getBaselinesMap()[row.athlete_id];
+            if (p && p.log_id) rec = { ...row, is_baseline: !!row.is_baseline || row.id === p.log_id };
+          } catch { /* ignore */ }
+          const rest = prev.filter(r => r.id !== row.id && !isTwin(r));
+          next = t >= cutoff ? [rec, ...rest].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)) : rest;
+        }
+        try { localStorage.setItem('shiloh_reports', JSON.stringify(next)); } catch { /* ignore */ }
+        return next;
+      });
+    };
+    // Test hook (tests/usage-guards.js drives realtime rows through this).
+    window.__hpdApplyWeighInChange = applyWeighInChange;
+
     try {
       channel = supabase
         .channel('shiloh_ultrasync_bus', { config: { broadcast: { ack: false, self: false } } })
@@ -610,17 +648,16 @@ export default function App() {
             });
             setTodaySessions(prev => prev + 1);
           }
-          // Immediately fetch latest cloud records to reconcile screen within milliseconds!
-          fetchReportDataRef.current(true);
-          fetchAthletes();
+          // v5.8.0: no full re-download here. The row itself arrives on the weigh_ins
+          // postgres_changes stream below (and the 5-min probe is the safety net). Before,
+          // every check-in made every open device pull the whole 30-day window + roster.
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'weigh_ins' }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'weigh_ins' }, (payload) => {
           pollIdleStreak.current = 0;
-          fetchReportDataRef.current(true);
+          applyWeighInChange(payload);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, () => {
           fetchAthletes();
-          fetchReportDataRef.current(true);
         })
         .subscribe((status) => {
           // Channel health drives the poll cadence: when the WebSocket is alive the
@@ -635,6 +672,7 @@ export default function App() {
     // pulling the entire 30-day table. Only a changed fingerprint triggers the full fetch.
     const probeCloudForChanges = async () => {
       try {
+        if (!allowFetch('weigh_ins:probe', { max: 12, windowMs: 60000 })) return;
         const windowStart = new Date();
         windowStart.setDate(windowStart.getDate() - effectiveWindowDays());
         const { data, count, error } = await supabase
@@ -677,7 +715,7 @@ export default function App() {
       // Honest status pill: only claim "live" if the cloud actually answered recently.
       const next = !navigator.onLine
         ? 'offline'
-        : (Date.now() - lastCloudSyncAtRef.current < 90000 ? 'live' : 'reconnecting');
+        : (Date.now() - lastCloudSyncAtRef.current < (realtimeHealthy.current ? 420000 : 150000) ? 'live' : 'reconnecting');
       setCloudStatus(prev => (prev === next ? prev : next));
 
       if (!navigator.onLine) return;
@@ -686,8 +724,13 @@ export default function App() {
       // offline queue sync above still runs so records keep uploading.
       if (document.hidden) return;
 
-      const base = realtimeHealthy.current ? 60000 : 10000;
-      const stretched = Math.min(base + pollIdleStreak.current * 5000, 60000);
+      // v5.8.0: with the realtime socket up, changes arrive by push - probe only every 5
+      // min as a safety net; without it, 15s stretching to 2 min while nothing changes.
+      // Overnight (10pm-5am Central) nobody logs, so probe every 15 min at most.
+      const hourCT = Number(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }));
+      const night = hourCT >= 22 || hourCT < 5;
+      const base = night ? 900000 : realtimeHealthy.current ? 300000 : 15000;
+      const stretched = night || realtimeHealthy.current ? base : Math.min(base + pollIdleStreak.current * 15000, 120000);
       if (Date.now() - lastPollActionAt.current < stretched) return;
       lastPollActionAt.current = Date.now();
       probeCloudForChanges();
@@ -947,6 +990,13 @@ export default function App() {
   };
 
   const fetchReportData = async (isBackground = false) => {
+    // Safety brake (v5.8.0): over 6 full downloads a minute, skip this one and run a single
+    // catch-up refresh a little later - never fall back to the device cache (that could
+    // briefly hide check-ins just saved on a busy kiosk morning).
+    if (navigator.onLine && !allowFetch('weigh_ins:full', { max: 6, windowMs: 60000 })) {
+      if (!braked.current) braked.current = setTimeout(() => { braked.current = null; fetchReportDataRef.current(true); }, 20000);
+      return;
+    }
     const requestId = ++fetchReportRequestId.current;
     if (!isBackground) setReportLoading(true);
     let onlineData = [];
@@ -957,7 +1007,7 @@ export default function App() {
 
       const { data, error } = await supabase
         .from('weigh_ins')
-        .select('*')
+        .select(WEIGH_IN_COLS)
         .gte('created_at', windowStart.toISOString())
         .order('created_at', { ascending: false });
       if (!error && data) {
@@ -1056,12 +1106,27 @@ export default function App() {
   // current fetchReportData, rather than whichever closure the first render captured.
   const fetchReportDataRef = React.useRef(fetchReportData);
   fetchReportDataRef.current = fetchReportData;
-  const ensureReportWindow = React.useCallback((days) => {
-    if (days > extraReportWindowDays.current) {
+  const [reportHistory, setReportHistory] = useState([]);
+  const ensureReportWindow = React.useCallback(async (days) => {
+    const base = settingsRef.current.dataWindowDays;
+    if (days <= base || days <= extraReportWindowDays.current) return;
+    if (!navigator.onLine || !allowFetch('weigh_ins:history', { max: 3, windowMs: 60000 })) return;
+    const from = new Date(Date.now() - days * 86400000).toISOString();
+    const to = new Date(Date.now() - base * 86400000).toISOString();
+    try {
+      const { data, error } = await supabase.from('weigh_ins').select(WEIGH_IN_COLS)
+        .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false });
+      if (error) { reportDataError(error, 'weigh_ins:history'); return; }
       extraReportWindowDays.current = days;
-      fetchReportDataRef.current(true);
-    }
+      setReportHistory(data || []);
+    } catch { /* offline: reports use the normal window */ }
   }, []);
+  // Live window + one-time older history, for the screens that asked for it.
+  const reportDataWithHistory = React.useMemo(() => {
+    if (!reportHistory.length) return reportData;
+    const ids = new Set(reportData.map(r => r.id));
+    return [...reportData, ...reportHistory.filter(r => !ids.has(r.id))];
+  }, [reportData, reportHistory]);
 
   const syncOfflineCache = async (isInteractive = false) => {
     const isClick = isInteractive === true || typeof isInteractive === 'object';
@@ -1412,6 +1477,7 @@ export default function App() {
   const fetchAthletes = async () => {
     try {
       if (!navigator.onLine) throw new Error('Offline');
+      if (!allowFetch('athletes', { max: 4, windowMs: 60000 })) return;
       const { data, error } = await supabase.from('athletes').select('*').order('name', { ascending: true });
       if (!error && data) {
         const cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
@@ -2697,7 +2763,7 @@ export default function App() {
                 settings={settings}
                 athletes={athletes}
                 allAthletes={athletesAll}
-                reportData={reportData}
+                reportData={reportDataWithHistory}
                 setSelectedProfileId={setSelectedProfileId}
                 fetchProfileData={fetchProfileData}
                 setScreen={setScreen}
@@ -2744,7 +2810,7 @@ export default function App() {
                 athletes={athletes}
                 performanceTests={performanceTests}
                 liftLogs={liftLogs}
-                reportData={reportData}
+                reportData={reportDataWithHistory}
                 ensureReportWindow={ensureReportWindow}
                 settings={settings}
                 setSelectedProfileId={setSelectedProfileId}
@@ -2773,7 +2839,7 @@ export default function App() {
                 performanceTests={performanceTests}
                 settings={settings}
                 ensureReportWindow={ensureReportWindow}
-                reportData={reportData}
+                reportData={reportDataWithHistory}
                 reportSportFilter={reportSportFilter}
                 reportTimeframe={reportTimeframe}
                 reportRangeStart={reportRangeStart}

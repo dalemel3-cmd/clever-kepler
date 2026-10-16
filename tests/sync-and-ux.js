@@ -44,7 +44,7 @@ const logs = [
       }
       if (url.includes('/rest/v1/weigh_ins')) {
         if (method === 'GET') {
-          if (url.includes('select=*')) { page.counters.fullFetch++; return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(logs) }); }
+          if (url.includes('select=*') || url.includes('select=id')) { page.counters.fullFetch++; return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify(logs) }); }
           page.counters.probe++;
           return route.fulfill({ status: 200, headers: hdrs, body: JSON.stringify([{ created_at: logs[0].created_at }]) });
         }

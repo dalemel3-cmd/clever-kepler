@@ -3971,7 +3971,18 @@ Symptom (from the night of 2026-10-15, after v5.7.6): constant RECONNECTING, app
 
 Also: v5.7.9 lost the coach-facing "API key looks invalid" Plyomat message for `unauthorized`; restored (raw detail appended). `tests/program-builder.js` no longer expects the "* entered by staff" footer text that v5.7.8 removed.
 
-## 131. Next up
+## 131. Usage reduction + safety brake (v5.8.0)
+
+Context: the v5.7.6 loop pushed Supabase to 40.8 GB egress (Free plan 5 GB) and 1.28 GB log ingestion in one night. Changes, in order of impact:
+1. **Realtime applied directly** (`applyWeighInChange` in App.jsx): a `weigh_ins` postgres_changes INSERT/UPDATE/DELETE patches `reportData` from the payload (replaces the device's own `opt_`/`offline_` twin, applies the local baseline flag, drops rows outside the live window). Previously every check-in on any device made every open device re-download the whole 30-day window (and the broadcast path also re-downloaded the roster) - on its own ~5-7 GB/month at kiosk volume. The broadcast handler no longer refetches; athletes changes refetch athletes only.
+2. **Fetch brake** (`src/utils/fetchBrake.js`, `allowFetch(key, {max, windowMs})`): weigh_ins full (6/min, skipped call schedules one trailing refresh 20s later; never falls back to the cache), probe (12/min), athletes (4/min), history (3/min), lift/test loads (4/min). A trip writes one `app_errors` row per key per 10 min (`source: fetch-brake`). `window.__hpdFetchBrake` for tests.
+3. **History tables load new rows only** (`loadHistoryTable`): `lift_logs` / `performance_tests` fetch `created_at > newest cached - 2 min`; a full download (catches edits/deletes made while closed) at most every 24h per device (`hpd_<table>_full_at`). Realtime covers changes while open. `rescue` runs on full loads only.
+4. **Reports history is separate**: `effectiveWindowDays` is always `settings.dataWindowDays`; `ensureReportWindow(days)` fetches only the older slice once into `reportHistory`, merged as `reportDataWithHistory` for Analytics / Jumps & Sprints / Reports only.
+5. **Lighter probes**: realtime healthy -> every 5 min; unhealthy -> 15s stretching to 2 min; 10pm-5am Central -> 15 min. Pill: live if the server answered within 7 min (realtime up) / 2.5 min (down).
+6. Named columns (`WEIGH_IN_COLS`, lift/test column lists) instead of `select *` - small saving, mainly so a new heavy column never ships to every device by accident.
+Test: `tests/usage-guards.js` (11). Known pre-existing failures (also on v5.7.10, not from this change): `polish` (sideways scroll on #entry/#reports at 390-820px), `rpe` (an RPE-only athlete counted as weigh-in activity).
+
+## 132. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

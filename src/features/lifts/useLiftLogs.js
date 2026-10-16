@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { reportDataError } from '../../errorReporting';
+import { loadHistoryTable } from '../../utils/fetchBrake';
 import { useInsertQueue, newRowId } from '../../utils/insertQueue';
 
 const CACHE_KEY = 'shiloh_lift_logs';
@@ -70,9 +71,13 @@ export function useLiftLogs() {
     mounted.current = true;
     (async () => {
       try {
-        const { data, error } = await supabase.from('lift_logs').select('*').order('created_at', { ascending: false });
-        if (error) reportDataError(error, 'lift_logs:fetch');
-        else if (data && mounted.current) { syncFromServer(data); rescueRef.current(data); }
+        // New rows only, with a full refresh at most daily (loadHistoryTable, v5.8.0).
+        const res = await loadHistoryTable({
+          table: 'lift_logs', columns: 'id,athlete_id,athlete_name,sport,lift_type,weight_lbs,reps,source,notes,created_at', cached: readCache(), stampKey: 'hpd_lift_logs_full_at',
+          onFull: (data) => { if (mounted.current) { syncFromServer(data); rescueRef.current(data); } },
+          onDelta: (data) => { if (mounted.current && data.length) mergeRows(data); },
+        });
+        if (res.error) reportDataError(res.error, 'lift_logs:fetch');
       } catch { /* offline - the cache already loaded from localStorage covers this */ }
     })();
 

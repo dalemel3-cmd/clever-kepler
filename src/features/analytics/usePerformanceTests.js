@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { reportDataError } from '../../errorReporting';
+import { loadHistoryTable } from '../../utils/fetchBrake';
 import { useInsertQueue, newRowId } from '../../utils/insertQueue';
 import { normalizeName as normKey } from './normalizeName';
 import { defaultVariantFor } from './plyomatImport';
@@ -73,9 +74,13 @@ export function usePerformanceTests() {
     mounted.current = true;
     (async () => {
       try {
-        const { data, error } = await supabase.from('performance_tests').select('*').order('created_at', { ascending: false });
-        if (error) reportDataError(error, 'performance_tests:fetch');
-        else if (data && mounted.current) { syncFromServer(data); rescueRef.current(data); }
+        // New rows only, with a full refresh at most daily (loadHistoryTable, v5.8.0).
+        const res = await loadHistoryTable({
+          table: 'performance_tests', columns: 'id,athlete_id,athlete_name,sport,test_type,test_variant,metric,unit,source,notes,created_at', cached: readCache(), stampKey: 'hpd_performance_tests_full_at',
+          onFull: (data) => { if (mounted.current) { syncFromServer(data); rescueRef.current(data); } },
+          onDelta: (data) => { if (mounted.current && data.length) mergeRows(data); },
+        });
+        if (res.error) reportDataError(res.error, 'performance_tests:fetch');
       } catch { /* offline - the cache already loaded from localStorage covers this */ }
     })();
 
