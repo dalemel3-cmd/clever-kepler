@@ -177,10 +177,17 @@ export async function runSync(
   const setsResult = await fetchAllPages<PlyomatSet>(fetchImpl, apiBase, apiKey, '/sets', since ? { since } : {});
 
   const athleteIds = new Set(setsResult.rows.map((s) => s.athlete_id));
-  const athletesResult = await fetchAllPages<PlyomatAthlete>(fetchImpl, apiBase, apiKey, '/athletes', {});
-  const athletes = athletesResult.rows.filter((a) => athleteIds.has(a.id));
+  let athletes: PlyomatAthlete[] = [];
+  let partial = setsResult.partial;
 
-  const partial = setsResult.partial || athletesResult.partial;
+  // Only query /athletes if there are actually athletes referenced by the fetched sets.
+  // When zero sets were fetched (e.g. incremental sync when nothing new was captured),
+  // fetching all athletes took 10+ seconds and dozens of requests for zero purpose.
+  if (athleteIds.size > 0) {
+    const athletesResult = await fetchAllPages<PlyomatAthlete>(fetchImpl, apiBase, apiKey, '/athletes', {});
+    athletes = athletesResult.rows.filter((a) => athleteIds.has(a.id));
+    partial = partial || athletesResult.partial;
+  }
   const newestStartedAt = setsResult.rows.reduce<string | null>(
     (latest, s) => (!latest || s.started_at > latest ? s.started_at : latest),
     null,

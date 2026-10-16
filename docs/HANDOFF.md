@@ -3953,7 +3953,19 @@ After `db/014_programs.sql` went live in `v5.7.6`, the coach tested `Log > Progr
   - `progressCardData.js`: cached `seriesBy` and `reportData` indexing (`getReportIndex` for weighs and RPE) with `WeakMap`s so building progress cards for 74 athletes takes under 5ms.
   - Direct entry points: added a **TEAM CARDS** button next to `PROGRESS CARD` on athlete profiles in `ProfilesScreen.jsx`, and a **Progress cards** button next to `Perf vs readiness` on `ReportsScreen.jsx`.
 
-## 129. Next up
+## 129. Plyomat API sync diagnosis & speed optimization (v5.7.9)
+
+- **The root problem:** When the coach clicked "Sync from Plyomat", the UI stalled and then showed `"Couldn't reach the sync service. Check your connection and try again."`
+  1. *Unnecessary full roster paging:* In `supabase/functions/plyomat-sync/sync.ts`, after fetching `/sets` since the last checkpoint, `runSync` unconditionally called `fetchAllPages('/athletes')` even when `athleteIds.size === 0` (no new jump sets since checkpoint). With rate-limit request spacing (1050ms/page), downloading hundreds of athletes took ~13.6 seconds every time, risking browser timeouts and gateway drops.
+  2. *Timestamp formatting:* In PostgreSQL `plyomat_sync_state`, `last_synced_at` was stored formatted as `2026-10-12 21:12:00.402+00` (with space and timezone offset), which was passed as a raw string to the Plyomat API search param (`?since=...`).
+  3. *Error masking:* `PlyomatImportPanel.jsx` had a blank `try { ... } catch { setError("Couldn't reach the sync service..."); }` that masked all network errors, gateway 504s, and runtime exceptions with one generic string.
+- **The fixes:**
+  1. *Edge Function (`plyomat-sync` v4 deployed):* In `sync.ts`, if `athleteIds.size === 0`, `runSync` now skips `/athletes` entirely and returns immediately (<1s). Normalizes `since` to strict ISO 8601 UTC.
+  2. *Client invoke wrapper (`App.jsx`):* `onPlyomatApiSync` sanitizes incoming `since` to an ISO string (`new Date(since).toISOString()`), handles `FunctionsHttpError` by inspecting `error.context.json()` or `error.context.text()`, and returns `{ ok: false, error: { message } }` instead of throwing unhandled exceptions.
+  3. *UI & Diagnostics (`PlyomatImportPanel.jsx`):* Surfaces the real error message from the API/service, catches exceptions, and logs them to `app_errors` via `reportDataError(err, 'plyomat:api-sync')`.
+  4. *Defensive plan builder (`plyomatImport.js`):* Guarded `matchAthlete` and `buildImportPlanFromApiSets` so null/undefined athlete or roster lists default to empty arrays without throwing.
+
+## 130. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

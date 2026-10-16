@@ -46,7 +46,10 @@ Deno.serve(async (req) => {
     let since: string | null = null;
     try {
       const body = await req.json();
-      since = typeof body?.since === 'string' && body.since ? body.since : null;
+      if (typeof body?.since === 'string' && body.since) {
+        const d = new Date(body.since);
+        since = !isNaN(d.getTime()) ? d.toISOString() : body.since;
+      }
     } catch (_e) {
       // No body / not JSON - treat as "fetch everything" (first-ever sync).
     }

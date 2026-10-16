@@ -1,6 +1,7 @@
 import React from 'react';
 import { Upload, AlertTriangle, CheckCircle, X, UserPlus, HelpCircle, RefreshCw } from 'lucide-react';
 import { buildImportPlan, buildImportPlanFromApiSets } from './plyomatImport';
+import { reportDataError } from '../../errorReporting';
 
 const box = {
   padding: '10px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
@@ -64,10 +65,11 @@ export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebr
       const res = await onApiSync(lastSyncedAt || null);
       if (!res || res.ok === false) {
         const code = res && res.error && res.error.code;
-        if (code === 'not_configured' || code === 'unauthorized' || res?.error) {
-          setError(res?.error?.message
-            ? `Plyomat sync isn't configured correctly — ${res.error.message}. Ask whoever manages the Supabase project to check PLYOMAT_API_KEY.`
-            : "Plyomat sync isn't configured correctly — the API key looks invalid. Ask whoever manages the Supabase project to check PLYOMAT_API_KEY.");
+        const msg = res?.error?.message || (typeof res?.error === 'string' ? res.error : null);
+        if (code === 'not_configured') {
+          setError("Plyomat sync isn't configured correctly — PLYOMAT_API_KEY is not set for this project. Ask whoever manages the Supabase project to add it in Edge Function Secrets.");
+        } else if (msg) {
+          setError(msg);
         } else {
           setError('Sync failed. Try again in a moment.');
         }
@@ -85,8 +87,10 @@ export default function PlyomatImportPanel({ athletes, onImport, card, h3, eyebr
       // Only a fully (non-partial) fetched sync gets to advance the checkpoint - a
       // partial one must not skip the tail it never actually retrieved.
       setPendingFetchedThrough(res.partial ? null : res.fetchedThrough);
-    } catch {
-      setError("Couldn't reach the sync service. Check your connection and try again.");
+    } catch (err) {
+      console.error('Plyomat sync failed:', err);
+      reportDataError(err, 'plyomat:api-sync');
+      setError(err?.message || "Couldn't reach the sync service. Check your connection and try again.");
     }
     setBusy(false);
   };

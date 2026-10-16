@@ -97,3 +97,19 @@ Deno.test('runSync reports partial and null fetchedThrough when a page is rate-l
   assertEquals(result.partialReason, 'rate_limited');
   assertEquals(result.fetchedThrough, null);
 });
+
+Deno.test('runSync skips /athletes call entirely when /sets yields 0 rows', async () => {
+  let athleteCalls = 0;
+  const fakeFetch = (async (url: string) => {
+    if (url.includes('/sets')) return jsonResponse({ data: [], total: 0, limit: 500, offset: 0, has_more: false });
+    if (url.includes('/athletes')) { athleteCalls++; return jsonResponse({ data: [], total: 0, limit: 500, offset: 0, has_more: false }); }
+    return jsonResponse({});
+  }) as unknown as typeof fetch;
+
+  const result = await runSync(fakeFetch, 'https://api.plyomat.com/v1', 'pk_test', '2026-10-12T00:00:00Z');
+  assertEquals(result.sets.length, 0);
+  assertEquals(result.athletes.length, 0);
+  assertEquals(athleteCalls, 0);
+  assertEquals(result.partial, false);
+});
+

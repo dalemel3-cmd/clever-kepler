@@ -189,18 +189,19 @@ export const REVIEW_THRESHOLD = 0.7;
 // Returns { athlete, confidence } where confidence is 'exact' | 'reversed' | 'fuzzy'.
 // Plyomat's First/Last columns are transposed for a handful of people ("Copp Sarah"),
 // so a reversed match is tried before falling back to fuzzy.
-export const matchAthlete = (fullName, roster) => {
+export const matchAthlete = (fullName, roster = []) => {
   const target = normalizeName(fullName);
   if (!target) return null;
+  const list = Array.isArray(roster) ? roster : [];
 
-  for (const a of roster) {
+  for (const a of list) {
     if (normalizeName(a.name) === target) return { athlete: a, confidence: 'exact' };
   }
 
   const parts = target.split(' ');
   if (parts.length === 2) {
     const flipped = `${parts[1]} ${parts[0]}`;
-    for (const a of roster) {
+    for (const a of list) {
       if (normalizeName(a.name) === flipped) return { athlete: a, confidence: 'reversed' };
     }
   }
@@ -210,7 +211,7 @@ export const matchAthlete = (fullName, roster) => {
   // candidate rather than sailing past as an unrelated new person.
   const flipped = parts.length === 2 ? `${parts[1]} ${parts[0]}` : target;
   let best = null, bestScore = 0;
-  for (const a of roster) {
+  for (const a of list) {
     const rn = normalizeName(a.name);
     const score = Math.max(similarity(target, rn), similarity(flipped, rn));
     if (score > bestScore) { bestScore = score; best = a; }
@@ -423,7 +424,8 @@ const CM_TO_IN = 1 / 2.54;
 export const buildImportPlanFromApiSets = (apiSets, apiAthletes = [], roster = [], options = {}) => {
   const { existingTests = [], createMissing = true } = options;
   const alreadyImported = extractSessionIds(existingTests);
-  const athleteById = new Map(apiAthletes.map(a => [a.id, a]));
+  const athleteList = Array.isArray(apiAthletes) ? apiAthletes : [];
+  const athleteById = new Map(athleteList.map(a => [a.id, a]));
 
   const tests = [];
   const skipped = [];

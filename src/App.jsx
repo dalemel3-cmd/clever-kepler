@@ -496,18 +496,45 @@ export default function App() {
   // Thin invoke wrapper - the Edge Function is a pure proxy (it makes no product
   // decisions), so this is the only Plyomat-network-aware code in App.jsx itself.
   const onPlyomatApiSync = React.useCallback(async (since) => {
-    const { data, error } = await supabase.functions.invoke('plyomat-sync', { body: { since: since || undefined } });
-    if (error) {
-      // On a non-2xx response supabase-js throws a generic FunctionsHttpError instead of
-      // handing back the function's own JSON body - recover the real
-      // {ok:false,error:{code,message}} payload from the raw Response on `error.context`
-      // so the panel can show Plyomat's actual reason, not a generic network failure.
-      if (error.context && typeof error.context.json === 'function') {
-        try { return await error.context.json(); } catch { /* fall through to throw */ }
-      }
-      throw error;
+    let cleanSince = undefined;
+    if (since) {
+      try {
+        const d = new Date(since);
+        if (!isNaN(d.getTime())) cleanSince = d.toISOString();
+        else if (typeof since === 'string' && since.trim()) cleanSince = since.trim();
+      } catch {}
     }
-    return data;
+    try {
+      const { data, error } = await supabase.functions.invoke('plyomat-sync', { body: { since: cleanSince } });
+      if (error) {
+        let details = error.message;
+        if (error.context) {
+          if (typeof error.context.json === 'function') {
+            try {
+              const j = await error.context.json();
+              if (j && (j.error || j.ok === false)) return j;
+              if (j && j.message) details = j.message;
+            } catch {
+              if (typeof error.context.text === 'function') {
+                try {
+                  const t = await error.context.text();
+                  if (t) details = t.slice(0, 300);
+                } catch {}
+              }
+            }
+          } else if (typeof error.context.text === 'function') {
+            try {
+              const t = await error.context.text();
+              if (t) details = t.slice(0, 300);
+            } catch {}
+          }
+        }
+        return { ok: false, error: { code: 'sync_error', message: details || 'Sync service request failed.' } };
+      }
+      return data;
+    } catch (err) {
+      return { ok: false, error: { code: 'network_error', message: err?.message || 'Could not connect to sync service.' } };
+    }
   }, []);
 
   // Only advances the checkpoint after a confirmed, non-partial import - never past data
