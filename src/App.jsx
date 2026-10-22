@@ -171,6 +171,9 @@ export default function App() {
   // would just re-trigger the same fetch each time the coach flips back to 30 days.
   const extraReportWindowDays = React.useRef(0);
   const braked = React.useRef(null);
+  const athletesRetry = React.useRef(null);
+  // Set by the live-sync effect; lets a save put its own row in place (v5.8.1).
+  const applyWeighInChangeRef = React.useRef(() => {});
   // Every query that participates in the change-probe fingerprint MUST use this same
   // window. The probe compares a row count against the count from the last full fetch;
   // when the two used different windows the counts could never match, so the probe
@@ -600,8 +603,9 @@ export default function App() {
         } else {
           const cutoff = Date.now() - settingsRef.current.dataWindowDays * 86400000;
           const t = new Date(row.created_at).getTime();
-          // A device's own optimistic/offline copy of this row is replaced by the real one.
-          const isTwin = (r) => (String(r.id).startsWith('opt_') || String(r.id).startsWith('offline_'))
+          // A device's own optimistic/offline copy of this row - or the copy another
+          // device's broadcast put here a moment earlier - is replaced by the real one.
+          const isTwin = (r) => /^(opt_|offline_|broadcast_)/.test(String(r.id))
             && r.athlete_id === row.athlete_id && Math.abs(new Date(r.created_at) - t) < 5000;
           let rec = row;
           try {
@@ -615,50 +619,65 @@ export default function App() {
         return next;
       });
     };
+    applyWeighInChangeRef.current = applyWeighInChange;
     // Test hook (tests/usage-guards.js drives realtime rows through this).
     window.__hpdApplyWeighInChange = applyWeighInChange;
+
+    // One roster download per burst of athlete changes: a team baseline update writes
+    // every athlete row, and each arrives as its own realtime event (v5.8.1).
+    let athletesBurst = null;
+    const onAthletesChange = () => {
+      clearTimeout(athletesBurst);
+      athletesBurst = setTimeout(() => { athletesBurst = null; fetchAthletes(); }, 1500);
+    };
+    window.__hpdOnAthletesChange = onAthletesChange;
+
+    // Device-to-device broadcast (iPad <-> PC). Named so tests can drive it.
+    const onDeviceSync = (payload) => {
+      // Settings > Ping Devices: show the receipt on screen (it used to go only to
+      // the developer console, so the button looked like it did nothing).
+      if (payload.payload && payload.payload.isPing) {
+        showToastRef.current('Test ping received from another device. Live sync is working.', 'info');
+        return;
+      }
+      if (payload.payload && payload.payload.type === 'NEW_WEIGH_IN_LOGGED' && payload.payload.record) {
+        const incoming = payload.payload.record;
+        setReportData(prev => {
+          // A broadcast copy has a made-up id, so it's matched on athlete + time + weight
+          // (the real row may already be here from the realtime stream).
+          const realId = (id) => id && !/^(opt_|offline_|broadcast_)/.test(String(id));
+          const isDuplicate = prev.some(r => {
+            if (realId(r.id) && realId(incoming.id)) {
+              return r.id === incoming.id;
+            }
+            // Fallback heuristic only when no reliable id is available — tightened to 5s
+            // so two legitimate same-weight re-weighs within a minute aren't dropped as dupes.
+            return r.athlete_id === incoming.athlete_id &&
+              Math.abs(new Date(r.created_at || 0) - new Date(incoming.created_at || 0)) < 5000 &&
+              Number(r.weight_lbs) === Number(incoming.weight_lbs);
+          });
+          if (isDuplicate) return prev;
+          const merged = [incoming, ...prev].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+          try { localStorage.setItem('shiloh_reports', JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+        setTodaySessions(prev => prev + 1);
+      }
+      // v5.8.0: no full re-download here. The row itself arrives on the weigh_ins
+      // postgres_changes stream below (and the 5-min probe is the safety net). Before,
+      // every check-in made every open device pull the whole 30-day window + roster.
+    };
+    window.__hpdOnDeviceSync = onDeviceSync;
 
     try {
       channel = supabase
         .channel('shiloh_ultrasync_bus', { config: { broadcast: { ack: false, self: false } } })
-        .on('broadcast', { event: 'DEVICE_SYNC_EVENT' }, (payload) => {
-          // Settings > Ping Devices: show the receipt on screen (it used to go only to
-          // the developer console, so the button looked like it did nothing).
-          if (payload.payload && payload.payload.isPing) {
-            showToastRef.current('Test ping received from another device. Live sync is working.', 'info');
-            return;
-          }
-          if (payload.payload && payload.payload.type === 'NEW_WEIGH_IN_LOGGED' && payload.payload.record) {
-            const incoming = payload.payload.record;
-            setReportData(prev => {
-              const isDuplicate = prev.some(r => {
-                if (r.id && incoming.id && !String(r.id).startsWith('opt_') && !String(r.id).startsWith('offline_')) {
-                  return r.id === incoming.id;
-                }
-                // Fallback heuristic only when no reliable id is available — tightened to 5s
-                // so two legitimate same-weight re-weighs within a minute aren't dropped as dupes.
-                return r.athlete_id === incoming.athlete_id &&
-                  Math.abs(new Date(r.created_at || 0) - new Date(incoming.created_at || 0)) < 5000 &&
-                  Number(r.weight_lbs) === Number(incoming.weight_lbs);
-              });
-              if (isDuplicate) return prev;
-              const merged = [incoming, ...prev].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-              try { localStorage.setItem('shiloh_reports', JSON.stringify(merged)); } catch {}
-              return merged;
-            });
-            setTodaySessions(prev => prev + 1);
-          }
-          // v5.8.0: no full re-download here. The row itself arrives on the weigh_ins
-          // postgres_changes stream below (and the 5-min probe is the safety net). Before,
-          // every check-in made every open device pull the whole 30-day window + roster.
-        })
+        .on('broadcast', { event: 'DEVICE_SYNC_EVENT' }, onDeviceSync)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'weigh_ins' }, (payload) => {
           pollIdleStreak.current = 0;
           applyWeighInChange(payload);
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, () => {
-          fetchAthletes();
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, onAthletesChange)
         .subscribe((status) => {
           // Channel health drives the poll cadence: when the WebSocket is alive the
           // poll is only a slow safety net; when the school WiFi blocks it, we probe fast.
@@ -737,8 +756,13 @@ export default function App() {
     }, 5000);
 
     // Waking iPads catch up instantly (and this covers edits/deletes the probe can't see).
+    // focus and visibilitychange both fire when a tab or app comes back, so this runs once
+    // per return - and at most every 30s for someone flipping between apps (v5.8.1).
+    let lastFocusRefreshAt = 0;
     const handleFocusRefresh = () => {
       if (document.hidden) return;
+      if (Date.now() - lastFocusRefreshAt < 30000) return;
+      lastFocusRefreshAt = Date.now();
       pollIdleStreak.current = 0;
       fetchReportDataRef.current(true);
       fetchAthletes();
@@ -782,6 +806,7 @@ export default function App() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
       window.removeEventListener('focus', handleFocusRefresh);
       document.removeEventListener('visibilitychange', handleFocusRefresh);
+      clearTimeout(athletesBurst);
     };
   }, [effectiveWindowDays]); // stable (ref-backed useCallback) - listed only to satisfy the lint rule
 
@@ -1477,7 +1502,12 @@ export default function App() {
   const fetchAthletes = async () => {
     try {
       if (!navigator.onLine) throw new Error('Offline');
-      if (!allowFetch('athletes', { max: 4, windowMs: 60000 })) return;
+      if (!allowFetch('athletes', { max: 4, windowMs: 60000 })) {
+        // Skipped by the brake: one catch-up a little later, so a real roster change
+        // isn't left out until the next refresh.
+        if (!athletesRetry.current) athletesRetry.current = setTimeout(() => { athletesRetry.current = null; fetchAthletes(); }, 20000);
+        return;
+      }
       const { data, error } = await supabase.from('athletes').select('*').order('name', { ascending: true });
       if (!error && data) {
         const cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
@@ -1819,13 +1849,16 @@ export default function App() {
       };
 
       let insertedId = existingRecord && !String(existingRecord.id).startsWith('opt_') && !String(existingRecord.id).startsWith('offline_') ? existingRecord.id : null;
+      let savedRow = null;
       if (insertedId) {
         let { error } = await supabase.from('weigh_ins').update(cloudPayload).eq('id', insertedId);
         if (error) throw error;
+        savedRow = { ...cloudPayload, id: insertedId };
       } else {
         let { data, error } = await supabase.from('weigh_ins').insert([cloudPayload]).select();
         if (error) throw error;
         insertedId = data && data[0] && data[0].id;
+        savedRow = insertedId ? data[0] : null;
       }
 
       // Only one weigh-in per athlete should carry the active baseline marker -
@@ -1834,7 +1867,11 @@ export default function App() {
         await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', targetAthId).neq('id', insertedId);
       }
 
-      fetchReportData(true);
+      // v5.8.1: put the saved row in place (it replaces the optimistic copy) instead of
+      // re-downloading the whole live window after every check-in. Still a full refresh
+      // when other rows changed too (baseline cleared) or the athlete id was swapped.
+      if (savedRow) applyWeighInChangeRef.current({ eventType: existingRecord ? 'UPDATE' : 'INSERT', new: savedRow, old: {} });
+      if (!savedRow || cloudPayload.is_baseline || targetAthId !== record.athlete_id) fetchReportData(true);
       syncOfflineCache();
       const liveRecord = { id: 'broadcast_' + Date.now(), ...record, created_at: record.created_at || new Date().toISOString() };
       broadcastDeviceSync({ type: 'NEW_WEIGH_IN_LOGGED', record: liveRecord });

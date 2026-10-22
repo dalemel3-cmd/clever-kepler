@@ -28,6 +28,8 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
     if (u.includes('/rest/v1/coaches')) return r.fulfill({ status: 200, headers: H, body: '[{"approved":true}]' });
     if (u.includes('/rest/v1/athletes')) return r.fulfill({ status: 200, headers: H, body: JSON.stringify([{ id: uuid(1), name: 'A', sport: 'Football' }]) });
     if (u.includes('/rest/v1/lift_logs')) return r.fulfill({ status: 200, headers: H, body: JSON.stringify([lift]) });
+    // Row count like PostgREST sends it, so the change probe sees "no change".
+    if (u.includes('/rest/v1/weigh_ins')) return r.fulfill({ status: 200, headers: { ...H, 'content-range': '*/0', 'access-control-expose-headers': 'content-range' }, body: '[]' });
     return r.fulfill({ status: 200, headers: H, body: '[]' });
   });
   const of = (t) => reqs.filter(u => u.includes(`/rest/v1/${t}?`));
@@ -52,15 +54,31 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await page.waitForTimeout(1500);
   const live = of('weigh_ins').filter(u => /select=id,created_at,athlete_id/.test(u) && !/created_at=lt\./.test(u));
   check('live sync stays at 30 days after opening reports', live.length > 0 && live.every(u => gteDays(u) <= 31), JSON.stringify(live.map(gteDays)));
-  // Fetch brake: hammer the athletes refresh via focus events.
+  // v5.8.1: coming back to the app fires focus AND visibilitychange - one refresh, not two;
+  // flipping between apps stays at one refresh per 30s.
+  await page.goto(`${APP}/#dashboard`); await page.reload(); await page.waitForTimeout(2500);
+  const liveWi = () => of('weigh_ins').filter(u => /select=id,created_at,athlete_id/.test(u) && !/created_at=lt\./.test(u)).length;
   reqs.length = 0;
-  await page.evaluate(() => window.__hpdFetchBrake.reset());
+  await page.evaluate(() => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForTimeout(800);
+  check('back to the app: one roster + one weigh-in download (not two)', of('athletes').length === 1 && liveWi() === 1, `athletes=${of('athletes').length} weigh_ins=${liveWi()}`);
+  reqs.length = 0;
   for (let i = 0; i < 15; i++) { await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await page.waitForTimeout(60); }
   await page.waitForTimeout(800);
-  const ath = of('athletes').length, wi = of('weigh_ins').length;
-  check('fetch brake caps a runaway caller (15 triggers -> <= 4 athlete, <= 6 weigh-in downloads per minute)', ath <= 4 && wi <= 6, `athletes=${ath} weigh_ins=${wi}`);
-  const posted = await page.evaluate(() => [...window.__hpdFetchBrake.hits.keys()]);
-  check('brake tracked the keys', posted.includes('athletes') && posted.includes('weigh_ins:full'), JSON.stringify(posted));
+  check('flipping between apps 15x: no extra downloads inside 30s', of('athletes').length === 0 && liveWi() === 0, `athletes=${of('athletes').length} weigh_ins=${liveWi()}`);
+  // A burst of athlete changes (a team baseline update writes every row) -> one download.
+  reqs.length = 0;
+  for (let i = 0; i < 10; i++) await page.evaluate(() => window.__hpdOnAthletesChange());
+  await page.waitForTimeout(2500);
+  check('10 realtime athlete changes in a burst: one roster download', of('athletes').length === 1, `athletes=${of('athletes').length}`);
+  // The brake still caps a runaway caller, and a skipped roster refresh catches up later.
+  reqs.length = 0;
+  await page.evaluate(() => { window.__hpdFetchBrake.reset(); const t = Date.now() - 50000; window.__hpdFetchBrake.hits.set('athletes', [t, t, t, t]); });
+  await page.evaluate(() => window.__hpdOnAthletesChange());
+  await page.waitForTimeout(2500);
+  check('brake skips a 5th roster download inside a minute', of('athletes').length === 0, `athletes=${of('athletes').length}`);
+  await page.waitForTimeout(20000);
+  check('...and runs one catch-up download ~20s later', of('athletes').length === 1, `athletes=${of('athletes').length}`);
   // Realtime: a check-in from another device is applied directly - no re-download.
   await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2500);
   reqs.length = 0;
@@ -77,6 +95,23 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   await page.evaluate(() => window.__hpdApplyWeighInChange({ eventType: 'DELETE', new: {}, old: { id: '00000077-0000-4000-8000-000000000077' } }));
   await page.waitForTimeout(400);
   check('realtime DELETE removes it', /0 OF 1 LOGGED/i.test(await logged()), await logged());
+  // v5.8.1: another device's check-in arrives twice (broadcast copy + realtime row), in
+  // either order - it must show once, as the real row.
+  const rows = () => page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_reports') || '[]').filter(r => r.athlete_id === '00000001-0000-4000-8000-000000000001'));
+  const bcast = (r) => ({ payload: { type: 'NEW_WEIGH_IN_LOGGED', record: { ...r, id: `broadcast_${Date.now()}` } } });
+  const r1 = { ...row, id: uuid(78), created_at: new Date().toISOString() };
+  await page.evaluate((p) => window.__hpdOnDeviceSync(p), bcast(r1));
+  await page.evaluate((r) => window.__hpdApplyWeighInChange({ eventType: 'INSERT', new: r, old: {} }), r1);
+  await page.waitForTimeout(300);
+  let got = await rows();
+  check('broadcast then realtime: shown once, as the real row', got.length === 1 && got[0].id === r1.id, JSON.stringify(got.map(r => r.id)));
+  await page.evaluate(() => window.__hpdApplyWeighInChange({ eventType: 'DELETE', new: {}, old: { id: '00000078-0000-4000-8000-000000000078' } }));
+  const r2 = { ...row, id: uuid(79), created_at: new Date().toISOString() };
+  await page.evaluate((r) => window.__hpdApplyWeighInChange({ eventType: 'INSERT', new: r, old: {} }), r2);
+  await page.evaluate((p) => window.__hpdOnDeviceSync(p), bcast(r2));
+  await page.waitForTimeout(300);
+  got = await rows();
+  check('realtime then broadcast: shown once, as the real row', got.length === 1 && got[0].id === r2.id, JSON.stringify(got.map(r => r.id)));
   console.log(`\n${pass} passed, ${fail} failed`);
   await browser.close(); process.exit(fail ? 1 : 0);
 })();

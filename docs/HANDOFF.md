@@ -3982,7 +3982,17 @@ Context: the v5.7.6 loop pushed Supabase to 40.8 GB egress (Free plan 5 GB) and 
 6. Named columns (`WEIGH_IN_COLS`, lift/test column lists) instead of `select *` - small saving, mainly so a new heavy column never ships to every device by accident.
 Test: `tests/usage-guards.js` (11). Known pre-existing failures (also on v5.7.10, not from this change): `polish` (sideways scroll on #entry/#reports at 390-820px), `rpe` (an RPE-only athlete counted as weigh-in activity).
 
-## 132. Next up
+## 132. Fetch-brake trips from normal use (v5.8.1)
+
+The daily error check found 5 `fetch-brake` rows (10/16-10/22, all v5.8.0, one coach account on Mac / iPhone / Windows): `athletes called 5x in 60s` x4 (#lifts, #reports, #dashboard) and `weigh_ins:full called 7x in 60s` x1 (#entry). No loop - normal use was asking for the same data too often:
+1. **Focus refresh ran twice per return.** `focus` and `visibilitychange` both fire when a tab/app comes back, and each ran `fetchReportData(true)` + `fetchAthletes()`. Two or three app switches in a minute tripped the athletes brake. `handleFocusRefresh` now runs once per return and at most every 30s.
+2. **Realtime athletes events refetched one by one.** A team baseline update (`handleBulkTeamBaseline`) writes every athlete row, so every open device got one realtime event and one roster download per athlete. `onAthletesChange` batches them (1.5s trailing) into one download.
+3. **A braked roster refresh was simply dropped.** `fetchAthletes` now schedules one catch-up 20s later (same as the weigh-in brake), so a real change can't stay hidden until the next refresh.
+4. **Every kiosk save re-downloaded the 30-day window.** `handleSave` now puts the saved row in place via `applyWeighInChangeRef` (it replaces the `opt_` copy). It still does a full refresh when other rows changed (baseline marker cleared) or the athlete id was swapped.
+5. **Fix (v5.8.0 regression): duplicate check-ins on other devices.** v5.8.0 stopped refetching after a broadcast, but the broadcast copy (`broadcast_` id) and the realtime row didn't recognise each other, so the check-in could show twice until the next full download (up to ~5 min). `applyWeighInChange` treats a `broadcast_` row as a twin, and the broadcast handler matches on athlete + time + weight when either id is made up. The broadcast handler is now the named `onDeviceSync` (`window.__hpdOnDeviceSync` for tests).
+Tests: `tests/usage-guards.js` (16), new `tests/save-no-refetch.js` (4). Test stubs for `weigh_ins` now send `content-range` like PostgREST, otherwise the probe sees no count and full-fetches every heartbeat.
+
+## 133. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
