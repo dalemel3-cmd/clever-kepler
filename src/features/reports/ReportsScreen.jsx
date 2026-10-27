@@ -4,6 +4,7 @@ import { Printer, Download } from 'lucide-react';
 import ReadinessReport, { REPORT_SECTIONS } from './ReadinessReport';
 const PerfReadinessReport = React.lazy(() => import('./PerfReadinessReport'));
 const ProgressCard = React.lazy(() => import('./ProgressCard'));
+const BodyWeightReport = React.lazy(() => import('./BodyWeightReport'));
 import { buildReadinessReport } from './readinessData';
 
 // Reports tab = the Readiness Report (design handoff Part 2, docs/HANDOFF.md §107). The
@@ -32,6 +33,7 @@ export default function ReportsScreen({
   const [printing, setPrinting] = useState(false);
   const [perfOpen, setPerfOpen] = useState(false);
   const [progressCardsOpen, setProgressCardsOpen] = useState(false);
+  const [bodyWeightOpen, setBodyWeightOpen] = useState(false);
   const sport = reportSportFilter || 'ALL';
 
   // Days-since-weigh-in needs history beyond the default window.
@@ -81,7 +83,8 @@ export default function ReportsScreen({
             {sportsList.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap justify-end gap-2">
+          <button data-testid="bw-open" onClick={() => setBodyWeightOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50">Body weight</button>
           {settings.enableSpeedPower && <button data-testid="pr-open" onClick={() => { ensureReportWindow?.(180); setPerfOpen(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50">Perf vs readiness</button>}
           <button data-testid="pc-report-open" onClick={() => { ensureReportWindow?.(90); setProgressCardsOpen(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50">Progress cards</button>
           <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50"><Download size={16} /> CSV</button>
@@ -108,6 +111,11 @@ export default function ReportsScreen({
       {perfOpen && (
         <React.Suspense fallback={null}>
           <PerfReadinessReport athletes={athletes} reportData={reportData} performanceTests={performanceTests} settings={settings} initialSport={sport} onClose={() => setPerfOpen(false)} />
+        </React.Suspense>
+      )}
+      {bodyWeightOpen && (
+        <React.Suspense fallback={null}>
+          <BodyWeightReport athletes={athletes} reportData={reportData} settings={settings} initialSport={sport} onClose={() => setBodyWeightOpen(false)} />
         </React.Suspense>
       )}
       {progressCardsOpen && (

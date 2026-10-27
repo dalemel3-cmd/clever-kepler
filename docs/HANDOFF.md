@@ -3992,7 +3992,17 @@ The daily error check found 5 `fetch-brake` rows (10/16-10/22, all v5.8.0, one c
 5. **Fix (v5.8.0 regression): duplicate check-ins on other devices.** v5.8.0 stopped refetching after a broadcast, but the broadcast copy (`broadcast_` id) and the realtime row didn't recognise each other, so the check-in could show twice until the next full download (up to ~5 min). `applyWeighInChange` treats a `broadcast_` row as a twin, and the broadcast handler matches on athlete + time + weight when either id is made up. The broadcast handler is now the named `onDeviceSync` (`window.__hpdOnDeviceSync` for tests).
 Tests: `tests/usage-guards.js` (16), new `tests/save-no-refetch.js` (4). Test stubs for `weigh_ins` now send `content-range` like PostgREST, otherwise the probe sees no count and full-fetches every heartbeat.
 
-## 133. Next up
+## 133. Body Weight report (v5.9.0)
+
+Reports tab toolbar > **Body weight** opens a printable report (same modal pattern as Perf vs readiness; portal `.bw-print-root`, body class `bw-printing`, `@page letter 0.5in`).
+- Data: `src/features/reports/bodyWeightData.js` (`buildBodyWeightReport`), pure. Period = the last 7 / 14 / 28 Central calendar days ending today (`BW_PERIODS`). Per athlete, one value per day (the day's last real weigh-in; post-practice and RPE-only rows left out, same rule as the Readiness Report). Start / Latest = first / last day in the period; Change = Latest − Start (blank with one weigh-in); vs Baseline = Latest − `getAthleteBaseline`; `belowBase` / `bigLoss` when more than `settings.dehydrationThreshold` lb down (red). Athletes with no weigh-in in the period go to the "Not weighed in" list with days since their last one (or "never").
+- Document: `BodyWeightReport.jsx`. Columns: Athlete (sport · pos underneath; sport only on All sports), Baseline, Start, Latest, Change, vs Baseline, Low–High, #, Trend (inline SVG: weigh-ins across the period, y-axis at least 2 lb tall, baseline dashed gold). Pills: below-baseline count, average change, not weighed in. Sort: name (sport then name on All sports) / biggest loss / furthest below baseline. Period and sort remembered (`hpd_bw_period`, `hpd_bw_sort`). Opens on the Reports sport filter.
+- CSV: **Summary CSV** (one row per athlete incl. not weighed in, with the period) and **Weigh-ins CSV** (every weigh-in in the period, post-practice rows labeled, vs baseline per row). Files: `body-weight-<summary|weigh-ins>-<team>-last-<N>-days-<date>.csv`.
+- Data window: Reports already loads 90 days (`ensureReportWindow(90)`), so 28 days is always covered.
+- `ReportsScreen.jsx` toolbar buttons now wrap on narrow screens.
+- Test: `tests/body-weight-report.js` (28).
+
+## 134. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
