@@ -2,7 +2,7 @@
 // helpers: which program day an athlete trains today, the day's blocks with their own
 // working weights, and the per-athlete session kept on the rack's tablet (start time for
 // the automatic duration, sets logged, finish + RPE).
-import { maxesFor, workingWeight } from './programData';
+import { isBarbell, maxesFor, workingWeight } from './programData';
 
 // The athlete's team program(s) with a day dated today. Programs without a team never
 // show on the tablets (no guessing who "Any" was meant for).
@@ -30,12 +30,15 @@ export function buildWorkoutDay(program, day, maxes = {}) {
     const max = b.maxKey ? maxes[b.maxKey] ?? null : null;
     const sets = (b.sets || []).map((s, k) => {
       const pct = Number(s.pct) > 0 ? Number(s.pct) : null;
-      const wt = pct ? workingWeight(max, pct / 100) : '';
+      const wt = pct ? workingWeight(max, pct / 100, { barbell: isBarbell(b) }) : '';
       return { k, reps: String(s.reps ?? ''), repsNum: firstInt(s.reps), pct, wt: wt === '' ? null : wt, tempo: s.tempo || '' };
     });
     return {
       id: b.id || `${day.id || 'day'}_${i}`, code: b.code || '', name: b.name, note: b.note || '', rx: b.rx || '',
-      velocity: b.velocity || '', lift, max, sets, loggable: !!lift && sets.length > 0,
+      // Only barbell work logs into Lift Tracker under the mapped lift; a dumbbell / each-hand
+      // exercise prescribed as a % of it (RFE split squat at 20% of squat) is checked off,
+      // so it never lands in that lift's history.
+      velocity: b.velocity || '', lift, max, sets, loggable: !!lift && sets.length > 0 && isBarbell(b),
       newGroup: i > 0 && String(named[i - 1].code || '')[0] !== String(b.code || '')[0],
     };
   });

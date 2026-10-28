@@ -21,9 +21,14 @@ export function defaultMaxMap(liftTypes = []) {
   };
 }
 
-// Handoff: WT = max(45, round5(max * pct)).
+// Handoff: WT = max(45, round5(max * pct)). The 45 lb floor is an empty bar, so it only
+// applies to barbell work - a dumbbell / each-hand exercise prescribed as a % of a max
+// (e.g. RFE split squat at 20% of back squat, DB bench at 40% of bench) keeps its own
+// number (v5.11.0).
 export const round5 = (v) => Math.round(v / 5) * 5;
-export const workingWeight = (max, pct) => (max > 0 && pct > 0 ? Math.max(45, round5(max * pct)) : '');
+export const workingWeight = (max, pct, { barbell = true } = {}) => (max > 0 && pct > 0 ? Math.max(barbell ? 45 : 5, round5(max * pct)) : '');
+const NOT_BARBELL = /\b(db|dbs|dumbbells?|kb|kbs|kettlebells?|each hand|per hand|in each hand|single[- ]arm|one[- ]arm|1[- ]arm|cable|band|landmine|plate|med ball|mb|sandbag)\b/i;
+export const isBarbell = (b) => !NOT_BARBELL.test(`${b?.name || ''} ${b?.note || ''}`);
 
 // How far back a max can come from (program setting, stored as max_map.window).
 export const MAX_WINDOWS = [
@@ -162,7 +167,7 @@ export function buildCard(program, athlete, liftLogs, { showVelocity = true, sea
         newGroup: i > 0 && String(arr[i - 1].code)[0] !== String(b.code)[0],
         rows: isRx ? [] : b.sets.map(s => {
           const pct = Number(s.pct) / 100;
-          return { reps: s.reps, wt: workingWeight(max, pct), pct: Number(s.pct) > 0 ? `${Math.round(Number(s.pct))}%` : '', tempo: s.tempo || '' };
+          return { reps: s.reps, wt: workingWeight(max, pct, { barbell: isBarbell(b) }), pct: Number(s.pct) > 0 ? `${Math.round(Number(s.pct))}%` : '', tempo: s.tempo || '' };
         }),
       };
     }),
