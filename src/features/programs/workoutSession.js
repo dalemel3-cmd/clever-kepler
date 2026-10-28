@@ -62,8 +62,13 @@ export function startSession({ athlete, program, day, liftLogs, seasonStartDate,
   const maxes = maxesFor(athlete.id, liftLogs, program.max_map || {}, { seasonStartDate });
   return { v: 1, programId: program.id, dayId: day.id || null, startedAt: now, maxes, sets: {}, done: {}, progress: null, finishedAt: null, rpe: null, minutes: null };
 }
-// Automatic duration: start (athlete first opened today's workout) to Finish.
-export const elapsedMinutes = (startedAt, now = Date.now()) => Math.min(300, Math.max(1, Math.round((now - startedAt) / 60000)));
+// Automatic duration: start (athlete first opened today's workout) to Finish. The timer
+// stops at the cap (Settings > Lift Tracker, 60 min by default) so a workout nobody
+// finished doesn't keep counting; the minutes can still be changed before the RPE is saved.
+export const DEFAULT_TIMER_CAP = 60;
+export const capOf = (cap) => (Number(cap) > 0 ? Number(cap) : DEFAULT_TIMER_CAP);
+export const elapsedMinutes = (startedAt, now = Date.now(), cap = DEFAULT_TIMER_CAP) => Math.min(capOf(cap), Math.max(1, Math.round((now - startedAt) / 60000)));
+export const timerCapped = (startedAt, now = Date.now(), cap = DEFAULT_TIMER_CAP) => now - startedAt >= capOf(cap) * 60000;
 
 // Sessions are only needed for the day they belong to. Old ones are removed when the
 // Lift Tracker opens so the tablet's storage never grows over a season.

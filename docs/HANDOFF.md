@@ -4041,7 +4041,42 @@ For coaches who plan in Excel, and to bring in past programs without retyping.
 - **Periodization** (`PeriodizationPanel.jsx`, data in `periodization.js`): loads every program's days once (`usePrograms.loadAll`, archived included, brake `programs:all`). Per dated day: sets and reps of set-by-set exercises (text prescriptions like "3x 8" aren't counted), load = Σ reps × % / 100, rep-weighted average %, top %, per-lift sets/reps/% range. Grouped by day, week (Monday start) or month; empty weeks/months between the first and last session stay on the timeline. Two charts on one band x-axis (volume bars; intensity line - never a dual-axis chart), a phase strip (consecutive buckets with the same phase), and a table. Filters: team (opens on the open program's team), lift, volume measure (load/reps/sets), from/to. View remembered (`hpd_period_view`). Undated program days are counted in a note, not plotted.
 - Tests: `tests/program-csv.js` (20, no browser; `tests/lib/src-resolve.mjs` lets Node import app source), `tests/program-template-periodization.js` (28).
 
-## 138. Next up
+## 138. Workout timer cap (v5.11.1) + WSOC maxes entered on the program
+
+**Timer.** The rack tablet times a workout from when the athlete first opens it to
+Finish (§134). Before this it kept counting (up to 5 hours) if nobody tapped Finish, so a
+forgotten workout showed a huge number and Finish started the RPE time there.
+`elapsedMinutes(startedAt, now, cap)` in `src/features/programs/workoutSession.js` now
+stops at the cap and `timerCapped()` says when it has; the chip reads "60 min max", Finish
+starts the minutes at the cap with a note ("The timer stopped at 60 min. Change it if the
+workout ran longer or shorter."), and the stepper can still go past it - the saved value
+is clamped to `rpeMaxMinutes` (Longest Session, 240 by default). The cap is
+`settings.workoutTimerCapMin` (Settings > Lift Tracker > Workout Timer Stops At, 10-240,
+default 60). Settings are per device, so a different cap has to be set on each tablet.
+Tests: `tests/workout-timer.js` (8, no browser) and three new checks in
+`tests/workout-tablet.js` (3 hours open -> 60 max, Finish at 60, changed to 75 and saved).
+
+**WSOC maxes (data, 2026-10-28).** The coach's updated maxes sheet (Sheet 2 of the WSOC/MBB
+workbook: Name | Front Squat | Back Squat | Bench | OHP | Vert | Fly 10 per team) was
+entered as program maxes (`max_map.overrides`, the same as "Edit maxes" on the Weight Room
+Card) on the four WSOC FALL 26 programs (Weeks 10-13): `squat` = Back Squat, `bench` =
+Bench, all 24 girls. Not logged to Lift Tracker on purpose:
+- Back Squat and OHP on that sheet are calculated, not tested (back squat = average of
+  front squat x 1.11 and x 1.25, rounded to 5; OHP ~55% of bench), so logging them would
+  put lifts nobody did into history and leaderboards.
+- The app's max is the best estimated 1RM of any set (§120), and for most athletes an older
+  rep set already works out higher than the new number, so a new 1x1 would be ignored.
+  An entered program max always wins.
+The coach checked the outliers (one corrected front squat, entered with its back squat by
+the sheet's formula). MBB's maxes wait for their program to be imported; MBB uses 135 for
+power clean across the team (power clean variations only), so that program needs `clean`
+mapped to Power Clean. Overrides live on each program, so a newly imported block starts
+without them.
+
+## 139. Next up
+
+- **Carry entered maxes to new programs** (or an "Upload maxes" sheet on Edit maxes):
+  overrides are per program, so every imported week needs them again (§138).
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

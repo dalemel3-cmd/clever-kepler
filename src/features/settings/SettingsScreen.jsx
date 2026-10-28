@@ -302,6 +302,7 @@ export default function SettingsScreen({
               fields: [
                 { key: 'enableLiftTracker', label: 'Lift Tracker', type: 'toggle', help: 'Off by default. When on, a Lift Tracker screen is added for logging weight-room lifts.' },
                 { key: 'liftTypes', label: 'Lift Types', type: 'list', help: 'Buttons a coach/athlete picks from when logging a lift, comma separated.' },
+                { key: 'workoutTimerCapMin', label: 'Workout Timer Stops At', unit: 'min', step: 5, min: 10, max: 240, help: "Rack tablet workouts are timed from when the athlete opens them. The timer stops here if nobody taps Finish, and the minutes can still be changed before saving the RPE. Set on each tablet." },
               ]
             },
             {

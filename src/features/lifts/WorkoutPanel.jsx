@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check, Minus, Plus, Undo2, Timer, ChevronDown, ChevronUp } from 'lucide-react';
 import { estimate1RM } from './liftRanking';
-import { buildWorkoutDay, doneItems, elapsedMinutes, readSession, startSession, totalItems, writeSession } from '../programs/workoutSession';
+import { buildWorkoutDay, capOf, doneItems, elapsedMinutes, readSession, startSession, timerCapped, totalItems, writeSession } from '../programs/workoutSession';
 
 // Today's workout on the rack tablet (v5.10.0, docs/HANDOFF.md §134). Shows the athlete's
 // program day with their own working weights; each set logs to Lift Tracker with one tap
@@ -74,7 +74,9 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
   const total = totalItems(blocks);
   const done = doneItems(blocks, session);
   const finished = !!session.finishedAt;
-  const mins = finished ? session.minutes : elapsedMinutes(session.startedAt, now);
+  const cap = settings.workoutTimerCapMin;
+  const capped = !finished && timerCapped(session.startedAt, now, cap);
+  const mins = finished ? session.minutes : elapsedMinutes(session.startedAt, now, cap);
 
   const update = (fn) => setSession(prev => {
     const next = fn(JSON.parse(JSON.stringify(prev)));
@@ -115,13 +117,14 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
   };
   const toggleDone = (k) => update(n => { if (n.done[k]) delete n.done[k]; else n.done[k] = true; return n; });
 
-  const openFinish = () => { setMinutes(elapsedMinutes(session.startedAt)); setRpe(null); setStep(settings.enableRpe && addRpeSessions ? 'rpe' : 'workout'); if (!(settings.enableRpe && addRpeSessions)) update(n => { n.finishedAt = Date.now(); n.minutes = elapsedMinutes(n.startedAt); return n; }); };
+  const openFinish = () => { setMinutes(elapsedMinutes(session.startedAt, Date.now(), cap)); setRpe(null); setStep(settings.enableRpe && addRpeSessions ? 'rpe' : 'workout'); if (!(settings.enableRpe && addRpeSessions)) update(n => { n.finishedAt = Date.now(); n.minutes = elapsedMinutes(n.startedAt, Date.now(), cap); return n; }); };
   const labels = settings.rpeSessionLabels?.length ? settings.rpeSessionLabels : ['Lift'];
   const sessionLabel = labels.includes('Lift') ? 'Lift' : labels[0];
   const saveRpe = async () => {
     if (!rpe || savingRpe) return;
     setSavingRpe(true);
-    const m = Math.max(1, Math.round(Number(minutes) || 1));
+    // A changed time can go past the timer cap (a long session), up to Longest Session.
+    const m = Math.min(Number(settings.rpeMaxMinutes) || 240, Math.max(1, Math.round(Number(minutes) || 1)));
     const res = await addRpeSessions([{ athlete_id: athlete.id, athlete_name: athlete.name, sport: athlete.sport || '', rpe, session_minutes: settings.rpeTrackDuration !== false ? m : null, session_label: sessionLabel, created_at: new Date().toISOString() }]);
     setSavingRpe(false);
     if (!res?.ok) { setMsg("The RPE wasn't saved. Try again."); return; }
@@ -150,9 +153,14 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
         )}
         <div className="font-label-md text-label-md text-on-surface-variant h-5">{rpe && scaleMax === 10 ? RPE_WORDS[rpe] : ''}</div>
         {settings.rpeTrackDuration !== false && (
-          <div className="flex flex-wrap items-center gap-space-sm">
-            <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Time (timed)</span>
-            <Stepper value={String(minutes ?? '')} onChange={v => setMinutes(v)} step={5} label="minutes" unit="min" testid="wo-minutes" />
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-space-sm">
+              <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Time</span>
+              <Stepper value={String(minutes ?? '')} onChange={v => setMinutes(v)} step={5} label="minutes" unit="min" testid="wo-minutes" />
+            </div>
+            <span data-testid="wo-minutes-hint" className="font-label-sm text-label-sm text-on-surface-variant">
+              {timerCapped(session.startedAt, Date.now(), cap) ? `The timer stopped at ${capOf(cap)} min. Change it if the workout ran longer or shorter.` : 'Timed from when the workout was opened. Change it if it\'s off.'}
+            </span>
           </div>
         )}
         <div className="flex gap-2">
@@ -184,7 +192,7 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
           <div className="font-label-sm text-label-sm text-on-surface-variant">{[cur.program.name, cur.program.week_label, cur.program.phase].filter(Boolean).join(' · ')}</div>
         </div>
         <div className="flex items-center gap-2">
-          <span data-testid="wo-timer" className={`${chip} bg-surface-container-highest text-on-surface flex items-center gap-1`}><Timer size={13} /> {mins} min</span>
+          <span data-testid="wo-timer" data-capped={capped ? '1' : undefined} title={capped ? 'The timer stops here. The time can be changed when finishing.' : undefined} className={`${chip} bg-surface-container-highest text-on-surface flex items-center gap-1`}><Timer size={13} /> {mins} min{capped ? ' max' : ''}</span>
           <span data-testid="wo-progress" className={`${chip} ${done >= total ? 'bg-secondary-container/30 text-secondary' : 'bg-surface-container-highest text-on-surface'}`}>{done}/{total}</span>
         </div>
       </div>

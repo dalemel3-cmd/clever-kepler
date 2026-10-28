@@ -106,6 +106,8 @@ export const DEFAULT_SETTINGS = {
   // --- Lift Tracker (Bench, Squat, Deadlift, Hang Clean, Power Clean by default) ---
   enableLiftTracker: true,
   liftTypes: ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'],
+  // The rack tablet's workout timer stops here if nobody taps Finish (v5.11.1).
+  workoutTimerCapMin: 60,
 };
 
 // Numeric fields get coerced and range-checked so a corrupt localStorage entry
@@ -135,6 +137,7 @@ const NUMERIC_BOUNDS = {
   rpeLoadSpikeRatio: [0.1, 10.0],
   rpeChronicWeeks: [1, 52],
   rpeMaxMinutes: [10, 600],
+  workoutTimerCapMin: [10, 240],
 };
 
 const coerce = (key, value, fallback) => {

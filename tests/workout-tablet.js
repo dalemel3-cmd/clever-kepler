@@ -134,6 +134,18 @@ const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true,
   await page.getByTestId('wo-back').click(); await page.waitForTimeout(300);
   check('back to the workout', await page.getByTestId('workout-panel').count() === 1);
 
+  // v5.11.1: nobody tapped Finish - the timer stops at the 60 min cap, and the time can be changed.
+  await page.evaluate(({ id, d }) => { const k = `hpd_workout_${id}_${d}`; const s = JSON.parse(localStorage.getItem(k)); s.startedAt = Date.now() - 3 * 3600000; localStorage.setItem(k, JSON.stringify(s)); }, { id: uuid(2), d: TODAY });
+  await page.getByRole('button', { name: /Rack Rita/ }).first().click(); await page.waitForTimeout(600);
+  check('3 hours later the timer reads 60 min max', /^60 min max$/i.test((await page.getByTestId('wo-timer').innerText()).trim()) && await page.getByTestId('wo-timer').getAttribute('data-capped') === '1', await page.getByTestId('wo-timer').innerText());
+  await page.getByTestId('wo-finish').click(); await page.waitForTimeout(300);
+  check('Finish starts at 60 min with the "timer stopped" note', (await page.getByTestId('wo-minutes').inputValue()) === '60' && /stopped at 60 min/.test(await page.getByTestId('wo-minutes-hint').innerText()), `${await page.getByTestId('wo-minutes').inputValue()} | ${await page.getByTestId('wo-minutes-hint').innerText().catch(() => '')}`);
+  await page.getByTestId('wo-minutes').fill('75');
+  await page.getByTestId('wo-rpe-6').click();
+  await page.getByTestId('wo-rpe-save').click(); await page.waitForTimeout(900);
+  check('changed time saved past the cap (75 min)', Number((rpePosts[1] || {}).session_minutes) === 75 && (rpePosts[1] || {}).athlete_id === uuid(2), JSON.stringify(rpePosts[1]));
+  check('complete banner shows 75 min', /Workout complete · RPE 6 · 75 min/.test(await page.getByTestId('wo-complete').innerText().catch(() => '')));
+
   await page.getByRole('button', { name: 'Add Another Athlete' }).click(); await page.waitForTimeout(400);
   await page.getByText('Vb Vic', { exact: true }).first().click(); await page.waitForTimeout(600);
   check('athlete with no program today gets the normal log form', await page.getByTestId('workout-panel').count() === 0 && await page.getByRole('button', { name: /Log Lift/ }).count() === 1);
