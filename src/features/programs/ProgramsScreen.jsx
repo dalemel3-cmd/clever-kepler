@@ -210,6 +210,9 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
                   </select>
                 </Field>
               </div>
+              <p data-testid="pb-tablet-hint" style={{ margin: 0, fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                {draft.sport ? `Shows on the Lift Tracker tablets (Lift Kiosk Mode) for ${draft.sport} on each day's date.` : 'Pick a team to show this program on the Lift Tracker tablets on each day\'s date.'}
+              </p>
               <div>
                 <span style={lbl}>Maxes come from (best est. 1RM in Lift Tracker)</span>
                 <div style={{ marginTop: '6px' }}>

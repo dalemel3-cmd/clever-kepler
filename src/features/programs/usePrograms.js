@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 
-// Programs are a web-side printing tool, not something the iPads log into, so nothing
-// is cached on the device (docs/HANDOFF.md §120-121). The list fetches only the summary
+// The Program Builder (web) - nothing here is cached on the device (docs/HANDOFF.md
+// §120-121). The rack tablets load only today's programs, separately, through
+// useTodaysWorkouts (§134). The list fetches only the summary
 // columns (a few hundred bytes per program); a program's full `days` load when it is
 // opened. Archived programs drop out of the list but stay in the table for reprints.
 const LIST_COLS = 'id,name,week_label,phase,sport,updated_at,archived_at';

@@ -1986,7 +1986,7 @@ export default function App() {
     const opt = recs.map((r, i) => ({ id: `opt_rpe_${Date.now()}_${i}`, ...r }));
     setReportData(prev => [...opt, ...prev]);
     try {
-      const { error } = await supabase.from('weigh_ins').insert(recs);
+      const { data, error } = await supabase.from('weigh_ins').insert(recs).select(WEIGH_IN_COLS);
       if (error) {
         const isNet = /failed to fetch|networkerror|load failed|network request failed|fetch|network/i.test(error.message || '')
           || (typeof navigator !== 'undefined' && navigator.onLine === false);
@@ -1994,7 +1994,11 @@ export default function App() {
         setReportData(prev => prev.filter(r => !opt.includes(r)));
         return { ok: false };
       }
-      fetchReportData(true);
+      // v5.10.0: put the saved rows in place (each replaces its optimistic copy) instead
+      // of re-downloading the live window - a whole rack finishing a workout at once would
+      // otherwise trip the weigh-in fetch brake (same change as kiosk saves in v5.8.1).
+      if (data && data.length) data.forEach(row => applyWeighInChangeRef.current({ eventType: 'INSERT', new: row, old: {} }));
+      else fetchReportData(true);
       return { ok: true };
     } catch (err) {
       console.warn('RPE team log offline, queueing:', err);
@@ -2996,6 +3000,7 @@ export default function App() {
                 setScreen={setScreen}
                 isKioskMode={isKioskMode}
                 onActivateLiftKioskMode={handleActivateLiftKioskMode}
+                addRpeSessions={addRpeSessions}
               />
             )}
 

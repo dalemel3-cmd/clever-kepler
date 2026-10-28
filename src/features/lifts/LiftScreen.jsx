@@ -9,6 +9,9 @@ import { estimate1RM, buildLeaderboard, RANK_MODES, TIMEFRAMES, timeframeBounds,
 import { renderLeaderboardPng, shareOrDownload } from './leaderboardImage';
 import LiftExportPanel from './LiftExportPanel';
 import LiftTeamEntryPanel from './LiftTeamEntryPanel';
+import WorkoutPanel from './WorkoutPanel';
+import { useTodaysWorkouts } from '../programs/useTodaysWorkouts';
+import { workoutsFor, readSession } from '../programs/workoutSession';
 const PrintLeaderboard = React.lazy(() => import('../leaderboard/PrintLeaderboard'));
 export { estimate1RM };
 
@@ -46,6 +49,7 @@ export default function LiftScreen({
   setScreen,
   isKioskMode,
   onActivateLiftKioskMode,
+  addRpeSessions,
 }) {
   const liftTypes = settings.liftTypes && settings.liftTypes.length ? settings.liftTypes : ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'];
 
@@ -114,6 +118,13 @@ export default function LiftScreen({
   }, [reportData]);
 
   const todayStr = getCentralDateString();
+
+  // Today's workout (v5.10.0): in Lift Kiosk Mode, an athlete whose team has a program
+  // day dated today sees it in their pinned card and logs sets from it. Coaches outside
+  // kiosk mode keep the plain log form (opening an athlete shouldn't start their timer).
+  const { programs: todaysPrograms, today: workoutDay } = useTodaysWorkouts(!!isKioskMode);
+  const [showFreeLog, setShowFreeLog] = React.useState(false);
+  const [, setWorkoutTick] = React.useState(0); // re-reads the rack chips' progress
 
   // Bulk-reassign a day's mislabeled lift type (e.g. a whole session logged as
   // "Bench" that should have been "Incline Bench") without touching the weight/reps
@@ -197,6 +208,8 @@ export default function LiftScreen({
   }, [filteredAthletes, rosterPage]);
 
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId) || null;
+  const athleteWorkouts = isKioskMode && selectedAthlete ? workoutsFor(selectedAthlete, todaysPrograms, workoutDay) : [];
+  const teamHasWorkoutToday = isKioskMode && todaysPrograms.some(p => (p.days || []).some(d => d.date === workoutDay));
 
   const openEntry = (athleteId) => {
     setEntryAthleteId(athleteId);
@@ -205,6 +218,7 @@ export default function LiftScreen({
     setReps('');
     setSuccessMsg('');
     setEditingLiftId(null);
+    setShowFreeLog(false);
     if (isKioskMode) {
       setRackAthleteIds(prev => (prev.includes(athleteId) ? prev : [...prev, athleteId]));
       // Collapse the full roster grid once someone's actually selected - an athlete
@@ -387,6 +401,27 @@ export default function LiftScreen({
         )}
       </div>
 
+      {athleteWorkouts.length > 0 && !showFreeLog ? (
+        <WorkoutPanel
+          key={selectedAthlete.id}
+          athlete={selectedAthlete}
+          workouts={athleteWorkouts}
+          liftLogs={liftLogs}
+          settings={settings}
+          addLift={addLift}
+          deleteLift={deleteLift}
+          addRpeSessions={addRpeSessions}
+          today={workoutDay}
+          onFreeLog={() => setShowFreeLog(true)}
+          onChange={() => setWorkoutTick(t => t + 1)}
+        />
+      ) : (
+        <>
+      {athleteWorkouts.length > 0 && (
+        <button type="button" data-testid="wo-back" onClick={() => setShowFreeLog(false)} className="self-start min-h-[44px] flex items-center gap-1 px-space-sm rounded-lg bg-surface-container-highest text-on-surface font-label-md uppercase font-bold">
+          <ChevronLeft size={16} /> Back to today's workout
+        </button>
+      )}
       {successMsg && (
         <div className="px-4 py-3 rounded-xl bg-secondary-container/20 border border-secondary-container/40 text-secondary font-label-md text-label-md">
           {successMsg}
@@ -597,6 +632,8 @@ export default function LiftScreen({
           </div>
         </div>
       )}
+        </>
+      )}
     </>
   );
 
@@ -611,7 +648,7 @@ export default function LiftScreen({
             LIFT TRACKER
           </h1>
           <p className="font-body-md text-body-md text-on-surface-variant">
-            Find your name below, then tap it to log your set.
+            {teamHasWorkoutToday ? "Find your name below to open today's workout and log your sets." : 'Find your name below, then tap it to log your set.'}
           </p>
         </div>
       ) : (
@@ -719,7 +756,10 @@ export default function LiftScreen({
                         <div className="w-8 h-8 rounded-full bg-surface-container-highest text-primary font-headline-md text-headline-md flex items-center justify-center shrink-0">
                           {initialsOf(athlete.name).slice(0, 2)}
                         </div>
-                        <span className="font-headline-md text-headline-md text-on-surface uppercase whitespace-nowrap">{athlete.name}</span>
+                        <span className="flex flex-col items-start">
+                          <span className="font-headline-md text-headline-md text-on-surface uppercase whitespace-nowrap">{athlete.name}</span>
+                          {(() => { const p = readSession(id, workoutDay)?.progress; return p ? <span data-testid="rack-progress" className="font-label-sm text-label-sm text-on-surface-variant">{p.done}/{p.total} sets</span> : null; })()}
+                        </span>
                       </button>
                       <button
                         type="button"

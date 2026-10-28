@@ -4002,7 +4002,19 @@ Reports tab toolbar > **Body weight** opens a printable report (same modal patte
 - `ReportsScreen.jsx` toolbar buttons now wrap on narrow screens.
 - Test: `tests/body-weight-report.js` (28).
 
-## 134. Next up
+## 134. Today's workout on the rack tablet (v5.10.0)
+
+The Program Builder's programs now reach the weight room floor: one tablet per rack in **Lift Kiosk Mode**.
+- **Which workout:** the athlete's team (`program.sport`, the builder's "Default team") and a program day whose date is today (Central). Programs with no team never show on the tablets. Two programs for the same team on the same day show as tabs (locked once a set is logged). Coaches outside kiosk mode keep the plain log form, so opening an athlete never starts their timer.
+- **Download:** `src/features/programs/useTodaysWorkouts.js` fetches only `programs` with `archived_at is null`, a team, and `days @> [{"date": today}]` (PostgREST `cs`), so it's a few KB however big the library gets. Cached for the day in `hpd_today_workouts` (works through a WiFi drop), refreshed every 10 min and on a new day, brake key `programs:today` (4/min).
+- **Session** (`src/features/programs/workoutSession.js`): one per athlete per day in `hpd_workout_<athleteId>_<YYYY-MM-DD>` on the rack's tablet: `startedAt` (first time the athlete opened today's workout = the automatic timer), `maxes` (frozen at start so a PR mid-workout doesn't move later sets; filled in if the tablet opened before lift history loaded), logged sets (`liftId` for Undo), check-offs, `progress`, `finishedAt`, `rpe`, `minutes`. Sessions from earlier days are deleted when the Lift Tracker opens (`pruneSessions`), so tablet storage never grows.
+- **Panel** (`src/features/lifts/WorkoutPanel.jsx`, inside the kiosk's pinned athlete card): warm-up and finisher lists (collapsible), each block with code, name, note, the athlete's max and velocity target. A block whose max key maps to a Lift Tracker lift (`max_map[key]`) logs each set to `lift_logs` (prescribed weight × reps prefilled, −/+ steppers, one-tap **Log**, **Undo** deletes that exact row; `source 'kiosk'`, `notes 'Workout: <program> · <code> set <n>'`). Other work (text prescriptions like "3x 3", sets without a mapped lift) is **Mark done**. PR message uses the same est. 1RM rule as Lift Tracker. "Log a lift not on the plan" opens the original form. Rack chips show "done/total sets". All controls are at least 44×44.
+- **Finish:** session RPE as a tap grid (1-`rpeScaleMax`, word under the pick), duration = minutes since the athlete opened the workout (editable −/+5), label `Lift` (or the first session label). Saved with `addRpeSessions`, which now puts the inserted rows in place (`insert().select()` + `applyWeighInChangeRef`) instead of re-downloading the 30-day window - a whole rack finishing at once would otherwise trip the weigh-in brake. Without RPE enabled, Finish just marks the workout complete.
+- `useLiftLogs.addLifts` returns the new row ids and uploads `notes`.
+- Program Builder shows a hint under the team field ("Shows on the Lift Tracker tablets for <team> on each day's date").
+- Test: `tests/workout-tablet.js` (30).
+
+## 135. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

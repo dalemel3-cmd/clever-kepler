@@ -109,6 +109,7 @@ export function useLiftLogs() {
     weight_lbs: o.weight_lbs,
     reps: o.reps,
     source: o.source || 'manual',
+    notes: o.notes ?? null, // workout sets say which program block they came from (v5.10.0)
     created_at: o.created_at,
   });
 
@@ -141,7 +142,7 @@ export function useLiftLogs() {
     const rows = recs.map(rec => ({ source: 'manual', ...rec, id: newRowId(), created_at: rec.created_at || new Date().toISOString(), pending: true }));
     mergeRows(rows);
     const res = await queue.insert(rows.map(toPayload));
-    return { ...res, count: recs.length };
+    return { ...res, count: recs.length, ids: rows.map(r => r.id) };
   }, [mergeRows, queue.insert]); // eslint-disable-line react-hooks/exhaustive-deps
   const addLift = useCallback((rec) => addLifts([rec]), [addLifts]);
 
