@@ -4022,7 +4022,15 @@ Goal: the app keeps working with no further development. Owner-facing guide: `do
 3. **Season rollover.** `normalizeSettings` runs `rollSeasonStart`: a season start more than a year old moves forward a year at a time on the same month/day (2026-08-03 → 2027-08-03 on that date). Less than a year old, or in the future, it's left as entered. Settings help text says so.
 4. Tests: new `tests/season-rollover.js` (7, no browser).
 
-## 136. Next up
+## 136. Lift Kiosk: select multiple athletes (v5.10.2)
+
+Filling a rack used to take one "Add Another Athlete" tap per person, because picking a name opens that athlete and hides the roster.
+- `LiftScreen.jsx`: **Select multiple** switch (`role="switch"`, `data-testid="lk-multi-toggle"`) in the kiosk roster's sticky search panel. While on, a tile tap runs `toggleInRack` (add/remove, no card opened, roster stays open). **Done adding (N)** (`lk-done-adding`) runs `doneAdding`: hides the roster and opens the first rack athlete if no card is open.
+- Tiles show who is already in the rack (`aria-pressed`, check badge, highlight) in both modes, which also helps after "Add Another Athlete".
+- Remembered per tablet in `hpd_lift_multi_select`. Off is the original behaviour.
+- Test: `tests/lift-kiosk-multi.js` (12).
+
+## 137. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

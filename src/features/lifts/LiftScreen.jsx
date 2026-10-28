@@ -176,6 +176,11 @@ export default function LiftScreen({
   // explicit "+ Add Another Athlete" toggle so the screen isn't just displaying
   // the whole roster's names once a session is already underway.
   const [showFindAthlete, setShowFindAthlete] = React.useState(true);
+  // "Select multiple" (v5.10.2): a rack tablet can add its whole group from the roster in
+  // one pass - each tap adds (or removes) a name and the roster stays open until "Done
+  // adding". Remembered on the tablet, so a rack iPad stays in that mode.
+  const [multiSelect, setMultiSelect] = React.useState(() => { try { return localStorage.getItem('hpd_lift_multi_select') === '1'; } catch { return false; } });
+  const toggleMultiSelect = () => setMultiSelect(v => { try { localStorage.setItem('hpd_lift_multi_select', v ? '0' : '1'); } catch { /* ignore */ } return !v; });
   const removeFromRack = (id) => {
     setRackAthleteIds(prev => prev.filter(x => x !== id));
     if (entryAthleteId === id) closeEntry();
@@ -226,6 +231,15 @@ export default function LiftScreen({
       // for the rest of the session.
       setShowFindAthlete(false);
     }
+  };
+
+  const toggleInRack = (athleteId) => {
+    if (rackAthleteIds.includes(athleteId)) removeFromRack(athleteId);
+    else setRackAthleteIds(prev => [...prev, athleteId]);
+  };
+  const doneAdding = () => {
+    setShowFindAthlete(false);
+    if (!entryAthleteId && rackAthleteIds.length) openEntry(rackAthleteIds[0]);
   };
 
   const closeEntry = () => {
@@ -811,6 +825,36 @@ export default function LiftScreen({
                   ))}
                 </div>
                 <DragScrollBar drag={rosterSportDrag} className="mt-1" />
+                {isKioskMode && (
+                  <div className="flex flex-wrap items-center gap-space-sm">
+                    <button
+                      type="button"
+                      data-testid="lk-multi-toggle"
+                      role="switch"
+                      aria-checked={multiSelect}
+                      onClick={toggleMultiSelect}
+                      className={`min-h-[44px] flex items-center gap-2 px-space-sm rounded-lg font-label-md text-label-md uppercase font-bold transition-colors ${multiSelect ? 'bg-primary-container text-on-primary-container border-2 border-primary' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
+                    >
+                      <span aria-hidden="true" className={`w-9 h-5 rounded-full relative transition-colors ${multiSelect ? 'bg-primary' : 'bg-surface-container-highest'}`}>
+                        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-on-surface transition-all ${multiSelect ? 'left-[18px]' : 'left-0.5'}`} />
+                      </span>
+                      Select multiple
+                    </button>
+                    {multiSelect && (
+                      <span className="font-label-sm text-label-sm text-on-surface-variant">Tap each name for this rack.</span>
+                    )}
+                    {multiSelect && rackAthleteIds.length > 0 && (
+                      <button
+                        type="button"
+                        data-testid="lk-done-adding"
+                        onClick={doneAdding}
+                        className="ml-auto min-h-[44px] flex items-center gap-1.5 px-space-md rounded-lg bg-primary hover:bg-primary-fixed text-on-primary font-label-md text-label-md uppercase font-bold"
+                      >
+                        <Check size={16} /> Done adding ({rackAthleteIds.length})
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -842,13 +886,19 @@ export default function LiftScreen({
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-space-sm">
                 {pagedAthletes.map((a) => {
                   const lastLog = lastLiftByAthlete.get(a.id);
+                  const inRack = rackAthleteIds.includes(a.id);
                   return (
                     <button
                       key={a.id}
                       type="button"
-                      onClick={() => openEntry(a.id)}
-                      className="flex flex-col items-center justify-center gap-2 p-space-md rounded-xl bg-surface-container hover:bg-primary-container active:scale-[0.97] transition-all shadow-sm text-center"
+                      data-testid="lk-tile"
+                      aria-pressed={inRack}
+                      onClick={() => (multiSelect ? toggleInRack(a.id) : openEntry(a.id))}
+                      className={`relative flex flex-col items-center justify-center gap-2 p-space-md rounded-xl active:scale-[0.97] transition-all shadow-sm text-center ${inRack ? 'bg-primary-container border-2 border-primary' : 'bg-surface-container hover:bg-primary-container border-2 border-transparent'}`}
                     >
+                      {inRack && (
+                        <span aria-hidden="true" className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center"><Check size={14} /></span>
+                      )}
                       <div className="w-14 h-14 rounded-full bg-surface-container-highest text-primary font-headline-lg text-headline-lg flex items-center justify-center">
                         {initialsOf(a.name).slice(0, 2)}
                       </div>
