@@ -4,6 +4,7 @@
 import fs from 'fs';
 import { chromium } from 'playwright';
 import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
+import { makeXlsx } from './lib/make-xlsx.js';
 const LAUNCH_OPTS = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
 const APP = process.env.APP_URL || 'http://127.0.0.1:4173';
 const SUPA = '**/cwfpjlomlvkburugolky.supabase.co/**';
@@ -86,7 +87,41 @@ const upload = [
   check('import closes with a confirmation; new programs in the list', await page.getByTestId('pb-import').count() === 0 && /Imported 2 programs/.test(await page.getByTestId('pb-msg').innerText()) && (await page.getByTestId('pb-item').allInnerTexts()).filter(t => /Spring Block/.test(t)).length === 2);
   await page.getByTestId('pb-upload-input').setInputFiles({ name: 'plan.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('PK') });
   await page.waitForTimeout(300);
-  check('an Excel workbook gets "Save As CSV" help instead of an error', /Save As/.test(await page.getByTestId('pb-msg').innerText()));
+  check('a broken Excel file gets plain help instead of an error', /Couldn't read that Excel file/.test(await page.getByTestId('pb-msg').innerText()));
+  await page.getByTestId('pb-upload-input').setInputFiles({ name: 'program.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF') });
+  await page.waitForTimeout(300);
+  check('a PDF gets "upload a .csv or .xlsx"', /isn't a spreadsheet/.test(await page.getByTestId('pb-msg').innerText()));
+
+  // 2c. Real .xlsx straight from Excel / Google Sheets (2nd tab is the program; % stored as 0.6)
+  const xbuf = makeXlsx([
+    { name: 'Notes', rows: [['Coach notes'], ['Nothing to see here']] },
+    { name: 'WSOC', pct: ['D6'], rows: [
+      ['Abby Tibbs', '', 'Exercise', 'Back Squat', '', '', '', '', '', '', 'WSOC FALL 26'],
+      ['', '', 'Personal Best', 140],
+      [],
+      ['Day 1', '', 'Week 10 (10/26)', '', '', ''],
+      ['', '', 'Set/ Rep', '%', 'WT', 'Tempo'],
+      ['2a', 'Back Squat\n(Perfect Sets = add 5 or 10 lbs)', '6x 4', 0.6, 85, 'X4XX'],
+      ['2b', 'RDL', '6x 4', '', 95, '4XXX'],
+    ] },
+  ]);
+  await page.getByTestId('pb-upload-input').setInputFiles({ name: 'WSOC Fall.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: xbuf });
+  await page.waitForTimeout(800);
+  check('.xlsx: reads the program tab directly (no Save As CSV)', await page.getByTestId('pb-grid-options').count() === 1 && /tab "WSOC"/.test(await page.getByTestId('pb-import').innerText()) && (await page.getByTestId('pb-grid-name').inputValue()) === 'WSOC FALL 26', await page.getByTestId('pb-import').innerText().catch(() => ''));
+  inserts.length = 0;
+  await page.getByTestId('pb-import-go').click(); await page.waitForTimeout(800);
+  const xs = inserts[0]?.days?.[0]?.blocks || [];
+  check('.xlsx: 60% (stored as 0.6) -> 6 sets @ 60% of squat; RDL 95 lb kept as text', xs[0]?.maxKey === 'squat' && xs[0]?.sets?.length === 6 && xs[0]?.sets[0].pct === '60' && xs[1]?.rx === '6x 4 · @ 95 lb · tempo 4XXX', JSON.stringify(xs).slice(0, 300));
+
+  // 2d. Drag and drop a file anywhere on the page
+  const dropCsv = 'Program,Week,Team,Date,Exercise,% of,Set,Reps,%\nDropped,Week 1,Football,2027-01-04,Back Squat,Squat,1,5,70';
+  await page.evaluate(() => { const dt = new DataTransfer(); dt.items.add(new File(['x'], 'x.csv', { type: 'text/csv' })); window.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true, cancelable: true })); });
+  await page.waitForTimeout(200);
+  check('dragging a file over the page shows the drop target', await page.getByTestId('pb-drop').count() === 1);
+  await page.evaluate((text) => { const dt = new DataTransfer(); dt.items.add(new File([text], 'dropped.csv', { type: 'text/csv' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); }, dropCsv);
+  await page.waitForTimeout(600);
+  check('dropping it opens the upload preview', await page.getByTestId('pb-drop').count() === 0 && await page.getByTestId('pb-import').count() === 1 && /Dropped · Week 1/.test(await page.getByTestId('pb-import').innerText()));
+  await page.getByRole('button', { name: 'Cancel' }).click(); await page.waitForTimeout(300);
 
   // 2b. Weekly-grid upload (Day sections down, weeks across, like a printed sheet)
   const grid = [

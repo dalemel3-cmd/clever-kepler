@@ -4,6 +4,7 @@ import { usePrograms } from './usePrograms';
 import { MAX_KEYS, MAX_WINDOWS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
 import { parseCsv, rowsToPrograms, programsToRows, templateCsv, toCsv } from './programCsv';
 import { isGrid, parseGrid, gridTemplateCsv } from './programGrid';
+import { readXlsx } from '../../utils/xlsx';
 const ProgramImportPanel = React.lazy(() => import('./ProgramImportPanel'));
 const PeriodizationPanel = React.lazy(() => import('./PeriodizationPanel'));
 const loadWeightRoomCard = () => import('./WeightRoomCard');
@@ -157,17 +158,43 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
     const wed = new Date(monday); wed.setDate(wed.getDate() + 2); ex.days[1].date = ymd(wed);
     downloadCsv('hpd-program-template.csv', templateCsv(ex));
   };
-  const onFile = async (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
+  // A program file from the Upload button or dropped anywhere on this screen: .csv, or
+  // .xlsx straight from Excel / Google Sheets (the first tab that looks like a program).
+  const looksLikeRows = (rows) => rows.slice(0, 40).some(r => r.some(c => /^program$/i.test(String(c).trim())) && r.some(c => /^exercise$/i.test(String(c).trim())));
+  const handleFile = async (f) => {
     if (!f) return;
-    if (/\.xlsx?$/i.test(f.name)) { setMsg('That is an Excel workbook. In Excel use File > Save As > "CSV UTF-8 (Comma delimited)" and upload the .csv.'); return; }
-    const rows = parseCsv(await f.text());
+    let rows, label = f.name;
+    if (/\.xlsx$/i.test(f.name)) {
+      try {
+        const sheets = await readXlsx(await f.arrayBuffer());
+        const pick = sheets.find(sh => isGrid(sh.rows) || looksLikeRows(sh.rows)) || sheets[0];
+        if (!pick) throw new Error('empty');
+        rows = pick.rows;
+        if (sheets.length > 1) label = `${f.name} · tab "${pick.name}"`;
+      } catch { setMsg("Couldn't read that Excel file. Try File > Download > CSV and upload the .csv."); return; }
+    } else if (/\.xls$/i.test(f.name)) { setMsg('That is an old .xls workbook. Save it as .xlsx or CSV and upload that.'); return; }
+    else if (/\.(csv|txt|tsv)$/i.test(f.name) || /csv|text\/plain/.test(f.type)) rows = parseCsv(await f.text());
+    else { setMsg(`"${f.name}" isn't a spreadsheet. Upload a .csv or .xlsx program sheet - PDFs and photos can't be read reliably.`); return; }
     // Two layouts: one row per set (the template), or a weekly grid (Day sections down,
     // weeks across - the printed-sheet layout). Detected from the file itself.
-    if (isGrid(rows)) setImporting({ fileName: f.name, grid: parseGrid(rows, { teams: sports }) });
-    else setImporting({ fileName: f.name, result: rowsToPrograms(rows, { liftTypes, teams: sports }) });
+    if (isGrid(rows)) setImporting({ fileName: label, grid: parseGrid(rows, { teams: sports }) });
+    else setImporting({ fileName: label, result: rowsToPrograms(rows, { liftTypes, teams: sports }) });
   };
+  const onFile = (e) => { const f = e.target.files?.[0]; e.target.value = ''; handleFile(f); };
+  // Drag and drop: anywhere on the page while Programs is open.
+  const [dragging, setDragging] = React.useState(false);
+  const dragDepth = React.useRef(0);
+  const handleFileRef = React.useRef(handleFile);
+  handleFileRef.current = handleFile;
+  React.useEffect(() => {
+    const hasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
+    const enter = (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth.current += 1; setDragging(true); };
+    const over = (e) => { if (hasFiles(e)) e.preventDefault(); };
+    const leave = (e) => { if (!hasFiles(e)) return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); };
+    const drop = (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth.current = 0; setDragging(false); handleFileRef.current(e.dataTransfer.files?.[0]); };
+    window.addEventListener('dragenter', enter); window.addEventListener('dragover', over); window.addEventListener('dragleave', leave); window.addEventListener('drop', drop);
+    return () => { window.removeEventListener('dragenter', enter); window.removeEventListener('dragover', over); window.removeEventListener('dragleave', leave); window.removeEventListener('drop', drop); };
+  }, []);
   const [tplMenu, setTplMenu] = React.useState(false);
   const doImport = async (list) => {
     const res = await saveMany(list);
@@ -217,8 +244,8 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
               </div>
             )}
           </div>
-          <button type="button" data-testid="pb-upload" style={btn(false)} onClick={() => fileRef.current?.click()} title="Upload programs from a filled-in template (.csv)"><FileUp size={16} /> Upload programs</button>
-          <input ref={fileRef} data-testid="pb-upload-input" type="file" accept=".csv,text/csv,.xlsx,.xls" onChange={onFile} style={{ display: 'none' }} />
+          <button type="button" data-testid="pb-upload" style={btn(false)} onClick={() => fileRef.current?.click()} title="Upload a program sheet (.csv or .xlsx) - or drag the file onto this page"><FileUp size={16} /> Upload programs</button>
+          <input ref={fileRef} data-testid="pb-upload-input" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xls" onChange={onFile} style={{ display: 'none' }} />
           <button type="button" data-testid="pb-periodization" aria-pressed={showPeriod} style={btn(showPeriod)} onClick={() => setShowPeriod(v => !v)}><ChartColumn size={16} /> Periodization</button>
         </div>
       </div>
@@ -314,6 +341,15 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
           </div>
         )}
       </div>
+      {dragging && (
+        <div data-testid="pb-drop" aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(3,10,20,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div style={{ padding: '36px 44px', borderRadius: '18px', border: '3px dashed var(--color-accent)', background: 'rgba(184,156,91,0.08)', textAlign: 'center', maxWidth: '520px' }}>
+            <FileUp size={40} style={{ color: 'var(--color-accent)' }} />
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, textTransform: 'uppercase', marginTop: '10px' }}>Drop to upload programs</div>
+            <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>.csv or .xlsx - a weekly grid or the one-row-per-set template. You'll see a preview before anything is saved.</div>
+          </div>
+        </div>
+      )}
       {importing && (
         <React.Suspense fallback={null}>
           <ProgramImportPanel fileName={importing.fileName} result={importing.result} grid={importing.grid} teams={sports} liftTypes={liftTypes} existing={programs} onImport={doImport} onClose={() => setImporting(null)} />
