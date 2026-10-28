@@ -61,7 +61,11 @@ const upload = [
   await page.goto(`${APP}/#programs`); await page.waitForTimeout(2500);
   const grab = async (id) => { const [dl] = await Promise.all([page.waitForEvent('download'), page.getByTestId(id).click()]); return { name: dl.suggestedFilename(), text: fs.readFileSync(await dl.path(), 'utf8') }; };
 
-  // 1. Template
+  // 1. Templates (menu: weekly grid / one row per set)
+  await page.getByTestId('pb-template-menu').click();
+  const gridTpl = await grab('pb-template-grid');
+  check('weekly-grid template downloads', gridTpl.name === 'hpd-program-weekly-grid.csv' && /Day 1,,Week 1 \(9\/7\)/.test(gridTpl.text) && /Set\/Rep,%,WT,Tempo/.test(gridTpl.text), gridTpl.text.slice(0, 300));
+  await page.getByTestId('pb-template-menu').click();
   const tpl = await grab('pb-template');
   const tLines = tpl.text.replace(/^﻿/, '').split(/\r\n/);
   check('template downloads as CSV', tpl.name === 'hpd-program-template.csv' && tpl.text.startsWith('﻿'), tpl.name);
@@ -83,6 +87,38 @@ const upload = [
   await page.getByTestId('pb-upload-input').setInputFiles({ name: 'plan.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('PK') });
   await page.waitForTimeout(300);
   check('an Excel workbook gets "Save As CSV" help instead of an error', /Save As/.test(await page.getByTestId('pb-msg').innerText()));
+
+  // 2b. Weekly-grid upload (Day sections down, weeks across, like a printed sheet)
+  const grid = [
+    ['Abby Tibbs', '', 'Exercise', 'Back Squat', '', '', '', '', '', '', 'WSOC FALL 26'],
+    ['', '', 'Personal Best', '140'],
+    [],
+    ['Day 1', '', 'Week 10 (10/26)', '', '', '', 'Week 11 (11/2)', '', '', ''],
+    ['', '', 'Set/ Rep', '%', 'WT', 'Tempo', 'Set/ Rep', '%', 'WT', 'Tempo'],
+    ['1a', 'Power Clean\nWk10: 3s @ Mid Shin\nWk11: Knee', '3x 4', '', '65-85', 'X3XX', '3x 3', '', '70-90', 'X3XX'],
+    ['2a', 'Back Squat', '6x 4', '60%', '85', 'X4XX', '7x 3', '64%', '90', 'X4XX'],
+    ['3', 'Week 1 and 2 (2 Rounds)\n40 Flutter Kicks\n20 Toe Touches', '2 Rounds', '', '', '', '2 Rounds', '', '', ''],
+    [],
+    ['Day 2', '', 'Week 10 (10/26)', '', '', '', 'Week 11 (11/2)', '', '', ''],
+    ['', '', 'Set/ Rep', '%', 'WT', 'Tempo', 'Set/ Rep', '%', 'WT', 'Tempo'],
+    ['1a', 'Chin Up', '3x 3', '', '', '4XXX', '3x 3', '', '', '5XXX'],
+  ].map(r => r.map(c => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(',')).join('\n').replace(/\\n/g, '\n');
+  inserts.length = 0;
+  await page.getByTestId('pb-upload-input').setInputFiles({ name: 'WSOC Fall 26 - Abby.csv', mimeType: 'text/csv', buffer: Buffer.from(grid) });
+  await page.waitForTimeout(500);
+  check('grid sheet is recognised: options with name and team guessed', await page.getByTestId('pb-grid-options').count() === 1 && (await page.getByTestId('pb-grid-name').inputValue()) === 'WSOC FALL 26', await page.getByTestId('pb-grid-name').inputValue().catch(() => '(none)'));
+  check('one program per week in the preview', JSON.stringify((await page.getByTestId('pb-import-item').allInnerTexts()).map(t => t.split('\n')[0])) === JSON.stringify(['WSOC FALL 26 · Week 10', 'WSOC FALL 26 · Week 11']), JSON.stringify(await page.getByTestId('pb-import-item').allInnerTexts()));
+  check('2-day weeks default to Mon / Thu', (await page.getByTestId('pb-grid-day-1').inputValue()) === '0' && (await page.getByTestId('pb-grid-day-2').inputValue()) === '3' && /Mon,? 10\/26.*Thu,? 10\/29/.test((await page.getByTestId('pb-import-item').allInnerTexts())[0]), (await page.getByTestId('pb-import-item').allInnerTexts())[0]);
+  if (process.env.SHOT2) await page.getByTestId('pb-import').locator('.card-glass').first().screenshot({ path: process.env.SHOT2 });
+  await page.getByTestId('pb-grid-day-2').selectOption({ label: 'Wed' });
+  await page.getByTestId('pb-grid-team').selectOption('Football');
+  await page.getByTestId('pb-grid-phase').fill('In-season');
+  check('changing a training day updates the dates', /Wed,? 10\/28/.test((await page.getByTestId('pb-import-item').allInnerTexts())[0]), (await page.getByTestId('pb-import-item').allInnerTexts())[0]);
+  await page.getByTestId('pb-import-go').click(); await page.waitForTimeout(800);
+  const g10 = inserts.find(p => p.week_label === 'Week 10') || {};
+  check('grid import saves each week as a program with your choices', inserts.length === 2 && g10.name === 'WSOC FALL 26' && g10.sport === 'Football' && g10.phase === 'In-season' && g10.days.map(d => d.date).join() === '2026-10-26,2026-10-28', JSON.stringify(inserts.map(p => [p.week_label, p.sport, p.days.map(d => d.date)])));
+  const sq = g10.days?.[0]?.blocks?.find(b => b.name === 'Back Squat') || {};
+  check('grid: % of a lift -> sets with working weights; cues and finisher kept', sq.maxKey === 'squat' && sq.sets?.length === 6 && sq.sets[0].pct === '60' && g10.days[0].blocks[0].note === '3s @ Mid Shin' && g10.days[0].finTitle === 'Finisher · 2 Rounds' && g10.days[0].fin.length === 2, JSON.stringify(g10.days?.[0]).slice(0, 400));
 
   // 3. Download a program as CSV
   await page.getByTestId('pb-item').filter({ hasText: 'Week 1' }).filter({ hasText: 'Fall Block' }).first().click(); await page.waitForTimeout(600);

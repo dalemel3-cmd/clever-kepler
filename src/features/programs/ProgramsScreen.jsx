@@ -3,6 +3,7 @@ import { Plus, Trash2, Copy, Printer, ChevronUp, ChevronDown, Save, Archive, Sea
 import { usePrograms } from './usePrograms';
 import { MAX_KEYS, MAX_WINDOWS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
 import { parseCsv, rowsToPrograms, programsToRows, templateCsv, toCsv } from './programCsv';
+import { isGrid, parseGrid, gridTemplateCsv } from './programGrid';
 const ProgramImportPanel = React.lazy(() => import('./ProgramImportPanel'));
 const PeriodizationPanel = React.lazy(() => import('./PeriodizationPanel'));
 const loadWeightRoomCard = () => import('./WeightRoomCard');
@@ -161,9 +162,13 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
     e.target.value = '';
     if (!f) return;
     if (/\.xlsx?$/i.test(f.name)) { setMsg('That is an Excel workbook. In Excel use File > Save As > "CSV UTF-8 (Comma delimited)" and upload the .csv.'); return; }
-    const text = await f.text();
-    setImporting({ fileName: f.name, result: rowsToPrograms(parseCsv(text), { liftTypes, teams: sports }) });
+    const rows = parseCsv(await f.text());
+    // Two layouts: one row per set (the template), or a weekly grid (Day sections down,
+    // weeks across - the printed-sheet layout). Detected from the file itself.
+    if (isGrid(rows)) setImporting({ fileName: f.name, grid: parseGrid(rows, { teams: sports }) });
+    else setImporting({ fileName: f.name, result: rowsToPrograms(rows, { liftTypes, teams: sports }) });
   };
+  const [tplMenu, setTplMenu] = React.useState(false);
   const doImport = async (list) => {
     const res = await saveMany(list);
     if (res.ok) { setImporting(null); setMsg(`Imported ${res.count} program${res.count === 1 ? '' : 's'}.`); }
@@ -203,7 +208,15 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button type="button" data-testid="pb-new" style={btn(true)} onClick={() => { edit(newProgram(liftTypes)); setDirty(true); }}><Plus size={16} /> New program</button>
           <button type="button" data-testid="pb-sample" style={btn(false)} onClick={() => { edit(sampleProgram(liftTypes)); setDirty(true); }}>Start from sample</button>
-          <button type="button" data-testid="pb-template" style={btn(false)} onClick={downloadTemplate} title="A spreadsheet (CSV) to plan in Excel or Google Sheets and upload"><FileDown size={16} /> Download template</button>
+          <div style={{ position: 'relative' }}>
+            <button type="button" data-testid="pb-template-menu" aria-expanded={tplMenu} style={btn(false)} onClick={() => setTplMenu(v => !v)} title="A spreadsheet (CSV) to plan in Excel or Google Sheets and upload"><FileDown size={16} /> Download template</button>
+            {tplMenu && (
+              <div role="menu" style={{ position: 'absolute', top: '46px', right: 0, zIndex: 30, minWidth: '260px', padding: '6px', borderRadius: '12px', background: 'var(--navy-900, #0b1220)', border: '1px solid rgba(255,255,255,0.18)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <button type="button" role="menuitem" data-testid="pb-template-grid" onClick={() => { setTplMenu(false); downloadCsv('hpd-program-weekly-grid.csv', gridTemplateCsv()); }} style={{ ...btn(false), border: 'none', height: 'auto', minHeight: '44px', padding: '8px 10px', flexDirection: 'column', alignItems: 'flex-start', textTransform: 'none', gap: '2px' }}><span style={{ fontWeight: 800 }}>Weekly grid</span><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Days down, weeks across - like a printed sheet</span></button>
+                <button type="button" role="menuitem" data-testid="pb-template" onClick={() => { setTplMenu(false); downloadTemplate(); }} style={{ ...btn(false), border: 'none', height: 'auto', minHeight: '44px', padding: '8px 10px', flexDirection: 'column', alignItems: 'flex-start', textTransform: 'none', gap: '2px' }}><span style={{ fontWeight: 800 }}>One row per set</span><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Every detail, easy to sort and filter</span></button>
+              </div>
+            )}
+          </div>
           <button type="button" data-testid="pb-upload" style={btn(false)} onClick={() => fileRef.current?.click()} title="Upload programs from a filled-in template (.csv)"><FileUp size={16} /> Upload programs</button>
           <input ref={fileRef} data-testid="pb-upload-input" type="file" accept=".csv,text/csv,.xlsx,.xls" onChange={onFile} style={{ display: 'none' }} />
           <button type="button" data-testid="pb-periodization" aria-pressed={showPeriod} style={btn(showPeriod)} onClick={() => setShowPeriod(v => !v)}><ChartColumn size={16} /> Periodization</button>
@@ -303,7 +316,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
       </div>
       {importing && (
         <React.Suspense fallback={null}>
-          <ProgramImportPanel fileName={importing.fileName} result={importing.result} existing={programs} onImport={doImport} onClose={() => setImporting(null)} />
+          <ProgramImportPanel fileName={importing.fileName} result={importing.result} grid={importing.grid} teams={sports} liftTypes={liftTypes} existing={programs} onImport={doImport} onClose={() => setImporting(null)} />
         </React.Suspense>
       )}
       {printing && draft && (

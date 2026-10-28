@@ -33,7 +33,7 @@ Nothing runs on a schedule that you have to maintain. The iPads and computers do
 
 ## Planning programs in Excel
 
-Programs → **Download template** gives a spreadsheet (CSV) with instructions and an example week. Fill it in Excel or Google Sheets (one row per set; leave repeated cells blank under the first one), save as **CSV UTF-8**, then **Upload programs**. The upload shows what it found and anything to check before saving, and always adds new programs (nothing existing is changed). **Download CSV** on any program gives the same layout to edit and re-upload. **Periodization** shows volume and intensity by day, week or month across all programs that have dates.
+Programs → **Download template** offers two layouts: **Weekly grid** (Day sections down, weeks across, like a printed sheet) and **One row per set**. Fill either in Excel or Google Sheets, save or download it as **CSV**, then **Upload programs** (the app tells which layout it is). An existing week-across sheet can be uploaded as-is: each week becomes a program, and you pick the program name, team, phase and training days (e.g. Day 1 = Mon) before importing. The upload shows what it found and anything to check before saving, and always adds new programs (nothing existing is changed). **Download CSV** on any program gives the same layout to edit and re-upload. **Periodization** shows volume and intensity by day, week or month across all programs that have dates.
 
 ## Plan limits to know (Supabase Free plan)
 
