@@ -28,9 +28,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: false, error: { code: 'unauthorized', message: 'Missing Authorization header.' } }), { status: 401, headers: jsonHeaders });
     }
 
+    // Publishable key first (the legacy anon key is retired at the end of 2026); the
+    // legacy variable is only a fallback for projects that haven't created one.
+    let publishable = '';
+    try { publishable = JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') ?? '{}').default ?? ''; } catch (_e) { /* not set */ }
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      publishable || (Deno.env.get('SUPABASE_ANON_KEY') ?? ''),
       { global: { headers: { Authorization: authHeader } } },
     );
     const { data: isApproved, error: rpcError } = await supabaseClient.rpc('is_approved_coach');

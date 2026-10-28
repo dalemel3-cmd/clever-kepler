@@ -237,7 +237,7 @@ export default function SettingsScreen({
                 { key: 'programName', label: 'Program Name', type: 'text' },
                 { key: 'coachName', label: 'Coach / Owner Name', type: 'text' },
                 { key: 'programTimezone', label: 'Program Timezone (IANA)', type: 'text', help: 'Anchors "today" so every device agrees on the calendar day.' },
-                { key: 'seasonStartDate', label: 'Season Start Date', type: 'date', help: 'Baseline reference when an athlete has no explicit marker.' },
+                { key: 'seasonStartDate', label: 'Season Start Date', type: 'date', help: 'Baseline reference when an athlete has no explicit marker. Moves forward a year on its own each year on this date.' },
               ]
             },
             {

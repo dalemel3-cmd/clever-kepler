@@ -153,6 +153,18 @@ const coerce = (key, value, fallback) => {
   return value === undefined ? fallback : value;
 };
 
+// The season start rolls forward a year at a time on the same month/day (v5.10.1), so
+// "This season" windows and baseline defaults stay right every August even if nobody
+// edits Settings again. A date less than a year old is left exactly as entered.
+export const rollSeasonStart = (ymd, today = new Date().toLocaleDateString('en-CA')) => {
+  if (typeof ymd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const [y, m, d] = ymd.split('-').map(Number);
+  let year = y;
+  const at = (yr) => `${yr}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  while (at(year + 1) <= today) year += 1;
+  return at(year);
+};
+
 export const normalizeSettings = (raw) => {
   const out = { ...DEFAULT_SETTINGS };
   if (raw && typeof raw === 'object') {
@@ -162,6 +174,7 @@ export const normalizeSettings = (raw) => {
       }
     });
   }
+  out.seasonStartDate = rollSeasonStart(out.seasonStartDate);
   // Retired duplicate sport names (v5.3.0 roster cleanup): VBB is Volleyball and SOCC
   // is WSOC. Saved settings on existing devices still carry them, so map them here.
   if (Array.isArray(out.sportsList)) {

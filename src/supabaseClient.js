@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://cwfpjlomlvkburugolky.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3ZnBqbG9tbHZrYnVydWdvbGt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNjMyMTQsImV4cCI6MjEwMDkzOTIxNH0.qcdyTHhg2Cyrtq3mpBP2_91IGQbiiWAOWvb8NFgfLNw'
+// Publishable key (v5.10.1, docs/RUNBOOK.md). Supabase retires the legacy JWT `anon` key
+// at the end of 2026; the publishable key has the same low privileges (Row Level
+// Security still decides what a signed-in coach can see) and is meant to ship in apps.
+// Built in on purpose, so the app keeps working with no build-time settings at all.
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_2DNcJ1rW-cm9NT_OrrYpSA_QTLyiDqs'
 
 // "JWT issued at future": right after a token refresh, a device whose clock runs a
 // little behind the auth server can present a token the database sees as not valid yet.
@@ -20,7 +24,7 @@ const skewSafeFetch = async (input, init) => {
   }
 };
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl, supabaseKey, {
   global: { fetch: skewSafeFetch },
   auth: {
     // The weight-room kiosk must stay signed in indefinitely: the session is

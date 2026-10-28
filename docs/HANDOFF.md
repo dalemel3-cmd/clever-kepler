@@ -4014,7 +4014,15 @@ The Program Builder's programs now reach the weight room floor: one tablet per r
 - Program Builder shows a hint under the team field ("Shows on the Lift Tracker tablets for <team> on each day's date").
 - Test: `tests/workout-tablet.js` (30).
 
-## 135. Next up
+## 135. Sustainability, part 1: publishable key, season rollover, runbook (v5.10.1)
+
+Goal: the app keeps working with no further development. Owner-facing guide: `docs/RUNBOOK.md` (accounts, yearly checklist, plan limits, symptom → fix table, remaining hands-off items).
+1. **Publishable key.** Supabase retires the legacy JWT `anon`/`service_role` keys at the end of 2026 (docs: "Migrating to publishable and secret API keys"). `src/supabaseClient.js` now uses `VITE_SUPABASE_PUBLISHABLE_KEY` or the built-in `sb_publishable_…` key (safe in client code; same privileges as anon, RLS unchanged). `VITE_SUPABASE_ANON_KEY` is no longer read. supabase-js 2.111 sends a new-format key only in `apikey` for Functions and uses the user's access token as Bearer once signed in. The saved session key is derived from the project URL, so kiosks stay signed in across the switch. Verify on the preview (sign in, data loads, live sync, a weigh-in saves) before shipping; afterwards the legacy key can be deactivated in Supabase → Settings → API Keys.
+2. **Plyomat function** (`supabase/functions/plyomat-sync/index.ts`) reads `SUPABASE_PUBLISHABLE_KEYS.default`, falling back to `SUPABASE_ANON_KEY`. Needs `supabase functions deploy plyomat-sync` (or the MCP deploy) with the release; backward compatible.
+3. **Season rollover.** `normalizeSettings` runs `rollSeasonStart`: a season start more than a year old moves forward a year at a time on the same month/day (2026-08-03 → 2027-08-03 on that date). Less than a year old, or in the future, it's left as entered. Settings help text says so.
+4. Tests: new `tests/season-rollover.js` (7, no browser).
+
+## 136. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
