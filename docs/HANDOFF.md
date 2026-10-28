@@ -4030,7 +4030,15 @@ Filling a rack used to take one "Add Another Athlete" tap per person, because pi
 - Remembered per tablet in `hpd_lift_multi_select`. Off is the original behaviour.
 - Test: `tests/lift-kiosk-multi.js` (12).
 
-## 137. Next up
+## 137. Programs: spreadsheet template / upload / download, periodization overview (v5.11.0)
+
+For coaches who plan in Excel, and to bring in past programs without retyping.
+- **Format** (`src/features/programs/programCsv.js`): CSV, one row per set or per warm-up/finisher line. Columns `Program, Week, Phase, Team, Date, Day, Focus, Section, Code, Exercise, Note, % of, Set, Reps, %, Tempo, Prescription, Velocity` (header names are matched loosely; comma or semicolon files; UTF-8 BOM written so Excel keeps "–"/"·"). Same Program + Week = one program; same Date (or Day number) = one day; consecutive rows for the same Code + Exercise = that exercise's sets. Blank cells carry down from the row above (program cells within a program, day cells within a day - never across). `Section` blank = exercise, `Warm-up…`/`Pre…` = warm-up line (its text is the title), anything else = finisher line. `% of` accepts Clean/Bench/Squat/TBDL/OHP or a lift name ("Back Squat"). Dates `YYYY-MM-DD`, `M/D/YYYY`, `M/D/YY`. Lines starting `#` are skipped (the template's instructions).
+- **Download template**: instructions + the sample week with next week's Monday/Wednesday dates. **Upload programs**: `ProgramImportPanel.jsx` preview - each program with team, days (dates/focus), exercises and sets; row-numbered warnings (unreadable date, unknown "% of", % without a lift, team not in the app or different from the program's); tick which to import; **always inserts new programs** (`usePrograms.saveMany`, one request); a same name + week gets a "second one" note. An .xlsx/.xls upload gets "Save As CSV UTF-8" help. **Download CSV** on an open program exports it in the template layout (round-trips).
+- **Periodization** (`PeriodizationPanel.jsx`, data in `periodization.js`): loads every program's days once (`usePrograms.loadAll`, archived included, brake `programs:all`). Per dated day: sets and reps of set-by-set exercises (text prescriptions like "3x 8" aren't counted), load = Σ reps × % / 100, rep-weighted average %, top %, per-lift sets/reps/% range. Grouped by day, week (Monday start) or month; empty weeks/months between the first and last session stay on the timeline. Two charts on one band x-axis (volume bars; intensity line - never a dual-axis chart), a phase strip (consecutive buckets with the same phase), and a table. Filters: team (opens on the open program's team), lift, volume measure (load/reps/sets), from/to. View remembered (`hpd_period_view`). Undated program days are counted in a note, not plotted.
+- Tests: `tests/program-csv.js` (20, no browser; `tests/lib/src-resolve.mjs` lets Node import app source), `tests/program-template-periodization.js` (28).
+
+## 138. Next up
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open

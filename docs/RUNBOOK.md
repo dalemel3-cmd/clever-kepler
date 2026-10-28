@@ -31,6 +31,10 @@ Nothing runs on a schedule that you have to maintain. The iPads and computers do
 4. **Plyomat:** run one "Sync from Plyomat". If it says the API key is invalid, get a new key from Plyomat and paste it into Supabase → Edge Functions → Secrets → `PLYOMAT_API_KEY`.
 5. **Tablets:** open the app on every iPad once, so each one loads the latest version.
 
+## Planning programs in Excel
+
+Programs → **Download template** gives a spreadsheet (CSV) with instructions and an example week. Fill it in Excel or Google Sheets (one row per set; leave repeated cells blank under the first one), save as **CSV UTF-8**, then **Upload programs**. The upload shows what it found and anything to check before saving, and always adds new programs (nothing existing is changed). **Download CSV** on any program gives the same layout to edit and re-upload. **Periodization** shows volume and intensity by day, week or month across all programs that have dates.
+
 ## Plan limits to know (Supabase Free plan)
 
 - **5 GB a month of downloads (egress).** Normal use is about 0.1–0.3 GB a month. A bug in Oct 2026 used 40 GB in a night, which is why the safety brake exists.

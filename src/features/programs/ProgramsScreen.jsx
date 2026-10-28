@@ -1,7 +1,10 @@
 import React from 'react';
-import { Plus, Trash2, Copy, Printer, ChevronUp, ChevronDown, Save, Archive, Search } from 'lucide-react';
+import { Plus, Trash2, Copy, Printer, ChevronUp, ChevronDown, Save, Archive, Search, FileDown, FileUp, ChartColumn, Download } from 'lucide-react';
 import { usePrograms } from './usePrograms';
 import { MAX_KEYS, MAX_WINDOWS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
+import { parseCsv, rowsToPrograms, programsToRows, templateCsv, toCsv } from './programCsv';
+const ProgramImportPanel = React.lazy(() => import('./ProgramImportPanel'));
+const PeriodizationPanel = React.lazy(() => import('./PeriodizationPanel'));
 const loadWeightRoomCard = () => import('./WeightRoomCard');
 const WeightRoomCard = React.lazy(loadWeightRoomCard);
 
@@ -17,6 +20,14 @@ const iconBtn = { width: '30px', height: '30px', display: 'inline-flex', alignIt
 const lines = (arr) => (arr || []).join('\n');
 const toLines = (s) => s.split('\n').map(x => x.trim()).filter(Boolean);
 const clone = (x) => JSON.parse(JSON.stringify(x));
+const downloadCsv = (name, text) => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+const fileSafe = (s) => String(s || 'program').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
 
 function Field({ label, children, grow }) {
   return <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: grow ? '1 1 200px' : '0 1 auto', minWidth: 0 }}><span style={lbl}>{label}</span>{children}</label>;
@@ -124,7 +135,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
     return Array.from(new Set([...base, ...logged]));
   }, [settings.liftTypes, liftLogs]);
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
-  const { programs, mode, load, prefetch, save, setArchived, remove } = usePrograms();
+  const { programs, mode, load, prefetch, save, setArchived, remove, loadAll, saveMany } = usePrograms();
   const [query, setQuery] = React.useState('');
   const [showArchived, setShowArchived] = React.useState(false);
   const [opening, setOpening] = React.useState(false);
@@ -132,6 +143,32 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
   const [dirty, setDirty] = React.useState(false);
   const [msg, setMsg] = React.useState('');
   const [printing, setPrinting] = React.useState(false);
+  // Spreadsheet template / upload / export and the periodization overview (v5.11.0).
+  const [importing, setImporting] = React.useState(null); // { fileName, result }
+  const [showPeriod, setShowPeriod] = React.useState(false);
+  const fileRef = React.useRef(null);
+  const downloadTemplate = () => {
+    const ex = sampleProgram(liftTypes);
+    ex.name = 'Sample Program'; ex.week_label = 'Week 1';
+    const monday = new Date(); monday.setDate(monday.getDate() + ((8 - monday.getDay()) % 7 || 7));
+    const ymd = (d) => d.toLocaleDateString('en-CA');
+    ex.days[0].date = ymd(monday);
+    const wed = new Date(monday); wed.setDate(wed.getDate() + 2); ex.days[1].date = ymd(wed);
+    downloadCsv('hpd-program-template.csv', templateCsv(ex));
+  };
+  const onFile = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (/\.xlsx?$/i.test(f.name)) { setMsg('That is an Excel workbook. In Excel use File > Save As > "CSV UTF-8 (Comma delimited)" and upload the .csv.'); return; }
+    const text = await f.text();
+    setImporting({ fileName: f.name, result: rowsToPrograms(parseCsv(text), { liftTypes, teams: sports }) });
+  };
+  const doImport = async (list) => {
+    const res = await saveMany(list);
+    if (res.ok) { setImporting(null); setMsg(`Imported ${res.count} program${res.count === 1 ? '' : 's'}.`); }
+    return res;
+  };
 
   // Preload WeightRoomCard chunk on mount so clicking "Print cards" opens with zero chunk-fetch delay.
   React.useEffect(() => { loadWeightRoomCard().catch(() => {}); }, []);
@@ -166,12 +203,22 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button type="button" data-testid="pb-new" style={btn(true)} onClick={() => { edit(newProgram(liftTypes)); setDirty(true); }}><Plus size={16} /> New program</button>
           <button type="button" data-testid="pb-sample" style={btn(false)} onClick={() => { edit(sampleProgram(liftTypes)); setDirty(true); }}>Start from sample</button>
+          <button type="button" data-testid="pb-template" style={btn(false)} onClick={downloadTemplate} title="A spreadsheet (CSV) to plan in Excel or Google Sheets and upload"><FileDown size={16} /> Download template</button>
+          <button type="button" data-testid="pb-upload" style={btn(false)} onClick={() => fileRef.current?.click()} title="Upload programs from a filled-in template (.csv)"><FileUp size={16} /> Upload programs</button>
+          <input ref={fileRef} data-testid="pb-upload-input" type="file" accept=".csv,text/csv,.xlsx,.xls" onChange={onFile} style={{ display: 'none' }} />
+          <button type="button" data-testid="pb-periodization" aria-pressed={showPeriod} style={btn(showPeriod)} onClick={() => setShowPeriod(v => !v)}><ChartColumn size={16} /> Periodization</button>
         </div>
       </div>
       {mode === 'local' && (
         <div data-testid="pb-local" style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(184,156,91,0.12)', border: '1px solid rgba(184,156,91,0.4)', fontSize: '13px', color: 'var(--color-text)' }}>
           The <b>programs</b> table isn't set up in Supabase yet (run <code>db/014_programs.sql</code>), so programs are only kept in this browser for now. They upload automatically the first time the app loads after it's created.
         </div>
+      )}
+      {!draft && msg && <div role="status" data-testid="pb-msg" style={{ fontSize: '13px', color: /^Imported/.test(msg) ? '#10b981' : 'var(--color-text)' }}>{msg}</div>}
+      {showPeriod && (
+        <React.Suspense fallback={null}>
+          <PeriodizationPanel loadAll={loadAll} sports={sports} initialSport={draft?.sport || 'ALL'} onClose={() => setShowPeriod(false)} />
+        </React.Suspense>
       )}
       {mode === 'error' && <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', fontSize: '13px' }}>Couldn't reach the server to load programs. Programs need a connection - they aren't stored on the device.</div>}
 
@@ -237,6 +284,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
                 <button type="button" data-testid="pb-save" style={btn(true)} onClick={doSave}><Save size={16} /> {dirty ? 'Save' : 'Saved'}</button>
                 <button type="button" data-testid="pb-print" style={btn(false)} onClick={() => { setPrinting(true); if (dirty) doSave(); }}><Printer size={16} /> Print cards</button>
                 <button type="button" style={btn(false)} onClick={() => { const c = clone(draft); c.id = newProgram().id; c.name = `${draft.name} (copy)`; edit(c); setDirty(true); }}><Copy size={16} /> Duplicate</button>
+                <button type="button" data-testid="pb-export" style={btn(false)} onClick={() => downloadCsv(`${fileSafe(draft.name)}${draft.week_label ? `-${fileSafe(draft.week_label)}` : ''}.csv`, toCsv(programsToRows([draft])))} title="Download this program as a spreadsheet (same layout as the template)"><Download size={16} /> Download CSV</button>
                 {programs.some(p => p.id === draft.id) && (
                   <button type="button" data-testid="pb-archive" style={btn(false)} onClick={async () => { const res = await setArchived(draft, !draft.archived_at); if (res.ok) { setDraft(null); setMsg(''); } else setMsg("Couldn't update archive status — check connection."); }}>
                     <Archive size={16} /> {draft.archived_at ? 'Unarchive' : 'Archive'}
@@ -253,6 +301,11 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
           </div>
         )}
       </div>
+      {importing && (
+        <React.Suspense fallback={null}>
+          <ProgramImportPanel fileName={importing.fileName} result={importing.result} existing={programs} onImport={doImport} onClose={() => setImporting(null)} />
+        </React.Suspense>
+      )}
       {printing && draft && (
         <React.Suspense fallback={null}>
           <WeightRoomCard program={draft} athletes={athletes} liftLogs={liftLogs} settings={settings} onSaveProgram={async (p) => { setDraft(p); await save(p); }} onClose={() => setPrinting(false)} />

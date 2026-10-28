@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
+import { allowFetch } from '../../utils/fetchBrake';
 
 // The Program Builder (web) - nothing here is cached on the device (docs/HANDOFF.md
 // §120-121). The rack tablets load only today's programs, separately, through
@@ -126,5 +127,32 @@ export function usePrograms() {
     return { ok: true };
   }, [mode, updateList]);
 
-  return { programs: list, mode, load, prefetch, save, setArchived, remove, refresh };
+  // Periodization overview (v5.11.0): every program's days, archived ones included (past
+  // weeks are the point). Web-only; a few KB per program.
+  const loadAll = useCallback(async () => {
+    if (mode === 'local') return { ok: true, rows: readFallback() };
+    if (!allowFetch('programs:all', { max: 6, windowMs: 60000 })) return { ok: false, error: new Error('Too many reloads') };
+    const { data, error } = await supabase.from('programs').select('id,name,week_label,phase,sport,days,archived_at,updated_at');
+    if (error) return { ok: false, error };
+    return { ok: true, rows: data || [] };
+  }, [mode]);
+
+  // Spreadsheet import (v5.11.0): several new programs in one request.
+  const saveMany = useCallback(async (programs) => {
+    if (!programs.length) return { ok: true, count: 0 };
+    const rows = programs.map(toRow);
+    if (mode === 'local') {
+      const next = [...rows, ...readFallback()];
+      writeFallback(next);
+      updateList(next.map(summary).sort(byUpdated));
+      return { ok: true, local: true, count: rows.length };
+    }
+    const { error } = await supabase.from('programs').insert(rows);
+    if (error) return { ok: false, error };
+    rows.forEach(r => memFull.set(r.id, r));
+    updateList(prev => [...rows.map(summary), ...prev].sort(byUpdated));
+    return { ok: true, count: rows.length };
+  }, [mode, updateList]);
+
+  return { programs: list, mode, load, prefetch, save, setArchived, remove, refresh, loadAll, saveMany };
 }
