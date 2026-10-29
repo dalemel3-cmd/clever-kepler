@@ -204,8 +204,29 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
     return () => { window.removeEventListener('dragenter', enter); window.removeEventListener('dragover', over); window.removeEventListener('dragleave', leave); window.removeEventListener('drop', drop); };
   }, []);
   const [tplMenu, setTplMenu] = React.useState(false);
+  // Carry entered maxes (max_map.overrides) forward to newly imported programs (v5.14.0):
+  // when an existing program for the same name or team already has overrides, copy them
+  // onto the imported week so the coach doesn't have to re-enter them every week.
+  const carryMaxesTo = (prog) => {
+    const existingOverrides = prog.max_map?.overrides && Object.keys(prog.max_map.overrides).length > 0;
+    if (existingOverrides) return prog;
+    const withOv = programs.filter(p => p.max_map?.overrides && Object.keys(p.max_map.overrides).length > 0);
+    if (!withOv.length) return prog;
+    const byName = withOv.find(p => (p.name || '').trim().toLowerCase() === (prog.name || '').trim().toLowerCase() && (!prog.sport || !p.sport || p.sport === prog.sport));
+    const byTeam = prog.sport ? withOv.find(p => p.sport === prog.sport) : null;
+    const src = byName || byTeam;
+    if (!src) return prog;
+    return {
+      ...prog,
+      max_map: {
+        ...prog.max_map,
+        overrides: clone(src.max_map.overrides),
+      },
+    };
+  };
   const doImport = async (list) => {
-    const res = await saveMany(list);
+    const enriched = list.map(carryMaxesTo);
+    const res = await saveMany(enriched);
     if (!res.ok) return res;
     const done = `Imported ${res.count} program${res.count === 1 ? '' : 's'}`;
     // A workbook with more program tabs: straight on to the next one.
@@ -372,7 +393,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
       )}
       {printing && draft && (
         <React.Suspense fallback={null}>
-          <WeightRoomCard program={draft} athletes={athletes} liftLogs={liftLogs} settings={settings} onSaveProgram={async (p) => { setDraft(p); await save(p); }} onClose={() => setPrinting(false)} />
+          <WeightRoomCard program={draft} programs={programs} athletes={athletes} liftLogs={liftLogs} settings={settings} onSaveProgram={async (p) => { setDraft(p); await save(p); }} onClose={() => setPrinting(false)} />
         </React.Suspense>
       )}
     </div>

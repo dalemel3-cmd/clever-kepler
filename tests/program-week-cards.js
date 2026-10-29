@@ -5,7 +5,7 @@
 import { register } from 'node:module';
 register('./lib/src-resolve.mjs', import.meta.url);
 const { isWeekCard, parseWeekCard, cardGroups, cardCounts, weekCardPrograms, weekNo } = await import('../src/features/programs/programWeekCard.js');
-const { repsOf, prescribedSets, mainLiftOf, movementOf, sessionsFrom, bucketize } = await import('../src/features/programs/periodization.js');
+const { repsOf, prescribedSets, mainLiftOf, movementOf, sessionsFrom, bucketize, completedFrom, attachCompleted } = await import('../src/features/programs/periodization.js');
 const { isGrid } = await import('../src/features/programs/programGrid.js');
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) { pass++; console.log(`  PASS  ${name}`); } else { fail++; console.log(`  FAIL  ${name}${detail ? ` -> ${detail}` : ''}`); } };
@@ -97,6 +97,22 @@ check('unticked tabs are left out', only.length === 1 && only[0].sport === 'WSOC
 const [w12] = bucketize(sessionsFrom(progs, { sport: 'MBB', from: '2026-10-12', to: '2026-10-18' }).sessions, 'week');
 check('imported week in the overview: 26 sets, front squat + bench intensity', w12.sets === 26 && w12.sessions === 2 && Math.round(w12.avg) === 75, JSON.stringify({ sets: w12.sets, reps: w12.reps, avg: w12.avg }));
 check('a sheet without Set/Reps day headers is not a weekly card', !isWeekCard([['Name', 'Front Squat'], ['Abby', '115']]));
+
+// --- Completed workouts vs prescribed volume -----------------------------------
+const progComp = { id: 'pc1', name: 'WSOC FALL 26', week_label: 'Week 10', sport: 'WSOC', days: [{ id: 'd1', date: '2026-10-26', focus: 'Day 1', blocks: [
+  { id: 'b1', name: 'Back Squat', maxKey: 'squat', rx: '', sets: [{ reps: '4', pct: '60' }, { reps: '4', pct: '60' }] },
+  { id: 'b2', name: 'CLAM SHELLS', maxKey: '', rx: '3x 8 ea', sets: [] },
+] }] };
+const wsRows = [
+  { id: 'ws1', athlete_id: 'a1', athlete_name: 'Abby Tibbs', sport: 'WSOC', session_date: '2026-10-26', program_id: 'pc1', day_id: 'd1', sets: { b1: { 0: { w: 85, r: 4 }, 1: { w: 85, r: 4 } } }, done: { b2: true }, items_done: 3, items_total: 3, rpe: 7, duration_min: 45, finished_at: '2026-10-26T15:00:00Z' },
+  { id: 'ws2', athlete_id: 'a2', athlete_name: 'Ryleigh McClure', sport: 'WSOC', session_date: '2026-10-26', program_id: 'pc1', day_id: 'd1', sets: { b1: { 0: { w: 95, r: 4 } } }, done: {}, items_done: 1, items_total: 3, rpe: null, duration_min: 20, finished_at: null },
+];
+const compAll = completedFrom(wsRows, [progComp], { sport: 'WSOC' });
+check('completedFrom counts logged sets and checked-off rx blocks per athlete', compAll.length === 2 && compAll[0].completedSets === 5 && compAll[0].completedReps === 32 && compAll[1].completedSets === 1 && compAll[1].completedReps === 4, JSON.stringify(compAll));
+const compSq = completedFrom(wsRows, [progComp], { sport: 'WSOC', lift: 'squat' });
+check('completedFrom respects lift filter (Squat only)', compSq[0].completedSets === 2 && compSq[0].completedReps === 8 && compSq[1].completedSets === 1 && compSq[1].completedReps === 4, JSON.stringify(compSq));
+const bucketsWithComp = attachCompleted(bucketize(sessionsFrom([progComp]).sessions, 'week'), compAll, 'week');
+check('attachCompleted computes avg completed sets/reps per athlete in the bucket', bucketsWithComp[0].completedAthletes === 2 && bucketsWithComp[0].completedSetsAvg === 3 && bucketsWithComp[0].completedRepsAvg === 18 && bucketsWithComp[0].completedSessions === 2, JSON.stringify(bucketsWithComp[0]));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

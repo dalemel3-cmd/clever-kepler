@@ -1,5 +1,5 @@
 // App Version Tracking & Cloud Helpers
-export const APP_VERSION = 'v5.13.0';
+export const APP_VERSION = 'v5.14.0';
 
 // Anchoring "today"/date-picker defaults to the program's timezone (rather than
 // each device's own OS timezone) keeps every coach's device agreeing on what
@@ -31,39 +31,67 @@ const seasonStartDisplay = () => {
   return isNaN(d.getTime()) ? SEASON_START_DATE : d.toLocaleDateString();
 };
 
+// Cached Intl.DateTimeFormat instances per timezone: constructing Intl.DateTimeFormat
+// inside hot loops (alert scans, chart buckets, roster checks) is 20-50x slower than
+// reusing a single formatter instance.
+let cachedTz = null;
+let dateFmt = null;
+let timeFmt = null;
+const offsetFmtCache = new Map();
+
+const getDateFmt = (tz) => {
+  if (cachedTz !== tz || !dateFmt) {
+    cachedTz = tz;
+    dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  return dateFmt;
+};
+
+const getTimeFmt = (tz) => {
+  if (cachedTz !== tz || !timeFmt) getDateFmt(tz);
+  return timeFmt;
+};
+
 // Returns the given instant's date as "YYYY-MM-DD" in the program's timezone.
 export const getCentralDateString = (date = new Date()) => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: PROGRAM_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(date);
-  const lookup = Object.fromEntries(parts.map(p => [p.type, p.value]));
-  return `${lookup.year}-${lookup.month}-${lookup.day}`;
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '';
+  const parts = getDateFmt(PROGRAM_TIMEZONE).formatToParts(d);
+  let year = '', month = '', day = '';
+  for (const p of parts) {
+    if (p.type === 'year') year = p.value;
+    else if (p.type === 'month') month = p.value;
+    else if (p.type === 'day') day = p.value;
+  }
+  return `${year}-${month}-${day}`;
 };
 
 // Returns the given instant's time as "HH:MM" (24-hour) in the program's timezone.
 export const getCentralTimeString = (date = new Date()) => {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: PROGRAM_TIMEZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).formatToParts(date);
-  const lookup = Object.fromEntries(parts.map(p => [p.type, p.value]));
-  // Intl reports midnight as "24" with some engines - normalize to "00".
-  const hour = lookup.hour === '24' ? '00' : lookup.hour;
-  return `${hour}:${lookup.minute}`;
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '00:00';
+  const parts = getTimeFmt(PROGRAM_TIMEZONE).formatToParts(d);
+  let hour = '00', minute = '00';
+  for (const p of parts) {
+    if (p.type === 'hour') hour = p.value === '24' ? '00' : p.value;
+    else if (p.type === 'minute') minute = p.value;
+  }
+  return `${hour}:${minute}`;
 };
 
 // Milliseconds the given timezone is ahead of UTC at the given instant.
 const getTimeZoneOffsetMs = (date, timeZone) => {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone, hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
-  }).formatToParts(date).map(p => [p.type, p.value]));
+  let fmt = offsetFmtCache.get(timeZone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    offsetFmtCache.set(timeZone, fmt);
+  }
+  const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
   const hour = parts.hour === '24' ? '00' : parts.hour;
   const asUTC = Date.UTC(parts.year, parts.month - 1, parts.day, hour, parts.minute, parts.second);
   return asUTC - date.getTime();

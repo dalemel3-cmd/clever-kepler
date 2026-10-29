@@ -337,4 +337,8 @@ h1, h2, h3 { overflow-wrap: break-word; }
   [role="tab"] {
     min-width: 44px;
   }
+  input[type="checkbox"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }

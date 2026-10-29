@@ -148,7 +148,7 @@ export default function EntryScreen({
           
           {/* Mode Selectors & Quick Action Hub */}
           <div data-testid="kiosk-mode-hub" className="grid grid-cols-2 gap-2 w-full 2xl:flex 2xl:flex-wrap 2xl:items-center 2xl:w-auto">
-            <div className="col-span-2 flex items-stretch bg-[#0a1120] border border-[#2a313d] p-1 rounded-xl shadow-md">
+            <div className="col-span-2 flex flex-wrap items-stretch bg-[#0a1120] border border-[#2a313d] p-1 rounded-xl shadow-md">
               <button 
                 className={`mode-btn flex flex-1 2xl:flex-none items-center justify-center gap-1.5 px-4 py-1.5 min-h-[44px] 2xl:min-h-0 whitespace-nowrap rounded-lg font-headline-md text-sm uppercase transition-all ${kioskTrackMode === 'both' ? 'bg-[#b89c5b] text-[#030a14] font-bold shadow-sm' : 'text-[#bcc1ca] hover:text-white'}`}
                 onClick={() => {
@@ -297,7 +297,7 @@ export default function EntryScreen({
 
         {/* Main Interaction Area */}
         <div className="relative flex items-start gap-4">
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {groupedAthletes.map(({ sport, athletes: sportAthletes }) => {
               const loggedCount = sportAthletes.filter(a => athletesRecordedToday.has(a.id)).length;
               return (

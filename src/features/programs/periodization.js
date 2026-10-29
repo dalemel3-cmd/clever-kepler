@@ -162,3 +162,101 @@ export const liftSummary = (lifts) => MAIN_LIFTS.filter(([k]) => lifts[k]).map((
   const pct = L.lo == null ? '' : L.lo === L.hi ? ` @ ${L.lo}%` : ` @ ${L.lo}–${L.hi}%`;
   return `${l} ${L.sets}×${L.reps ? Math.round(L.reps / L.sets) : '?'}${pct}`;
 });
+
+// Completed volume from rack-tablet workout_sessions (v5.14.0): sums sets and reps
+// actually logged or checked off per session_date, matched against the program day's
+// blocks so exercise/movement filters and text prescriptions ("3x 8 ea") work identically.
+export function completedFrom(workoutSessions = [], programs = [], { sport = 'ALL', lift = '', from = '', to = '' } = {}) {
+  const dayById = new Map();
+  for (const p of programs || []) {
+    for (const d of p.days || []) {
+      if (d?.id) dayById.set(String(d.id), { program: p, day: d });
+    }
+  }
+  const out = [];
+  for (const ws of workoutSessions || []) {
+    const date = ws?.session_date;
+    if (!date) continue;
+    const match = dayById.get(String(ws.day_id || ''));
+    const team = ws.sport || match?.program?.sport || '';
+    if (sport !== 'ALL' && team !== sport) continue;
+    if ((from && date < from) || (to && date > to)) continue;
+    let sets = 0, reps = 0;
+    const blocks = match?.day?.blocks || [];
+    const wsSets = ws.sets || {};
+    const wsDone = ws.done || {};
+    if (blocks.length) {
+      blocks.forEach((b, i) => {
+        if (!b?.name) return;
+        const key = mainLiftOf(b);
+        if (lift && (lift.startsWith('m:') ? movementOf(b.name) !== lift.slice(2) : key !== lift)) return;
+        const bid = b.id || `${match.day.id || 'day'}_${i}`;
+        const pSets = prescribedSets(b);
+        if (b.sets?.length) {
+          b.sets.forEach((s, k) => {
+            const logged = wsSets[bid]?.[k];
+            const checked = wsDone[`${bid}_${k}`];
+            if (logged) {
+              sets += 1;
+              reps += Number(logged.r) || repsOf(s.reps, b.name).reps || 0;
+            } else if (checked) {
+              sets += 1;
+              const ro = repsOf(s.reps, b.name);
+              if (!ro.timed) reps += ro.reps;
+            }
+          });
+        } else if (wsDone[bid]) {
+          for (const ps of pSets) {
+            sets += 1;
+            if (!ps.timed) reps += ps.reps;
+          }
+        }
+      });
+    } else if (!lift) {
+      for (const bMap of Object.values(wsSets)) {
+        for (const st of Object.values(bMap || {})) {
+          sets += 1;
+          reps += Number(st?.r) || 0;
+        }
+      }
+      sets += Object.keys(wsDone).length;
+    }
+    out.push({
+      ...ws,
+      sport: team,
+      program_name: ws.program_name || match?.program?.name || '',
+      week_label: ws.week_label || match?.program?.week_label || '',
+      completedSets: sets,
+      completedReps: reps,
+    });
+  }
+  return out.sort((a, b) => String(b.session_date || '').localeCompare(String(a.session_date || '')) || String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+}
+
+export function attachCompleted(buckets = [], completedSessions = [], view = 'week') {
+  const keyOf = view === 'month' ? (d) => d.slice(0, 7) : view === 'week' ? (d) => mondayOf(d) : (d) => d;
+  const map = new Map();
+  for (const cs of completedSessions) {
+    if (!cs.session_date) continue;
+    const k = keyOf(cs.session_date);
+    const cur = map.get(k) || { completedSessions: 0, completedSets: 0, completedReps: 0, athletes: new Set() };
+    cur.completedSessions += 1;
+    cur.completedSets += cs.completedSets || 0;
+    cur.completedReps += cs.completedReps || 0;
+    if (cs.athlete_id) cur.athletes.add(cs.athlete_id);
+    map.set(k, cur);
+  }
+  return buckets.map(b => {
+    const c = map.get(b.key);
+    const athleteCount = c ? c.athletes.size : 0;
+    return {
+      ...b,
+      completedSessions: c ? c.completedSessions : 0,
+      completedSets: c ? c.completedSets : 0,
+      completedReps: c ? c.completedReps : 0,
+      completedAthletes: athleteCount,
+      completedSetsAvg: c && athleteCount ? Math.round((c.completedSets / athleteCount) * 10) / 10 : 0,
+      completedRepsAvg: c && athleteCount ? Math.round(c.completedReps / athleteCount) : 0,
+    };
+  });
+}

@@ -75,7 +75,7 @@ export default function ReportsScreen({
   const doc = <ReadinessReport data={data} scopeLabel={scopeLabel} include={include} />;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="max-w-4xl w-full min-w-0 mx-auto space-y-4">
       <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-200 rounded-xl p-3">
         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sport
           <select data-testid="rr-sport" value={sport} onChange={e => setReportSportFilter?.(e.target.value)} className="ml-2 border border-slate-300 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-800 normal-case">

@@ -138,7 +138,7 @@ const field = { height: 40, padding: '0 10px', fontSize: 13, fontWeight: 700, bo
 const opt = { background: 'var(--navy-900)', color: 'var(--color-text)' };
 const toggleBtn = (on) => ({ ...field, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${on ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: on ? 'rgba(184,156,91,0.18)' : 'transparent', color: on ? 'var(--color-accent)' : 'var(--color-text-muted)' });
 
-export default function WeightRoomCard({ program: programIn, athletes, liftLogs, settings = {}, onSaveProgram, onClose }) {
+export default function WeightRoomCard({ program: programIn, programs = [], athletes, liftLogs, settings = {}, onSaveProgram, onClose }) {
   const [program, setProgram] = React.useState(programIn);
   const [editMaxes, setEditMaxes] = React.useState(false);
   const seasonStartDate = settings.seasonStartDate;
@@ -258,7 +258,41 @@ export default function WeightRoomCard({ program: programIn, athletes, liftLogs,
       </div>
       {editMaxes && roster.length > 0 && (
         <div className="wr-controls" data-testid="wr-max-editor" style={{ margin: '16px auto 0', maxWidth: 900, padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)' }}>
-          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 10 }}>Type a max to use it on the card instead of the Lift Tracker number (the athlete's logs aren't changed). Leave blank to use the Lift Tracker max shown in grey.</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+            <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Type a max to use it on the card instead of the Lift Tracker number (the athlete's logs aren't changed). Leave blank to use the Lift Tracker max shown in grey.</div>
+            {programs.some(p => p.id !== program.id && p.max_map?.overrides && Object.keys(p.max_map.overrides).length > 0) && (
+              <select
+                data-testid="wr-copy-maxes"
+                aria-label="Copy entered maxes from another program"
+                className="input-glass"
+                style={{ ...field, height: 34, fontSize: 12 }}
+                value=""
+                onChange={e => {
+                  const src = programs.find(p => p.id === e.target.value);
+                  const srcOv = src?.max_map?.overrides;
+                  if (!srcOv) return;
+                  const merged = { ...(program.max_map?.overrides || {}) };
+                  for (const [aid, vals] of Object.entries(srcOv)) {
+                    merged[aid] = { ...vals, ...(merged[aid] || {}) };
+                  }
+                  const next = { ...program, max_map: { ...program.max_map, overrides: merged } };
+                  progRef.current = next;
+                  ovDirtyRef.current = false;
+                  setProgram(next);
+                  onSaveProgram?.(next);
+                }}
+              >
+                <option value="" style={opt}>Copy maxes from…</option>
+                {programs
+                  .filter(p => p.id !== program.id && p.max_map?.overrides && Object.keys(p.max_map.overrides).length > 0)
+                  .map(p => (
+                    <option key={p.id} value={p.id} style={opt}>
+                      {p.name}{p.week_label ? ` (${p.week_label})` : ''}{p.sport ? ` · ${p.sport}` : ''}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ borderCollapse: 'collapse', fontSize: 13, width: '100%' }}>
               <thead><tr><th style={{ textAlign: 'left', padding: '4px 8px', ...label }}>Athlete</th>{usedKeys.map(([k, l]) => <th key={k} style={{ padding: '4px 8px', ...label }}>{l}</th>)}</tr></thead>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
+import { allowFetch } from '../../utils/fetchBrake';
 
 const CACHE_KEY = 'shiloh_alert_status';
 
@@ -31,7 +32,9 @@ export function useAlertStatus() {
     mounted.current = true;
     (async () => {
       try {
-        const { data, error } = await supabase.from('alert_status').select('*');
+        if (!allowFetch('alert_status:fetch', { max: 4, windowMs: 60000 })) return;
+        const since = new Date(Date.now() - 45 * 86400000).toISOString();
+        const { data, error } = await supabase.from('alert_status').select('alert_key,athlete_id,athlete_name,alert_type,status,actor,updated_at,created_at').gte('updated_at', since);
         if (!error && data && mounted.current) mergeRows(data);
       } catch { /* offline - fall back to cache already loaded */ }
     })();

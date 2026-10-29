@@ -4171,13 +4171,66 @@ sets, done, items_done, items_total. RLS: approved coaches (same as lift_logs).
 Tests: `tests/workout-tablet.js` (46: this-week download, saves, Done marks, picking,
 locked switch, carrying on from another rack), `tests/lift-kiosk-multi.js` (13).
 
-## 142. Next up
+## 142. Data efficiency, speed pass, completed workouts in Periodization, and max carry-over (v5.14.0)
 
-- **Completed volume in Periodization:** sessions are saved now (§141) - plot completed
-  sets / reps per week (by `session_date`) next to prescribed (by planned date).
+**Why.** The coach asked for a full pass on code efficiency, data/network usage (staying well
+under the 5 GB/month Supabase Free limit), UI polish, and the top open items from §141.
 
-- **Carry entered maxes to new programs** (or an "Upload maxes" sheet on Edit maxes):
-  overrides are per program, so every imported week needs them again (§138).
+**Data & egress reduction:**
+- **Manual saves, edits, and deletes (`App.jsx`):** `handleSaveManualLog`,
+  `handleUpdateManualLog`, and `handleDeleteWeighIn` now apply the returned/updated/deleted
+  row directly via `applyWeighInChangeRef` (and update `profileData` in place) instead of
+  calling `fetchReportData(true)` to re-download the entire 30-day `weigh_ins` table.
+  `applyWeighInChange` also recognizes `manual_` temp IDs as twins so optimistic manual
+  entries are replaced cleanly by the saved row.
+- **Profile history (`App.jsx`):** `fetchProfileData` now selects `WEIGH_IN_COLS` instead of
+  `*`, is guarded by `allowFetch('weigh_ins:profile', { max: 15, windowMs: 60000 })`, and
+  caches per-athlete profile history for 60 seconds (`profileCacheRef`) so switching back and
+  forth between athletes doesn't re-query Supabase.
+- **Alert status (`useAlertStatus.js`) & program list (`usePrograms.js`):** `useAlertStatus`
+  is now guarded by `allowFetch('alert_status:fetch')`, selects named columns, and limits
+  reads to the last 45 days. `usePrograms.refresh()` is guarded by
+  `allowFetch('programs:list')` and includes `max_map` in `LIST_COLS` so overrides are ready
+  for carry-over without extra fetches.
+
+**Rendering & CPU speed:**
+- **Cached `Intl.DateTimeFormat` (`athleteData.js`):** `getCentralDateString`,
+  `getCentralTimeString`, and `getTimeZoneOffsetMs` now reuse cached `Intl.DateTimeFormat`
+  instances per timezone instead of constructing thousands of new formatters inside alert,
+  baseline, and chart loops.
+- **Dashboard memoization (`DashboardScreen.jsx`):** memoized `unresolved`,
+  `unrecordedAthletes`, `allSports`, and the combined daily/weekly RPE and weigh-in rollups
+  (`todaysRpeLogs`, `rpeBySport`, `weekBySport`, `weighInBySport`).
+
+**Completed volume & coach view in Periodization (`sessionCloud.js`, `periodization.js`, `PeriodizationPanel.jsx`):**
+- `fetchAllSessions()` loads `workout_sessions` (guarded by `allowFetch('workout_sessions:all')`).
+- `completedFrom()` and `attachCompleted()` match saved sessions against the program day's
+  blocks (honoring team, date, main-lift, and movement-group filters, as well as text
+  prescriptions like `3x 8 ea`) and compute average completed sets and reps per athlete in
+  each day/week/month bucket.
+- When **Volume** is set to **Reps** or **Sets**, the volume chart plots **Completed (avg /
+  athlete)** bars in emerald right alongside **Prescribed** bars.
+- A new **Completed workouts (rack tablets)** table below the breakdown lists who did which
+  day, date done, team, program/day, items checked off (`items_done / items_total`),
+  completed sets & reps, duration, RPE, and status (`Done` vs `In progress`).
+
+**Carry entered maxes (`ProgramsScreen.jsx`, `WeightRoomCard.jsx`):**
+- Importing new programs automatically carries over `max_map.overrides` from the most recent
+  existing program with the same name or team (`carryMaxesTo`).
+- In **Print cards → Edit maxes**, a new **Copy maxes from…** dropdown (`wr-copy-maxes`) lets
+  the coach copy entered max overrides from any other program into the open program with one
+  click.
+
+**UI polish (`App.jsx`, `EntryScreen.jsx`, `ReportsScreen.jsx`, `styles.css`):**
+- Native checkboxes expand to 44×44 px tap targets on touch screens (`@media (pointer: coarse)`).
+- Added `overflow-x-hidden` and `flex-wrap` / `min-w-0` guards so `#entry` and `#reports`
+  have zero sideways scroll on 390 px, 768 px, and 820 px viewports.
+
+## 143. Next up
+
+- **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
+  prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity
+  from logged sets ÷ max, or time under tension for capacity blocks.
 
 - **Nicer free URL:** rename the Vercel project's domain from `clever-kepler.vercel.app`
   to something like `shiloh-hpd.vercel.app` (free). Every device then has to re-open
@@ -4197,25 +4250,25 @@ locked switch, carrying on from another rack), `tests/lift-kiosk-multi.js` (13).
      rarely-rotated credential. Last outstanding item from the security audit.
    - Add a **"Forgot password"** link to the login screen. Today a lockout takes out
      every coach and the kiosk at once, and only the project owner can undo it.
-2. **Use Session RPE with a real team** and see whether the defaults hold: the
+3. **Use Session RPE with a real team** and see whether the defaults hold: the
    hard-session threshold (8), the load-spike A:C ratio (1.3), and the 4-week chronic
    window are all standard starting points, not tuned to this program. Now more
    worthwhile than it was — there are 8 teams on the roster to try it with, not 1.
-3. **Populate Grade for the 177 athletes still missing it** (§4). The column exists and
+4. **Populate Grade for the 177 athletes still missing it** (§4). The column exists and
    the filter is wired; the Plyomat groups only carried a graduating class for 5 WSOC
    athletes, so the rest needs a CSV pass.
-4. **Weigh-ins have not caught up with the roster.** 182 athletes now have jump results,
+5. **Weigh-ins have not caught up with the roster.** 182 athletes now have jump results,
    but the 1,538 weigh-ins belong to just 53 of them — 1,498 Football, plus one MBB and
    one Baseball athlete. Every weight-based screen (hydration alerts, mass-cut
    leaderboards, the compliance tracker) will read as empty for the new teams until they
    start logging. Expected, not a defect, but it is the first thing a coach will notice
    now that the roster is full: the Speed & Power boards are busy and the weight boards
    are not.
-5. **Find whatever editor corrupted `EntryScreen.jsx`** (§6). It wrote the file back
+6. **Find whatever editor corrupted `EntryScreen.jsx`** (§6). It wrote the file back
    through a CP437 round-trip and mangled every emoji into garbage that shipped to the
    kiosk. `tests/rpe-settings.js` will now catch a repeat, but only after the fact —
    the tool itself is still in the loop and unidentified.
-6. **Consider PPS and RSI test types** (§15). The September export carried 7 rows of
+7. **Consider PPS and RSI test types** (§15). The September export carried 7 rows of
    peak power (ft·lb) and reactive strength (unitless) that have no home in
    `performance_tests` and were reported as unsupported. All 7 belonged to one person
    and look like device testing, so this is only worth building if the program starts

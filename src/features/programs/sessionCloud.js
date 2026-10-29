@@ -9,7 +9,7 @@ import { allowFetch } from '../../utils/fetchBrake';
 import { reportDataError } from '../../errorReporting';
 
 const PENDING_KEY = 'hpd_ws_pending';
-export const SESSION_COLS = 'id,athlete_id,session_date,program_id,day_id,day_label,program_name,week_label,planned_date,started_at,finished_at,minutes,rpe,sets,done,items_done,items_total,updated_at';
+export const SESSION_COLS = 'id,athlete_id,athlete_name,sport,session_date,program_id,day_id,day_label,program_name,week_label,planned_date,started_at,finished_at,minutes,rpe,sets,done,items_done,items_total,updated_at';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
 const keyOf = (r) => `${r.athlete_id}|${r.session_date}|${r.day_id}`;
@@ -85,4 +85,20 @@ export async function fetchAthleteSessions(athleteId, since) {
     for (const r of Object.values(p)) if (r.athlete_id === athleteId && r.session_date >= since && !out.some(x => keyOf(x) === keyOf(r))) out.push(r);
     return out;
   } catch { return null; }
+}
+
+// Periodization & coach view (v5.14.0): all saved workout sessions (up to 1,000 newest),
+// merged with any unsynced sessions still pending in localStorage.
+export async function fetchAllSessions() {
+  const p = readPending();
+  const pendingRows = Object.values(p);
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return pendingRows;
+  if (!allowFetch('workout_sessions:all', { max: 6, windowMs: 60000 })) return pendingRows;
+  try {
+    const { data, error } = await supabase.from('workout_sessions').select(SESSION_COLS).order('session_date', { ascending: false }).limit(1000);
+    if (error) { reportDataError(error, 'workout_sessions:all'); return pendingRows; }
+    const out = (data || []).map(r => p[keyOf(r)] ? { ...r, ...p[keyOf(r)] } : r);
+    for (const r of pendingRows) if (!out.some(x => keyOf(x) === keyOf(r))) out.push(r);
+    return out;
+  } catch { return pendingRows; }
 }

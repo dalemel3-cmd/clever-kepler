@@ -1,3 +1,4 @@
+import React from 'react';
 import { CheckCircle } from 'lucide-react';
 import { getCentralDateString, getCentralTimeString, isRpeLog, hasWeight, isPostPracticeLog, initialsFor } from '../../utils/athleteData';
 
@@ -24,53 +25,110 @@ export default function DashboardScreen({
   const greeting = hour < 12 ? 'GOOD MORNING' : hour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
   
   const compliancePct = athletes.length > 0 ? Math.round((athletesRecordedToday.size / athletes.length) * 100) : 0;
-  const unresolvedCount = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved').length;
+  const unresolved = React.useMemo(() => dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved'), [dailyAlerts, alertStatusFor]);
+  const unresolvedCount = unresolved.length;
   
-  const unrecordedAthletes = athletes.filter(a => !athletesRecordedToday.has(a.id));
+  const unrecordedAthletes = React.useMemo(() => athletes.filter(a => !athletesRecordedToday.has(a.id)), [athletes, athletesRecordedToday]);
   const isComplete = unrecordedAthletes.length === 0 && athletes.length > 0;
-  const unresolved = dailyAlerts.filter(a => alertStatusFor(a.alert_key) !== 'resolved');
   
-  const todayDateStr = getCentralDateString();
-  const todaysRpeLogs = (reportData || []).filter(r => isRpeLog(r) && r.created_at && getCentralDateString(new Date(r.created_at)) === todayDateStr);
-  
-  const allSports = Array.from(new Set(athletes.map(a => a.sport || 'General')));
+  const allSports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))), [athletes]);
 
-  const sportOf = (r) => (athletes.find(a => a.id === r.athlete_id)?.sport) || r.sport || 'General';
-  const rpeBySport = allSports.map(sport => {
-    const roster = athletes.filter(a => (a.sport || 'General') === sport);
-    const logs = todaysRpeLogs.filter(r => sportOf(r) === sport);
-    const responded = roster.filter(a => logs.some(l => l.athlete_id === a.id)).length;
-    const isHard = logs.length > 0 && (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) >= settings.rpeHighThreshold;
+  const { todaysRpeLogs, rpeBySport, weekBySport, respondedCount, rpeRate, avgRpe, weighInBySport } = React.useMemo(() => {
+    const todayDateStr = getCentralDateString();
+    const athleteSportMap = new Map(athletes.map(a => [a.id, a.sport || 'General']));
+    const sportOf = (r) => athleteSportMap.get(r.athlete_id) || r.sport || 'General';
+
+    const allRpe = [];
+    const todayRpe = [];
+    const weighInSports = new Set();
+
+    for (const r of (reportData || [])) {
+      if (isRpeLog(r)) {
+        allRpe.push(r);
+        if (r.created_at && getCentralDateString(new Date(r.created_at)) === todayDateStr) {
+          todayRpe.push(r);
+        }
+      } else if (r.athlete_id && hasWeight(r) && !isPostPracticeLog(r)) {
+        const sp = athleteSportMap.get(r.athlete_id);
+        if (sp) weighInSports.add(sp);
+      }
+    }
+
+    const rpeBySp = allSports.map(sport => {
+      const roster = athletes.filter(a => (a.sport || 'General') === sport);
+      const logs = todayRpe.filter(r => sportOf(r) === sport);
+      const loggedAthIds = new Set(logs.map(l => l.athlete_id));
+      const responded = roster.filter(a => loggedAthIds.has(a.id)).length;
+      const isHard = logs.length > 0 && (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) >= settings.rpeHighThreshold;
+      return {
+        sport,
+        rosterCount: roster.length,
+        logCount: logs.length,
+        responded,
+        pct: roster.length > 0 ? Math.round((responded / roster.length) * 100) : 0,
+        avg: logs.length > 0 ? (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) : null,
+        isHard,
+        hard: logs.filter(r => r.rpe >= settings.rpeHighThreshold).length
+      };
+    }).sort((a, b) => a.pct - b.pct);
+
+    // Pre-bucket allRpe by sport + date for fast 7-day lookup
+    const rpeBucket = new Map();
+    for (const r of allRpe) {
+      if (!r.created_at) continue;
+      const k = `${sportOf(r)}|${getCentralDateString(new Date(r.created_at))}`;
+      let arr = rpeBucket.get(k);
+      if (!arr) { arr = []; rpeBucket.set(k, arr); }
+      arr.push(r);
+    }
+
+    const days7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(Date.now() - (6 - i) * 86400000);
+      const date = getCentralDateString(d);
+      const wd = new Date(`${date}T12:00:00`);
+      return {
+        date,
+        isToday: i === 6,
+        letter: wd.toLocaleDateString('en-US', { weekday: 'narrow' }),
+        label: wd.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }),
+      };
+    });
+
+    const wkBySport = new Map();
+    for (const sport of allSports) {
+      wkBySport.set(sport, days7.map(dayInfo => {
+        const logs = rpeBucket.get(`${sport}|${dayInfo.date}`) || [];
+        return {
+          ...dayInfo,
+          n: logs.length,
+          avg: logs.length ? logs.reduce((acc, r) => acc + (Number(r.rpe) || 0), 0) / logs.length : null,
+        };
+      }));
+    }
+
+    const respIds = new Set(todayRpe.map(r => r.athlete_id));
+    const rate = athletes.length > 0 ? Math.round((respIds.size / athletes.length) * 100) : 0;
+    const avg = todayRpe.length > 0 ? (todayRpe.reduce((s, r) => s + (r.rpe || 0), 0) / todayRpe.length).toFixed(1) : '0.0';
+
+    const wiBySport = allSports.map(sport => {
+      const sportAthletes = athletes.filter(a => (a.sport || 'General') === sport);
+      const doneCount = sportAthletes.filter(a => athletesRecordedToday.has(a.id)).length;
+      const pct = sportAthletes.length > 0 ? Math.round((doneCount / sportAthletes.length) * 100) : 0;
+      const neverTracked = sportAthletes.length > 0 && !weighInSports.has(sport);
+      const left = pct < 100 ? sportAthletes.filter(a => !athletesRecordedToday.has(a.id)).map(a => a.name).sort((x, y) => x.localeCompare(y)) : [];
+      return { sport, total: sportAthletes.length, doneCount, pct, neverTracked, left };
+    });
+
     return {
-      sport,
-      rosterCount: roster.length,
-      logCount: logs.length,
-      responded,
-      pct: roster.length > 0 ? Math.round((responded / roster.length) * 100) : 0,
-      avg: logs.length > 0 ? (logs.reduce((s, r) => s + (r.rpe || 0), 0) / logs.length) : null,
-      isHard,
-      hard: logs.filter(r => r.rpe >= settings.rpeHighThreshold).length
+      todaysRpeLogs: todayRpe,
+      rpeBySport: rpeBySp,
+      weekBySport: wkBySport,
+      respondedCount: respIds.size,
+      rpeRate: rate,
+      avgRpe: avg,
+      weighInBySport: wiBySport,
     };
-  }).sort((a, b) => a.pct - b.pct);
-
-  // Last 7 Central days of team-average RPE, oldest first, for each team card's chart.
-  const allRpeLogs = (reportData || []).filter(isRpeLog);
-  const weekFor = (sport) => Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(Date.now() - (6 - i) * 86400000);
-    const date = getCentralDateString(d);
-    const logs = allRpeLogs.filter(r => sportOf(r) === sport && r.created_at && getCentralDateString(new Date(r.created_at)) === date);
-    const wd = new Date(`${date}T12:00:00`);
-    return {
-      date, n: logs.length, isToday: i === 6,
-      avg: logs.length ? logs.reduce((acc, r) => acc + (Number(r.rpe) || 0), 0) / logs.length : null,
-      letter: wd.toLocaleDateString('en-US', { weekday: 'narrow' }),
-      label: wd.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }),
-    };
-  });
-
-  const respondedIds = new Set(todaysRpeLogs.map(r => r.athlete_id));
-  const rpeRate = athletes.length > 0 ? Math.round((respondedIds.size / athletes.length) * 100) : 0;
-  const avgRpe = todaysRpeLogs.length > 0 ? (todaysRpeLogs.reduce((s, r) => s + (r.rpe || 0), 0) / todaysRpeLogs.length).toFixed(1) : '0.0';
+  }, [athletes, reportData, allSports, settings.rpeHighThreshold, athletesRecordedToday]);
 
   return (
     <div className="flex flex-col w-full h-full overflow-y-auto pb-space-xl animate-fade-in">
@@ -273,7 +331,7 @@ export default function DashboardScreen({
                   <span className="font-headline-md text-headline-md uppercase text-on-surface">TODAY'S INTERNAL TRAINING LOAD &amp; READINESS</span>
                 </div>
                 <span className="font-label-sm text-label-sm px-2 py-0.5 rounded bg-secondary-container text-secondary border border-secondary/30 uppercase font-bold">
-                  {todaysRpeLogs.length === 0 ? 'NO SESSIONS LOGGED YET' : `${respondedIds.size} of ${athletes.length} REPORTED · ${rpeRate}% · AVG ${avgRpe}`}
+                  {todaysRpeLogs.length === 0 ? 'NO SESSIONS LOGGED YET' : `${respondedCount} of ${athletes.length} REPORTED · ${rpeRate}% · AVG ${avgRpe}`}
                 </span>
               </div>
               <p className="font-body-sm text-body-sm text-on-surface-variant">Session RPE reported today, by team.</p>
@@ -287,7 +345,7 @@ export default function DashboardScreen({
                     const none = s.logCount === 0;
                     const max = settings.rpeScaleMax || 10;
                     const high = settings.rpeHighThreshold || 8;
-                    const week = weekFor(s.sport);
+                    const week = weekBySport.get(s.sport) || [];
                     const anyWeek = week.some(d => d.avg != null);
                     const tone = (v) => v >= high ? '#f87171' : v >= Math.max(0, high - 2) ? '#b89c5b' : '#60a5fa';
                     return (
@@ -352,24 +410,10 @@ export default function DashboardScreen({
               
               {/* Sport Group Bars */}
               <div className="mt-space-md flex flex-col gap-space-md">
-                {allSports.length === 0 ? (
+                {weighInBySport.length === 0 ? (
                    <span className="text-dim font-body-md py-4">No sports active on roster.</span>
                 ) : (
-                   allSports.map(sport => {
-                     const sportAthletes = athletes.filter(a => (a.sport || 'General') === sport);
-                     const doneCount = sportAthletes.filter(a => athletesRecordedToday.has(a.id)).length;
-                     const pct = sportAthletes.length > 0 ? Math.round((doneCount / sportAthletes.length) * 100) : 0;
-                     // A team that has never once logged a real weigh-in (only jump results,
-                     // or nothing at all) would show "0 of N logged (0%)" forever if treated
-                     // the same as a team that just hasn't checked in yet today - that reads
-                     // as a permanent compliance failure, not "this team doesn't track
-                     // body weight." Distinguish the two rather than fabricate a gap.
-                     const sportAthleteIds = new Set(sportAthletes.map(a => a.id));
-                     const hasEverWeighed = (reportData || []).some(r =>
-                       r.athlete_id && sportAthleteIds.has(r.athlete_id) && hasWeight(r) && !isPostPracticeLog(r) && !isRpeLog(r));
-                     const neverTracked = sportAthletes.length > 0 && !hasEverWeighed;
-
-                     return (
+                   weighInBySport.map(({ sport, total, doneCount, pct, neverTracked, left }) => (
                       <div key={sport} className="flex flex-col gap-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setSelectedSportFilter(sport); setScreen('athletes'); }}>
                         <div className="flex justify-between items-center text-on-surface font-label-md text-label-md">
                           <span className="uppercase">{sport}</span>
@@ -377,7 +421,7 @@ export default function DashboardScreen({
                             <span className="font-label-sm text-label-sm text-dim">NOT TRACKING WEIGH-INS</span>
                           ) : (
                             <span className={`font-mono font-semibold ${pct === 100 ? 'text-status-success' : (pct > 0 ? 'text-primary' : 'text-dim')}`}>
-                              {doneCount} of {sportAthletes.length} logged ({pct}%)
+                              {doneCount} of {total} logged ({pct}%)
                             </span>
                           )}
                         </div>
@@ -388,15 +432,13 @@ export default function DashboardScreen({
                             <div className="w-full bg-[#0e182a] border border-[#2a313d]/60 rounded-full h-3 overflow-hidden">
                               <div className={`${pct === 100 ? 'bg-status-success' : 'bg-primary'} h-3 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>
                             </div>
-                            {pct < 100 && (() => {
-                              const left = sportAthletes.filter(a => !athletesRecordedToday.has(a.id)).map(a => a.name).sort((x, y) => x.localeCompare(y));
-                              return <span data-testid="weighin-left" className="font-body-sm text-body-sm text-dim">Left: {left.slice(0, 6).join(', ')}{left.length > 6 ? ` +${left.length - 6} more` : ''}</span>;
-                            })()}
+                            {pct < 100 && (
+                              <span data-testid="weighin-left" className="font-body-sm text-body-sm text-dim">Left: {left.slice(0, 6).join(', ')}{left.length > 6 ? ` +${left.length - 6} more` : ''}</span>
+                            )}
                           </>
                         )}
                       </div>
-                     );
-                   })
+                   ))
                 )}
               </div>
             </div>

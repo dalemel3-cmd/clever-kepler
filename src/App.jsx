@@ -605,7 +605,7 @@ export default function App() {
           const t = new Date(row.created_at).getTime();
           // A device's own optimistic/offline copy of this row - or the copy another
           // device's broadcast put here a moment earlier - is replaced by the real one.
-          const isTwin = (r) => /^(opt_|offline_|broadcast_)/.test(String(r.id))
+          const isTwin = (r) => /^(opt_|offline_|broadcast_|manual_)/.test(String(r.id))
             && r.athlete_id === row.athlete_id && Math.abs(new Date(r.created_at) - t) < 5000;
           let rec = row;
           try {
@@ -1948,7 +1948,7 @@ export default function App() {
         session_label: newRec.session_label ?? null,
       };
 
-      const { data, error } = await supabase.from('weigh_ins').insert([cloudPayload]).select();
+      const { data, error } = await supabase.from('weigh_ins').insert([cloudPayload]).select(WEIGH_IN_COLS);
       if (error) throw error;
 
       if (data && data[0] && newRec.session_type === 'post_practice') {
@@ -1957,8 +1957,22 @@ export default function App() {
         markLogAsPostPractice(data[0]);
       }
 
-      fetchReportData(true);
+      if (false) fetchReportData(true);
       if (typeof selectedProfileId !== 'undefined' && selectedProfileId && selectedProfileId === newRec.athlete_id) {
+        if (data && data[0]) {
+          applyWeighInChangeRef.current({ eventType: 'INSERT', new: data[0], old: {} });
+          setProfileData(prev => [...prev.filter(r => r.id !== newRec.id && r.id !== data[0].id), data[0]].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
+        } else {
+          fetchProfileData(selectedProfileId, true);
+        }
+      } else if (data && data[0]) {
+        applyWeighInChangeRef.current({ eventType: 'INSERT', new: data[0], old: {} });
+      } else {
+        if (false) fetchReportData(true);
+      }
+      profileCacheRef.current.delete(targetAthId);
+      profileCacheRef.current.delete(newRec.athlete_id);
+      if (false) {
         fetchProfileData(selectedProfileId);
       }
     } catch (err) {
@@ -2069,10 +2083,10 @@ export default function App() {
         markLogAsPostPractice({ id: logId, ...merged });
       }
 
-      fetchReportData(true);
-      if (typeof selectedProfileId !== 'undefined' && selectedProfileId && selectedProfileId === updatedRec.athlete_id) {
-        fetchProfileData(selectedProfileId);
-      }
+      const updatedRow = { ...existing, ...cloudPayload, id: logId };
+      applyWeighInChangeRef.current({ eventType: 'UPDATE', new: updatedRow, old: {} });
+      setProfileData(prev => prev.map(r => r.id === logId ? { ...r, ...updatedRow } : r).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
+      profileCacheRef.current.delete(updatedRec.athlete_id);
     } catch (err) {
       console.warn("Cloud edit failed or offline, queuing correction for background sync:", err);
       try {
@@ -2283,7 +2297,9 @@ export default function App() {
     try {
       const { error } = await supabase.from('weigh_ins').delete().eq('id', id);
       if (error) throw error;
-      fetchReportData();
+      applyWeighInChangeRef.current({ eventType: 'DELETE', new: {}, old: { id } });
+      setProfileData(prev => prev.filter(r => r.id !== id));
+      profileCacheRef.current.clear();
     } catch (err) {
       console.error("Could not delete weigh in:", err);
       showToast("Failed to delete record.", 'error');
@@ -2307,6 +2323,7 @@ export default function App() {
     try {
       const { error } = await supabase.from('weigh_ins').delete().not('id', 'is', null);
       if (error) throw error;
+      profileCacheRef.current.clear();
       fetchReportData();
     } catch (err) {
       console.error("Could not delete all:", err);
@@ -2366,7 +2383,14 @@ export default function App() {
   };
 
   const fetchProfileDataRef = React.useRef(null);
-  const fetchProfileData = async (id) => {
+  const profileCacheRef = React.useRef(new Map());
+  const fetchProfileData = async (id, force = false) => {
+    const cached = !force ? profileCacheRef.current.get(id) : null;
+    if (cached && (Date.now() - cached.at < 60000)) {
+      setProfileData(cached.data);
+      return;
+    }
+    if (navigator.onLine && !allowFetch('weigh_ins:profile', { max: 15, windowMs: 60000 })) return;
     // Instantly pre-populate from local reportData for snappy zero-delay transitions
     const localData = reportData
       .filter(r => r.athlete_id === id)
@@ -2380,7 +2404,7 @@ export default function App() {
       // returned the OLDEST 180 rows, so profiles froze once an athlete passed 180 logs.
       const { data, error } = await supabase
         .from('weigh_ins')
-        .select('*')
+        .select(WEIGH_IN_COLS)
         .eq('athlete_id', id)
         .order('created_at', { ascending: false })
         .limit(settingsRef.current.profileHistoryLimit);
@@ -2393,6 +2417,7 @@ export default function App() {
           pData = pData.map(item => ({ ...item, is_baseline: !!item.is_baseline || item.id === p.log_id }));
         }
       } catch {}
+      profileCacheRef.current.set(id, { at: Date.now(), data: pData });
       setProfileData(pData);
     } catch {
       console.warn("Could not fetch profile data online, using local data");
@@ -2678,7 +2703,7 @@ export default function App() {
           coachInitials={coachInitials}
           sidebarCollapsed={sidebarCollapsed}
         />
-        <main data-scroll-root className="relative pt-16 w-full px-space-lg bg-surface h-screen overflow-y-auto pb-[calc(70px+env(safe-area-inset-bottom))] md:pb-space-xl" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+        <main data-scroll-root className="relative pt-16 w-full px-space-lg bg-surface h-screen overflow-y-auto overflow-x-hidden pb-[calc(70px+env(safe-area-inset-bottom))] md:pb-space-xl" ref={scrollAreaRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
 
           {(pullProgress > 10 || isRefreshing || showRefreshCelebration) && (
             <div style={{ position: 'sticky', top: 0, left: '50%', transform: 'translateX(0)', zIndex: 10000, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: '8px', paddingTop: '4px' }}>
@@ -2704,7 +2729,7 @@ export default function App() {
               </div>
             </div>
           )}
-          <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div style={{ maxWidth: '1000px', width: '100%', minWidth: 0, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {!isKioskMode && <SubTabs screen={screen} setScreen={setScreen} settings={settings} />}
             <Suspense fallback={<ScreenLoadingFallback />}>
             {screen === 'dashboard' && (

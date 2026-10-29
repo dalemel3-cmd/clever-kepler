@@ -1,12 +1,14 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { MAIN_LIFTS, MOVEMENTS, VOLUME_MEASURES, bucketize, bucketLabel, liftSummary, phaseSegments, sessionsFrom } from './periodization';
+import { MAIN_LIFTS, MOVEMENTS, VOLUME_MEASURES, attachCompleted, bucketize, bucketLabel, completedFrom, liftSummary, phaseSegments, sessionsFrom } from './periodization';
+import { fetchAllSessions } from './sessionCloud';
 
 // Programs > Periodization (v5.11.0, docs/HANDOFF.md §137): how the prescribed training
 // moves across days, weeks and months - volume and intensity as two charts on the same
 // timeline (never one dual-axis chart), a phase strip, and the numbers as a table.
 const VOLUME_COLOR = '#b89c5b';    // brand gold (bars)
+const COMPLETED_COLOR = '#34d399'; // emerald (completed volume on rack tablets)
 const INTENSITY_COLOR = '#60a5fa'; // blue line; both >= 3:1 on the dark card
 const lbl = { fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-muted)' };
 const field = { height: '40px', padding: '0 10px', fontSize: '13px', fontWeight: 700, borderRadius: '10px' };
@@ -29,6 +31,9 @@ function Tip({ active, payload, view, measure }) {
           {(b.phases.length > 0 || b.weeks.length > 0) && <div style={{ color: 'var(--color-text-muted)' }}>{[...b.weeks, ...b.phases].join(' · ')}</div>}
           <div>{b.sessions} session{b.sessions === 1 ? '' : 's'} · {b.sets} sets{b.timed ? ` (${b.timed} timed)` : ''} · {b.reps} reps</div>
           <div>{vName}: <b>{fmtVol(measure, b[measure])}</b></div>
+          {b.completedSessions > 0 && (
+            <div style={{ color: COMPLETED_COLOR }}>Completed: <b>{measure === 'sets' ? b.completedSetsAvg : b.completedRepsAvg}</b> avg/athlete ({b.completedSessions} session{b.completedSessions === 1 ? '' : 's'})</div>
+          )}
           <div>Avg intensity: <b>{b.avg == null ? '—' : `${num(b.avg)}%`}</b> · Top: {b.top == null ? '—' : `${b.top}%`}</div>
         </>
       )}
@@ -38,6 +43,7 @@ function Tip({ active, payload, view, measure }) {
 
 export default function PeriodizationPanel({ loadAll, sports = [], initialSport, onClose }) {
   const [rows, setRows] = React.useState(null);
+  const [workoutSessions, setWorkoutSessions] = React.useState([]);
   const [error, setError] = React.useState('');
   const [sport, setSport] = React.useState(initialSport || 'ALL');
   const [view, setView] = React.useState(() => { try { return localStorage.getItem('hpd_period_view') || 'week'; } catch { return 'week'; } });
@@ -51,14 +57,23 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
   React.useEffect(() => {
     let live = true;
     loadAll().then(res => { if (!live) return; if (res.ok) setRows(res.rows); else setError("Couldn't load programs - check the connection and try again."); });
+    fetchAllSessions().then(ws => { if (live && Array.isArray(ws)) setWorkoutSessions(ws); });
     return () => { live = false; };
   }, [loadAll]);
 
   const teams = React.useMemo(() => Array.from(new Set([...sports, ...(rows || []).map(p => p.sport).filter(Boolean)])).sort(), [sports, rows]);
   const { sessions, undated } = React.useMemo(() => sessionsFrom(rows || [], { sport, lift, from, to }), [rows, sport, lift, from, to]);
-  const buckets = React.useMemo(() => bucketize(sessions, view), [sessions, view]);
+  const completedList = React.useMemo(() => completedFrom(workoutSessions, rows || [], { sport, lift, from, to }), [workoutSessions, rows, sport, lift, from, to]);
+  const buckets = React.useMemo(() => attachCompleted(bucketize(sessions, view), completedList, view), [sessions, completedList, view]);
   const segments = React.useMemo(() => phaseSegments(buckets), [buckets]);
-  const chartData = buckets.map(b => ({ ...b, label: bucketLabel(b.key, view), avgPlot: b.avg == null ? null : Math.round(b.avg * 10) / 10, vol: b[measure] }));
+  const hasCompleted = completedList.length > 0 && measure !== 'load';
+  const chartData = buckets.map(b => ({
+    ...b,
+    label: bucketLabel(b.key, view),
+    avgPlot: b.avg == null ? null : Math.round(b.avg * 10) / 10,
+    vol: b[measure],
+    compVol: measure === 'sets' ? b.completedSetsAvg : measure === 'reps' ? b.completedRepsAvg : null,
+  }));
   const vName = (VOLUME_MEASURES.find(([k]) => k === measure) || [])[1];
   const unitWord = view === 'day' ? 'day' : view === 'week' ? 'week' : 'month';
   const axis = { stroke: 'rgba(255,255,255,0.35)', fontSize: 11, tickLine: false };
@@ -123,7 +138,15 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
                 <div key={`${s.start}_${i}`} title={s.label} style={{ flex: s.span, minWidth: 0, padding: '6px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', background: s.label === 'Off' ? 'transparent' : i % 2 ? 'rgba(255,255,255,0.06)' : 'rgba(184,156,91,0.14)', border: s.label === 'Off' ? '1px dashed rgba(255,255,255,0.15)' : 'none', color: s.label === 'Off' ? 'var(--color-text-muted)' : 'var(--color-text)' }}>{s.label}</div>
               ))}
             </div>
-            <span style={lbl}>Volume · {vName} per {unitWord}</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={lbl}>Volume · {vName} per {unitWord}</span>
+              {hasCompleted && (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><span style={{ width: '10px', height: '10px', borderRadius: '2px', background: VOLUME_COLOR, display: 'inline-block' }} /> Prescribed</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><span style={{ width: '10px', height: '10px', borderRadius: '2px', background: COMPLETED_COLOR, display: 'inline-block' }} /> Completed (avg/athlete)</span>
+                </span>
+              )}
+            </div>
             <div data-testid="pz-volume-chart" style={{ height: '180px', marginTop: '6px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%">
@@ -131,7 +154,8 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
                   <XAxis dataKey="label" {...axis} axisLine={false} interval="preserveStartEnd" />
                   <YAxis {...axis} axisLine={false} width={44} allowDecimals={measure === 'load'} />
                   <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={<Tip view={view} measure={measure} />} />
-                  <Bar dataKey="vol" fill={VOLUME_COLOR} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false} />
+                  <Bar dataKey="vol" name="Prescribed" fill={VOLUME_COLOR} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false} />
+                  {hasCompleted && <Bar dataKey="compVol" name="Completed (avg)" fill={COMPLETED_COLOR} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false} />}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -179,6 +203,42 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
               </tr>
             ))}</tbody>
           </table>
+        </div>
+      )}
+
+      {completedList.length > 0 && (
+        <div data-testid="pz-completed-log" style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <span style={lbl}>Completed workouts (rack tablets) · {completedList.length} session{completedList.length === 1 ? '' : 's'}</span>
+          </div>
+          <div style={{ overflowX: 'auto', maxHeight: '260px', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--color-text)' }}>
+              <thead><tr>
+                <th style={th}>Date done</th>
+                <th style={th}>Athlete</th>
+                <th style={th}>Team</th>
+                <th style={th}>Program · Day</th>
+                <th style={{ ...th, textAlign: 'right' }}>Progress</th>
+                <th style={{ ...th, textAlign: 'right' }}>Sets · Reps</th>
+                <th style={{ ...th, textAlign: 'right' }}>Time</th>
+                <th style={{ ...th, textAlign: 'right' }}>RPE</th>
+                <th style={th}>Status</th>
+              </tr></thead>
+              <tbody>{completedList.slice(0, 100).map((ws, i) => (
+                <tr key={ws.id || `${ws.athlete_id}_${ws.session_date}_${ws.day_id}_${i}`} data-testid="pz-completed-row">
+                  <td style={{ ...td, whiteSpace: 'nowrap', fontWeight: 700 }}>{bucketLabel(ws.session_date, 'day', false)}</td>
+                  <td style={{ ...td, fontWeight: 700 }}>{ws.athlete_name || 'Athlete'}</td>
+                  <td style={td}>{ws.sport || '—'}</td>
+                  <td style={td}>{[ws.program_name, ws.week_label, ws.day_label].filter(Boolean).join(' · ') || ws.day_id}</td>
+                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>{ws.items_done ?? 0}/{ws.items_total ?? 0}</td>
+                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>{ws.completedSets} sets · {ws.completedReps} reps</td>
+                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>{ws.minutes != null ? `${ws.minutes} min` : '—'}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{ws.rpe != null ? ws.rpe : '—'}</td>
+                  <td style={{ ...td, color: ws.finished_at ? COMPLETED_COLOR : 'var(--color-accent)', fontWeight: 700, fontSize: '12px' }}>{ws.finished_at ? 'Finished' : 'In progress'}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
         </div>
       )}
 
