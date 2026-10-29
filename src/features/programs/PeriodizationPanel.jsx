@@ -1,7 +1,8 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { LIFT_FILTERS, VOLUME_MEASURES, bucketize, bucketLabel, liftSummary, phaseSegments, sessionsFrom } from './periodization';
+import { MOVEMENTS, VOLUME_MEASURES, bucketize, bucketLabel, liftSummary, phaseSegments, sessionsFrom } from './periodization';
+import { MAX_KEYS } from './programData';
 
 // Programs > Periodization (v5.11.0, docs/HANDOFF.md §137): how the prescribed training
 // moves across days, weeks and months - volume and intensity as two charts on the same
@@ -27,7 +28,7 @@ function Tip({ active, payload, view, measure }) {
       {b.sessions === 0 ? <div style={{ color: 'var(--color-text-muted)' }}>No training</div> : (
         <>
           {(b.phases.length > 0 || b.weeks.length > 0) && <div style={{ color: 'var(--color-text-muted)' }}>{[...b.weeks, ...b.phases].join(' · ')}</div>}
-          <div>{b.sessions} session{b.sessions === 1 ? '' : 's'} · {b.sets} sets · {b.reps} reps</div>
+          <div>{b.sessions} session{b.sessions === 1 ? '' : 's'} · {b.sets} sets{b.timed ? ` (${b.timed} timed)` : ''} · {b.reps} reps</div>
           <div>{vName}: <b>{fmtVol(measure, b[measure])}</b></div>
           <div>Avg intensity: <b>{b.avg == null ? '—' : `${num(b.avg)}%`}</b> · Top: {b.top == null ? '—' : `${b.top}%`}</div>
         </>
@@ -42,10 +43,11 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
   const [sport, setSport] = React.useState(initialSport || 'ALL');
   const [view, setView] = React.useState(() => { try { return localStorage.getItem('hpd_period_view') || 'week'; } catch { return 'week'; } });
   const [lift, setLift] = React.useState('');
-  const [measure, setMeasure] = React.useState('load');
+  const [measure, setMeasure] = React.useState(() => { try { const m = localStorage.getItem('hpd_period_measure'); return VOLUME_MEASURES.some(([k]) => k === m) ? m : 'reps'; } catch { return 'reps'; } });
   const [from, setFrom] = React.useState('');
   const [to, setTo] = React.useState('');
   const pickView = (v) => { setView(v); try { localStorage.setItem('hpd_period_view', v); } catch { /* ignore */ } };
+  const pickMeasure = (v) => { setMeasure(v); try { localStorage.setItem('hpd_period_measure', v); } catch { /* ignore */ } };
 
   React.useEffect(() => {
     let live = true;
@@ -85,13 +87,15 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
             {[['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']].map(([k, t]) => <button key={k} type="button" data-testid={`pz-view-${k}`} aria-pressed={view === k} onClick={() => pickView(k)} style={seg(view === k)}>{t}</button>)}
           </div>
         </div>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={lbl}>Lift</span>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={lbl}>Exercises</span>
           <select data-testid="pz-lift" className="input-glass" style={field} value={lift} onChange={e => setLift(e.target.value)}>
-            {LIFT_FILTERS.map(([k, t]) => <option key={k} value={k} style={opt}>{t}</option>)}
+            <option value="" style={opt}>All exercises</option>
+            <optgroup label="Main lift">{MAX_KEYS.map(([k, t]) => <option key={k} value={k} style={opt}>{t}</option>)}</optgroup>
+            <optgroup label="Movement">{MOVEMENTS.map(([k, t]) => <option key={k} value={`m:${k}`} style={opt}>{t}</option>)}</optgroup>
           </select>
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={lbl}>Volume as</span>
-          <select data-testid="pz-measure" className="input-glass" style={field} value={measure} onChange={e => setMeasure(e.target.value)}>
+          <select data-testid="pz-measure" className="input-glass" style={field} value={measure} onChange={e => pickMeasure(e.target.value)}>
             {VOLUME_MEASURES.map(([k, t]) => <option key={k} value={k} style={opt}>{t}</option>)}
           </select>
         </label>
@@ -133,6 +137,7 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
               </ResponsiveContainer>
             </div>
             <span style={lbl}>Intensity · average % of max per {unitWord}</span>
+            {chartData.every(d => d.avgPlot == null) && <div data-testid="pz-no-pct" style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px' }}>Nothing here is prescribed as a % of a max, so there's no intensity line - volume above still counts every set.</div>}
             <div data-testid="pz-intensity-chart" style={{ height: '160px', marginTop: '6px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -180,7 +185,7 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
 
       {rows && (
         <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-          Load = reps × % of max (5 reps at 70% = 3.5). Average intensity is weighted by reps. Counts exercises written set by set; ones written as text (e.g. "3x 8") aren't counted.
+          Every exercise counts: sets × reps as written ("3x 8", "4x 3 ea", or set by set). Timed sets ("3x 20s") count as sets, not reps; finisher and core-circuit lines aren't counted. Load = reps × % of max (5 reps at 70% = 3.5) and intensity (weighted by reps) come from sets with a %. Main lifts and movement groups are picked from the exercise name.
           {undated > 0 && ` ${undated} program day${undated === 1 ? '' : 's'} without a date ${undated === 1 ? "isn't" : "aren't"} shown.`}
         </p>
       )}

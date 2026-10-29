@@ -19,7 +19,8 @@ const optS = { background: 'var(--navy-900)', color: 'var(--color-text)' };
 
 // `grid` (weekly-grid sheets): the parsed sheet plus choices the file can't carry -
 // program name, team, phase and which weekday each Day is - rebuilt as they change.
-export default function ProgramImportPanel({ fileName, result: rowResult, grid = null, teams = [], liftTypes = [], existing = [], onImport, onClose }) {
+// `tabs` (an .xlsx with several program tabs, v5.12.0): which tab is shown, and a picker.
+export default function ProgramImportPanel({ fileName, result: rowResult, grid = null, tabs = null, tab = 0, onPickTab, teams = [], liftTypes = [], existing = [], onImport, onClose }) {
   const [gName, setGName] = React.useState(grid?.guess?.name || fileName.replace(/\.[^.]+$/, ''));
   const [gTeam, setGTeam] = React.useState(grid?.guess?.team || '');
   const [gPhase, setGPhase] = React.useState(grid?.guess?.phase || '');
@@ -50,7 +51,15 @@ export default function ProgramImportPanel({ fileName, result: rowResult, grid =
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, textTransform: 'uppercase' }}>Upload programs</div>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{fileName}</div>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{fileName}{tabs?.length ? ` · tab "${tabs[tab]?.name}"` : ''}</div>
+            {tabs?.length > 1 && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}><span style={lbl}>Tab</span>
+                <select data-testid="pb-import-tab" className="input-glass" style={fld} value={tab} onChange={e => onPickTab?.(Number(e.target.value))}>
+                  {tabs.map((t, i) => <option key={t.name} value={i} style={optS}>{t.name}</option>)}
+                </select>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{tabs.length} program tabs - after this one is imported, the next one opens.</span>
+              </label>
+            )}
           </div>
           <button type="button" onClick={onClose} aria-label="Close upload" style={{ ...btn(false), width: '44px', padding: 0, justifyContent: 'center' }}><X size={18} /></button>
         </div>

@@ -12,8 +12,8 @@ const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID(
 const WEEK_RE = /^\s*w(?:ee)?k\s*\.?\s*(\d+)\s*(?:\(([^)]*)\))?\s*$/i;
 const DAY_RE = /^\s*day\s*(\d+)\b\s*[-–:·(]?\s*([A-Za-z]*)/i;
 const CODE_RE = /^\d{1,2}[a-z]?$/i;
-const SETREP_RE = /^\s*(\d+)\s*[x×]\s*(.+?)\s*$/i;
-const SUB = (h) => {
+export const SETREP_RE = /^\s*(\d+)\s*[x×]\s*(.+?)\s*$/i;
+export const SUB = (h) => {
   const s = String(h || '').toLowerCase().replace(/\s+/g, '');
   if (/^set\/?rep|^sets?x?reps?|^sets?$|^sr$|^scheme/.test(s)) return 'sr';
   if (s === '%' || /^pct|^percent|^%of|^intensity/.test(s)) return 'pct';
@@ -25,7 +25,7 @@ const SUB = (h) => {
 };
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const defaultDayOffsets = (n) => ({ 1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5] }[n] || Array.from({ length: n }, (_, i) => Math.min(i, 6)));
-const addDays = (ymd, n) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+export const addDays = (ymd, n) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 export const weekdayOf = (ymd) => new Date(`${ymd}T12:00:00Z`).getUTCDay();
 
 // "10/26" -> the year that puts it closest to today; "10/26/2026" as written.

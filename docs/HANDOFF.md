@@ -4073,7 +4073,57 @@ power clean across the team (power clean variations only), so that program needs
 mapped to Power Clean. Overrides live on each program, so a newly imported block starts
 without them.
 
-## 139. Next up
+## 139. Periodization counts every exercise; weekly-card workbooks (v5.12.0)
+
+**Why.** The overview (§137) only counted exercises written set by set with a % - the
+grid upload keeps everything else as text ("3x 8 ea", "6x 4 · @ 95 lb"), so for a team
+that doesn't prescribe by % (most of MBB / WSOC's work) volume read close to zero.
+
+**Counting** (`src/features/programs/periodization.js`): `prescribedSets(block)` - set rows
+as before, or the text read as sets × reps (first segment before " · ", "N x ...", N <= 20).
+`repsOf(text, name)`: "5", "4ea", "3 ea", "6+" (rep out), "2+1" (complex = 3), "10s + 12"
+(12); a hold ("20s", "30s ea", "1 x 10s", a "20/15/15" plank) is a timed set - counted in
+sets (and `timed`), not reps. "2 Rounds" / "BW" aren't counted; finisher lines never are.
+Load and intensity are still % sets only. `mainLiftOf(block)` picks the lift by name (front /
+back / box squat -> squat; split squat, SL squat to bench, DB bench, step-ups, kneeling
+press are not main lifts even at a % of one; an unrecognised name falls back to its % lift
+unless it reads like a variation). `movementOf(name)`: power / lower / push / pull / core by
+keyword, first rule wins (sprints, stretches, halos -> none). The panel's filter is now
+"Exercises" (All, Main lift, Movement); Volume defaults to Reps (`hpd_period_measure`); a
+note replaces the empty intensity line when nothing in view has a %.
+
+**Weekly cards** (`src/features/programs/programWeekCard.js`, `WeekCardImportPanel.jsx`):
+one tab per week; the header row has a date over each day and Set/Reps (+ % / Wt / Tempo)
+columns; each day is Code | Exercise columns with one row per set below the code row.
+`parseWeekCard(rows, { tab, teams })` finds the day groups from that row (a day without a
+date takes the left-most column with codes; an unlabelled % column is found by its "70%"
+values), reads warm-ups from the cell above each day, keeps multi-line names joined and
+"(...)" lines as notes, and drops the numbers in Wt (they're the named athlete's weights)
+while keeping written ones ("30 MIN", "Add Wt") and tempo-column notes. One-line "Nx..."
+stays text unless it has a % and a lift (then sets, like the grid). Letterless codes ("2 |
+FLY 10 + 10") and written-out circuits ("Group Core: / ...") go to the day's extra lines.
+The week comes from the tab name ("SH_10.12.26"; "260" = 26) when there is one - tabs copied
+from the week before kept the old dates in the real file - with a warning when the cells
+disagree. `cardGroups()` groups tabs by the name before the date; `weekNo()` counts weeks
+from the group's first tab; `weekCardPrograms()` builds one program per ticked tab (name and
+team per group, phase per week, `archived_at` when "Archive them" is ticked - default when
+every week is before this one). ProgramsScreen: an .xlsx with any weekly-card tabs opens
+this panel with all of them; otherwise every grid / row-per-set tab is offered through a
+Tab picker (`pb-import-tab`) and the next tab opens after each import.
+
+**Data (2026-10-29).** The coach's "Workout Sheets MBB & WSOC" workbook: 16 week tabs
+(MBB "SH_" + WSOC, 8/17-10/12; 9/21 was a week off) imported through this reader as
+archived "MBB FALL 26" / "WSOC FALL 26" Weeks 1-5 (Capacity) and 7-9 (Strength), the
+phases from the workbook's plan tab (Capacity weeks 1-5, Strength 6-9, Power 10-14). Each
+row was checked against the file (md5 of days / exercises / sets). The front squat reps
+per week match the coach's own volume column (16, 16, 29, 23, 18 ...). Tests:
+`tests/program-week-cards.js` (35, no browser), `tests/program-week-cards-upload.js` (26).
+
+## 140. Next up
+
+- **Completed volume from the rack tablets:** "Mark done" is only kept on the tablet
+  (localStorage session); saving the session's completed sets (a small table) would let
+  Periodization show prescribed vs completed per week (§139).
 
 - **Carry entered maxes to new programs** (or an "Upload maxes" sheet on Edit maxes):
   overrides are per program, so every imported week needs them again (§138).

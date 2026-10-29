@@ -168,7 +168,7 @@ const upload = [
   await page.getByTestId('pz-view-week').click(); await page.waitForTimeout(300);
   let rows = await page.getByTestId('pz-row').allInnerTexts();
   check('weekly: 4 weeks incl. the empty week 9/21', rows.length === 4 && /No training/.test(rows[2]), JSON.stringify(rows));
-  check('week 1: 2 sessions, 5 sets, 22 reps, load 15.9, avg 72%, top 80%', /Week of Sep 7, 2026/.test(rows[0]) && /\t2\t5\t22\t15\.9\t72%\t80%/.test(rows[0]), rows[0]);
+  check('week 1: 2 sessions, 8 sets (Box Jump "3x 3" counts too), 31 reps, load 15.9, avg 72%, top 80%', /Week of Sep 7, 2026/.test(rows[0]) && /\t2\t8\t31\t15\.9\t72%\t80%/.test(rows[0]), rows[0]);
   check('week 2 (archived program still counted): avg 85%', /Intensification/.test(rows[1]) && /\t85%\t85%/.test(rows[1]), rows[1]);
   check('main lifts summary', /Squat 2×5 @ 70–80%/.test(rows[0]) && /Bench 3×4 @ 70%/.test(rows[0]), rows[0]);
   check('phase strip: Accumulation | Intensification | Off | Realization', JSON.stringify(await page.getByTestId('pz-phases').locator('div').allInnerTexts()).toUpperCase() === JSON.stringify(['Accumulation', 'Intensification', 'Off', 'Realization']).toUpperCase(), JSON.stringify(await page.getByTestId('pz-phases').locator('div').allInnerTexts()));

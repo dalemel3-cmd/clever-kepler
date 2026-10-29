@@ -4,8 +4,10 @@ import { usePrograms } from './usePrograms';
 import { MAX_KEYS, MAX_WINDOWS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
 import { parseCsv, rowsToPrograms, programsToRows, templateCsv, toCsv } from './programCsv';
 import { isGrid, parseGrid, gridTemplateCsv } from './programGrid';
+import { isWeekCard, parseWeekCard } from './programWeekCard';
 import { readXlsx } from '../../utils/xlsx';
 const ProgramImportPanel = React.lazy(() => import('./ProgramImportPanel'));
+const WeekCardImportPanel = React.lazy(() => import('./WeekCardImportPanel'));
 const PeriodizationPanel = React.lazy(() => import('./PeriodizationPanel'));
 const loadWeightRoomCard = () => import('./WeightRoomCard');
 const WeightRoomCard = React.lazy(loadWeightRoomCard);
@@ -159,27 +161,33 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
     downloadCsv('hpd-program-template.csv', templateCsv(ex));
   };
   // A program file from the Upload button or dropped anywhere on this screen: .csv, or
-  // .xlsx straight from Excel / Google Sheets (the first tab that looks like a program).
+  // .xlsx straight from Excel / Google Sheets - every tab that looks like a program.
   const looksLikeRows = (rows) => rows.slice(0, 40).some(r => r.some(c => /^program$/i.test(String(c).trim())) && r.some(c => /^exercise$/i.test(String(c).trim())));
+  // Two single-sheet layouts: one row per set (the template), or a weekly grid (Day
+  // sections down, weeks across - the printed-sheet layout). Detected from the file itself.
+  const openSheet = (fileName, rows, tabs = null, tab = 0) => {
+    const base = { fileName, tabs, tab, key: `${fileName}#${tab}` };
+    if (isGrid(rows)) setImporting({ ...base, grid: parseGrid(rows, { teams: sports }) });
+    else setImporting({ ...base, result: rowsToPrograms(rows, { liftTypes, teams: sports }) });
+  };
   const handleFile = async (f) => {
     if (!f) return;
-    let rows, label = f.name;
     if (/\.xlsx$/i.test(f.name)) {
-      try {
-        const sheets = await readXlsx(await f.arrayBuffer());
-        const pick = sheets.find(sh => isGrid(sh.rows) || looksLikeRows(sh.rows)) || sheets[0];
-        if (!pick) throw new Error('empty');
-        rows = pick.rows;
-        if (sheets.length > 1) label = `${f.name} · tab "${pick.name}"`;
-      } catch { setMsg("Couldn't read that Excel file. Try File > Download > CSV and upload the .csv."); return; }
-    } else if (/\.xls$/i.test(f.name)) { setMsg('That is an old .xls workbook. Save it as .xlsx or CSV and upload that.'); return; }
-    else if (/\.(csv|txt|tsv)$/i.test(f.name) || /csv|text\/plain/.test(f.type)) rows = parseCsv(await f.text());
-    else { setMsg(`"${f.name}" isn't a spreadsheet. Upload a .csv or .xlsx program sheet - PDFs and photos can't be read reliably.`); return; }
-    // Two layouts: one row per set (the template), or a weekly grid (Day sections down,
-    // weeks across - the printed-sheet layout). Detected from the file itself.
-    if (isGrid(rows)) setImporting({ fileName: label, grid: parseGrid(rows, { teams: sports }) });
-    else setImporting({ fileName: label, result: rowsToPrograms(rows, { liftTypes, teams: sports }) });
+      let sheets;
+      try { sheets = await readXlsx(await f.arrayBuffer()); if (!sheets.length) throw new Error('empty'); } catch { setMsg("Couldn't read that Excel file. Try File > Download > CSV and upload the .csv."); return; }
+      // Weekly cards (one tab per week, days side by side, v5.12.0): all of them at once.
+      const cards = sheets.filter(sh => !looksLikeRows(sh.rows) && isWeekCard(sh.rows)).map(sh => parseWeekCard(sh.rows, { tab: sh.name, teams: sports })).filter(c => c && c.days.length);
+      if (cards.length) { setImporting({ fileName: f.name, cards, key: f.name }); return; }
+      const tabs = sheets.filter(sh => isGrid(sh.rows) || looksLikeRows(sh.rows));
+      const list = tabs.length ? tabs : [sheets[0]];
+      openSheet(f.name, list[0].rows, sheets.length > 1 ? list.map(t => ({ name: t.name, rows: t.rows })) : null, 0);
+      return;
+    }
+    if (/\.xls$/i.test(f.name)) { setMsg('That is an old .xls workbook. Save it as .xlsx or CSV and upload that.'); return; }
+    if (/\.(csv|txt|tsv)$/i.test(f.name) || /csv|text\/plain/.test(f.type)) { openSheet(f.name, parseCsv(await f.text())); return; }
+    setMsg(`"${f.name}" isn't a spreadsheet. Upload a .csv or .xlsx program sheet - PDFs and photos can't be read reliably.`);
   };
+  const pickTab = (i) => { const t = importing?.tabs?.[i]; if (t) openSheet(importing.fileName, t.rows, importing.tabs, i); };
   const onFile = (e) => { const f = e.target.files?.[0]; e.target.value = ''; handleFile(f); };
   // Drag and drop: anywhere on the page while Programs is open.
   const [dragging, setDragging] = React.useState(false);
@@ -198,7 +206,12 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
   const [tplMenu, setTplMenu] = React.useState(false);
   const doImport = async (list) => {
     const res = await saveMany(list);
-    if (res.ok) { setImporting(null); setMsg(`Imported ${res.count} program${res.count === 1 ? '' : 's'}.`); }
+    if (!res.ok) return res;
+    const done = `Imported ${res.count} program${res.count === 1 ? '' : 's'}`;
+    // A workbook with more program tabs: straight on to the next one.
+    const next = importing?.tabs && importing.tab + 1 < importing.tabs.length ? importing.tab + 1 : -1;
+    if (next >= 0) { pickTab(next); setMsg(`${done} from tab "${importing.tabs[importing.tab].name}" - now showing "${importing.tabs[next].name}".`); }
+    else { setImporting(null); setMsg(`${done}.`); }
     return res;
   };
 
@@ -346,13 +359,15 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
           <div style={{ padding: '36px 44px', borderRadius: '18px', border: '3px dashed var(--color-accent)', background: 'rgba(184,156,91,0.08)', textAlign: 'center', maxWidth: '520px' }}>
             <FileUp size={40} style={{ color: 'var(--color-accent)' }} />
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, textTransform: 'uppercase', marginTop: '10px' }}>Drop to upload programs</div>
-            <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>.csv or .xlsx - a weekly grid or the one-row-per-set template. You'll see a preview before anything is saved.</div>
+            <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginTop: '6px' }}>.csv or .xlsx - a weekly grid, one tab per week, or the one-row-per-set template. You'll see a preview before anything is saved.</div>
           </div>
         </div>
       )}
       {importing && (
         <React.Suspense fallback={null}>
-          <ProgramImportPanel fileName={importing.fileName} result={importing.result} grid={importing.grid} teams={sports} liftTypes={liftTypes} existing={programs} onImport={doImport} onClose={() => setImporting(null)} />
+          {importing.cards
+            ? <WeekCardImportPanel key={importing.key} fileName={importing.fileName} cards={importing.cards} teams={sports} liftTypes={liftTypes} existing={programs} onImport={doImport} onClose={() => setImporting(null)} />
+            : <ProgramImportPanel key={importing.key} fileName={importing.fileName} result={importing.result} grid={importing.grid} tabs={importing.tabs} tab={importing.tab} onPickTab={pickTab} teams={sports} liftTypes={liftTypes} existing={programs} onImport={doImport} onClose={() => setImporting(null)} />}
         </React.Suspense>
       )}
       {printing && draft && (
