@@ -1,5 +1,7 @@
 # HPD App — Project Handoff (v5.7.5, Oct 16 2026)
 
+> **Superseded by `AGENTS.md` at the repo root (v5.13.0, Oct 29 2026).** Kept for background.
+
 Shiloh Christian Athletics **Human Performance Dashboard**. A coach-facing PWA for weigh-ins,
 session RPE, lifts, jump/sprint testing and printable reports. This is the short version.
 `docs/HANDOFF.md` has the full history: 125 numbered sections, one per change, with the reasoning.

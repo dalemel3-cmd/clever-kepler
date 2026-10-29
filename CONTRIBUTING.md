@@ -55,16 +55,16 @@ Not a hard rule, just a helpful default:
 
 ## Known issues / active work
 
-- `src/App.jsx` is a single ~6,600 line file/component. This is the biggest
-  source of tool-switching risk (large surface area = more chance both tools
-  touch the same region) and the biggest blocker to testing individual
-  pieces. Splitting it into `features/` and `components/` is a priority.
-- Row Level Security (RLS) is currently **disabled** on `athletes` and
-  `weigh_ins` in Supabase. There is no login yet, so the anon key exposes
-  full read/write on both tables. Auth + RLS policies are planned but not
-  yet implemented — be aware of this if adding features that touch
-  sensitive data.
-- Never commit `.env`. Use `.env.example` as the template for required vars.
+The current state, open items and ground rules for any agent are in **`AGENTS.md`**
+(read it first). In short:
+
+- `src/App.jsx` is still large (~3,100 lines, down from ~6,600 after the split into
+  `src/features/`). It's the riskiest file for two tools to touch at once.
+- Login is required (Supabase auth, approved coaches only) and **Row Level Security is on
+  for every table**. New tables get their RLS policy in the same `db/0NN_*.sql` file.
+- `main` deploys to production. Push to it only when the owner says "push it"; work on a
+  branch and share its Vercel preview first.
+- Never commit `.env`. Use `.env.example` as the template (the app also runs without one).
 
 ## Secrets / access
 
