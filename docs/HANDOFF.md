@@ -4119,7 +4119,16 @@ row was checked against the file (md5 of days / exercises / sets). The front squ
 per week match the coach's own volume column (16, 16, 29, 23, 18 ...). Tests:
 `tests/program-week-cards.js` (35, no browser), `tests/program-week-cards-upload.js` (26).
 
-## 140. Next up
+## 140. An RDL isn't a deadlift (v5.12.1)
+
+The coach spotted "TBDL" in MBB's August weeks - they haven't trap-bar deadlifted yet. The
+overview mapped any RDL to the `dl` main lift and showed it with the builder's label for
+that key ("TBDL", `MAX_KEYS`). `periodization.js` now has its own `MAIN_LIFTS` labels
+(Deadlift, not TBDL) for the filter and the Main lifts column, and `mainLiftOf` never
+returns `dl` for an RDL / RLD / Romanian / stiff-leg (also not via a % of deadlift) - they
+still count in the totals and under Lower body. The builder's TBDL key is unchanged.
+
+## 141. Next up
 
 - **Completed volume from the rack tablets:** "Mark done" is only kept on the tablet
   (localStorage session); saving the session's completed sets (a small table) would let

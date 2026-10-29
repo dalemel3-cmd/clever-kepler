@@ -1,8 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { MOVEMENTS, VOLUME_MEASURES, bucketize, bucketLabel, liftSummary, phaseSegments, sessionsFrom } from './periodization';
-import { MAX_KEYS } from './programData';
+import { MAIN_LIFTS, MOVEMENTS, VOLUME_MEASURES, bucketize, bucketLabel, liftSummary, phaseSegments, sessionsFrom } from './periodization';
 
 // Programs > Periodization (v5.11.0, docs/HANDOFF.md §137): how the prescribed training
 // moves across days, weeks and months - volume and intensity as two charts on the same
@@ -90,7 +89,7 @@ export default function PeriodizationPanel({ loadAll, sports = [], initialSport,
         <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={lbl}>Exercises</span>
           <select data-testid="pz-lift" className="input-glass" style={field} value={lift} onChange={e => setLift(e.target.value)}>
             <option value="" style={opt}>All exercises</option>
-            <optgroup label="Main lift">{MAX_KEYS.map(([k, t]) => <option key={k} value={k} style={opt}>{t}</option>)}</optgroup>
+            <optgroup label="Main lift">{MAIN_LIFTS.map(([k, t]) => <option key={k} value={k} style={opt}>{t}</option>)}</optgroup>
             <optgroup label="Movement">{MOVEMENTS.map(([k, t]) => <option key={k} value={`m:${k}`} style={opt}>{t}</option>)}</optgroup>
           </select>
         </label>

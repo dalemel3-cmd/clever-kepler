@@ -5,10 +5,11 @@
 // v5.12.0 (§139): every exercise counts, not just the ones written set by set with a % -
 // "3x 8", "4x 3 ea" and "5x2" are read as sets × reps, timed sets ("3x 20s") count as
 // sets but not reps, and the filter can pick a main lift or a movement group by name.
-import { MAX_KEYS } from './programData';
-
+// Main lifts as the overview names them. The builder's % key "dl" is labelled TBDL (trap
+// bar); here it's any deadlift, and an RDL is never counted as one (v5.12.1).
+export const MAIN_LIFTS = [['clean', 'Clean'], ['bench', 'Bench'], ['squat', 'Squat'], ['dl', 'Deadlift'], ['ohp', 'OHP']];
 export const MOVEMENTS = [['power', 'Power / Olympic'], ['lower', 'Lower body'], ['push', 'Upper push'], ['pull', 'Upper pull'], ['core', 'Core']];
-export const LIFT_FILTERS = [['', 'All exercises'], ...MAX_KEYS, ...MOVEMENTS.map(([k, l]) => [`m:${k}`, l])];
+export const LIFT_FILTERS = [['', 'All exercises'], ...MAIN_LIFTS, ...MOVEMENTS.map(([k, l]) => [`m:${k}`, l])];
 export const VOLUME_MEASURES = [['reps', 'Reps'], ['sets', 'Sets'], ['load', 'Load (reps × %)']];
 
 // Reps in one prescription: "5", "4ea", "3 ea", "6+" (rep out), "2+1" (a complex: 3 reps),
@@ -36,15 +37,17 @@ export function prescribedSets(b) {
 }
 
 // Main lift by the exercise's name (front and back squat are Squat; a split squat, DB
-// bench or step-up is not, even when prescribed as a % of one).
+// bench, step-up or RDL is not, even when prescribed as a % of one - an RDL still counts
+// in the totals and under Lower body).
+const RDL = /\brdl\b|\brld\b|romanian|stiff.?leg/i;
 const MAIN_RULES = [
   ['clean', /clean|snatch/i, null],
   ['bench', /bench/i, /step|pigeon|to bench|\bdb\b|dumbbell|jump/i],
   ['squat', /squat/i, /split|\biso\b|\bsl\b|single|spanish|squat squat|goblet|to bench|jump|\bdb\b/i],
-  ['dl', /deadlift|\brdl\b|\brld\b|tbdl|trap bar/i, /jump/i],
+  ['dl', /deadlift|tbdl|trap bar/i, new RegExp(`jump|${RDL.source}`, 'i')],
   ['ohp', /military|overhead press|push press|\bohp\b/i, /kneeling|landmine|\bdb\b/i],
 ];
-const VARIATION = /split|\biso\b|single|\bsl\b|step|lunge|jump|\bdb\b|dumbbell|pigeon/i;
+const VARIATION = new RegExp(`split|\\biso\\b|single|\\bsl\\b|step|lunge|jump|\\bdb\\b|dumbbell|pigeon|${RDL.source}`, 'i');
 export function mainLiftOf(b) {
   const name = String(b?.name || '');
   for (const [k, yes, no] of MAIN_RULES) if (yes.test(name) && !(no && no.test(name))) return k;
@@ -154,7 +157,7 @@ export function bucketLabel(key, view, long = false) {
   return long ? d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
 }
 
-export const liftSummary = (lifts) => MAX_KEYS.filter(([k]) => lifts[k]).map(([k, l]) => {
+export const liftSummary = (lifts) => MAIN_LIFTS.filter(([k]) => lifts[k]).map(([k, l]) => {
   const L = lifts[k];
   const pct = L.lo == null ? '' : L.lo === L.hi ? ` @ ${L.lo}%` : ` @ ${L.lo}–${L.hi}%`;
   return `${l} ${L.sets}×${L.reps ? Math.round(L.reps / L.sets) : '?'}${pct}`;
