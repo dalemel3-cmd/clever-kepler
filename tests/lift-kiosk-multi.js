@@ -1,6 +1,7 @@
 // Run with:  node tests/lift-kiosk-multi.js   (preview on :4173; Supabase stubbed)
 // v5.10.2 Lift Kiosk "Select multiple": tap several names to fill the rack in one pass;
-// the roster stays open until "Done adding", which opens the first athlete. Remembered.
+// the roster stays open until "Done adding". Remembered. v5.13.0: Done adding doesn't open
+// anyone - each athlete opens their own workout by tapping their name in Your Rack.
 import { chromium } from 'playwright';
 import { stubAuth, isAuthRoute, fulfillAuth } from './lib/auth-stub.js';
 const LAUNCH_OPTS = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
@@ -51,14 +52,16 @@ const athletes = ['Ava Able', 'Ben Baker', 'Cal Cole', 'Dee Dunn', 'Eli Egan'].m
   await page.getByTestId('lk-done-adding').click(); await page.waitForTimeout(400);
   check('Done adding hides the roster; Ava\'s card stays open', await page.getByTestId('lk-tile').count() === 0 && /AVA ABLE/i.test(await page.locator('.sticky').first().innerText()));
 
-  // Fresh start with the toggle remembered: Done opens the first athlete.
+  // Fresh start with the toggle remembered: Done keeps everyone collapsed until they tap their name.
   await page.reload(); await page.waitForTimeout(1500);
   await page.getByRole('button', { name: 'Activate Lift Kiosk Mode' }).click(); await page.waitForTimeout(1000);
   check('toggle remembered on the tablet', (await page.getByTestId('lk-multi-toggle').getAttribute('aria-checked')) === 'true');
   await tile('Eli Egan').click(); await tile('Ben Baker').click(); await page.waitForTimeout(200);
   check('no card opens while selecting', await page.getByRole('button', { name: /Done$/ }).count() === 0);
   await page.getByTestId('lk-done-adding').click(); await page.waitForTimeout(400);
-  check('Done adding opens the first athlete picked', /ELI EGAN/i.test(await page.locator('.sticky').first().innerText()) && JSON.stringify(await rackNames()) === '["Eli Egan","Ben Baker"]', JSON.stringify(await rackNames()));
+  check('Done adding: the rack shows both names, nobody\'s card opens, "Tap your name"', JSON.stringify(await rackNames()) === '["Eli Egan","Ben Baker"]' && await page.getByRole('button', { name: /Done$/ }).count() === 0 && /Tap your name/i.test(await page.getByTestId('rack-hint').innerText()), JSON.stringify(await rackNames()));
+  await page.getByRole('button', { name: /^EE Eli Egan/ }).first().click(); await page.waitForTimeout(400);
+  check('tapping a name in Your Rack opens that athlete', /ELI EGAN/i.test(await page.locator('.sticky').first().innerText()) && await page.getByTestId('rack-hint').count() === 0);
   const small = await page.locator('[data-testid="lk-multi-toggle"], [data-testid="lk-done-adding"]').evaluateAll(bs => bs.filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44); }).length);
   await page.getByRole('button', { name: /Add Another Athlete/ }).click(); await page.waitForTimeout(300);
   const small2 = await page.locator('[data-testid="lk-multi-toggle"], [data-testid="lk-done-adding"]').evaluateAll(bs => bs.filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44); }).length);

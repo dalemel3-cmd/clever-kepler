@@ -11,6 +11,9 @@ const uuid = (n) => `${String(n).padStart(8, '0')}-0000-4000-8000-${String(n).pa
 const central = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(d);
 const TODAY = central(new Date());
 const TOMORROW = central(new Date(Date.now() + 86400000));
+const YESTERDAY = central(new Date(Date.now() - 86400000));
+const MONDAY = (() => { const d = new Date(`${TODAY}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
+const plusDays = (ymd, n) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) { pass++; console.log(`  PASS  ${name}`); } else { fail++; console.log(`  FAIL  ${name}${detail ? ` -> ${detail}` : ''}`); } };
 
@@ -18,6 +21,8 @@ const athletes = [
   { id: uuid(1), name: 'Rack Ray', sport: 'Football', position: 'LB' },
   { id: uuid(2), name: 'Rack Rita', sport: 'Football', position: 'RB' },
   { id: uuid(3), name: 'Vb Vic', sport: 'Volleyball' },
+  { id: uuid(4), name: 'Rack Rob', sport: 'Football' },
+  { id: uuid(5), name: 'Rack Rae', sport: 'Football' },
 ];
 const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
 const lifts = [
@@ -36,6 +41,12 @@ const day = (id, date, focus) => ({
 const programs = [
   { id: uuid(900), name: 'Football Strength', week_label: 'Week 3', phase: 'Strength + Power', sport: 'Football', days: [day('d1', TODAY, 'Lower + Power'), day('d2', TOMORROW, 'Upper')], max_map: { clean: 'Hang Clean', bench: 'Bench', squat: 'Squat', dl: 'Trap Bar Deadlift', ohp: '', window: 'all' }, updated_at: ago(1) },
 ];
+// v5.13.0: sessions already in the database - Rae started today's workout on another rack,
+// Rob finished Day 2 yesterday.
+const sessionsDb = [
+  { id: uuid(800), athlete_id: uuid(5), session_date: TODAY, program_id: uuid(900), day_id: 'd1', day_label: 'Day 1 · Lower + Power', started_at: new Date(Date.now() - 20 * 60000).toISOString(), finished_at: null, minutes: null, rpe: null, sets: { d1b1: { 0: { w: 200, r: 5, liftId: uuid(60) } } }, done: {}, items_done: 1, items_total: 4, updated_at: new Date().toISOString() },
+  { id: uuid(801), athlete_id: uuid(4), session_date: YESTERDAY, program_id: uuid(900), day_id: 'd2', day_label: 'Day 2 · Upper', started_at: ago(1), finished_at: ago(1), minutes: 50, rpe: 6, sets: {}, done: {}, items_done: 4, items_total: 4, updated_at: ago(1) },
+];
 const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeSessionLabels: ['Lift', 'Run', 'Combined'], liftTypes: ['Bench', 'Squat', 'Hang Clean', 'Trap Bar Deadlift'], dataWindowDays: 30 };
 
 (async () => {
@@ -44,7 +55,7 @@ const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true,
   const page = await ctx.newPage();
   await stubAuth(page);
   await page.addInitScript((s) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('hpd_settings', JSON.stringify(s)); localStorage.setItem(`hpd_workout_${'x'}_2020-01-01`, '{}'); } }, SEED);
-  const programGets = [], liftPosts = [], liftDeletes = [], rpePosts = [], weighGets = [];
+  const programGets = [], liftPosts = [], liftDeletes = [], rpePosts = [], weighGets = [], sessionPosts = [], sessionGets = [];
   let programsDown = false;
   await page.route(SUPA, async (route) => {
     const req = route.request(); const url = decodeURIComponent(req.url()); const m = req.method();
@@ -54,11 +65,22 @@ const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true,
     if (isAuthRoute(url)) return fulfillAuth(route, url, h);
     if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: h, body: '[{"approved":true}]' });
     if (url.includes('/rest/v1/athletes') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
-    if (url.includes('/rest/v1/programs') && m === 'GET') {
-      programGets.push(url);
+    if (url.includes('/rest/v1/rpc/programs_for_tablets')) {
+      const b = req.postDataJSON() || {};
+      programGets.push({ url, body: b });
       if (programsDown) return route.abort();
-      const date = (url.match(/"date":"(\d{4}-\d{2}-\d{2})"/) || [])[1];
-      return route.fulfill({ status: 200, headers: h, body: JSON.stringify(programs.filter(p => !date || p.days.some(d => d.date === date))) });
+      return route.fulfill({ status: 200, headers: h, body: JSON.stringify(programs.filter(p => p.days.some(d => d.date >= b.d_from && d.date <= b.d_to))) });
+    }
+    if (url.includes('/rest/v1/workout_sessions')) {
+      if (m === 'POST') {
+        const b = req.postDataJSON(); const rows = Array.isArray(b) ? b : [b];
+        sessionPosts.push(...rows);
+        for (const r of rows) { const i = sessionsDb.findIndex(x => x.athlete_id === r.athlete_id && x.session_date === r.session_date && x.day_id === r.day_id); if (i >= 0) sessionsDb[i] = { ...sessionsDb[i], ...r }; else sessionsDb.push({ id: uuid(850 + sessionsDb.length), ...r }); }
+        return route.fulfill({ status: 201, headers: h, body: '' });
+      }
+      sessionGets.push(url);
+      const who = (url.match(/athlete_id=eq\.([^&]+)/) || [])[1];
+      return route.fulfill({ status: 200, headers: h, body: JSON.stringify(sessionsDb.filter(r => r.athlete_id === who)) });
     }
     if (url.includes('/rest/v1/lift_logs')) {
       if (m === 'POST') { const b = req.postDataJSON(); const rows = Array.isArray(b) ? b : [b]; liftPosts.push(...rows); return route.fulfill({ status: 201, headers: h, body: JSON.stringify(rows) }); }
@@ -77,7 +99,7 @@ const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true,
   await page.goto(`${APP}/#lifts`); await page.waitForTimeout(2500);
   check('coach view: no program download', programGets.length === 0, JSON.stringify(programGets));
   await page.getByRole('button', { name: 'Activate Lift Kiosk Mode' }).click(); await page.waitForTimeout(1500);
-  check('kiosk: downloads only programs dated today, with a team, not archived', programGets.length === 1 && programGets[0].includes(`days=cs.[{"date":"${TODAY}"}]`) && /archived_at=is\.null/.test(programGets[0]) && /sport=not\.is\.null/.test(programGets[0]), programGets[0]);
+  check('kiosk: one download of this week\'s and next week\'s team programs', programGets.length === 1 && programGets[0].body.d_from === MONDAY && programGets[0].body.d_to === plusDays(MONDAY, 13) && /select=id,name,week_label/.test(programGets[0].url), JSON.stringify(programGets));
   check('kiosk header points to today\'s workout', /today's workout/i.test(await page.locator('body').innerText()));
   check('old workout sessions cleared from the tablet', await page.evaluate(() => localStorage.getItem('hpd_workout_x_2020-01-01')) === null);
 
@@ -105,6 +127,10 @@ const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true,
   await doneBtns.nth(0).click(); await doneBtns.nth(1).click(); await page.waitForTimeout(300);
   check('non-lift work is checked off (3x 3 box jumps, DB row set)', (await page.getByTestId('wo-progress').innerText()) === '3/4' && liftPosts.length === 2);
   check('rack chip shows progress', /3\/4 sets/.test(await page.getByTestId('rack-progress').first().innerText()));
+  await page.waitForTimeout(1800);
+  const ray = sessionPosts.filter(r => r.athlete_id === uuid(1)).pop() || {};
+  check('progress saved to the database: date, program day, 3 of 4, the logged set and the checked-off work', ray.session_date === TODAY && ray.day_id === 'd1' && ray.program_id === uuid(900) && ray.program_name === 'Football Strength' && ray.day_label === 'Day 1 · Lower + Power' && ray.planned_date === TODAY && ray.items_done === 3 && ray.items_total === 4 && ray.sets?.d1b1?.[0]?.w === 210 && ray.done?.d1b2 === true && !ray.finished_at, JSON.stringify(ray));
+  check('saves are batched (not one request per tap)', sessionPosts.filter(r => r.athlete_id === uuid(1)).length <= 2, String(sessionPosts.length));
 
   // Another athlete on the same rack: own weights, own session; PR message.
   await page.getByRole('button', { name: 'Add Another Athlete' }).click(); await page.waitForTimeout(400);
@@ -128,6 +154,9 @@ const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true,
   check('RPE saved: 7, 40 min, label Lift, session_type rpe', Number(r.rpe) === 7 && Number(r.session_minutes) === 40 && r.session_label === 'Lift' && r.session_type === 'rpe' && r.athlete_id === uuid(1), JSON.stringify(r));
   check('complete banner', /Workout complete · RPE 7 · 40 min/.test(await page.getByTestId('wo-complete').innerText()));
   check('no 30-day re-download after the RPE save', weighGets.filter(u => /select=id,created_at,athlete_id/.test(u)).length === 0, JSON.stringify(weighGets));
+  await page.waitForTimeout(1800);
+  const rayDone = sessionPosts.filter(r => r.athlete_id === uuid(1)).pop() || {};
+  check('finished workout saved: finish time, RPE 7, 40 min', !!rayDone.finished_at && Number(rayDone.rpe) === 7 && rayDone.minutes === 40, JSON.stringify(rayDone));
 
   await page.getByTestId('wo-free-log').click(); await page.waitForTimeout(300);
   check('"Log a lift not on the plan" opens the normal log form', await page.getByRole('button', { name: /Log Lift/ }).count() === 1 && await page.getByTestId('wo-back').count() === 1);
@@ -149,6 +178,31 @@ const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true,
   await page.getByRole('button', { name: 'Add Another Athlete' }).click(); await page.waitForTimeout(400);
   await page.getByText('Vb Vic', { exact: true }).first().click(); await page.waitForTimeout(600);
   check('athlete with no program today gets the normal log form', await page.getByTestId('workout-panel').count() === 0 && await page.getByRole('button', { name: /Log Lift/ }).count() === 1);
+
+  // v5.13.0: athletes pick the day. Rob opens today's day, sees Day 2 marked done (yesterday).
+  check('rack hint: tap your name', await page.getByTestId('rack-hint').count() === 0 || /Tap your name/.test(await page.getByTestId('rack-hint').innerText()));
+  await page.getByRole('button', { name: 'Add Another Athlete' }).click(); await page.waitForTimeout(400);
+  await page.getByText('Rack Rob', { exact: true }).first().click(); await page.waitForTimeout(900);
+  check('today\'s dated day opens by default', (await page.getByTestId('wo-title').innerText()).toUpperCase().includes('LOWER + POWER') && /Day 1/i.test(await page.getByTestId('wo-subtitle').innerText()));
+  await page.getByTestId('wo-change').click(); await page.waitForTimeout(300);
+  const picks = await page.getByTestId('wo-pick').allInnerTexts();
+  check('Change workout lists the team\'s days: Day 1 (selected), Day 2 (done yesterday)', picks.length === 2 && /Day 1/i.test(picks[0]) && /Selected/i.test(picks[0]) && /Day 2/i.test(picks[1]) && /Done/i.test(picks[1]), JSON.stringify(picks));
+  await page.getByTestId('wo-pick').nth(1).click(); await page.waitForTimeout(500);
+  check('picking Day 2 opens it (planned tomorrow)', (await page.getByTestId('wo-title').innerText()).toUpperCase().includes('UPPER') && /planned/i.test(await page.getByTestId('workout-panel').innerText()));
+  check('opening a day and switching saved nothing for Rob yet', sessionPosts.filter(r => r.athlete_id === uuid(4)).length === 0);
+  await page.getByTestId('wo-done').first().click(); await page.waitForTimeout(300);
+  await page.getByTestId('wo-change').click(); await page.waitForTimeout(300);
+  check('once something is done, switching days is locked (with a note)', await page.getByTestId('wo-locked').count() === 1 && await page.getByTestId('wo-pick').first().isDisabled());
+  await page.getByTestId('wo-pick-back').click(); await page.waitForTimeout(300);
+  await page.waitForTimeout(1800);
+  const rob = sessionPosts.filter(r => r.athlete_id === uuid(4)).pop() || {};
+  check('Rob\'s Day 2 saved for today', rob.day_id === 'd2' && rob.session_date === TODAY && rob.items_done === 1, JSON.stringify(rob));
+
+  // Rae started on another rack: this tablet picks up where she left off.
+  await page.getByRole('button', { name: 'Add Another Athlete' }).click(); await page.waitForTimeout(400);
+  await page.getByText('Rack Rae', { exact: true }).first().click(); await page.waitForTimeout(900);
+  check('another rack\'s session carries on here: 1/4 done, her logged set shown', (await page.getByTestId('wo-progress').innerText()) === '1/4' && /200 × 5/.test(await page.getByTestId('workout-panel').innerText()), await page.getByTestId('workout-panel').innerText().catch(() => ''));
+  check('one small sessions query per athlete opened', sessionGets.every(u => /athlete_id=eq\./.test(u) && /session_date=gte\./.test(u)), JSON.stringify(sessionGets.slice(0, 2)));
 
   // Tablet loses WiFi: the workout still opens from what the tablet saved.
   programsDown = true;

@@ -1,16 +1,24 @@
 import React from 'react';
 import { Check, Minus, Plus, Undo2, Timer, ChevronDown, ChevronUp } from 'lucide-react';
 import { estimate1RM } from './liftRanking';
-import { buildWorkoutDay, capOf, doneItems, elapsedMinutes, readSession, startSession, timerCapped, totalItems, writeSession } from '../programs/workoutSession';
+import { buildWorkoutDay, capOf, doneItems, elapsedMinutes, readSession, sameDay, sessionFromRow, startSession, timerCapped, totalItems, writeSession } from '../programs/workoutSession';
+import { fetchAthleteSessions, queueSessionSave, sessionRow } from '../programs/sessionCloud';
+import { weekWindow } from '../programs/useTodaysWorkouts';
 
 // Today's workout on the rack tablet (v5.10.0, docs/HANDOFF.md §134). Shows the athlete's
 // program day with their own working weights; each set logs to Lift Tracker with one tap
 // (adjust weight/reps first if needed); Finish asks for session RPE with the duration
 // timed from when they opened the workout. Lives in Lift Kiosk Mode's pinned card.
+// v5.13.0 (§141): the athlete picks the day ("Change workout": this week's and next week's
+// team days, Done marks), today's dated day is the default, and the session is saved to
+// workout_sessions as it goes - opened on another rack, it carries on where it left off.
 const RPE_WORDS = { 1: 'Very easy', 2: 'Easy', 3: 'Moderate', 4: 'Somewhat hard', 5: 'Hard', 6: 'Hard', 7: 'Very hard', 8: 'Very hard', 9: 'Near max', 10: 'Max effort' };
 const chip = 'px-2 py-0.5 rounded font-label-sm text-label-sm uppercase tracking-wider';
 const stepBtn = 'w-11 h-11 shrink-0 rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant flex items-center justify-center';
 const num = (v) => (v === '' || v == null ? '' : String(v));
+const fmtDay = (ymd) => (ymd ? new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' }) : '');
+const shiftDays = (ymd, n) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const STATUS = { current: 'Selected', done: 'Done', started: 'Started', today: 'Today' };
 
 function Stepper({ value, onChange, step, label, unit, testid }) {
   const n = parseFloat(value);
@@ -25,15 +33,17 @@ function Stepper({ value, onChange, step, label, unit, testid }) {
   );
 }
 
-export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, addLift, deleteLift, addRpeSessions, today, onFreeLog, onChange }) {
-  // An athlete normally has one workout today; if a team has two programs dated today, tabs.
-  const [pick, setPick] = React.useState(() => {
-    const s = readSession(athlete.id, today);
-    const i = s ? workouts.findIndex(w => w.program.id === s.programId && (w.day.id || null) === s.dayId) : -1;
-    return i >= 0 ? i : 0;
-  });
-  const cur = workouts[Math.min(pick, workouts.length - 1)];
+export default function WorkoutPanel({ athlete, choices, liftLogs, settings, addLift, deleteLift, addRpeSessions, today, onFreeLog, onChange }) {
+  // Which day: the one this tablet already has going today; else one saved from another
+  // rack today (checked once when the panel opens); else today's dated day; else they pick.
+  const [selKey, setSelKey] = React.useState(() => choices.find(c => sameDay(readSession(athlete.id, today), c))?.key || null);
+  const resolvedRef = React.useRef(!!selKey);
+  const [resolved, setResolved] = React.useState(!!selKey);
+  const [picking, setPicking] = React.useState(false);
+  const [recent, setRecent] = React.useState([]); // this athlete's saved sessions (Done marks)
+  const cur = choices.find(c => c.key === selKey) || null;
   const [session, setSession] = React.useState(() => readSession(athlete.id, today));
+  const dirtyRef = React.useRef(false);
   const [vals, setVals] = React.useState({});
   const [busy, setBusy] = React.useState({});
   const [msg, setMsg] = React.useState('');
@@ -45,15 +55,55 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
   const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
 
-  // The timer starts the first time the athlete opens today's workout on this tablet.
   React.useEffect(() => {
-    if (!cur) return;
+    let live = true;
+    const decide = (rows) => {
+      if (!live) return;
+      if (resolvedRef.current) {
+        // Already going on this tablet - unless another rack has saved it since.
+        const s = readSession(athlete.id, today);
+        const r = (rows || []).find(x => x.session_date === today && s && x.day_id === s.dayId);
+        if (r && Date.parse(r.updated_at) > (s.savedAt || 0) + 1000) {
+          const next = sessionFromRow(r, s.maxes);
+          writeSession(athlete.id, today, next);
+          setSession(next);
+        }
+        return;
+      }
+      resolvedRef.current = true;
+      const todays = (rows || []).filter(r => r.session_date === today && choices.some(c => String(c.day.id || '') === r.day_id));
+      const saved = todays.find(r => !r.finished_at) || todays[0];
+      const c = saved && choices.find(x => String(x.day.id || '') === saved.day_id);
+      if (c) {
+        const maxes = startSession({ athlete, program: c.program, day: c.day, liftLogs, seasonStartDate: settings.seasonStartDate }).maxes;
+        writeSession(athlete.id, today, sessionFromRow(saved, maxes));
+        setSelKey(c.key);
+      } else {
+        const def = choices.find(x => x.isToday);
+        if (def) setSelKey(def.key); else setPicking(true);
+      }
+      setResolved(true);
+    };
+    const fallback = setTimeout(() => decide(null), 3000);
+    fetchAthleteSessions(athlete.id, shiftDays(weekWindow(today).from, -7)).then(rows => {
+      clearTimeout(fallback);
+      if (live && rows) setRecent(rows);
+      decide(rows);
+    });
+    return () => { live = false; clearTimeout(fallback); };
+  }, [athlete.id, today]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The timer starts the first time the athlete opens the workout on this tablet (a day
+  // picked before anything was logged keeps the clock).
+  React.useEffect(() => {
+    if (!cur || !resolved) return;
     const s = readSession(athlete.id, today);
-    if (s && s.programId === cur.program.id && s.dayId === (cur.day.id || null)) { setSession(s); return; }
-    const fresh = { ...startSession({ athlete, program: cur.program, day: cur.day, liftLogs, seasonStartDate: settings.seasonStartDate }), ...(s ? { startedAt: s.startedAt } : {}) };
+    if (s && sameDay(s, cur)) { setSession(s); return; }
+    const keepClock = s && !s.finishedAt && !(s.progress?.done > 0);
+    const fresh = { ...startSession({ athlete, program: cur.program, day: cur.day, liftLogs, seasonStartDate: settings.seasonStartDate }), ...(keepClock ? { startedAt: s.startedAt } : {}) };
     writeSession(athlete.id, today, fresh);
     setSession(fresh);
-  }, [athlete.id, today, cur?.program.id, cur?.day.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [athlete.id, today, cur?.key, resolved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Opened before Lift Tracker history had loaded (first start of the day): fill the maxes
   // in once it arrives, as long as nothing has been logged against the empty ones.
@@ -69,9 +119,92 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
     }
   }, [liftLogs, session?.maxes]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const blocks = React.useMemo(() => (cur && session ? buildWorkoutDay(cur.program, cur.day, session.maxes || {}) : []), [cur, session?.maxes]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!cur || !session) return null;
+  // Saved to the database once something is logged or checked off (opening a day and
+  // switching to another one doesn't leave an empty session behind).
+  React.useEffect(() => {
+    if (!dirtyRef.current || !cur || !session || !sameDay(session, cur)) return;
+    dirtyRef.current = false;
+    if (!(session.progress?.done > 0) && !session.finishedAt) return;
+    const row = sessionRow({ athlete, program: cur.program, day: cur.day, dayLabel: cur.label, session, today });
+    queueSessionSave(row);
+    setRecent(prev => [row, ...prev.filter(x => !(x.day_id === row.day_id && x.session_date === row.session_date))]);
+  }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const blocks = React.useMemo(() => (cur && session && sameDay(session, cur) ? buildWorkoutDay(cur.program, cur.day, session.maxes || {}) : []), [cur, session?.maxes, session?.dayId]); // eslint-disable-line react-hooks/exhaustive-deps
   const total = totalItems(blocks);
+  const locked = !!session && !session.finishedAt && (session.progress?.done > 0) && !!cur && sameDay(session, cur);
+  const statusOf = (c) => {
+    if (cur && c.key === cur.key) return session?.finishedAt ? 'done' : 'current';
+    const rows = recent.filter(r => r.day_id === String(c.day.id || ''));
+    if (rows.some(r => r.finished_at)) return 'done';
+    if (rows.some(r => r.items_done > 0)) return 'started';
+    return c.isToday ? 'today' : '';
+  };
+  const choose = (c) => {
+    setPicking(false);
+    if (cur && c.key === cur.key) return;
+    if (locked) return;
+    setVals({}); setMsg(''); setStep('workout');
+    setSelKey(c.key);
+  };
+
+  const freeLogBtn = (
+    <button type="button" data-testid="wo-free-log" onClick={onFreeLog} className="min-h-[48px] px-space-md rounded-xl bg-surface-container-highest text-on-surface font-label-md uppercase font-bold flex items-center gap-1">
+      <Plus size={16} /> Log a lift not on the plan
+    </button>
+  );
+  if (!resolved) {
+    return (
+      <div data-testid="workout-panel" className="flex flex-col gap-space-md">
+        <div data-testid="wo-loading" className="font-label-md text-label-md text-on-surface-variant">Loading your workout…</div>
+      </div>
+    );
+  }
+  if (picking || !cur) {
+    // Grouped by program week, in date order.
+    const groups = [];
+    for (const c of choices) {
+      const key = c.program.id;
+      let g = groups.find(x => x.key === key);
+      if (!g) { g = { key, title: [c.program.name, c.program.week_label].filter(Boolean).join(' · '), items: [] }; groups.push(g); }
+      g.items.push(c);
+    }
+    return (
+      <div data-testid="workout-panel" className="flex flex-col gap-space-md">
+        <div data-testid="wo-picker" className="flex flex-col gap-space-sm">
+          <div>
+            <div className="font-label-sm text-label-sm uppercase tracking-wider text-primary">Workout</div>
+            <div className="font-headline-md text-headline-md uppercase text-on-surface">{cur ? 'Pick a different workout' : 'Pick your workout'}</div>
+            {!cur && !choices.some(c => c.isToday) && <div className="font-label-sm text-label-sm text-on-surface-variant">Nothing is dated today - pick the day you're doing.</div>}
+          </div>
+          {locked && <div data-testid="wo-locked" className="px-4 py-3 rounded-xl bg-primary-container/20 border border-primary/30 text-on-surface font-label-md">Finish this workout first - or undo its logged sets - to switch to another day.</div>}
+          {groups.map(g => (
+            <div key={g.key} className="flex flex-col gap-1">
+              <div className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">{g.title}</div>
+              {g.items.map(c => {
+                const st = statusOf(c);
+                return (
+                  <button key={c.key} type="button" data-testid="wo-pick" aria-pressed={!!cur && c.key === cur.key} disabled={locked && (!cur || c.key !== cur.key)} onClick={() => choose(c)}
+                    className={`min-h-[48px] px-space-sm rounded-lg flex items-center justify-between gap-2 text-left disabled:opacity-40 ${cur && c.key === cur.key ? 'bg-primary-container text-on-primary-container border-2 border-primary' : 'bg-surface-container-highest text-on-surface hover:bg-surface-container-high'}`}>
+                    <span className="flex flex-col">
+                      <span className="font-label-md text-label-md font-bold uppercase">{c.label}</span>
+                      <span className={`font-label-sm text-label-sm ${cur && c.key === cur.key ? 'opacity-80' : 'text-on-surface-variant'}`}>{c.date ? fmtDay(c.date) : 'No date'}</span>
+                    </span>
+                    {st && <span data-testid="wo-pick-status" className={`${chip} ${st === 'done' ? 'bg-secondary-container/30 text-secondary' : 'bg-surface-container text-on-surface'} flex items-center gap-1`}>{st === 'done' && <Check size={12} />}{STATUS[st]}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {cur && <button type="button" data-testid="wo-pick-back" onClick={() => setPicking(false)} className="min-h-[48px] px-space-md rounded-xl bg-surface-container-highest text-on-surface font-label-md uppercase font-bold">Back to my workout</button>}
+          {freeLogBtn}
+        </div>
+      </div>
+    );
+  }
+  if (!session || !sameDay(session, cur)) return null;
   const done = doneItems(blocks, session);
   const finished = !!session.finishedAt;
   const cap = settings.workoutTimerCapMin;
@@ -82,6 +215,7 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
     const next = fn(JSON.parse(JSON.stringify(prev)));
     next.progress = { done: doneItems(blocks, next), total };
     writeSession(athlete.id, today, next);
+    dirtyRef.current = true;
     if (onChange) setTimeout(onChange, 0);
     return next;
   });
@@ -187,9 +321,9 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
     <div data-testid="workout-panel" className="flex flex-col gap-space-md">
       <div className="flex flex-wrap items-start justify-between gap-space-sm">
         <div className="min-w-0">
-          <div className="font-label-sm text-label-sm uppercase tracking-wider text-primary">Today's workout</div>
+          <div className="font-label-sm text-label-sm uppercase tracking-wider text-primary">{cur.isToday ? "Today's workout" : cur.date ? `Workout · planned ${fmtDay(cur.date)}` : 'Workout'}</div>
           <div data-testid="wo-title" className="font-headline-md text-headline-md uppercase text-on-surface">{cur.day.focus || cur.program.name}</div>
-          <div className="font-label-sm text-label-sm text-on-surface-variant">{[cur.program.name, cur.program.week_label, cur.program.phase].filter(Boolean).join(' · ')}</div>
+          <div data-testid="wo-subtitle" className="font-label-sm text-label-sm text-on-surface-variant">{[cur.program.name, cur.program.week_label, `Day ${cur.index + 1}`, cur.program.phase].filter(Boolean).join(' · ')}</div>
         </div>
         <div className="flex items-center gap-2">
           <span data-testid="wo-timer" data-capped={capped ? '1' : undefined} title={capped ? 'The timer stops here. The time can be changed when finishing.' : undefined} className={`${chip} bg-surface-container-highest text-on-surface flex items-center gap-1`}><Timer size={13} /> {mins} min{capped ? ' max' : ''}</span>
@@ -197,15 +331,11 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
         </div>
       </div>
 
-      {workouts.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {workouts.map((w, i) => (
-            <button key={`${w.program.id}_${w.day.id}`} type="button" aria-pressed={i === pick} onClick={() => setPick(i)} disabled={i !== pick && Object.keys(session.sets || {}).length > 0}
-              className={`min-h-[44px] px-space-sm rounded-lg font-label-md uppercase ${i === pick ? 'bg-primary-container text-on-primary-container border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant'}`}>
-              {w.day.focus || w.program.name}
-            </button>
-          ))}
-        </div>
+      {choices.length > 1 && (
+        <button type="button" data-testid="wo-change" onClick={() => setPicking(true)}
+          className="self-start min-h-[44px] px-space-sm rounded-lg bg-surface-container-highest hover:bg-surface-container-high text-on-surface font-label-md text-label-md uppercase font-bold">
+          Change workout
+        </button>
       )}
 
       {finished && (
@@ -289,9 +419,7 @@ export default function WorkoutPanel({ athlete, workouts, liftLogs, settings, ad
       {list(cur.day.finTitle || 'Finisher', cur.day.fin, 'wo-fin')}
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" data-testid="wo-free-log" onClick={onFreeLog} className="min-h-[48px] px-space-md rounded-xl bg-surface-container-highest text-on-surface font-label-md uppercase font-bold flex items-center gap-1">
-          <Plus size={16} /> Log a lift not on the plan
-        </button>
+        {freeLogBtn}
         {!finished && (
           <button type="button" data-testid="wo-finish" onClick={openFinish} className="flex-1 min-h-[48px] px-space-md rounded-xl bg-primary text-on-primary hover:bg-primary-fixed font-headline-md text-headline-md uppercase flex items-center justify-center gap-2">
             <Check size={18} /> Finish workout

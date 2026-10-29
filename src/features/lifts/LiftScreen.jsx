@@ -11,7 +11,7 @@ import LiftExportPanel from './LiftExportPanel';
 import LiftTeamEntryPanel from './LiftTeamEntryPanel';
 import WorkoutPanel from './WorkoutPanel';
 import { useTodaysWorkouts } from '../programs/useTodaysWorkouts';
-import { workoutsFor, readSession } from '../programs/workoutSession';
+import { workoutChoices, readSession } from '../programs/workoutSession';
 const PrintLeaderboard = React.lazy(() => import('../leaderboard/PrintLeaderboard'));
 export { estimate1RM };
 
@@ -213,7 +213,8 @@ export default function LiftScreen({
   }, [filteredAthletes, rosterPage]);
 
   const selectedAthlete = athletes.find(a => a.id === entryAthleteId) || null;
-  const athleteWorkouts = isKioskMode && selectedAthlete ? workoutsFor(selectedAthlete, todaysPrograms, workoutDay) : [];
+  // The days this athlete can pick (v5.13.0): their team's days this week and next, today's first choice.
+  const athleteWorkouts = isKioskMode && selectedAthlete ? workoutChoices(selectedAthlete, todaysPrograms, workoutDay) : [];
   const teamHasWorkoutToday = isKioskMode && todaysPrograms.some(p => (p.days || []).some(d => d.date === workoutDay));
 
   const openEntry = (athleteId) => {
@@ -237,10 +238,9 @@ export default function LiftScreen({
     if (rackAthleteIds.includes(athleteId)) removeFromRack(athleteId);
     else setRackAthleteIds(prev => [...prev, athleteId]);
   };
-  const doneAdding = () => {
-    setShowFindAthlete(false);
-    if (!entryAthleteId && rackAthleteIds.length) openEntry(rackAthleteIds[0]);
-  };
+  // Building the rack doesn't open anyone's workout (v5.13.0) - each athlete opens theirs
+  // by tapping their own name in Your Rack, so the screen stays clear until then.
+  const doneAdding = () => setShowFindAthlete(false);
 
   const closeEntry = () => {
     setEntryAthleteId(null);
@@ -419,7 +419,7 @@ export default function LiftScreen({
         <WorkoutPanel
           key={selectedAthlete.id}
           athlete={selectedAthlete}
-          workouts={athleteWorkouts}
+          choices={athleteWorkouts}
           liftLogs={liftLogs}
           settings={settings}
           addLift={addLift}
@@ -433,7 +433,7 @@ export default function LiftScreen({
         <>
       {athleteWorkouts.length > 0 && (
         <button type="button" data-testid="wo-back" onClick={() => setShowFreeLog(false)} className="self-start min-h-[44px] flex items-center gap-1 px-space-sm rounded-lg bg-surface-container-highest text-on-surface font-label-md uppercase font-bold">
-          <ChevronLeft size={16} /> Back to today's workout
+          <ChevronLeft size={16} /> Back to my workout
         </button>
       )}
       {successMsg && (
@@ -746,7 +746,10 @@ export default function LiftScreen({
           {isKioskMode && rackAthleteIds.length > 0 && (
             <div className="flex flex-col gap-space-sm mt-space-md">
               <div className="flex items-center justify-between">
-                <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">YOUR RACK</span>
+                <span className="flex flex-col">
+                  <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">YOUR RACK</span>
+                  {!entryAthleteId && <span data-testid="rack-hint" className="font-label-sm text-label-sm text-on-surface-variant">{todaysPrograms.length ? 'Tap your name to open your workout.' : 'Tap your name to log your set.'}</span>}
+                </span>
                 <button
                   type="button"
                   onClick={() => setShowFindAthlete(v => !v)}

@@ -4128,11 +4128,53 @@ that key ("TBDL", `MAX_KEYS`). `periodization.js` now has its own `MAIN_LIFTS` l
 returns `dl` for an RDL / RLD / Romanian / stiff-leg (also not via a % of deadlift) - they
 still count in the totals and under Lower body. The builder's TBDL key is unchanged.
 
-## 141. Next up
+## 141. Athletes pick their workout; sessions saved to workout_sessions; collapsed rack (v5.13.0)
 
-- **Completed volume from the rack tablets:** "Mark done" is only kept on the tablet
-  (localStorage session); saving the session's completed sets (a small table) would let
-  Periodization show prescribed vs completed per week (§139).
+**Why.** The rack tablet only showed a workout when a program day was dated today - a
+moved practice or a week programmed without dates left the rack empty, and progress lived
+only on the tablet it started on (§134).
+
+**Programs on the tablets** (`useTodaysWorkouts.js`): `programs_for_tablets(d_from, d_to,
+undated_since)` (db/015, `security invoker`, so RLS applies) returns active team programs
+with a day dated this Monday .. +13 days, plus active team programs with no dated days
+updated in the last 42 days. Only a database without the function (`PGRST202`) falls back
+to the old today-only `contains` query - a dropped connection keeps the tablet's copy.
+
+**Picking** (`workoutSession.js` `workoutChoices`, `WorkoutPanel.jsx`): every day of the
+athlete's team programs, date order (undated last). The starting day is, in order: the
+session this tablet already has today; one saved from another rack today (unfinished
+first); today's dated day; otherwise the picker opens ("Nothing is dated today"). **Change
+workout** shows the days grouped by program week with Selected / Today / Started / Done
+(from workout_sessions, any date since last Monday). Switching is locked while the open day
+has anything logged or checked off and isn't finished; a day picked before anything is
+logged keeps the clock. After finishing, another day can be started (a second session).
+
+**Saving** (`sessionCloud.js`): `sessionRow()` -> `queueSessionSave()` (coalesced per
+athlete|date|day in localStorage `hpd_ws_pending`, sent 1.5 s after the last change as one
+upsert on `(athlete_id, session_date, day_id)`; offline / failed saves stay queued and go up
+on `online`, a 60 s retry, or the next app open). Nothing is saved until something is
+logged or checked off, so opening a day and switching leaves no empty rows.
+`fetchAthleteSessions(athleteId, since)` - one small query when an athlete's panel opens
+(fetch brake `workout_sessions:athlete`) - restores another rack's session (`sessionFromRow`,
+maxes recomputed on this tablet) and, if this tablet's copy is older than the saved one
+(`savedAt`), replaces it. Logged barbell sets are still lift_logs rows; the session's `sets`
+only maps them to the day's sets.
+
+**Collapsed rack** (`LiftScreen.jsx`): building the rack no longer opens a workout -
+"Done adding" (Select multiple) just closes the roster, and Your Rack says "Tap your name to
+open your workout". Tapping a name in the roster with Select multiple off still opens that
+athlete (that's them choosing their own name).
+
+**Data.** `workout_sessions`: athlete, session_date (Central), program_id / day_id /
+program_name / week_label / planned_date / day_label, started_at, finished_at, minutes, rpe,
+sets, done, items_done, items_total. RLS: approved coaches (same as lift_logs).
+Tests: `tests/workout-tablet.js` (46: this-week download, saves, Done marks, picking,
+locked switch, carrying on from another rack), `tests/lift-kiosk-multi.js` (13).
+
+## 142. Next up
+
+- **Completed volume in Periodization:** sessions are saved now (§141) - plot completed
+  sets / reps per week (by `session_date`) next to prescribed (by planned date).
 
 - **Carry entered maxes to new programs** (or an "Upload maxes" sheet on Edit maxes):
   overrides are per program, so every imported week needs them again (§138).

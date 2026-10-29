@@ -17,6 +17,26 @@ export function workoutsFor(athlete, programs = [], today) {
   return out;
 }
 
+// The days an athlete can pick on the tablet (v5.13.0, docs/HANDOFF.md §141): every day
+// of their team's programs the tablet has (this week's and next week's dated days, plus a
+// team program with no dates), in date order - undated ones last, in program order.
+export const dayLabelOf = (day, index) => [`Day ${index + 1}`, day?.focus].filter(Boolean).join(' · ');
+export function workoutChoices(athlete, programs = [], today = '') {
+  if (!athlete) return [];
+  const team = athlete.sport || 'General';
+  const out = [];
+  for (const p of programs) {
+    if (!p.sport || p.sport !== team) continue;
+    (p.days || []).forEach((d, i) => {
+      if (!d || !(d.blocks || []).some(b => b && b.name) && !(d.fin || []).length) return;
+      out.push({ key: `${p.id}:${d.id || i}`, program: p, day: d, index: i, label: dayLabelOf(d, i), date: d.date || '', isToday: !!today && d.date === today });
+    });
+  }
+  return out.sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || String(a.program.week_label || '').localeCompare(String(b.program.week_label || ''), undefined, { numeric: true }) || a.index - b.index);
+}
+// Same program day? (sessions remember the day's id; programs made offline have no uuid)
+export const sameDay = (s, choice) => !!s && !!choice && (s.dayId || null) === (choice.day.id || null) && (!s.programId || !choice.program.id || s.programId === choice.program.id);
+
 const firstInt = (v) => { const m = String(v ?? '').match(/\d+/); return m ? Number(m[0]) : null; };
 
 // The day's blocks with weights from `maxes` (frozen when the session starts, so a PR
@@ -56,7 +76,16 @@ export function readSession(athleteId, day) {
   try { return JSON.parse(localStorage.getItem(KEY(athleteId, day)) || 'null'); } catch { return null; }
 }
 export function writeSession(athleteId, day, s) {
-  try { localStorage.setItem(KEY(athleteId, day), JSON.stringify(s)); } catch { /* ignore */ }
+  try { localStorage.setItem(KEY(athleteId, day), JSON.stringify({ ...s, savedAt: Date.now() })); } catch { /* ignore */ }
+}
+// A session saved from another rack (workout_sessions row) as this tablet's session.
+export function sessionFromRow(row, maxes = {}) {
+  const ms = (v) => (v ? Date.parse(v) : null);
+  return {
+    v: 1, programId: row.program_id || null, dayId: row.day_id || null, startedAt: ms(row.started_at) || Date.now(), maxes,
+    sets: row.sets || {}, done: row.done || {}, progress: { done: row.items_done || 0, total: row.items_total || 0 },
+    finishedAt: ms(row.finished_at), rpe: row.rpe ?? null, minutes: row.minutes ?? null, fromCloud: true,
+  };
 }
 export function startSession({ athlete, program, day, liftLogs, seasonStartDate, now = Date.now() }) {
   const maxes = maxesFor(athlete.id, liftLogs, program.max_map || {}, { seasonStartDate });
