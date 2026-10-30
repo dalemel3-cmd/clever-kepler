@@ -5,8 +5,8 @@
 // saves in Excel / Google Sheets with no extra library (Excel: Save As "CSV UTF-8").
 import { MAX_KEYS, defaultMaxMap, nextCode } from './programData';
 
-export const TEMPLATE_HEADERS = ['Program', 'Week', 'Phase', 'Team', 'Date', 'Day', 'Focus', 'Section', 'Code', 'Exercise', 'Note', '% of', 'Set', 'Reps', '%', 'Tempo', 'Prescription', 'Velocity'];
-const FIELD = ['program', 'week', 'phase', 'team', 'date', 'day', 'focus', 'section', 'code', 'exercise', 'note', 'maxKey', 'set', 'reps', 'pct', 'tempo', 'rx', 'velocity'];
+export const TEMPLATE_HEADERS = ['Program', 'Week', 'Phase', 'Team', 'Date', 'Day', 'Focus', 'Section', 'Code', 'Exercise', 'Note', '% of', 'Set', 'Reps', '%', 'Weight (lb)', 'Tempo', 'Prescription', 'Velocity'];
+const FIELD = ['program', 'week', 'phase', 'team', 'date', 'day', 'focus', 'section', 'code', 'exercise', 'note', 'maxKey', 'set', 'reps', 'pct', 'lb', 'tempo', 'rx', 'velocity'];
 // Accepted header spellings (lower-case, spaces/punctuation removed except %).
 const ALIASES = {
   program: ['program', 'programname', 'name'], week: ['week', 'weeklabel'], phase: ['phase', 'block', 'meso', 'mesocycle'],
@@ -14,6 +14,7 @@ const ALIASES = {
   section: ['section', 'part', 'type'], code: ['code', 'blockcode', 'order'], exercise: ['exercise', 'exercisename', 'movement'],
   note: ['note', 'notes', 'cue', 'cues'], maxKey: ['%of', '%ofmax', 'percentof', 'maxlift', 'ofmax', 'basedon', 'max'],
   set: ['set', 'setnumber', 'set#', 'setno'], reps: ['reps', 'rep'], pct: ['%', 'pct', 'percent', 'percentage', 'intensity', '%1rm', '%max'],
+  lb: ['weight', 'weightlb', 'weightlbs', 'lb', 'lbs', 'load', 'wt'],
   tempo: ['tempo'], rx: ['prescription', 'setsreps', 'setsxreps', 'rx', 'scheme'], velocity: ['velocity', 'vel', 'speed', 'velocitytarget'],
 };
 const norm = (h) => String(h || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[\s._\-#:/]+/g, '');
@@ -22,7 +23,7 @@ const COMMENTS = [
   '# HPD program template - one row per set. Delete these # lines or leave them (they are skipped).',
   '# Same Program + Week = one program (a training week). Same Date (or Day 1-4) = one day. Date as YYYY-MM-DD or M/D/YYYY.',
   '# Section: blank = exercise; Warm-up... = warm-up line; anything else (Core, Finisher) = finisher line. "% of": Clean, Bench, Squat, TBDL or OHP.',
-  '# Exercise with sets: one row per set (Set, Reps, %, Tempo). Exercise written as text instead: leave Set/Reps/% blank and fill Prescription (e.g. 3x 8 ea).',
+  '# Exercise with sets: one row per set (Set, Reps, % or Weight (lb), Tempo). A weight is used as typed and wins over a %. Exercise written as text instead: leave Set/Reps/% blank and fill Prescription (e.g. 3x 8 ea).',
   '# Team must match a team name in the app for the program to show on the Lift Tracker tablets.',
 ];
 
@@ -139,7 +140,7 @@ export function rowsToPrograms(rows, { liftTypes = [], teams = [] } = {}) {
       prevBlock = null;
       continue;
     }
-    const hasSet = !!(v.set || v.reps || v.pct || v.tempo);
+    const hasSet = !!(v.set || v.reps || v.pct || v.lb || v.tempo);
     // A set row under an exercise can leave Code/Exercise blank.
     if (!v.exercise && hasSet && prevBlock && prevBlock.day === d) { v.exercise = prevBlock.b.name; v.code = v.code || prevBlock.b.code; }
     if (!v.exercise) { warnings.push({ row: n, message: 'No exercise name - row skipped.' }); continue; }
@@ -156,7 +157,9 @@ export function rowsToPrograms(rows, { liftTypes = [], teams = [] } = {}) {
       const pct = v.pct.replace(/%/g, '').trim();
       if (pct && !(Number(pct) > 0)) warnings.push({ row: n, message: `"%" value "${v.pct}" isn't a number - left blank.` });
       if (Number(pct) > 0 && !b.maxKey) warnings.push({ row: n, message: `${v.exercise} has a % but no "% of" lift, so no working weight can be worked out.` });
-      b.sets.push({ reps: v.reps, pct: Number(pct) > 0 ? String(Number(pct)) : '', tempo: v.tempo.toUpperCase() });
+      const lb = v.lb.replace(/lbs?\.?$/i, '').trim();
+      if (lb && !(Number(lb) > 0)) warnings.push({ row: n, message: `Weight "${v.lb}" isn't a number - left blank.` });
+      b.sets.push({ reps: v.reps, pct: Number(pct) > 0 ? String(Number(pct)) : '', tempo: v.tempo.toUpperCase(), ...(Number(lb) > 0 ? { lb: String(Number(lb)) } : {}) });
     }
     prevBlock = { day: d, b };
   }
@@ -175,14 +178,14 @@ export function programsToRows(programs) {
   for (const p of programs) {
     (p.days || []).forEach((d, di) => {
       const base = [p.name || '', p.week_label || '', p.phase || '', p.sport || '', d.date || '', String(di + 1), d.focus || ''];
-      const row = (section, code, exercise, note, ofMax, set, reps, pct, tempo, rx, vel) => out.push([...base, section, code, exercise, note, ofMax, set, reps, pct, tempo, rx, vel]);
-      for (const w of d.warm || []) row(d.warmTitle || 'Warm-Up', '', w, '', '', '', '', '', '', '', '');
+      const row = (section, code, exercise, note, ofMax, set, reps, pct, lb, tempo, rx, vel) => out.push([...base, section, code, exercise, note, ofMax, set, reps, pct, lb, tempo, rx, vel]);
+      for (const w of d.warm || []) row(d.warmTitle || 'Warm-Up', '', w, '', '', '', '', '', '', '', '', '');
       for (const b of d.blocks || []) {
         if (!b.name) continue;
-        if (b.sets?.length) b.sets.forEach((s, i) => row('', b.code || '', b.name, i === 0 ? b.note || '' : '', label(b.maxKey), String(i + 1), s.reps ?? '', s.pct ?? '', s.tempo || '', '', i === 0 ? b.velocity || '' : ''));
-        else row('', b.code || '', b.name, b.note || '', label(b.maxKey), '', '', '', '', b.rx || '', b.velocity || '');
+        if (b.sets?.length) b.sets.forEach((s, i) => row('', b.code || '', b.name, i === 0 ? b.note || '' : '', label(b.maxKey), String(i + 1), s.reps ?? '', s.pct ?? '', s.lb ?? '', s.tempo || '', '', i === 0 ? b.velocity || '' : ''));
+        else row('', b.code || '', b.name, b.note || '', label(b.maxKey), '', '', '', '', '', b.rx || '', b.velocity || '');
       }
-      for (const f of d.fin || []) row(d.finTitle || 'Finisher', '', f, '', '', '', '', '', '', '', '');
+      for (const f of d.fin || []) row(d.finTitle || 'Finisher', '', f, '', '', '', '', '', '', '', '', '');
     });
   }
   return out;

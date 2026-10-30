@@ -1,6 +1,6 @@
 # HPD App — agent handoff (for Google Antigravity and any other coding agent)
 
-Current as of **v5.15.0, 2026-10-30**. Read this whole file before
+Current as of **v5.15.1, 2026-10-30**. Read this whole file before
 changing anything. `docs/HANDOFF.md` has the full history (one `## N.` section per change,
 with the reasoning); `VERSIONING.md` has one row per release.
 
@@ -118,7 +118,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 3. Add a row to `VERSIONING.md`.
 4. In `docs/HANDOFF.md`, replace the trailing `## N. Next up` with `## N. <what changed>
    (vX.Y.Z)`, then a new `## N+1. Next up` that carries the open list forward. The last
-   numbered section is currently **§144**, and **§145 is Next up**.
+   numbered section is currently **§145**, and **§146 is Next up**.
 5. Commit with a plain message (what and why), push your branch, and give the owner the
    preview URL.
 6. Merge or push to `main` **only after the owner says "push it"**. Fast-forward only; don't
@@ -186,7 +186,8 @@ They inject `@page` only while open, and are sized for US Letter.
 
 - **Working weight** = `max(45 lb bar, round5(max × %))` for barbell work. Dumbbell or
   each-hand work keeps its own number (min 5), and on the tablet it's checked off rather than
-  logged as the main lift (`isBarbell`).
+  logged as the main lift (`isBarbell`). A set's manual weight (`lb`, v5.15.1) wins over the %
+  (`setWeight`), and athletes adjust it with the same stepper.
 - **Maxes:**
   - A program's max is the best est. 1RM in the chosen window.
   - The owner's entered maxes are stored as **per-program overrides**. Since v5.14.0 an
@@ -267,7 +268,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
    per-week planned intensity (hollow dot), actual intensity from logged sets ÷ max, or time
    under tension for capacity blocks. Waiting on the owner's choice.
 2. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
-3. Older open items are in `docs/HANDOFF.md` §145 (Next up): leaked-password protection and
+3. Older open items are in `docs/HANDOFF.md` §146 (Next up): leaked-password protection and
    a "Forgot password" link, grades for athletes missing them, the Cheer & Dance jump
    technique, PPS/RSI test types, and a nicer Vercel domain.
 4. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
@@ -286,7 +287,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 
 ## 13. Docs index
 
-- `docs/HANDOFF.md`: full change history (§1–§144) and the live Next-up list (§145).
+- `docs/HANDOFF.md`: full change history (§1–§145) and the live Next-up list (§146).
 - `VERSIONING.md`: one row per release.
 - `docs/RUNBOOK.md`: the owner's runbook.
 - `docs/PROJECT_HANDOFF.md`: older summary (v5.7.5). This file supersedes it.

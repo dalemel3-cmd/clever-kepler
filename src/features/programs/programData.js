@@ -29,6 +29,10 @@ export const round5 = (v) => Math.round(v / 5) * 5;
 export const workingWeight = (max, pct, { barbell = true } = {}) => (max > 0 && pct > 0 ? Math.max(barbell ? 45 : 5, round5(max * pct)) : '');
 const NOT_BARBELL = /\b(db|dbs|dumbbells?|kb|kbs|kettlebells?|each hand|per hand|in each hand|single[- ]arm|one[- ]arm|1[- ]arm|cable|band|landmine|plate|med ball|mb|sandbag)\b/i;
 export const isBarbell = (b) => !NOT_BARBELL.test(`${b?.name || ''} ${b?.note || ''}`);
+// A set's weight (v5.15.1): a manual weight typed on the set (`lb`) wins; otherwise the
+// % of max. '' when there's neither (or no max for the %).
+export const manualLb = (s) => (Number(s?.lb) > 0 ? Number(s.lb) : null);
+export const setWeight = (s, max, { barbell = true } = {}) => manualLb(s) ?? workingWeight(max, Number(s?.pct) / 100, { barbell });
 
 // How far back a max can come from (program setting, stored as max_map.window).
 export const MAX_WINDOWS = [
@@ -105,7 +109,7 @@ export function maxesFor(athleteId, liftLogs = [], maxMap = {}, { seasonStartDat
 }
 
 const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `p_${Date.now()}_${Math.random().toString(36).slice(2)}`);
-export const newSet = (reps = '5', pct = '', tempo = '') => ({ reps, pct, tempo });
+export const newSet = (reps = '5', pct = '', tempo = '', lb = '') => ({ reps, pct, tempo, ...(lb ? { lb } : {}) });
 export const newBlock = (code = '1a') => ({ id: uid(), code, name: '', note: '', maxKey: '', rx: '', sets: [], velocity: '' });
 export const newDay = (date = '', focus = '') => ({ id: uid(), date, focus, warmTitle: 'Warm-Up (2 Rounds)', warm: [], blocks: [newBlock('1a')], finTitle: 'Core', fin: [] });
 export const newProgram = (liftTypes = []) => ({ id: uid(), name: 'New program', week_label: 'Week 1', phase: 'Strength + Power', sport: '', days: [newDay('', 'Lower'), newDay('', 'Upper')], max_map: defaultMaxMap(liftTypes) });
@@ -165,10 +169,10 @@ export function buildCard(program, athlete, liftLogs, { showVelocity = true, sea
         ...b, isRx,
         hasVel: showVelocity && !!b.velocity,
         newGroup: i > 0 && String(arr[i - 1].code)[0] !== String(b.code)[0],
-        rows: isRx ? [] : b.sets.map(s => {
-          const pct = Number(s.pct) / 100;
-          return { reps: s.reps, wt: workingWeight(max, pct, { barbell: isBarbell(b) }), pct: Number(s.pct) > 0 ? `${Math.round(Number(s.pct))}%` : '', tempo: s.tempo || '' };
-        }),
+        rows: isRx ? [] : b.sets.map(s => ({
+          reps: s.reps, wt: setWeight(s, max, { barbell: isBarbell(b) }),
+          pct: !manualLb(s) && Number(s.pct) > 0 ? `${Math.round(Number(s.pct))}%` : '', tempo: s.tempo || '',
+        })),
       };
     }),
   }));

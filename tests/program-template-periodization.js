@@ -70,7 +70,7 @@ const upload = [
   const tpl = await grab('pb-template');
   const tLines = tpl.text.replace(/^﻿/, '').split(/\r\n/);
   check('template downloads as CSV', tpl.name === 'hpd-program-template.csv' && tpl.text.startsWith('﻿'), tpl.name);
-  check('template: instructions, header, filled-in example week', /^# HPD program template/.test(tLines[0]) && tLines.includes('Program,Week,Phase,Team,Date,Day,Focus,Section,Code,Exercise,Note,% of,Set,Reps,%,Tempo,Prescription,Velocity') && tLines.some(l => /^Sample Program,Week 1,.*Hang Power Clean.*Clean,1,3,65,X1X/.test(l)), tLines.slice(0, 8).join(' | '));
+  check('template: instructions, header, filled-in example week', /^# HPD program template/.test(tLines[0]) && tLines.includes('Program,Week,Phase,Team,Date,Day,Focus,Section,Code,Exercise,Note,% of,Set,Reps,%,Weight (lb),Tempo,Prescription,Velocity') && tLines.some(l => /^Sample Program,Week 1,.*Hang Power Clean.*Clean,1,3,65,,X1X/.test(l)), tLines.slice(0, 8).join(' | '));
 
   // 2. Upload -> preview -> import
   await page.getByTestId('pb-upload-input').setInputFiles({ name: 'spring.csv', mimeType: 'text/csv', buffer: Buffer.from(upload) });
@@ -158,7 +158,7 @@ const upload = [
   // 3. Download a program as CSV
   await page.getByTestId('pb-item').filter({ hasText: 'Week 1' }).filter({ hasText: 'Fall Block' }).first().click(); await page.waitForTimeout(600);
   const ex = await grab('pb-export');
-  check('Download CSV: one program, template layout', ex.name === 'fall-block-week-1.csv' && /Fall Block,Week 1,Accumulation,Football,2026-09-07,1,Lower,,1a,Back Squat,,Squat,1,5,70/.test(ex.text) && /Box Jump,,,,,,,3x 3/.test(ex.text), ex.text.slice(0, 400));
+  check('Download CSV: one program, template layout', ex.name === 'fall-block-week-1.csv' && /Fall Block,Week 1,Accumulation,Football,2026-09-07,1,Lower,,1a,Back Squat,,Squat,1,5,70/.test(ex.text) && /Box Jump,,,,,,,,3x 3/.test(ex.text), ex.text.slice(0, 400));
 
   // 4. Periodization
   await page.getByTestId('pb-periodization').click(); await page.waitForTimeout(1200);

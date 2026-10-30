@@ -4275,7 +4275,27 @@ cached 5 min, fetch brake) and merges them by id. Session RPE began 2026-09-08 (
 Tests: `tests/speed-trend.js` (32), `tests/progress-card.js` (37), `tests/athlete-comparison.js`
 (21, trend lines excluded from the line counts).
 
-## 145. Next up
+## 145. Manual weights on program sets (v5.15.1)
+
+The owner wants to type a weight (e.g. 65 lb for the clean) instead of a % and still let
+athletes bump it up on the tablet, as they can with a % weight. A set can now carry `lb`
+next to `pct` (program JSON, no schema change):
+- Editor: set rows are `# · Reps · % max · or lb · Tempo` (`pb-lb`); typing one clears the
+  other. With weights but no lift in "% of max", a hint (`pb-lb-hint`) says athletes will
+  only check the set off. Rows still fit a 390 px phone.
+- `programData.js`: `manualLb(s)`, and `setWeight(s, max, {barbell})` (manual weight wins,
+  else the % working weight). Used by `buildWorkoutDay` (tablet; `pct` is null on a manual
+  set so the label reads "3 reps · 65 lb") and `buildCard` (Weight Room Card).
+- Tablet: unchanged rules. Loggable (lift linked + barbell) sets get the weight stepper
+  pre-filled with the manual weight and log to Lift Tracker; other sets show the weight and
+  are checked off.
+- CSV: `Weight (lb)` column after `%` (aliases weight, lb, lbs, load, wt; "65 lb" reads as
+  65). Export writes it; files without the column still import.
+- Periodization: manual-weight sets count as sets and reps but have no % for intensity.
+Tests: `tests/program-manual-weight.js` (21); `program-template-periodization.js` updated
+for the new column.
+
+## 146. Next up
 
 - **`tests/rpe.js` [RPE-B] fails on main too** (found while testing v5.15.0, not caused by it):
   "RPE-only athlete is listed as never weighed in -> RPE rows are being counted as weigh-in

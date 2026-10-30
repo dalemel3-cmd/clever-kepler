@@ -2,7 +2,7 @@
 // helpers: which program day an athlete trains today, the day's blocks with their own
 // working weights, and the per-athlete session kept on the rack's tablet (start time for
 // the automatic duration, sets logged, finish + RPE).
-import { isBarbell, maxesFor, workingWeight } from './programData';
+import { isBarbell, manualLb, maxesFor, setWeight } from './programData';
 
 // The athlete's team program(s) with a day dated today. Programs without a team never
 // show on the tablets (no guessing who "Any" was meant for).
@@ -48,9 +48,11 @@ export function buildWorkoutDay(program, day, maxes = {}) {
   return named.map((b, i) => {
     const lift = b.maxKey ? map[b.maxKey] || '' : '';
     const max = b.maxKey ? maxes[b.maxKey] ?? null : null;
+    // A manual weight on the set (v5.15.1) is used as typed; athletes adjust it with the
+    // same stepper as a %-of-max weight.
     const sets = (b.sets || []).map((s, k) => {
-      const pct = Number(s.pct) > 0 ? Number(s.pct) : null;
-      const wt = pct ? workingWeight(max, pct / 100, { barbell: isBarbell(b) }) : '';
+      const pct = !manualLb(s) && Number(s.pct) > 0 ? Number(s.pct) : null;
+      const wt = setWeight(s, max, { barbell: isBarbell(b) });
       return { k, reps: String(s.reps ?? ''), repsNum: firstInt(s.reps), pct, wt: wt === '' ? null : wt, tempo: s.tempo || '' };
     });
     return {

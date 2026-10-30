@@ -41,6 +41,9 @@ const BlockEditor = React.memo(function BlockEditor({ b, idx, onChangeIdx, onMov
   const set = (k, v) => onChangeIdx(idx, { ...b, [k]: v });
   const loaded = b.sets?.length > 0;
   const setRow = (i, k, v) => set('sets', b.sets.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
+  // A set takes a % of max or a manual weight (v5.15.1); typing one clears the other.
+  const setLoad = (i, k, v) => set('sets', b.sets.map((s, j) => (j === i ? { ...s, [k]: v, ...(v ? { [k === 'pct' ? 'lb' : 'pct']: '' } : {}) } : s)));
+  const manualNoLift = !b.maxKey && (b.sets || []).some(s => Number(s.lb) > 0);
   return (
     <div data-testid="pb-block" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -68,17 +71,19 @@ const BlockEditor = React.memo(function BlockEditor({ b, idx, onChangeIdx, onMov
       </div>
       {loaded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '24px 80px 70px 80px 30px', gap: '6px', ...lbl, fontSize: '10px' }}><span>#</span><span>Reps</span><span>% max</span><span>Tempo</span><span /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '24px 64px 56px 60px 64px 30px', gap: '5px', ...lbl, fontSize: '10px' }}><span>#</span><span>Reps</span><span>% max</span><span>or lb</span><span>Tempo</span><span /></div>
           {b.sets.map((s, i) => (
-            <div key={i} data-testid="pb-set" style={{ display: 'grid', gridTemplateColumns: '24px 80px 70px 80px 30px', gap: '6px', alignItems: 'center' }}>
+            <div key={i} data-testid="pb-set" style={{ display: 'grid', gridTemplateColumns: '24px 64px 56px 60px 64px 30px', gap: '5px', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{i + 1}</span>
               <input className="input-glass" style={small} value={s.reps} onChange={e => setRow(i, 'reps', e.target.value)} aria-label={`Set ${i + 1} reps`} />
-              <input className="input-glass" style={small} inputMode="decimal" value={s.pct} placeholder="%" onChange={e => setRow(i, 'pct', e.target.value.replace(/[^0-9.]/g, ''))} aria-label={`Set ${i + 1} percent`} />
+              <input className="input-glass" style={small} inputMode="decimal" value={s.pct} placeholder="%" onChange={e => setLoad(i, 'pct', e.target.value.replace(/[^0-9.]/g, ''))} aria-label={`Set ${i + 1} percent`} />
+              <input className="input-glass" data-testid="pb-lb" style={small} inputMode="decimal" value={s.lb || ''} placeholder="lb" onChange={e => setLoad(i, 'lb', e.target.value.replace(/[^0-9.]/g, ''))} aria-label={`Set ${i + 1} weight (lb)`} />
               <input className="input-glass" style={small} value={s.tempo} placeholder="X2X" onChange={e => setRow(i, 'tempo', e.target.value.toUpperCase())} aria-label={`Set ${i + 1} tempo`} />
               <button type="button" style={iconBtn} onClick={() => set('sets', b.sets.filter((_, j) => j !== i))} aria-label={`Remove set ${i + 1}`}><Trash2 size={14} /></button>
             </div>
           ))}
-          <button type="button" data-testid="pb-add-set" onClick={() => { const last = b.sets[b.sets.length - 1] || {}; set('sets', [...b.sets, newSet(last.reps || '5', last.pct || '', last.tempo || '')]); }} style={{ ...btn(false), height: '30px', fontSize: '11px', alignSelf: 'flex-start' }}><Plus size={14} /> Set</button>
+          <button type="button" data-testid="pb-add-set" onClick={() => { const last = b.sets[b.sets.length - 1] || {}; set('sets', [...b.sets, newSet(last.reps || '5', last.pct || '', last.tempo || '', last.lb || '')]); }} style={{ ...btn(false), height: '30px', fontSize: '11px', alignSelf: 'flex-start' }}><Plus size={14} /> Set</button>
+          {manualNoLift && <div data-testid="pb-lb-hint" style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>These weights show on the tablets. Pick the lift in "% of max" so athletes can adjust the weight and log it to Lift Tracker; otherwise they just check the set off.</div>}
         </div>
       )}
     </div>
