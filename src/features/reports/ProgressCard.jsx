@@ -1,7 +1,8 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X } from 'lucide-react';
-import { buildProgressCard, CARD_METRICS } from './progressCardData';
+import { buildProgressCard, CARD_METRICS, SPARK, TRAINING_RANGES, trainingBounds } from './progressCardData';
+import { fetchRpeHistory } from './rpeHistory';
 
 // Athlete Progress Card (design handoff "HPD Athlete Reports" #1, docs/HANDOFF.md §119).
 // One US Letter page, portrait, 0.5in margins: the 7.5 x 10in content box is a fixed
@@ -31,26 +32,27 @@ function SectionHead({ n, title, right }) {
 function Spark({ m }) {
   const fill = (k) => (k === 'best' ? C.gold500 : k === 'last' ? C.navy900 : C.white);
   return (
-    <div style={{ flex: 'none', width: 130, display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <svg width="130" height="42" viewBox="0 0 130 44" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
-        <line x1="6" y1="40" x2="124" y2="40" style={{ stroke: C.border }} strokeWidth="1" />
+    <div data-testid="pc-spark" style={{ flex: 'none', width: SPARK.w, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <svg width={SPARK.w} height={SPARK.h} viewBox={`0 0 ${SPARK.w} ${SPARK.h}`} style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
+        <line x1="6" y1={SPARK.h - 4} x2={SPARK.w - 6} y2={SPARK.h - 4} style={{ stroke: C.border }} strokeWidth="1" />
         {m.dots.length > 1 && <polyline points={m.pts} fill="none" style={{ stroke: C.navy900 }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+        {m.trend && <line data-testid="pc-trend" x1={m.trend.x1} y1={m.trend.y1} x2={m.trend.x2} y2={m.trend.y2} style={{ stroke: C.muted }} strokeWidth="1.5" strokeDasharray="4 3" strokeLinecap="round" />}
         {m.dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={d.r} style={{ fill: fill(d.kind), stroke: C.navy900 }} strokeWidth="1.5" />)}
         {m.kind !== 'mass' && (() => {
           // Most recent result labelled at the latest dot (above it, or below if near the top).
           const d = m.dots[m.dots.length - 1];
           const above = d.y > 14;
-          return <text data-testid="pc-recent" x={Math.min(d.x, 124)} y={above ? d.y - 7 : d.y + 14} textAnchor={m.dots.length > 1 ? 'end' : 'middle'} style={{ fontFamily: BODY, fontWeight: 700, fontSize: 9.5, fill: C.navy900, stroke: C.white, strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }}>{m.latestText}</text>;
+          return <text data-testid="pc-recent" x={Math.min(d.x, SPARK.w - 6)} y={above ? d.y - 7 : d.y + 14} textAnchor={m.dots.length > 1 ? 'end' : 'middle'} style={{ fontFamily: BODY, fontWeight: 700, fontSize: 9.5, fill: C.navy900, stroke: C.white, strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }}>{m.latestText}</text>;
         })()}
       </svg>
       <div style={{ position: 'relative', height: 11, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.muted }}>
-        {m.months.map((mo, i) => <span key={i} style={{ position: 'absolute', left: Math.min(124, Math.max(0, mo.x)), transform: mo.x <= 8 ? 'none' : mo.x >= 120 ? 'translateX(-100%)' : 'translateX(-50%)', whiteSpace: 'nowrap' }}>{mo.text}</span>)}
+        {m.months.map((mo, i) => <span key={i} style={{ position: 'absolute', left: Math.min(SPARK.w - 6, Math.max(0, mo.x)), transform: mo.x <= 8 ? 'none' : mo.x >= SPARK.w - 10 ? 'translateX(-100%)' : 'translateX(-50%)', whiteSpace: 'nowrap' }}>{mo.text}</span>)}
       </div>
     </div>
   );
 }
 
-function Card({ card, showNote, showFocus = true, showTraining = true, showXbw = true, note, nextTest, today }) {
+function Card({ card, showNote, showFocus = true, showTraining = true, showXbw = true, note, nextTest, today, trainingText = 'All sessions' }) {
   // Shrink-to-fit: if everything switched on runs past one page, scale the content down
   // (never up) so the card is always exactly one Letter page.
   const innerRef = React.useRef(null);
@@ -97,7 +99,7 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
       {showTraining && (() => {
         const t = card.training;
         const cells = t.sessions ? [
-          ['Sessions', String(t.sessions), 'Last 4 weeks'],
+          ['Sessions', String(t.sessions), trainingText === 'All sessions' ? `Since ${t.first}` : trainingText],
           ['Avg RPE', t.avgRpe.toFixed(1), 'Session effort, 1–10'],
           ['Logged', t.rate != null ? `${t.loggedDays} / ${t.teamDays}` : String(t.loggedDays), t.rate != null ? `${t.rate}% of team session days` : 'Days with a session RPE'],
           ['Last', t.last, 'Most recent session'],
@@ -113,7 +115,7 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
                 </div>
                 <div style={{ fontSize: 10, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
               </div>
-            )) : <div style={{ padding: '8px 12px', fontSize: 12, color: C.muted }}>No session RPE logged in the last 4 weeks.</div>}
+            )) : <div style={{ padding: '8px 12px', fontSize: 12, color: C.muted }}>{trainingText === 'All sessions' ? 'No session RPE logged yet.' : `No session RPE logged · ${trainingText}.`}</div>}
           </div>
         );
       })()}
@@ -131,23 +133,26 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
         {card.metrics.map(m => m.na ? (
           <div key={m.key} data-testid="pc-metric" data-na="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted }}>{m.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.muted }}>{m.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1, color: C.border }}>N/A</span>
                 <span style={{ fontSize: 12, color: C.muted }}>{m.kind === 'mass' ? 'No weigh-ins yet' : 'Not tested yet'}</span>
               </div>
             </div>
-            <svg width="130" height="44" viewBox="0 0 130 44" aria-hidden="true"><line x1="6" y1="40" x2="124" y2="40" style={{ stroke: C.border }} strokeWidth="1" strokeDasharray="3 3" /></svg>
+            <svg width={SPARK.w} height={SPARK.h} viewBox={`0 0 ${SPARK.w} ${SPARK.h}`} aria-hidden="true"><line x1="6" y1={SPARK.h - 4} x2={SPARK.w - 6} y2={SPARK.h - 4} style={{ stroke: C.border }} strokeWidth="1" strokeDasharray="3 3" /></svg>
           </div>
         ) : (
           <div key={m.key} data-testid="pc-metric" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: '1 1 auto' }}>
-              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
+              {/* A PR shows as one gold "PR · date" tag in place of "Best · date" (v5.15.0), so
+                  the number row fits beside the larger chart. */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span data-testid="pc-best" style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: m.kind === 'lift' ? 21 : 26, lineHeight: 1, color: C.navy900, whiteSpace: 'nowrap' }}>{m.bestText}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>{m.unit}</span>
-                {m.kind !== 'mass' && m.bestDay && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.gold700, whiteSpace: 'nowrap' }}>Best · {new Date(`${m.bestDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
-                {m.isPR && <span data-testid="pc-pr" style={{ padding: '2px 7px', borderRadius: 999, fontWeight: 700, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', background: C.gold500, color: C.navy900 }}>PR</span>}
+                {m.kind !== 'mass' && m.bestDay && (m.isPR
+                  ? <span data-testid="pc-pr" style={{ padding: '2px 7px', borderRadius: 999, fontWeight: 700, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', background: C.gold500, color: C.navy900, whiteSpace: 'nowrap' }}>PR · {new Date(`${m.bestDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  : <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.gold700, whiteSpace: 'nowrap' }}>Best · {new Date(`${m.bestDay}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>)}
               </div>
               {m.showE1rm && m.bestE1rm != null && <div style={{ fontSize: 11, color: C.muted }}>Est. 1RM {m.bestE1rm} lb</div>}
               <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 8, rowGap: 0, fontSize: 11 }}>
@@ -189,6 +194,7 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
 
       <div style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.muted }}>
         <span>Shiloh Christian Human Performance · Progress Card · {today}</span>
+        {card.metrics.some(m => m.trend) && <span data-testid="pc-speed-note">Fly 10: lower = faster · dashed line = trend</span>}
       </div>
     </div>
     </div>
@@ -203,7 +209,7 @@ const toggleBtn = (on) => ({ ...field, cursor: 'pointer', whiteSpace: 'nowrap', 
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
 
-export default function ProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], settings: _settings, initialWho, onClose }) {
+export default function ProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], settings = {}, initialWho, onClose }) {
   const sports = React.useMemo(() => {
     const set = new Set();
     athletes.forEach(a => { if (a.sport) set.add(a.sport); });
@@ -259,6 +265,28 @@ export default function ProgressCard({ athlete, athletes = [], liftLogs = [], pe
   const liftKeys = CARD_METRICS.filter(m => m.kind === 'lift').map(m => m.key);
   const liftsOn = liftKeys.some(k => !hidden[k]);
   const [showFocus, setShowFocus] = React.useState(() => load('hpd_pc_focus', true));
+  // Training strip range (v5.15.0): every session by default, or a range picked here.
+  const [tRange, setTRange] = React.useState(() => load('hpd_pc_trange', 'all'));
+  const [tFrom, setTFrom] = React.useState(() => load('hpd_pc_tfrom', ''));
+  const [tTo, setTTo] = React.useState(() => load('hpd_pc_tto', ''));
+  const seasonStart = settings?.seasonStartDate || '';
+  const tRanges = TRAINING_RANGES.filter(r => r.id !== 'season' || seasonStart);
+  const tRangeId = tRanges.some(r => r.id === tRange) ? tRange : 'all';
+  const tBounds = React.useMemo(() => trainingBounds(tRangeId, { seasonStartDate: seasonStart, from: tFrom, to: tTo }), [tRangeId, seasonStart, tFrom, tTo]);
+  const trainingRange = React.useMemo(() => ({ start: tBounds.start, end: tBounds.end }), [tBounds.start, tBounds.end]);
+  // All sessions means all of them, not just the check-ins the app has loaded.
+  const [rpeHistory, setRpeHistory] = React.useState(null);
+  React.useEffect(() => {
+    if (!showTraining || rpeHistory) return undefined;
+    let live = true;
+    fetchRpeHistory().then(rows => { if (live && rows) setRpeHistory(rows); });
+    return () => { live = false; };
+  }, [showTraining, rpeHistory]);
+  const cardData = React.useMemo(() => {
+    if (!rpeHistory?.length) return reportData;
+    const seen = new Set(reportData.map(r => r.id));
+    return [...reportData, ...rpeHistory.filter(r => !seen.has(r.id))];
+  }, [reportData, rpeHistory]);
 
   // Coach's note: if team, team note is stored at `hpd_pc_teamnote_${teamSport}`
   // If individual, stored at `hpd_pc_note_${activeAthlete.id}`
@@ -277,10 +305,10 @@ export default function ProgressCard({ athlete, athletes = [], liftLogs = [], pe
   const cardsByAthlete = React.useMemo(() => {
     const map = new Map();
     for (const a of roster) {
-      map.set(a.id, buildProgressCard({ athlete: a, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden }));
+      map.set(a.id, buildProgressCard({ athlete: a, athletes, liftLogs, performanceTests, reportData: cardData, showE1rm, hidden, trainingRange }));
     }
     return map;
-  }, [roster, athletes, liftLogs, performanceTests, reportData, showE1rm, hidden]);
+  }, [roster, athletes, liftLogs, performanceTests, cardData, showE1rm, hidden, trainingRange]);
 
   const [scale, setScale] = React.useState(1);
   const today = new Date().toLocaleDateString('en-US');
@@ -341,6 +369,28 @@ export default function ProgressCard({ athlete, athletes = [], liftLogs = [], pe
             <button type="button" data-testid="pc-toggle-e1rm" aria-pressed={showE1rm} onClick={() => { setShowE1rm(!showE1rm); save('hpd_pc_e1rm', !showE1rm); }} style={toggleBtn(showE1rm)}>Est. 1RM</button>
           </div>
         </div>
+        {showTraining && (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="pc-trange" style={label}>Training range</label>
+              <select id="pc-trange" data-testid="pc-trange" className="input-glass" style={field} value={tRangeId} onChange={e => { setTRange(e.target.value); save('hpd_pc_trange', e.target.value); }}>
+                {tRanges.map(r => <option key={r.id} value={r.id} style={{ background: '#061c41', color: '#fff' }}>{r.label}</option>)}
+              </select>
+            </div>
+            {tRangeId === 'custom' && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label htmlFor="pc-tfrom" style={label}>From</label>
+                  <input id="pc-tfrom" data-testid="pc-tfrom" type="date" className="input-glass" style={field} value={tFrom} max={tTo || undefined} onChange={e => { setTFrom(e.target.value); save('hpd_pc_tfrom', e.target.value); }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label htmlFor="pc-tto" style={label}>To</label>
+                  <input id="pc-tto" data-testid="pc-tto" type="date" className="input-glass" style={field} value={tTo} min={tFrom || undefined} onChange={e => { setTTo(e.target.value); save('hpd_pc_tto', e.target.value); }} />
+                </div>
+              </>
+            )}
+          </>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexBasis: '100%' }}>
           <span style={label}>Metrics</span>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -381,7 +431,7 @@ export default function ProgressCard({ athlete, athletes = [], liftLogs = [], pe
               if (!c) return null;
               return (
                 <div key={a.id} className="pc-sheet" style={{ width: W + 96, padding: 48, boxSizing: 'border-box', background: '#fff', boxShadow: '0 10px 40px rgba(0,0,0,0.4)', height: H + 96 }}>
-                  <MemoCard card={c} showNote={showNote} showFocus={showFocus} showTraining={showTraining} showXbw={showXbw} note={getNoteFor(a)} nextTest={nextTest} today={today} />
+                  <MemoCard card={c} showNote={showNote} showFocus={showFocus} showTraining={showTraining} showXbw={showXbw} note={getNoteFor(a)} nextTest={nextTest} today={today} trainingText={tBounds.text} />
                 </div>
               );
             })}

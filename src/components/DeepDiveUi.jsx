@@ -1,4 +1,5 @@
 import React from 'react';
+import { linearFit } from '../utils/trendLine';
 
 // Shared look for the Performance deep-dive tabs (RPE, Strength): same card, heading,
 // chip and sparkline styles as AnalyticsScreen, so the tabs read as one family.
@@ -42,16 +43,23 @@ export function Tile({ value, text, tone }) {
 }
 
 // Tiny weekly trend line (oldest -> newest). Null values are skipped, not drawn as 0.
-export function Sparkline({ values, color = '#a78bfa', ariaLabel }) {
+// `trend` (speed, v5.15.0): scale to the values' own range rather than from zero, and
+// draw a dashed least-squares line, so times getting faster read as a line sloping down.
+export function Sparkline({ values, color = '#a78bfa', ariaLabel, trend = false }) {
   const w = 96, h = 28;
   const nums = values.filter(v => v != null);
-  const max = Math.max(...nums, 1), min = Math.min(...nums, 0);
+  const fit = trend ? linearFit(values) : null;
+  const ends = fit ? [fit.at(fit.from), fit.at(fit.to)] : [];
+  const max = trend ? Math.max(...nums, ...ends) : Math.max(...nums, 1), min = trend ? Math.min(...nums, ...ends) : Math.min(...nums, 0);
   const span = max - min || 1;
-  const pts = values.map((v, i) => (v == null ? null : [(i / Math.max(values.length - 1, 1)) * (w - 4) + 2, h - 3 - ((v - min) / span) * (h - 6)])).filter(Boolean);
+  const px = (i) => (i / Math.max(values.length - 1, 1)) * (w - 4) + 2;
+  const py = (v) => (max > min ? h - 3 - ((v - min) / span) * (h - 6) : h / 2);
+  const pts = values.map((v, i) => (v == null ? null : [px(i), py(v)])).filter(Boolean);
   const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
   const last = pts[pts.length - 1];
   return (
     <svg width={w} height={h} role="img" aria-label={ariaLabel}>
+      {fit && <line data-testid="spark-trend" x1={px(fit.from)} y1={py(ends[0])} x2={px(fit.to)} y2={py(ends[1])} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4 3" />}
       {pts.length > 1 && <path d={d} fill="none" stroke={color} strokeWidth="2" />}
       {last && <circle cx={last[0]} cy={last[1]} r="3" fill={color} />}
     </svg>

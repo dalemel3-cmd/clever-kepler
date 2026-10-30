@@ -69,6 +69,7 @@ function TopPage({ m, team, period, data, show }) {
             {show.cls && <div style={{ fontSize: 14, color: C.muted }}>{r.grad}</div>}
             <svg width="100%" height="36" viewBox="0 0 128 36" preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
               <line x1="0" y1="34" x2="128" y2="34" style={{ stroke: C.border, strokeWidth: 1 }} />
+              {r.trend && <line data-testid="lb-trend" x1={r.trend.x1} y1={r.trend.y1} x2={r.trend.x2} y2={r.trend.y2} vectorEffect="non-scaling-stroke" style={{ stroke: C.muted, strokeWidth: 1.5, strokeDasharray: '4 3' }} />}
               <polyline points={r.pts} style={{ fill: 'none', stroke: C.navy700, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' }} />
               <circle cx={r.cx} cy={r.cy} r="3.5" style={{ fill: C.gold500, stroke: C.navy900, strokeWidth: 1.5 }} />
             </svg>
@@ -97,7 +98,7 @@ function TopPage({ m, team, period, data, show }) {
         {data.top.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 15 }}>No {m.title} results for this team in this period.</div>}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, gap: 16 }}>
-        <div style={{ fontSize: 11, color: C.muted }}>Progression: each test{data.testSpan ? ` ${data.testSpan}` : ''}, up = improvement{changeNote(show) ? ` · Change: ${changeNote(show)}` : ''}{show.lift ? ' · Ranked by est. 1RM; change = est. 1RM lb' : ''}</div>
+        <div style={{ fontSize: 11, color: C.muted }}>Progression: each test{data.testSpan ? ` ${data.testSpan}` : ''}, {m.lowerIsBetter ? 'lower = faster, dashed = trend' : 'up = improvement'}{changeNote(show) ? ` · Change: ${changeNote(show)}` : ''}{show.lift ? ' · Ranked by est. 1RM; change = est. 1RM lb' : ''}</div>
         <div style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontSize: 15, letterSpacing: '0.05em', color: C.gold700, whiteSpace: 'nowrap' }}>Champions for Life</div>
       </div>
     </div>
@@ -129,6 +130,7 @@ function RosterPage({ m, team, period, pg, pageCount, show }) {
             {show.pos && <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{r.pos}</div>}
             {show.cls && <div style={{ fontSize: 12, color: C.muted }}>{r.grad}</div>}
             <svg width="100%" height="22" viewBox="0 0 128 36" preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
+              {r.trend && <line data-testid="lb-trend" x1={r.trend.x1} y1={r.trend.y1} x2={r.trend.x2} y2={r.trend.y2} vectorEffect="non-scaling-stroke" style={{ stroke: C.muted, strokeWidth: 1.5, strokeDasharray: '4 3' }} />}
               <polyline points={r.pts} style={{ fill: 'none', stroke: C.navy700, strokeWidth: 2.4, strokeLinejoin: 'round', strokeLinecap: 'round' }} />
               <circle cx={r.cx} cy={r.cy} r="3.5" style={{ fill: C.navy900 }} />
             </svg>

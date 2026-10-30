@@ -73,8 +73,29 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   check('big number = personal best (Bench 205 × 1), chart labels most recent (190 × 1)', /205 × 1/.test(bench) && (await page.getByTestId('pc-metric').filter({ hasText: /^BENCH PRESS/i }).getByTestId('pc-recent').textContent()) === '190 × 1', bench);
   const vtRecent = await page.getByTestId('pc-metric').filter({ hasText: /VERTICAL \(HANDS/i }).getByTestId('pc-recent').textContent();
   check('vertical HOH: best 26.0 in the box, 25.5 on the chart', /26\.0/.test(vt) && vtRecent === '25.5', `${vt} | ${vtRecent}`);
-  const tr = await page.getByTestId('pc-training').innerText();
-  check('training strip: 3 sessions, avg RPE 7.0, logged 3 / 4 (75%)', /3\s*SESSIONS/i.test(tr) && /7\.0\s*AVG RPE/i.test(tr) && /3 \/ 4/.test(tr) && /75% of team session days/.test(tr), tr.replace(/\n/g, ' | '));
+  // v5.15.0: Training counts every session by default (the 40-day-old one too), with a
+  // range picker in the toolbar.
+  let tr = await page.getByTestId('pc-training').innerText();
+  check('training strip, all sessions: 4 sessions, avg RPE 7.5, logged 4 / 5 (80%)', /4\s*SESSIONS/i.test(tr) && /7\.5\s*AVG RPE/i.test(tr) && /4 \/ 5/.test(tr) && /80% of team session days/.test(tr) && /Since \w{3} \d{1,2}/.test(tr), tr.replace(/\n/g, ' | '));
+  check('training range defaults to All sessions', await page.getByTestId('pc-trange').inputValue() === 'all');
+  await page.getByTestId('pc-trange').selectOption('4w'); await page.waitForTimeout(200);
+  tr = await page.getByTestId('pc-training').innerText();
+  check('last 4 weeks: 3 sessions, avg RPE 7.0, logged 3 / 4 (75%)', /3\s*SESSIONS/i.test(tr) && /7\.0\s*AVG RPE/i.test(tr) && /3 \/ 4/.test(tr) && /75% of team session days/.test(tr) && /Last 4 weeks/.test(tr), tr.replace(/\n/g, ' | '));
+  await page.getByTestId('pc-trange').selectOption('custom'); await page.waitForTimeout(200);
+  const cd = (n) => new Date(Date.now() - n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  await page.getByTestId('pc-tfrom').fill(cd(10)); await page.getByTestId('pc-tto').fill(cd(4)); await page.waitForTimeout(200);
+  tr = await page.getByTestId('pc-training').innerText();
+  check('custom dates: 2 sessions, logged 2 / 2 (100%), range printed', /2\s*SESSIONS/i.test(tr) && /7\.5\s*AVG RPE/i.test(tr) && /2 \/ 2/.test(tr) && /100% of team session days/.test(tr) && /\w{3} \d{1,2} – \w{3} \d{1,2}, \d{4}/.test(tr), tr.replace(/\n/g, ' | '));
+  await page.getByTestId('pc-tfrom').fill(cd(60)); await page.getByTestId('pc-tto').fill(cd(50)); await page.waitForTimeout(200);
+  check('a range with no sessions says so', /No session RPE logged ·/.test(await page.getByTestId('pc-training').innerText()));
+  check('range choice remembered', JSON.parse(await page.evaluate(() => localStorage.getItem('hpd_pc_trange'))) === 'custom');
+  await page.getByTestId('pc-trange').selectOption('all'); await page.waitForTimeout(200);
+  const sp = await page.getByTestId('pc-spark').first().locator('svg').evaluate(e => [e.getAttribute('width'), e.getAttribute('height')]);
+  check('charts are larger: 150 x 60', sp[0] === '150' && sp[1] === '60', JSON.stringify(sp));
+  const overlap = await page.getByTestId('pc-metric').evaluateAll(rows => rows.filter(r => !r.dataset.na).map(r => { const t = r.firstElementChild; return t.scrollWidth - t.clientWidth; }));
+  check('number rows fit beside the larger chart (no overflow)', overlap.every(v => v <= 0), JSON.stringify(overlap));
+  const cut = await page.getByTestId('pc-metric').evaluateAll(rows => rows.map(r => { const l = r.firstElementChild.firstElementChild; return l.scrollWidth - l.clientWidth; }));
+  check('metric names are not cut off', cut.every(v => v <= 0), JSON.stringify(cut));
   check('× BW under lift best: front squat 248 / 180.5 = 1.37× BW', /1\.37× BW/.test(fs), fs);
   const tiles = await page.getByTestId('pc-tile').allInnerTexts();
   check('tiles: 1 PR, 3/3 improved, 3 in top 5 Football', /^1\b/.test(tiles[0]) && /3 \/ 3/.test(tiles[1]) && /^3\b/.test(tiles[2]), JSON.stringify(tiles));
@@ -129,6 +150,10 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   await page.emulateMedia({ media: 'print' });
   const pdf2 = await page.pdf({ preferCSSPageSize: true, printBackground: true });
   check('worst case PDF is one page', (pdf2.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length === 1);
+  await page.emulateMedia({ media: 'screen' });
+  const fullFit = await page.getByTestId('pc-metric').evaluateAll(rows => rows.map(r => { const t = r.firstElementChild; const l = t.firstElementChild; return Math.max(t.scrollWidth - t.clientWidth, l.scrollWidth - l.clientWidth); }));
+  check('worst case (PRs everywhere): names whole, numbers fit beside the charts', fullFit.every(v => v <= 0), JSON.stringify(fullFit));
+  check('worst case: PR shows as one "PR · date" tag', /^PR · \w{3} \d{1,2}$/i.test((await page.getByTestId('pc-pr').first().innerText()).trim()), await page.getByTestId('pc-pr').first().innerText());
   await page.emulateMedia({ media: 'screen' });
   await full.screenshot({ path: (process.env.SHOT || '/dev/null').replace('.png', '_full.png') }).catch(() => {});
   await page.getByTestId('pc-toggle-e1rm').click();

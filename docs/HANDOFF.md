@@ -4239,7 +4239,47 @@ default on) drops those points (the line joins the full days) and the Avg Body W
 uses full days only; a note gives the count and the threshold. Off shows every day as before.
 Test: `tests/analytics-rechecks.js` (9).
 
-## 144. Next up
+## 144. Speed trend lines, bigger Progress Card charts, Training range (v5.15.0)
+
+**Speed charts.** The owner wants every speed chart to show a negative linear regression:
+as an athlete gets faster, the line goes down. Speed (`10yd_fly`, `better: 'asc'`) used to
+be flipped so faster sat higher. Now every speed chart plots the raw time and adds a dashed
+least-squares trend line. `src/utils/trendLine.js` has `linearFit(values)` and
+`trendSeries(values)`. x is each point's place on the chart (0, 1, 2…, the even spacing the
+charts use) so the line sits on the dots; gaps are skipped and 2+ points are needed. Where:
+- Progress Card: `spark()` returns `trend` ({x1,y1,x2,y2}); the footer says "Fly 10: lower =
+  faster · dashed line = trend" (the header legend has no room).
+- Jumps & Sprints: the detail chart is no longer `reversed` and has a `trend` series; the
+  table `Sparkline` takes `trend` (scales to the data, not from 0).
+- Analytics team trend: `ComposedChart` with a `Trend` line and a tighter y domain for seconds.
+- Compare: a `<id>~trend` line per athlete with 2+ test days, same color, out of the legend
+  and tooltip (`className="trend-line"`; tests count `.recharts-line:not(.trend-line)`).
+- Printable leaderboard: `sparkline()` is raw for speed and returns `trend` fitted over the
+  team's test-day slots; the footer reads "lower = faster, dashed = trend".
+Jumps and lifts are unchanged (up = better, no trend). Profiles have no speed chart.
+
+**Progress Card charts** are 150 × 60 (`SPARK` in `progressCardData.js`; were 130 × 42). To
+keep the number row beside them, a PR is one gold "PR · date" tag in place of "Best · date",
+and metric names use 0.06em letter spacing. A typical card now scales to ~0.98 and the
+worst case (every metric, est. 1RM, long note) to ~0.965, still one page.
+
+**Training strip** counts every session RPE by default ("Since <first session>"). Toolbar
+"Training range" (`pc-trange`, localStorage `hpd_pc_trange`): All sessions, Last 4 weeks, Last 8
+weeks, This season (`settings.seasonStartDate`), Custom dates (`pc-tfrom` / `pc-tto`).
+`trainingBounds()` gives the dates and the label printed under Sessions; `buildProgressCard`
+takes `trainingRange`. Because the app only holds `dataWindowDays` of check-ins, the card fetches
+all RPE rows once (`reports/rpeHistory.js`: `rpe > 0`, small columns, paged by 1,000,
+cached 5 min, fetch brake) and merges them by id. Session RPE began 2026-09-08 (607 rows on
+10/30).
+
+Tests: `tests/speed-trend.js` (32), `tests/progress-card.js` (37), `tests/athlete-comparison.js`
+(21, trend lines excluded from the line counts).
+
+## 145. Next up
+
+- **`tests/rpe.js` [RPE-B] fails on main too** (found while testing v5.15.0, not caused by it):
+  "RPE-only athlete is listed as never weighed in -> RPE rows are being counted as weigh-in
+  activity". Check whether the Reports compliance list or the test's expectation is stale.
 
 - **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
   prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity

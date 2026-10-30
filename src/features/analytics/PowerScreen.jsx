@@ -5,6 +5,7 @@ import { initialsFor } from '../../utils/athleteData';
 import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth, useMoreColumns, MoreColumnsToggle } from '../../components/DeepDiveUi';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, formatMetric } from './testVariants';
 import { buildPowerRows, powerFlags, variantsFor, variantOf, pbHistory, isAsc } from './powerMetrics';
+import { trendSeries } from '../../utils/trendLine';
 
 // Performance > Jumps & Sprints: the in-depth, per-athlete view of Speed & Power
 // results (vertical, board jump, 10yd fly). Analytics keeps its leaderboard for quick
@@ -18,7 +19,11 @@ const dec = (unit) => (unit === 'sec' ? 2 : 1);
 function AthleteDetail({ row, testKey, variant, allTests, onOpenProfile }) {
   const tt = TEST_TYPE_BY_KEY[testKey];
   const unit = tt?.unit || '';
-  const chart = row.results.map(r => ({ date: shortDate(r.created_at), value: Number(r.metric) }));
+  // Sprint times are drawn as they are (faster = lower) with a dashed least-squares trend
+  // that slopes down as the athlete gets faster (v5.15.0).
+  const speed = isAsc(testKey);
+  const fitted = speed ? trendSeries(row.results.map(r => Number(r.metric))) : [];
+  const chart = row.results.map((r, i) => ({ date: shortDate(r.created_at), value: Number(r.metric), ...(speed ? { trend: fitted[i] } : {}) }));
   const pbIds = new Set(row.pbs.map(p => p.id));
   // PBs across every test/technique this athlete has results for.
   const groups = new Map();
@@ -43,15 +48,16 @@ function AthleteDetail({ row, testKey, variant, allTests, onOpenProfile }) {
             <LineChart data={chart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
               <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={16} />
-              <YAxis tick={axis} tickLine={false} axisLine={false} width={44} domain={['auto', 'auto']} reversed={isAsc(testKey)} tickFormatter={v => Number(v).toFixed(dec(unit))} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} width={44} domain={['auto', 'auto']} tickFormatter={v => Number(v).toFixed(dec(unit))} />
               <RechartsTooltip contentStyle={tooltipStyle} formatter={(v) => [formatMetric(v, unit), tt?.label || 'Result']} />
               <ReferenceLine y={row.pb} stroke="#b89c5b" strokeDasharray="4 4" />
               <Line type="monotone" dataKey="value" stroke={GREEN} strokeWidth={2.5} dot={{ r: 3 }} />
+              {speed && chart.length > 1 && <Line className="trend-line" type="linear" dataKey="trend" stroke="#cbd5e1" strokeWidth={1.5} strokeDasharray="6 4" dot={false} activeDot={false} tooltipType="none" isAnimationActive={false} />}
             </LineChart>
           </ResponsiveContainer>
         </div>
         <span style={{ ...label, textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
-          Dashed line: PB.{isAsc(testKey) ? ' Axis is flipped so faster times sit higher.' : ''}
+          Gold dashed line: PB.{speed ? ' White dashed line: trend. Lower = faster, so it slopes down as they get faster.' : ''}
         </span>
       </div>
 
@@ -288,7 +294,7 @@ export default function PowerScreen({ athletes, performanceTests, liftLogs = [],
                         {more && <td style={{ ...td, color: r.vsSport == null ? undefined : r.vsSport > 0 ? '#10b981' : '#f59e0b' }}>{pct(r.vsSport)}</td>}
                         {more && <td style={td}>{r.pbsInWindow}</td>}
                         {more && <td style={td}>{r.testsInWindow} / {r.tests}</td>}
-                        <td style={td}><Sparkline values={isAsc(testKey) ? r.recent.map(v => -v) : r.recent} color={GREEN} ariaLabel={`Last ${r.recent.length} ${tt?.label} results`} /></td>
+                        <td style={td}><Sparkline values={r.recent} trend={isAsc(testKey)} color={GREEN} ariaLabel={`Last ${r.recent.length} ${tt?.label} results`} /></td>
                         <td style={td}><div style={{ display: 'flex', gap: '4px' }}>{flags.map(f => <Chip key={f.key} tone={f.tone}>{f.label}</Chip>)}</div></td>
                         <td style={td} aria-hidden="true">{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</td>
                       </tr>

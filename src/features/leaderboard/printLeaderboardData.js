@@ -5,6 +5,7 @@
 import { estimate1RM, inBounds } from '../lifts/liftRanking';
 import { getCentralDateString } from '../../utils/athleteData';
 import { TEST_TYPES, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL } from '../analytics/testVariants';
+import { linearFit } from '../../utils/trendLine';
 
 export const TOP_N = 10;
 export const PER_PAGE = 22;
@@ -81,19 +82,27 @@ function sessionsFor(metric, athleteIds, { liftLogs, performanceTests, bounds })
 
 // Sparkline points in the handoff's 128x36 viewBox. x is fixed per test-day slot
 // across the whole team (a later starter begins further right); y is scaled to the
-// athlete's own range, inverted when lower is better so "up" always means improvement.
+// athlete's own range, higher value = higher. Speed (lower is better) is drawn as raw
+// times, so faster sits lower, with a dashed least-squares trend line that slopes down as
+// the athlete gets faster (v5.15.0); fitted over the slots as drawn.
 function sparkline(points, slotIndex, slotCount, lowerIsBetter) {
   const vs = points.map(p => p.value);
-  const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo;
-  const xy = points.map(p => {
-    let t = span ? (p.value - lo) / span : 0.5;
-    if (lowerIsBetter) t = 1 - t;
-    const i = slotIndex.get(p.day);
-    const x = slotCount > 1 ? (i / (slotCount - 1)) * 124 + 2 : 64;
-    return [+x.toFixed(1), +(32 - t * 28).toFixed(1)];
-  });
+  const slots = points.map(p => slotIndex.get(p.day));
+  const fit = lowerIsBetter && points.length > 1 ? linearFit(slotFill(slots, vs)) : null;
+  const ends = fit ? [fit.at(fit.from), fit.at(fit.to)] : [];
+  const lo = Math.min(...vs, ...ends), hi = Math.max(...vs, ...ends), span = hi - lo;
+  const X = (i) => +(slotCount > 1 ? (i / (slotCount - 1)) * 124 + 2 : 64).toFixed(1);
+  const Y = (v) => +(32 - (span ? (v - lo) / span : 0.5) * 28).toFixed(1);
+  const xy = points.map((p, k) => [X(slots[k]), Y(p.value)]);
   const last = xy[xy.length - 1];
-  return { pts: xy.map(p => p.join(',')).join(' '), cx: last[0], cy: last[1] };
+  const trend = fit ? { x1: X(fit.from), y1: Y(ends[0]), x2: X(fit.to), y2: Y(ends[1]) } : null;
+  return { pts: xy.map(p => p.join(',')).join(' '), cx: last[0], cy: last[1], trend };
+}
+// Values placed at their slot index (gaps null), for a fit in the chart's own x.
+function slotFill(slots, vs) {
+  const out = [];
+  slots.forEach((i, k) => { out[i] = vs[k]; });
+  return Array.from(out, v => (v === undefined ? null : v));
 }
 
 export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], performanceTests = [], bounds = {}, sport = 'ALL', fullRoster = true, now = new Date() }) {

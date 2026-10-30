@@ -99,7 +99,7 @@ const newPage = async (browser, opts = {}) => {
     check('both athletes show a best value', /Best 1\.55 sec/.test(body) && /Best 1\.80 sec/.test(body), body.match(/Best[\s\S]{0,20}/g)?.join(' | '));
     check('improving athlete gets a negative (faster) trend', /-0\.15/.test(body), body.match(/Latest[\s\S]{0,40}/g)?.join(' | '));
     check('declining athlete gets a positive (slower) trend', /\+0\.05/.test(body), body.match(/Latest[\s\S]{0,40}/g)?.join(' | '));
-    const lines = await page.locator('.recharts-line').count();
+    const lines = await page.locator('.recharts-line:not(.trend-line)').count();
     check('chart draws one line per selected athlete', lines === 2, `found ${lines}`);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
@@ -171,7 +171,7 @@ const newPage = async (browser, opts = {}) => {
     const body = await page.locator('body').innerText();
     check('summary card reads the results (keyed by id)', /Best 1\.62 sec/.test(body), body.match(/Best[\s\S]{0,20}/)?.[0] || '');
     // The chart must agree with the card: two attempts means a drawn line with 2 dots.
-    const lines = await page.locator('.recharts-line').count();
+    const lines = await page.locator('.recharts-line:not(.trend-line)').count();
     const dots = await page.locator('.recharts-line-dot').count();
     check('the chart draws the line despite the stale name', lines === 1, `lines=${lines}`);
     check('both attempts are plotted, not silently dropped', dots === 2, `dots=${dots}`);
@@ -205,7 +205,7 @@ const newPage = async (browser, opts = {}) => {
     // "N of M selected" is styled text-transform:uppercase, so innerText reports it
     // as "6 OF 6 SELECTED" - match case-insensitively.
     check('cap holds at 6 selected, not 7', /6 of 6 selected/i.test(body), body.match(/\d+ of \d+ selected/i)?.[0] || '');
-    const lines = await page.locator('.recharts-line').count();
+    const lines = await page.locator('.recharts-line:not(.trend-line)').count();
     check('chart never draws more than 6 lines', lines <= 6, `found ${lines}`);
   }
 

@@ -2,9 +2,10 @@ import React from 'react';
 import { TrendingUp, Activity, Target, Award, Zap, Lock, GitCompare, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
+  Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, ComposedChart, Line,
 } from 'recharts';
 import { CustomTooltip } from '../../components/CustomTooltip';
+import { trendSeries } from '../../utils/trendLine';
 import SpeedPowerPanel from './SpeedPowerPanel';
 import PlyomatImportPanel from './PlyomatImportPanel';
 import AthleteComparisonPanel from './AthleteComparisonPanel';
@@ -668,14 +669,22 @@ function JumpTrendsPanel({ performanceTests, roster, rangeDays, card, h3, eyebro
       byDay.get(dayKey).push(Number(t.metric));
     }
     const decimals = activeTest.unit === 'sec' ? 2 : 1;
-    return [...byDay.entries()]
+    const rows = [...byDay.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([dayKey, values]) => ({
         date: dayKey.slice(5),
         Avg: Number((values.reduce((s, v) => s + v, 0) / values.length).toFixed(decimals)),
         Athletes: values.length,
       }));
-  }, [performanceTests, rosterIds, testType, variant, needsVariantPicker, rangeDays, activeTest.unit]);
+    // Speed: dashed least-squares trend over the team averages, sloping down as the team
+    // gets faster (v5.15.0).
+    if (activeTest.better === 'asc') {
+      const fitted = trendSeries(rows.map(r => r.Avg));
+      rows.forEach((r, i) => { r.Trend = fitted[i]; });
+    }
+    return rows;
+  }, [performanceTests, rosterIds, testType, variant, needsVariantPicker, rangeDays, activeTest.unit, activeTest.better]);
+  const speed = activeTest.better === 'asc';
 
   const hasData = trend.length > 0;
 
@@ -686,7 +695,7 @@ function JumpTrendsPanel({ performanceTests, roster, rangeDays, card, h3, eyebro
           <span style={eyebrow('#fbbf24')}><Zap size={14} /> TEAM TREND</span>
           <h3 style={h3}>AVERAGE {activeTest.label.toUpperCase()}</h3>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-            Team average on each test day — not a per-athlete line, that's Compare.
+            Team average on each test day — not a per-athlete line, that's Compare.{speed ? ' Lower = faster; the dashed line is the trend.' : ''}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -730,7 +739,7 @@ function JumpTrendsPanel({ performanceTests, roster, rangeDays, card, h3, eyebro
       ) : hasData ? (
         <div style={{ width: '100%', height: 240 }}>
           <ResponsiveContainer>
-            <AreaChart data={trend} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+            <ComposedChart data={trend} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="jumpTrendFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.45} />
@@ -739,10 +748,11 @@ function JumpTrendsPanel({ performanceTests, roster, rangeDays, card, h3, eyebro
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
               <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
-              <YAxis tick={axis} tickLine={false} axisLine={false} domain={['dataMin - 1', 'dataMax + 1']} width={48} unit={activeTest.unit === 'sec' ? 's' : '"'} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} domain={speed ? ['dataMin - 0.05', 'dataMax + 0.05'] : ['dataMin - 1', 'dataMax + 1']} tickFormatter={speed ? (v) => Number(v).toFixed(2) : undefined} width={48} unit={activeTest.unit === 'sec' ? 's' : '"'} />
               <RechartsTooltip content={<CustomTooltip units={{ Avg: activeTest.unit === 'sec' ? 'sec' : 'in' }} />} />
               <Area type="monotone" dataKey="Avg" connectNulls stroke="#fbbf24" strokeWidth={3} fill="url(#jumpTrendFill)" />
-            </AreaChart>
+              {speed && trend.length > 1 && <Line className="trend-line" type="linear" dataKey="Trend" stroke="#cbd5e1" strokeWidth={1.5} strokeDasharray="6 4" dot={false} activeDot={false} tooltipType="none" legendType="none" isAnimationActive={false} />}
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : empty(`No ${activeTest.label} results logged in this window.`)}

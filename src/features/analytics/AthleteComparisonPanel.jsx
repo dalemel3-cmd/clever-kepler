@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, UNTAGGED_VARIANT_LABEL, formatMetric } from './SpeedPowerPanel';
 import { getCentralDateString } from '../../utils/athleteData';
+import { trendSeries } from '../../utils/trendLine';
 
 // Distinct enough at a glance, and consistent for a given selection order - the same
 // athlete keeps the same color as long as they stay in the same selection slot.
@@ -63,7 +64,7 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
   // order. Two athletes testing on the same calendar day share one row (so the tooltip
   // reads as "this day, these results") - two attempts by the SAME athlete on different
   // days stay as separate points, since collapsing those would hide real improvement.
-  const { chartData, perAthleteStats } = React.useMemo(() => {
+  const { chartData, perAthleteStats, trendIds } = React.useMemo(() => {
     // Series are keyed by athlete_id, NOT athlete_name. performance_tests carries a
     // denormalized athlete_name captured when the row was written, so renaming an athlete
     // on the roster (four were corrected during the Plyomat import - HANDOFF §4) left old
@@ -107,11 +108,19 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
       s.trend = daily.length >= 2 ? daily[daily.length - 1].value - daily[daily.length - 2].value : (s.attempts.length >= 2 ? s.attempts[s.attempts.length - 1].value - s.attempts[s.attempts.length - 2].value : null);
     }
 
-    return {
-      chartData: [...rows.values()].sort((a, b) => a.date.localeCompare(b.date)),
-      perAthleteStats: stats,
-    };
+    const chartData = [...rows.values()].sort((a, b) => a.date.localeCompare(b.date));
+    // Speed: each athlete with 2+ test days gets a dashed least-squares trend in their
+    // color, over their own first to last test, sloping down as they get faster (v5.15.0).
+    const trendIds = new Set();
+    if (activeTest.better === 'asc') {
+      for (const id of selectedIds) {
+        const fitted = trendSeries(chartData.map(r => r[id] ?? null));
+        chartData.forEach((r, i) => { if (fitted[i] != null) { r[`${id}~trend`] = fitted[i]; trendIds.add(id); } });
+      }
+    }
+    return { chartData, perAthleteStats: stats, trendIds };
   }, [performanceTests, testType, variant, selectedIds, activeTest.better, activeTest.variants.length]);
+  const speed = activeTest.better === 'asc';
 
   const axis = { stroke: 'var(--color-text-muted)', fontSize: 11 };
 
@@ -234,7 +243,7 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
                   <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                     <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={20} />
-                    <YAxis tick={axis} tickLine={false} axisLine={false} width={44} unit={activeTest.unit === 'sec' ? 's' : '"'} />
+                    <YAxis tick={axis} tickLine={false} axisLine={false} width={44} unit={activeTest.unit === 'sec' ? 's' : '"'} {...(speed ? { domain: ['auto', 'auto'], tickFormatter: (v) => Number(v).toFixed(2) } : {})} />
                     <RechartsTooltip
                       contentStyle={{ background: 'var(--navy-900)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', fontSize: '12px' }}
                       labelStyle={{ color: 'var(--color-text-muted)', fontWeight: 700 }}
@@ -255,9 +264,33 @@ export default function AthleteComparisonPanel({ athletes, performanceTests, spo
                         connectNulls
                       />
                     ))}
+                    {speed && selectedAthletes.map((a, i) => trendIds.has(a.id) && (
+                      <Line
+                        key={`${a.id}~trend`}
+                        className="trend-line"
+                        type="linear"
+                        dataKey={`${a.id}~trend`}
+                        name={`${a.name} trend`}
+                        stroke={LINE_COLORS[i % LINE_COLORS.length]}
+                        strokeOpacity={0.7}
+                        strokeWidth={1.5}
+                        strokeDasharray="6 4"
+                        dot={false}
+                        activeDot={false}
+                        connectNulls
+                        legendType="none"
+                        tooltipType="none"
+                        isAnimationActive={false}
+                      />
+                    ))}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+              {speed && trendIds.size > 0 && (
+                <div data-testid="compare-trend-note" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', marginTop: '-4px' }}>
+                  Lower = faster. Dashed lines: each athlete's trend, sloping down as they get faster.
+                </div>
+              )}
 
               {/* Per-athlete best / latest / trend, so the chart's exact numbers don't
                   need to be read off the axis. */}

@@ -7,6 +7,7 @@ import { estimate1RM } from '../lifts/liftRanking';
 import { TEST_TYPES } from '../analytics/testVariants';
 import { gradYearFor } from '../leaderboard/printLeaderboardData';
 import { displayName } from './readinessData';
+import { linearFit } from '../../utils/trendLine';
 
 export const FOCUS_PCT = 3;   // handoff: latest >= 3% below best -> focus area
 export const TOP_RANK = 5;    // "Top 5 in {team}"
@@ -69,13 +70,21 @@ function seriesBy(def) {
 
 const bestOf = (pts, lowerIsBetter) => pts.reduce((b, p) => (lowerIsBetter ? (p.value < b.value ? p : b) : (p.value > b.value ? p : b)), pts[0]);
 
-// Handoff sparkline: 130x44, x spread evenly, y = 36 - norm*30, negated when lower is better.
+// Sparkline box. The handoff's was 130x44; v5.15.0 made it 150x60 so the trend reads at
+// print size. x is spread evenly with 6px each side; y runs from SPARK.h - 8 (lowest
+// value) to 8 (highest), the baseline sits at SPARK.h - 4.
+export const SPARK = { w: 150, h: 60 };
+// Speed (lower is better) is drawn as raw times, so faster sits lower, with a dashed
+// least-squares trend line that slopes down as the athlete gets faster (v5.15.0); the
+// scale takes in the line's ends.
 function spark(pts, lowerIsBetter, bestIdx, neutral) {
   const n = pts.length;
-  const vs = pts.map(p => (lowerIsBetter ? -p.value : p.value));
-  const lo = Math.min(...vs), hi = Math.max(...vs);
-  const x = (i) => (n > 1 ? 6 + i * (118 / (n - 1)) : 65);
-  const y = (v) => (hi > lo ? 36 - ((v - lo) / (hi - lo)) * 30 : 21);
+  const vs = pts.map(p => p.value);
+  const fit = lowerIsBetter ? linearFit(vs) : null;
+  const ends = fit ? [fit.at(0), fit.at(n - 1)] : [];
+  const lo = Math.min(...vs, ...ends), hi = Math.max(...vs, ...ends);
+  const x = (i) => (n > 1 ? 6 + i * ((SPARK.w - 12) / (n - 1)) : SPARK.w / 2);
+  const y = (v) => (hi > lo ? (SPARK.h - 8) - ((v - lo) / (hi - lo)) * (SPARK.h - 16) : SPARK.h / 2);
   const dots = pts.map((p, i) => {
     const isBest = !neutral && i === bestIdx;
     const isLast = i === n - 1;
@@ -90,7 +99,8 @@ function spark(pts, lowerIsBetter, bestIdx, neutral) {
     if (months.length && (months[months.length - 1].text === text || dots[i].x - months[months.length - 1].x < 24)) continue;
     months.push({ x: dots[i].x, text });
   }
-  return { pts: dots.map(d => `${d.x},${d.y}`).join(' '), dots, months };
+  const trend = fit ? { x1: +x(0).toFixed(1), y1: +y(ends[0]).toFixed(1), x2: +x(n - 1).toFixed(1), y2: +y(ends[1]).toFixed(1) } : null;
+  return { pts: dots.map(d => `${d.x},${d.y}`).join(' '), dots, months, trend };
 }
 
 const reportIndexCache = new WeakMap();
@@ -118,9 +128,30 @@ function getReportIndex(reportData) {
   return idx;
 }
 
-export const TRAINING_DAYS = 28; // training strip window
+export const TRAINING_DAYS = 28; // "Last 4 weeks" on the training strip
 
-export function buildProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], now = new Date(), showE1rm = false, hidden = {} }) {
+// Training strip ranges (v5.15.0). Default is every session; a coach can narrow it.
+export const TRAINING_RANGES = [
+  { id: 'all', label: 'All sessions' },
+  { id: '4w', label: 'Last 4 weeks', days: TRAINING_DAYS },
+  { id: '8w', label: 'Last 8 weeks', days: 56 },
+  { id: 'season', label: 'This season' },
+  { id: 'custom', label: 'Custom dates' },
+];
+// { start, end } Central dates (null = open) and the label printed on the card.
+export function trainingBounds(id, { now = new Date(), seasonStartDate, from, to } = {}) {
+  const r = TRAINING_RANGES.find(x => x.id === id) || TRAINING_RANGES[0];
+  const long = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  if (r.days) return { start: getCentralDateString(new Date(now.getTime() - (r.days - 1) * 86400000)), end: null, text: r.label };
+  if (r.id === 'season' && seasonStartDate) return { start: seasonStartDate, end: null, text: `Since ${mdOf(seasonStartDate)}` };
+  if (r.id === 'custom' && (from || to)) {
+    const text = from && to ? `${mdOf(from)} – ${long(to)}` : from ? `Since ${long(from)}` : `Through ${long(to)}`;
+    return { start: from || null, end: to || null, text };
+  }
+  return { start: null, end: null, text: 'All sessions' };
+}
+
+export function buildProgressCard({ athlete, athletes = [], liftLogs = [], performanceTests = [], reportData = [], now = new Date(), showE1rm = false, hidden = {}, trainingRange = { start: null, end: null } }) {
   if (!athlete) return null;
   const { weighByAthlete, rpeByAthlete, rpeDaysBySport } = getReportIndex(reportData);
   // Rank against the whole team (same sport), not the position group.
@@ -208,24 +239,28 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
   })() : '';
   const firstMonth = days.length ? monthOf(days[0]) : '';
 
-  // Training strip: last 4 weeks of session RPE. "Logged" = days this athlete logged an
-  // RPE out of the days anyone on their team did (the team's session days).
-  const cutoff = getCentralDateString(new Date(now.getTime() - (TRAINING_DAYS - 1) * 86400000));
+  // Training strip: session RPE in the chosen range (every session unless a range is
+  // picked, v5.15.0). "Logged" = days this athlete logged an RPE out of the days anyone on
+  // their team did (the team's session days) in the same range.
+  const { start: tStart, end: tEnd } = trainingRange || {};
+  const inRange = (d) => (!tStart || d >= tStart) && (!tEnd || d <= tEnd);
   const sportKey = athlete.sport || 'General';
-  const myRpe = (rpeByAthlete.get(athlete.id) || []).filter(r => dayOf(r) >= cutoff);
+  const myRpe = (rpeByAthlete.get(athlete.id) || []).filter(r => inRange(dayOf(r)));
   const sportRpeDays = rpeDaysBySport.get(sportKey) || new Set();
   let teamDaysCount = 0;
   for (const d of sportRpeDays) {
-    if (d >= cutoff) teamDaysCount++;
+    if (inRange(d)) teamDaysCount++;
   }
   const myDays = new Set(myRpe.map(dayOf));
+  const sortedDays = [...myDays].sort();
   const training = {
     sessions: myRpe.length,
     avgRpe: myRpe.length ? myRpe.reduce((t, r) => t + Number(r.rpe), 0) / myRpe.length : null,
     loggedDays: myDays.size,
     teamDays: teamDaysCount,
     rate: teamDaysCount ? Math.round((myDays.size / teamDaysCount) * 100) : null,
-    last: myRpe.length ? mdOf(myRpe.map(dayOf).sort().pop()) : null,
+    first: sortedDays.length ? mdOf(sortedDays[0]) : null,
+    last: sortedDays.length ? mdOf(sortedDays[sortedDays.length - 1]) : null,
   };
 
   return {
