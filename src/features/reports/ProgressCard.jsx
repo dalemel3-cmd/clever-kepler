@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X } from 'lucide-react';
-import { buildProgressCard, CARD_METRICS, SPARK, TRAINING_RANGES, trainingBounds } from './progressCardData';
+import { buildProgressCard, CARD_METRICS, SPARK, sparkY, TRAINING_RANGES, trainingBounds } from './progressCardData';
 import { fetchRpeHistory } from './rpeHistory';
 
 // Athlete Progress Card (design handoff "HPD Athlete Reports" #1, docs/HANDOFF.md §119).
@@ -29,20 +29,22 @@ function SectionHead({ n, title, right }) {
   );
 }
 
-function Spark({ m }) {
+function Spark({ m, h }) {
   const fill = (k) => (k === 'best' ? C.gold500 : k === 'last' ? C.navy900 : C.white);
+  const Y = (t) => sparkY(t, h);
   return (
     <div data-testid="pc-spark" style={{ flex: 'none', width: SPARK.w, display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <svg width={SPARK.w} height={SPARK.h} viewBox={`0 0 ${SPARK.w} ${SPARK.h}`} style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
-        <line x1="6" y1={SPARK.h - 4} x2={SPARK.w - 6} y2={SPARK.h - 4} style={{ stroke: C.border }} strokeWidth="1" />
-        {m.dots.length > 1 && <polyline points={m.pts} fill="none" style={{ stroke: C.navy900 }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
-        {m.trend && <line data-testid="pc-trend" x1={m.trend.x1} y1={m.trend.y1} x2={m.trend.x2} y2={m.trend.y2} style={{ stroke: C.muted }} strokeWidth="1.5" strokeDasharray="4 3" strokeLinecap="round" />}
-        {m.dots.map((d, i) => <circle key={i} cx={d.x} cy={d.y} r={d.r} style={{ fill: fill(d.kind), stroke: C.navy900 }} strokeWidth="1.5" />)}
+      <svg width={SPARK.w} height={h} viewBox={`0 0 ${SPARK.w} ${h}`} style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
+        <line x1="6" y1={h - 4} x2={SPARK.w - 6} y2={h - 4} style={{ stroke: C.border }} strokeWidth="1" />
+        {m.dots.length > 1 && <polyline points={m.dots.map(d => `${d.x},${Y(d.t)}`).join(' ')} fill="none" style={{ stroke: C.navy900 }} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+        {m.trend && <line data-testid="pc-trend" x1={m.trend.x1} y1={Y(m.trend.t1)} x2={m.trend.x2} y2={Y(m.trend.t2)} style={{ stroke: C.muted }} strokeWidth="1.5" strokeDasharray="4 3" strokeLinecap="round" />}
+        {m.dots.map((d, i) => <circle key={i} cx={d.x} cy={Y(d.t)} r={d.r} style={{ fill: fill(d.kind), stroke: C.navy900 }} strokeWidth="1.5" />)}
         {m.kind !== 'mass' && (() => {
           // Most recent result labelled at the latest dot (above it, or below if near the top).
           const d = m.dots[m.dots.length - 1];
-          const above = d.y > 14;
-          return <text data-testid="pc-recent" x={Math.min(d.x, SPARK.w - 6)} y={above ? d.y - 7 : d.y + 14} textAnchor={m.dots.length > 1 ? 'end' : 'middle'} style={{ fontFamily: BODY, fontWeight: 700, fontSize: 9.5, fill: C.navy900, stroke: C.white, strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }}>{m.latestText}</text>;
+          const y = Y(d.t);
+          const above = y > 14;
+          return <text data-testid="pc-recent" x={Math.min(d.x, SPARK.w - 6)} y={above ? y - 7 : y + 14} textAnchor={m.dots.length > 1 ? 'end' : 'middle'} style={{ fontFamily: BODY, fontWeight: 700, fontSize: 9.5, fill: C.navy900, stroke: C.white, strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }}>{m.latestText}</text>;
         })()}
       </svg>
       <div style={{ position: 'relative', height: 11, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.muted }}>
@@ -57,6 +59,10 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
   // (never up) so the card is always exactly one Letter page.
   const innerRef = React.useRef(null);
   const [fit, setFit] = React.useState(1);
+  // Fill-the-page (v5.15.3): with metrics switched off (or a short note) the charts grow
+  // taller into the space left, up to SPARK.growMax, so the card doesn't end half empty.
+  const [grow, setGrow] = React.useState(0);
+  const rows = Math.ceil(card.metrics.length / 2);
   React.useLayoutEffect(() => {
     const el = innerRef.current;
     if (!el) return;
@@ -65,12 +71,19 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
     el.style.zoom = '1'; el.style.minHeight = '0px'; el.style.width = `${W}px`;
     const natural = el.offsetHeight;
     el.style.zoom = prevZoom; el.style.minHeight = prevMin; el.style.width = prevW;
+    // Grow first while there's at least a pixel a row to spare; give it back before
+    // shrinking. A chart row grows by at most the step, so this never overshoots H.
+    let nextGrow = grow;
+    if (rows && natural <= H - rows && grow < SPARK.growMax) nextGrow = Math.min(SPARK.growMax, grow + Math.floor((H - natural) / rows));
+    else if (natural > H && grow > 0) nextGrow = Math.max(0, grow - Math.ceil((natural - H) / Math.max(1, rows)));
+    if (nextGrow !== grow) { setGrow(nextGrow); return; }
     const next = natural > H ? Math.max(0.7, Math.floor((H / natural) * 1000) / 1000) : 1;
     if (Math.abs(next - fit) > 0.002) setFit(next);
   });
+  const chartH = SPARK.h + grow;
   const tone = (m) => (m.deltaTone === 'up' ? C.positive : m.deltaTone === 'down' ? C.danger : C.navy900);
   return (
-    <div className="pc-page" data-testid="progress-card" data-fit={fit} style={{ width: W, height: H, boxSizing: 'border-box', background: C.white, color: C.text, fontFamily: BODY, overflow: 'hidden', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="pc-page" data-testid="progress-card" data-fit={fit} data-chart-h={chartH} style={{ width: W, height: H, boxSizing: 'border-box', background: C.white, color: C.text, fontFamily: BODY, overflow: 'hidden', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
     <div ref={innerRef} style={{ width: W / fit, minHeight: H / fit, display: 'flex', flexDirection: 'column', zoom: fit < 1 ? fit : undefined }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, padding: '4px 0 12px', borderTop: `10px solid ${C.navy900}`, borderBottom: `3px solid ${C.gold500}` }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 12 }}>
@@ -113,23 +126,23 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
           </div>
         )} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 16 }}>
         {card.metrics.length === 0 && <p style={{ gridColumn: '1 / -1', color: C.muted, fontSize: 13 }}>No results logged for this athlete yet.</p>}
         {card.metrics.map(m => m.na ? (
           <div key={m.key} data-testid="pc-metric" data-na="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: C.muted }}>{m.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: C.muted }}>{m.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1, color: C.border }}>N/A</span>
                 <span style={{ fontSize: 12, color: C.muted }}>{m.kind === 'mass' ? 'No weigh-ins yet' : 'Not tested yet'}</span>
               </div>
             </div>
-            <svg width={SPARK.w} height={SPARK.h} viewBox={`0 0 ${SPARK.w} ${SPARK.h}`} aria-hidden="true"><line x1="6" y1={SPARK.h - 4} x2={SPARK.w - 6} y2={SPARK.h - 4} style={{ stroke: C.border }} strokeWidth="1" strokeDasharray="3 3" /></svg>
+            <svg width={SPARK.w} height={chartH} viewBox={`0 0 ${SPARK.w} ${chartH}`} aria-hidden="true"><line x1="6" y1={chartH - 4} x2={SPARK.w - 6} y2={chartH - 4} style={{ stroke: C.border }} strokeWidth="1" strokeDasharray="3 3" /></svg>
           </div>
         ) : (
           <div key={m.key} data-testid="pc-metric" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: '1 1 auto' }}>
-              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
               {/* A PR shows as one gold "PR · date" tag in place of "Best · date" (v5.15.0), so
                   the number row fits beside the larger chart. */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -146,7 +159,7 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
                 {showXbw && m.xbw && <span data-testid="pc-xbw" style={{ whiteSpace: 'nowrap', fontWeight: 700, color: C.navy700 }}>{m.xbw}</span>}
               </div>
             </div>
-            <Spark m={m} />
+            <Spark m={m} h={chartH} />
           </div>
         ))}
       </div>

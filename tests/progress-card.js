@@ -91,7 +91,7 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   check('range choice remembered', JSON.parse(await page.evaluate(() => localStorage.getItem('hpd_pc_trange'))) === 'custom');
   await page.getByTestId('pc-trange').selectOption('all'); await page.waitForTimeout(200);
   const sp = await page.getByTestId('pc-spark').first().locator('svg').evaluate(e => [e.getAttribute('width'), e.getAttribute('height')]);
-  check('charts are larger: 150 x 60', sp[0] === '150' && sp[1] === '60', JSON.stringify(sp));
+  check('charts are larger: 156 wide, at least 70 tall', sp[0] === '156' && Number(sp[1]) >= 70, JSON.stringify(sp));
   const overlap = await page.getByTestId('pc-metric').evaluateAll(rows => rows.filter(r => !r.dataset.na).map(r => { const t = r.firstElementChild; return t.scrollWidth - t.clientWidth; }));
   check('number rows fit beside the larger chart (no overflow)', overlap.every(v => v <= 0), JSON.stringify(overlap));
   const cut = await page.getByTestId('pc-metric').evaluateAll(rows => rows.map(r => { const l = r.firstElementChild.firstElementChild; return l.scrollWidth - l.clientWidth; }));
@@ -122,6 +122,16 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   check('individual metric toggles remove just those rows', fewer.length === 9 && !fewer.includes('BROAD JUMP') && !fewer.includes('TRAP BAR DEADLIFT'), JSON.stringify(fewer));
   check('metric choices remembered', JSON.parse(await page.evaluate(() => localStorage.getItem('hpd_pc_hidden'))).broad === true);
   await page.getByTestId('pc-metric-toggle-broad').click(); await page.getByTestId('pc-metric-toggle-tbdl').click();
+  // v5.15.3: fewer metrics -> the charts grow into the space left, still one page at full size.
+  const fullH = Number(await card.getAttribute('data-chart-h'));
+  for (const k of ['broad', 'tbdl', 'deadlift', 'back_squat', 'hang_clean', 'vj_arm']) await page.getByTestId(`pc-metric-toggle-${k}`).click().catch(() => {});
+  await page.waitForTimeout(300);
+  const fewH = Number(await card.getAttribute('data-chart-h'));
+  const fewBox = await card.evaluate(el => { const i = el.firstElementChild.getBoundingClientRect(); const o = el.getBoundingClientRect(); return [Math.round(i.height), Math.round(o.height), el.dataset.fit]; });
+  check('fewer metrics: charts grow taller to fill the page (capped), still fits at full size', fewH > fullH && fewH <= 104 && fewBox[2] === '1' && fewBox[0] <= fewBox[1] + 1, `${fullH} -> ${fewH} ${JSON.stringify(fewBox)}`);
+  for (const k of ['broad', 'tbdl', 'deadlift', 'back_squat', 'hang_clean', 'vj_arm']) await page.getByTestId(`pc-metric-toggle-${k}`).click().catch(() => {});
+  await page.waitForTimeout(300);
+  check('all metrics back: charts settle back down', Number(await card.getAttribute('data-chart-h')) === fullH, `${await card.getAttribute('data-chart-h')} vs ${fullH}`);
   await page.getByTestId('pc-toggle-focus').click(); await page.waitForTimeout(200);
   check('focus toggle hides Focus Next Block, note becomes 02', await page.getByTestId('pc-focus-section').count() === 0 && /02\s*COACH'S NOTE/i.test(await page.getByTestId('pc-note').innerText()));
   await page.getByTestId('pc-toggle-focus').click();

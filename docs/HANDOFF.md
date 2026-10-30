@@ -4305,7 +4305,19 @@ gone (per-metric ranks are unchanged). The metric rows' gap is 10 px and names u
 letter spacing so "Vertical (Hands on Hips)" fits at full size, now that a typical card no
 longer has to shrink (fit 1). Test: `tests/progress-card.js` (38).
 
-## 147. Next up
+## 147. Progress Card charts fill the page (v5.15.3)
+
+The owner wants the charts to use the space freed by the removed tiles. `SPARK` is now
+156 × 70 (`growMax: 34`). 156 is the widest that still leaves "Vertical (Hands on Hips)" room,
+with the metric grid's column gap 16 (was 24) and names at 0.04em letter spacing. Heights
+are drawn at render time: `spark()` returns each dot's `t` (0 = lowest, 1 = highest) and the
+trend's `t1`/`t2`, and `sparkY(t, h)` places them. The card's layout effect first grows the
+chart height (`data-chart-h`) by the spare space ÷ rows, up to +34 (104 px); it gives the
+growth back before it would shrink the page. A full card (all metrics) settles at about 72 px
+and fit 1; with metrics switched off the charts reach 104 px. The worst case (every metric,
+est. 1RM, long note) still shrinks to fit as before. Test: `tests/progress-card.js` (40).
+
+## 148. Next up
 
 - **`tests/rpe.js` [RPE-B] fails on main too** (found while testing v5.15.0, not caused by it):
   "RPE-only athlete is listed as never weighed in -> RPE rows are being counted as weigh-in

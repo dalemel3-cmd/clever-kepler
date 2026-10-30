@@ -69,10 +69,13 @@ function seriesBy(def) {
 
 const bestOf = (pts, lowerIsBetter) => pts.reduce((b, p) => (lowerIsBetter ? (p.value < b.value ? p : b) : (p.value > b.value ? p : b)), pts[0]);
 
-// Sparkline box. The handoff's was 130x44; v5.15.0 made it 150x60 so the trend reads at
-// print size. x is spread evenly with 6px each side; y runs from SPARK.h - 8 (lowest
-// value) to 8 (highest), the baseline sits at SPARK.h - 4.
-export const SPARK = { w: 150, h: 60 };
+// Sparkline box. The handoff's was 130x44; v5.15.0 made it 150x60 and v5.15.3 156x70, the
+// widest that still leaves the longest metric name room. The card also grows the height
+// (up to SPARK.growMax more) into any space left on the page. x is spread evenly with 6px
+// each side. y is returned as t (0 = lowest value, 1 = highest) and drawn at the chart's
+// height: from h - 8 (t = 0) up to 8 (t = 1), the baseline at h - 4 (sparkY).
+export const SPARK = { w: 156, h: 70, growMax: 34 };
+export const sparkY = (t, h) => +((h - 8) - t * (h - 16)).toFixed(1);
 // Speed (lower is better) is drawn as raw times, so faster sits lower, with a dashed
 // least-squares trend line that slopes down as the athlete gets faster (v5.15.0); the
 // scale takes in the line's ends.
@@ -83,11 +86,11 @@ function spark(pts, lowerIsBetter, bestIdx, neutral) {
   const ends = fit ? [fit.at(0), fit.at(n - 1)] : [];
   const lo = Math.min(...vs, ...ends), hi = Math.max(...vs, ...ends);
   const x = (i) => (n > 1 ? 6 + i * ((SPARK.w - 12) / (n - 1)) : SPARK.w / 2);
-  const y = (v) => (hi > lo ? (SPARK.h - 8) - ((v - lo) / (hi - lo)) * (SPARK.h - 16) : SPARK.h / 2);
+  const t = (v) => +(hi > lo ? (v - lo) / (hi - lo) : 0.5).toFixed(4);
   const dots = pts.map((p, i) => {
     const isBest = !neutral && i === bestIdx;
     const isLast = i === n - 1;
-    return { x: +x(i).toFixed(1), y: +y(vs[i]).toFixed(1), r: isBest ? 4.5 : isLast ? 3.5 : 2.5, kind: isBest ? 'best' : isLast ? 'last' : 'other' };
+    return { x: +x(i).toFixed(1), t: t(vs[i]), r: isBest ? 4.5 : isLast ? 3.5 : 2.5, kind: isBest ? 'best' : isLast ? 'last' : 'other' };
   });
   // Up to 5 evenly spaced month labels under the chart.
   const labelIdx = n <= 5 ? pts.map((_, i) => i) : [0, 1, 2, 3, 4].map(k => Math.round(k * (n - 1) / 4));
@@ -98,8 +101,8 @@ function spark(pts, lowerIsBetter, bestIdx, neutral) {
     if (months.length && (months[months.length - 1].text === text || dots[i].x - months[months.length - 1].x < 24)) continue;
     months.push({ x: dots[i].x, text });
   }
-  const trend = fit ? { x1: +x(0).toFixed(1), y1: +y(ends[0]).toFixed(1), x2: +x(n - 1).toFixed(1), y2: +y(ends[1]).toFixed(1) } : null;
-  return { pts: dots.map(d => `${d.x},${d.y}`).join(' '), dots, months, trend };
+  const trend = fit ? { x1: +x(0).toFixed(1), t1: t(ends[0]), x2: +x(n - 1).toFixed(1), t2: t(ends[1]) } : null;
+  return { dots, months, trend };
 }
 
 const reportIndexCache = new WeakMap();
