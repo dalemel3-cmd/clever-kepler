@@ -68,12 +68,6 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
     const next = natural > H ? Math.max(0.7, Math.floor((H / natural) * 1000) / 1000) : 1;
     if (Math.abs(next - fit) > 0.002) setFit(next);
   });
-  const t = card.tiles;
-  const tiles = [
-    { n: t.prs, label: 'New PRs', sub: 'Best result came from the latest test', color: C.gold700 },
-    { n: `${t.improved} / ${t.scored}`, label: `Improved since ${card.firstMonth || 'first test'}`, sub: 'First test to latest', color: C.navy900 },
-    { n: t.top, label: `Top 5 in ${card.groupLabel}`, sub: `Rank on the ${card.groupLabel} team by best result`, color: C.navy900 },
-  ];
   const tone = (m) => (m.deltaTone === 'up' ? C.positive : m.deltaTone === 'down' ? C.danger : C.navy900);
   return (
     <div className="pc-page" data-testid="progress-card" data-fit={fit} style={{ width: W, height: H, boxSizing: 'border-box', background: C.white, color: C.text, fontFamily: BODY, overflow: 'hidden', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
@@ -87,15 +81,6 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
         <img src="/hp-logo.png" alt="Shiloh Christian Human Performance" style={{ height: 88, flexShrink: 0, margin: '6px -12px 0 0' }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1, background: C.border, border: `1px solid ${C.border}`, marginTop: 12 }}>
-        {tiles.map(tl => (
-          <div key={tl.label} data-testid="pc-tile" style={{ background: C.white, padding: '7px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1, color: tl.color }}>{tl.n}</div>
-            <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.navy900 }}>{tl.label}</div>
-          </div>
-        ))}
-      </div>
-
       {showTraining && (() => {
         const t = card.training;
         const cells = t.sessions ? [
@@ -105,7 +90,7 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
           ['Last', t.last, 'Most recent session'],
         ] : null;
         return (
-          <div data-testid="pc-training" style={{ marginTop: 10, display: 'flex', alignItems: 'stretch', border: `1px solid ${C.border}`, background: C.navy50 }}>
+          <div data-testid="pc-training" style={{ marginTop: 12, display: 'flex', alignItems: 'stretch', border: `1px solid ${C.border}`, background: C.navy50 }}>
             <div style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '0 12px', background: C.navy900, color: C.white, fontFamily: DISPLAY, fontWeight: 600, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Training</div>
             {cells ? cells.map(([l, v, sub]) => (
               <div key={l} style={{ flex: 1, minWidth: 0, padding: '6px 12px', borderLeft: `1px solid ${C.border}` }}>
@@ -131,9 +116,9 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 24 }}>
         {card.metrics.length === 0 && <p style={{ gridColumn: '1 / -1', color: C.muted, fontSize: 13 }}>No results logged for this athlete yet.</p>}
         {card.metrics.map(m => m.na ? (
-          <div key={m.key} data-testid="pc-metric" data-na="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
+          <div key={m.key} data-testid="pc-metric" data-na="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.muted }}>{m.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: C.muted }}>{m.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1, color: C.border }}>N/A</span>
                 <span style={{ fontSize: 12, color: C.muted }}>{m.kind === 'mass' ? 'No weigh-ins yet' : 'Not tested yet'}</span>
@@ -142,9 +127,9 @@ function Card({ card, showNote, showFocus = true, showTraining = true, showXbw =
             <svg width={SPARK.w} height={SPARK.h} viewBox={`0 0 ${SPARK.w} ${SPARK.h}`} aria-hidden="true"><line x1="6" y1={SPARK.h - 4} x2={SPARK.w - 6} y2={SPARK.h - 4} style={{ stroke: C.border }} strokeWidth="1" strokeDasharray="3 3" /></svg>
           </div>
         ) : (
-          <div key={m.key} data-testid="pc-metric" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
+          <div key={m.key} data-testid="pc-metric" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: '1 1 auto' }}>
-              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
               {/* A PR shows as one gold "PR · date" tag in place of "Best · date" (v5.15.0), so
                   the number row fits beside the larger chart. */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>

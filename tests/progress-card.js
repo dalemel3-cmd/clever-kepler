@@ -97,8 +97,9 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   const cut = await page.getByTestId('pc-metric').evaluateAll(rows => rows.map(r => { const l = r.firstElementChild.firstElementChild; return l.scrollWidth - l.clientWidth; }));
   check('metric names are not cut off', cut.every(v => v <= 0), JSON.stringify(cut));
   check('× BW under lift best: front squat 248 / 180.5 = 1.37× BW', /1\.37× BW/.test(fs), fs);
-  const tiles = await page.getByTestId('pc-tile').allInnerTexts();
-  check('tiles: 1 PR, 3/3 improved, 3 in top 5 Football', /^1\b/.test(tiles[0]) && /3 \/ 3/.test(tiles[1]) && /^3\b/.test(tiles[2]), JSON.stringify(tiles));
+  // v5.15.2: the New PRs / Improved / Top 5 tiles are gone; Training sits right under the header.
+  check('no summary tiles (New PRs / Improved / Top 5)', await page.getByTestId('pc-tile').count() === 0 && !/NEW PRS|IMPROVED SINCE|TOP 5 IN/i.test(await card.innerText()));
+  check('training bar sits right under the header', await card.evaluate(el => { const t = el.querySelector('[data-testid=pc-training]'); return !!t && t.previousElementSibling?.querySelector('img') != null; }));
   const focus = await page.getByTestId('pc-focus').allInnerTexts();
   check('focus: Bench 7.3% below best of 205 × 1', focus.length >= 1 && /Bench/.test(focus[0]) && /7\.3% below your best of 205 × 1/.test(focus[0]), JSON.stringify(focus));
   await page.getByTestId('pc-note-input').fill('Great block. Keep driving the squat.');

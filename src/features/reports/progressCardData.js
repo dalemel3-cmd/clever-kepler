@@ -10,7 +10,6 @@ import { displayName } from './readinessData';
 import { linearFit } from '../../utils/trendLine';
 
 export const FOCUS_PCT = 3;   // handoff: latest >= 3% below best -> focus area
-export const TOP_RANK = 5;    // "Top 5 in {team}"
 
 // The card's fixed metric list, in print order (v5.7.4). Every one shows - "N/A" when the
 // athlete hasn't tested it - unless a coach toggles it off. Lifts match the app's lift
@@ -227,7 +226,6 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
   const massRow = hidden.mass ? null : (mass || { key: 'mass', kind: 'mass', label: 'Body Mass', unit: 'lb', na: true, tests: 0 });
   const cardMetrics = massRow ? [...metrics, massRow] : metrics;
 
-  const scored = shown.filter(m => m.tests > 1);
   const focus = shown.filter(m => m.tests > 1 && m.offBest >= FOCUS_PCT).sort((a, b) => b.offBest - a.offBest).slice(0, 2)
     .map(m => ({ label: m.label, note: `Latest ${m.latestText} ${m.unit}, ${m.offBest.toFixed(1)}% below your best of ${m.bestText} (${mdOf(m.bestDay)}). Retest after the next block.` }));
 
@@ -237,7 +235,6 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
     const ya = a.slice(0, 4), yb = b.slice(0, 4);
     return ya === yb ? `${monthOf(a)}${monthOf(a) !== monthOf(b) ? `–${monthOf(b)}` : ''} ${yb}` : `${monthOf(a)} ${ya}–${monthOf(b)} ${yb}`;
   })() : '';
-  const firstMonth = days.length ? monthOf(days[0]) : '';
 
   // Training strip: session RPE in the chosen range (every session unless a range is
   // picked, v5.15.0). "Logged" = days this athlete logged an RPE out of the days anyone on
@@ -266,12 +263,7 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
   return {
     training, bodyWeight,
     name: displayName(athlete.name), sport: athlete.sport || '', pos: athlete.position || '', classYear: gradYearFor(athlete.grade, now),
-    span, firstMonth, groupLabel,
-    tiles: {
-      prs: shown.filter(m => m.isPR).length,
-      improved: scored.filter(m => m.deltaTone === 'up').length, scored: scored.length,
-      top: shown.filter(m => m.rankN > 1 && m.rank <= TOP_RANK).length,
-    },
+    span, groupLabel,
     metrics: cardMetrics, focus,
   };
 }

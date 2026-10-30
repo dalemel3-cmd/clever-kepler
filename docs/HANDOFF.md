@@ -4295,7 +4295,17 @@ next to `pct` (program JSON, no schema change):
 Tests: `tests/program-manual-weight.js` (21); `program-template-periodization.js` updated
 for the new column.
 
-## 146. Next up
+## 146. Progress Card: summary tiles removed (v5.15.2)
+
+The owner asked to drop the three tiles under the header (New PRs, Improved since <month>,
+Top 5 in <team>) and move the Training bar into their place. `ProgressCard.jsx` no longer
+renders them; the Training bar (`pc-training`, still the "Training" toggle) sits 12 px under
+the header. `buildProgressCard` no longer returns `tiles` or `firstMonth`, and `TOP_RANK` is
+gone (per-metric ranks are unchanged). The metric rows' gap is 10 px and names use 0.05em
+letter spacing so "Vertical (Hands on Hips)" fits at full size, now that a typical card no
+longer has to shrink (fit 1). Test: `tests/progress-card.js` (38).
+
+## 147. Next up
 
 - **`tests/rpe.js` [RPE-B] fails on main too** (found while testing v5.15.0, not caused by it):
   "RPE-only athlete is listed as never weighed in -> RPE rows are being counted as weigh-in
