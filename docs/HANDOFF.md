@@ -4226,7 +4226,20 @@ under the 5 GB/month Supabase Free limit), UI polish, and the top open items fro
 - Added `overflow-x-hidden` and `flex-wrap` / `min-w-0` guards so `#entry` and `#reports`
   have zero sideways scroll on 390 px, 768 px, and 820 px viewports.
 
-## 143. Next up
+## 143. Average Body Weight: "Full-team days only" (v5.14.1)
+
+Football weighs the whole team on Mondays (~46-51) and rechecks only the ones who were light
+on Thursdays (4-21). The Analytics chart averages whoever weighed in each day, so every
+Thursday was a different, smaller (and heavier) group: spikes of +20 to +60 lb that hid the
+trend. `AnalyticsScreen.jsx` now marks a day `Recheck` when fewer than half of a full day's
+count weighed in. A full day is the upper quartile of the window's daily counts (with 4+
+weighed days), otherwise the biggest day; nothing is left out unless a full day has 6+
+athletes. "Full-team days only" (`bw-full-days`, localStorage `hpd_analytics_full_days`,
+default on) drops those points (the line joins the full days) and the Avg Body Weight tile
+uses full days only; a note gives the count and the threshold. Off shows every day as before.
+Test: `tests/analytics-rechecks.js` (9).
+
+## 144. Next up
 
 - **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
   prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity

@@ -164,7 +164,18 @@ export default function AnalyticsScreen({
       })
       .sort((x, y) => y.load - x.load);
 
+    // Recheck days (v5.13.1): on a day only a few athletes weighed in - the Thursday
+    // recheck of the ones who were light on Monday - the average is a different group, so
+    // it shows as a spike. A day counts as a recheck when fewer than half of a full day's
+    // count weighed in (a full day = the upper quartile of this window's daily counts, or
+    // the biggest day when there are only a few; 6+ athletes, or nothing is left out).
+    const counts = trend.map(d => d.WeighedCount).filter(n => n > 0).sort((x, y) => x - y);
+    const fullDay = counts.length >= 4 ? counts[Math.floor((counts.length - 1) * 0.75)] : (counts[counts.length - 1] || 0);
+    const recheckBelow = fullDay >= 6 ? fullDay / 2 : 0;
+    for (const d of trend) d.Recheck = d.WeighedCount > 0 && d.WeighedCount < recheckBelow;
+
     const weighedDays = trend.filter(d => d['Avg Weight'] != null);
+    const fullDays = weighedDays.filter(d => !d.Recheck);
     const sleptDays = trend.filter(d => d['Avg Sleep'] != null);
     return {
       trend,
@@ -174,6 +185,10 @@ export default function AnalyticsScreen({
       totals: {
         athletes: roster.length,
         avgWeight: weighedDays.length ? (weighedDays.reduce((s, d) => s + d['Avg Weight'], 0) / weighedDays.length).toFixed(1) : null,
+        avgWeightFull: fullDays.length ? (fullDays.reduce((s, d) => s + d['Avg Weight'], 0) / fullDays.length).toFixed(1) : null,
+        rechecks: weighedDays.length - fullDays.length,
+        recheckBelow: Math.ceil(recheckBelow),
+        fullDay,
         avgSleep: sleptDays.length ? (sleptDays.reduce((s, d) => s + d['Avg Sleep'], 0) / sleptDays.length).toFixed(1) : null,
         totalLoad: Math.round(loads.reduce((s, l) => s + l.load, 0)),
       },
@@ -204,6 +219,12 @@ export default function AnalyticsScreen({
   const grid = 'rgba(255,255,255,0.06)';
 
   const hasAnyWeight = model.trend.some(d => d['Avg Weight'] != null);
+  // "Full-team days only" (v5.13.1): on by default, remembered on the device.
+  const [fullDaysOnly, setFullDaysOnly] = React.useState(() => { try { return localStorage.getItem('hpd_analytics_full_days') !== '0'; } catch { return true; } });
+  const toggleFullDays = () => setFullDaysOnly(v => { try { localStorage.setItem('hpd_analytics_full_days', v ? '0' : '1'); } catch { /* ignore */ } return !v; });
+  const hidingRechecks = fullDaysOnly && model.totals.rechecks > 0;
+  const weightTrend = hidingRechecks ? model.trend.map(d => (d.Recheck ? { ...d, 'Avg Weight': null } : d)) : model.trend;
+  const avgWeightShown = hidingRechecks ? model.totals.avgWeightFull : model.totals.avgWeight;
   const hasAnySleep = model.trend.some(d => d['Avg Sleep'] != null);
   const hasAnyLoad = model.trend.some(d => d['Session Load'] != null);
 
@@ -318,7 +339,7 @@ export default function AnalyticsScreen({
       {/* Headline numbers */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '16px' }}>
         {[
-          { label: 'Avg Body Weight', value: model.totals.avgWeight != null ? `${model.totals.avgWeight} lbs` : '—', color: 'var(--color-accent)', icon: <TrendingUp size={14} /> },
+          { label: 'Avg Body Weight', value: avgWeightShown != null ? `${avgWeightShown} lbs` : '—', color: 'var(--color-accent)', icon: <TrendingUp size={14} /> },
           { label: 'Recovery (Avg Sleep)', value: model.totals.avgSleep != null ? `${model.totals.avgSleep} hrs` : '—', color: '#60a5fa', icon: <Activity size={14} /> },
           { label: 'Total Session Load', value: model.totals.totalLoad ? model.totals.totalLoad.toLocaleString() : '—', color: '#a78bfa', icon: <Target size={14} /> },
           { label: 'Athletes In View', value: String(model.totals.athletes), color: 'var(--white)', icon: <Award size={14} /> },
@@ -332,20 +353,44 @@ export default function AnalyticsScreen({
 
       {/* Body weight trend */}
       <div className="card-glass glow-card" style={card}>
-        <div>
-          <span style={eyebrow('var(--color-accent)')}><TrendingUp size={14} /> TEAM TREND</span>
-          <h3 style={h3}>AVERAGE BODY WEIGHT</h3>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-            Morning weigh-ins only — post-practice sweat checks and RPE entries are excluded.
-            Each point averages whoever weighed in that day, so an off-cycle recheck of
-            just a few athletes can look like a spike — hover a point to see how many
-            athletes it's actually built from.
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+            <span style={eyebrow('var(--color-accent)')}><TrendingUp size={14} /> TEAM TREND</span>
+            <h3 style={h3}>AVERAGE BODY WEIGHT</h3>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+              Morning weigh-ins only — post-practice sweat checks and RPE entries are excluded.
+              Each point averages whoever weighed in that day — hover a point to see how many
+              athletes it's built from.
+            </div>
           </div>
+          <button
+            type="button"
+            data-testid="bw-full-days"
+            aria-pressed={fullDaysOnly}
+            onClick={toggleFullDays}
+            title="Leave out days when only a few athletes weighed in (e.g. a Thursday recheck of the ones who were light on Monday)"
+            style={{
+              minHeight: '44px', padding: '0 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 800, fontSize: '12px',
+              textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap',
+              border: `1px solid ${fullDaysOnly ? 'var(--color-accent)' : 'rgba(255,255,255,0.18)'}`,
+              background: fullDaysOnly ? 'rgba(184,156,91,0.18)' : 'transparent',
+              color: fullDaysOnly ? 'var(--color-accent)' : 'var(--color-text-muted)',
+            }}
+          >
+            {fullDaysOnly ? '✓ ' : ''}Full-team days only
+          </button>
         </div>
+        {hasAnyWeight && model.totals.rechecks > 0 && (
+          <div data-testid="bw-recheck-note" style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '-6px' }}>
+            {hidingRechecks
+              ? `Leaving out ${model.totals.rechecks} recheck day${model.totals.rechecks === 1 ? '' : 's'} (fewer than ${model.totals.recheckBelow} athletes weighed in; a full day here is about ${model.totals.fullDay}).`
+              : `${model.totals.rechecks} day${model.totals.rechecks === 1 ? '' : 's'} with fewer than ${model.totals.recheckBelow} athletes weighed in ${model.totals.rechecks === 1 ? 'is' : 'are'} included - turn on "Full-team days only" to leave ${model.totals.rechecks === 1 ? 'it' : 'them'} out.`}
+          </div>
+        )}
         {hasAnyWeight ? (
           <div style={{ width: '100%', height: 260 }}>
             <ResponsiveContainer>
-              <AreaChart data={model.trend} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <AreaChart data={weightTrend} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="analyticsWeight" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.45} />

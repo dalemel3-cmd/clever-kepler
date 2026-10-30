@@ -1,6 +1,6 @@
 # HPD App — agent handoff (for Google Antigravity and any other coding agent)
 
-Current as of **v5.13.0, 2026-10-29** (`main` = `1a5839d`). Read this whole file before
+Current as of **v5.14.1, 2026-10-30**. Read this whole file before
 changing anything. `docs/HANDOFF.md` has the full history (one `## N.` section per change,
 with the reasoning); `VERSIONING.md` has one row per release.
 
@@ -118,7 +118,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 3. Add a row to `VERSIONING.md`.
 4. In `docs/HANDOFF.md`, replace the trailing `## N. Next up` with `## N. <what changed>
    (vX.Y.Z)`, then a new `## N+1. Next up` that carries the open list forward. The last
-   numbered section is currently **§141**, and **§142 is Next up**.
+   numbered section is currently **§143**, and **§144 is Next up**.
 5. Commit with a plain message (what and why), push your branch, and give the owner the
    preview URL.
 6. Merge or push to `main` **only after the owner says "push it"**. Fast-forward only; don't
@@ -172,7 +172,7 @@ They inject `@page` only while open, and are sized for US Letter.
 | `lift_logs` | `lift_type`, `weight_lbs`, `reps`, `source` (`manual` or `kiosk`), `notes` |
 | `performance_tests` | `test_type` + `test_variant` (broad jump is stored as `board_jump`) |
 | `programs` | one row per week. `days` is JSON: `[{id, date, focus, warmTitle, warm[], blocks:[{id, code, name, note, maxKey, rx, sets:[{reps, pct, tempo}], velocity}], finTitle, fin[]}]`. `max_map` = which Lift Tracker lift each %-key (`clean`, `bench`, `squat`, `dl`, `ohp`) reads from, plus `window` and `overrides[athleteId][key]` (entered maxes, which win). `archived_at` hides from the list and the tablets, but still counts in Periodization |
-| `workout_sessions` (v5.13.0) | one row per athlete × day done × program day: `session_date` (Central), `program_id`, `day_id`, `planned_date`, `sets` (which logged lift_logs belong to which set), `done` (checked-off work), `items_done` / `items_total`, start/finish, minutes, RPE. Unique `(athlete_id, session_date, day_id)`. **No screen shows these yet** |
+| `workout_sessions` (v5.13.0) | one row per athlete × day done × program day: `session_date` (Central), `program_id`, `day_id`, `planned_date`, `sets` (which logged lift_logs belong to which set), `done` (checked-off work), `items_done` / `items_total`, start/finish, minutes, RPE. Unique `(athlete_id, session_date, day_id)`. Shown in Periodization: completed vs prescribed, and a Completed workouts table (v5.14.0) |
 | `coaches` | access control (approved coaches only) |
 | `alert_status`, `plyomat_sync_state`, `app_errors` | |
 
@@ -189,8 +189,9 @@ They inject `@page` only while open, and are sized for US Letter.
   logged as the main lift (`isBarbell`).
 - **Maxes:**
   - A program's max is the best est. 1RM in the chosen window.
-  - The owner's entered maxes are stored as **per-program overrides**. A newly imported week
-    starts without them (this is an open item).
+  - The owner's entered maxes are stored as **per-program overrides**. Since v5.14.0 an
+    import copies them from the latest program with the same name or team, and Edit maxes
+    has "Copy maxes from…".
 - **Rack tablet (Lift Kiosk):**
   - Building the rack (including "Select multiple" → Done adding) **doesn't open anyone's
     workout**. Each athlete taps their own name.
@@ -250,19 +251,18 @@ They inject `@page` only while open, and are sized for US Letter.
 
 ## 11. Open items / next up (most useful first)
 
-1. **Completed vs prescribed volume.** Sessions are saved now. Plot completed sets and reps
-   per week (by `session_date`) next to prescribed (by planned date) in Periodization. Add a
-   coach view of who did which day.
-2. **Carry entered maxes to new programs.** Do it on import, or add an "Upload maxes" sheet on
-   Edit maxes. Overrides are per program today.
-3. **Intensity for non-% weeks.** The owner asked about August. Options already proposed: a
+Done in v5.14.0 (from Antigravity): completed vs prescribed volume and a Completed workouts
+table in Periodization, max carry-over on import plus "Copy maxes from…" on Edit maxes, the
+egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #reports.
+
+1. **Intensity for non-% weeks.** The owner asked about August. Options already proposed: a
    per-week planned intensity (hollow dot), actual intensity from logged sets ÷ max, or time
    under tension for capacity blocks. Waiting on the owner's choice.
-4. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
-5. Older open items are in `docs/HANDOFF.md` §142 (Next up): leaked-password protection and
+2. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
+3. Older open items are in `docs/HANDOFF.md` §144 (Next up): leaked-password protection and
    a "Forgot password" link, grades for athletes missing them, the Cheer & Dance jump
    technique, PPS/RSI test types, and a nicer Vercel domain.
-6. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
+4. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
    use. The owner may move to Supabase Pro: the Free plan pauses after about 7 days of
    inactivity and has no backups.
 
@@ -278,7 +278,7 @@ They inject `@page` only while open, and are sized for US Letter.
 
 ## 13. Docs index
 
-- `docs/HANDOFF.md`: full change history (§1–§141) and the live Next-up list (§142).
+- `docs/HANDOFF.md`: full change history (§1–§143) and the live Next-up list (§144).
 - `VERSIONING.md`: one row per release.
 - `docs/RUNBOOK.md`: the owner's runbook.
 - `docs/PROJECT_HANDOFF.md`: older summary (v5.7.5). This file supersedes it.
