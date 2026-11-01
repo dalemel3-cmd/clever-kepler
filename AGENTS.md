@@ -1,6 +1,6 @@
 # HPD App — agent handoff (for Google Antigravity and any other coding agent)
 
-Current as of **v5.15.3, 2026-10-30**. Read this whole file before
+Current as of **v5.15.4, 2026-11-01**. Read this whole file before
 changing anything. `docs/HANDOFF.md` has the full history (one `## N.` section per change,
 with the reasoning); `VERSIONING.md` has one row per release.
 
@@ -78,7 +78,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 
 ## 4. Tests
 
-79 standalone scripts in `tests/`: `node tests/<name>.js`, each printing `N passed, M failed`.
+81 standalone scripts in `tests/`: `node tests/<name>.js`, each printing `N passed, M failed`.
 
 - **Browser tests** drive the **built** app with Playwright against
   `npx vite preview --port 4173 --strictPort`. They stub Supabase completely
@@ -86,16 +86,15 @@ npm run lint         # oxlint; a few existing warnings, no errors
   real database. Most honour `APP_URL=http://127.0.0.1:<port>`; `tap-targets.js` is hard-wired
   to 4173.
 - **Node-only tests** (no browser) import source through `tests/lib/src-resolve.mjs`:
-  `program-week-cards`, `program-grid`, `program-csv`, `season-rollover`, `workout-timer`.
+  `program-week-cards`, `program-grid`, `program-csv`, `season-rollover`, `workout-timer`,
+  `icon-font-subset`. `history-paging` runs app data code against an in-memory fake
+  Supabase (`tests/lib/fake-supabase-hook.mjs`).
 - **Setup on your machine:** `npm i --no-save playwright && npx playwright install chromium`.
   Playwright isn't in `package.json`, and `npm install` removes it.
   `CHROMIUM_PATH=/path/to/chrome` overrides the browser.
 - `tests/lib/make-xlsx.js` builds real .xlsx files for upload tests.
-- **Already failing before current work** (don't chase unless asked):
-  - `data-integrity` looks for a button removed in v5.4.5.
-  - `polish` reports sideways scroll on #entry/#reports.
-  - `rpe` has one assertion.
-  - `tap-targets` flags the Reports checkboxes at 13×13.
+- **Known failures: none** (v5.15.4: the full suite, 81 files, passes). `tooltip-units`
+  can miss a chart-bar hover while the chart animates; rerun once before treating it as real.
 - Run the area's tests after a change:
   - **Programs:** `program-builder`, `program-template-periodization`, `program-grid`,
     `program-csv`, `program-week-cards`, `program-week-cards-upload`.
@@ -118,7 +117,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 3. Add a row to `VERSIONING.md`.
 4. In `docs/HANDOFF.md`, replace the trailing `## N. Next up` with `## N. <what changed>
    (vX.Y.Z)`, then a new `## N+1. Next up` that carries the open list forward. The last
-   numbered section is currently **§148**, and **§149 is Next up**.
+   numbered section is currently **§149**, and **§150 is Next up**.
 5. Commit with a plain message (what and why), push your branch, and give the owner the
    preview URL.
 6. Merge or push to `main` **only after the owner says "push it"**. Fast-forward only; don't
@@ -227,6 +226,10 @@ They inject `@page` only while open, and are sized for US Letter.
     separately (`reports/rpeHistory.js`), because the app only holds `dataWindowDays`.
 - **Usage:**
   - Fetch brakes on every bulk load.
+  - Any read that can pass 1,000 rows goes through `fetchAllRows()`. Supabase returns at
+    most 1,000 rows per request, silently.
+  - New Material icons must be added to `icon_names` in `index.html`
+    (`tests/icon-font-subset.js`).
   - The focus refresh is throttled.
   - Saves apply the returned row.
   - Realtime handlers are debounced.
@@ -270,7 +273,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
    per-week planned intensity (hollow dot), actual intensity from logged sets ÷ max, or time
    under tension for capacity blocks. Waiting on the owner's choice.
 2. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
-3. Older open items are in `docs/HANDOFF.md` §149 (Next up): leaked-password protection and
+3. Older open items are in `docs/HANDOFF.md` §150 (Next up): leaked-password protection and
    a "Forgot password" link, grades for athletes missing them, the Cheer & Dance jump
    technique, PPS/RSI test types, and a nicer Vercel domain.
 4. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
@@ -292,7 +295,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 
 ## 13. Docs index
 
-- `docs/HANDOFF.md`: full change history (§1–§148) and the live Next-up list (§149).
+- `docs/HANDOFF.md`: full change history (§1–§149) and the live Next-up list (§150).
 - `docs/OPS.md`: the operations playbook (agent team, cadence, budgets, rules).
 - `.claude/agents/`: the agent role briefs (`hpd-qa`, `hpd-reliability`, `hpd-performance`,
   `hpd-reviewer`).

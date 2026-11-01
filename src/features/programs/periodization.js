@@ -29,7 +29,9 @@ export function repsOf(text, name = '') {
 // The sets an exercise prescribes: set-by-set rows, or a text prescription read as
 // sets × reps ("3x 8 · @ 95 lb"). Anything else ("2 Rounds", "BW") isn't counted.
 export function prescribedSets(b) {
-  if (b?.sets?.length) return b.sets.map(s => ({ ...repsOf(s.reps, b.name), pct: Number(s.pct) > 0 ? Number(s.pct) : null }));
+  // A set with a manual weight (lb, v5.15.1) has no % of max, even if one was also typed:
+  // the weight wins everywhere else, so it doesn't count toward intensity either (v5.15.4).
+  if (b?.sets?.length) return b.sets.map(s => ({ ...repsOf(s.reps, b.name), pct: !(Number(s.lb) > 0) && Number(s.pct) > 0 ? Number(s.pct) : null }));
   const m = String(b?.rx || '').split('·')[0].match(/^\s*(\d+)\s*[x×]\s*(.+)$/i);
   if (!m || Number(m[1]) > 20) return [];
   const one = { ...repsOf(m[2], b.name), pct: null };
@@ -167,17 +169,34 @@ export const liftSummary = (lifts) => MAIN_LIFTS.filter(([k]) => lifts[k]).map((
 // actually logged or checked off per session_date, matched against the program day's
 // blocks so exercise/movement filters and text prescriptions ("3x 8 ea") work identically.
 export function completedFrom(workoutSessions = [], programs = [], { sport = 'ALL', lift = '', from = '', to = '' } = {}) {
-  const dayById = new Map();
+  // Match on program + day (v5.15.4). Day ids aren't unique across programs: a program
+  // duplicated before v5.15.4 kept the original's day ids, so matching on day id alone
+  // counted a session against whichever copy loaded last. Without a program id (deleted
+  // or device-only program) fall back to the day id: the copy with the session's program
+  // name and week, else the one dated that day.
+  const dayByKey = new Map();
+  const daysById = new Map();
   for (const p of programs || []) {
     for (const d of p.days || []) {
-      if (d?.id) dayById.set(String(d.id), { program: p, day: d });
+      if (!d?.id) continue;
+      const m = { program: p, day: d };
+      dayByKey.set(`${p.id}|${d.id}`, m);
+      if (!daysById.has(String(d.id))) daysById.set(String(d.id), []);
+      daysById.get(String(d.id)).push(m);
     }
   }
+  const matchFor = (ws) => {
+    if (ws.program_id && dayByKey.has(`${ws.program_id}|${ws.day_id}`)) return dayByKey.get(`${ws.program_id}|${ws.day_id}`);
+    const c = daysById.get(String(ws.day_id || '')) || [];
+    if (c.length < 2) return c[0];
+    return c.find(m => m.program.name === ws.program_name && (m.program.week_label || null) === (ws.week_label || null))
+      || c.find(m => m.day.date && m.day.date === ws.planned_date) || c.find(m => m.day.date && m.day.date === ws.session_date) || c[0];
+  };
   const out = [];
   for (const ws of workoutSessions || []) {
     const date = ws?.session_date;
     if (!date) continue;
-    const match = dayById.get(String(ws.day_id || ''));
+    const match = matchFor(ws);
     const team = ws.sport || match?.program?.sport || '';
     if (sport !== 'ALL' && team !== sport) continue;
     if ((from && date < from) || (to && date > to)) continue;

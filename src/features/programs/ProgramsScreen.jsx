@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, Trash2, Copy, Printer, ChevronUp, ChevronDown, Save, Archive, Search, FileDown, FileUp, ChartColumn, Download } from 'lucide-react';
 import { usePrograms } from './usePrograms';
-import { MAX_KEYS, MAX_WINDOWS, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
+import { MAX_KEYS, MAX_WINDOWS, copyProgram, newBlock, newDay, newProgram, newSet, nextCode, sampleProgram } from './programData';
 import { parseCsv, rowsToPrograms, programsToRows, templateCsv, toCsv } from './programCsv';
 import { isGrid, parseGrid, gridTemplateCsv } from './programGrid';
 import { isWeekCard, parseWeekCard } from './programWeekCard';
@@ -362,7 +362,7 @@ export default function ProgramsScreen({ athletes, liftLogs, settings }) {
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="button" data-testid="pb-save" style={btn(true)} onClick={doSave}><Save size={16} /> {dirty ? 'Save' : 'Saved'}</button>
                 <button type="button" data-testid="pb-print" style={btn(false)} onClick={() => { setPrinting(true); if (dirty) doSave(); }}><Printer size={16} /> Print cards</button>
-                <button type="button" style={btn(false)} onClick={() => { const c = clone(draft); c.id = newProgram().id; c.name = `${draft.name} (copy)`; edit(c); setDirty(true); }}><Copy size={16} /> Duplicate</button>
+                <button type="button" style={btn(false)} onClick={() => { edit(copyProgram(draft, `${draft.name} (copy)`)); setDirty(true); }}><Copy size={16} /> Duplicate</button>
                 <button type="button" data-testid="pb-export" style={btn(false)} onClick={() => downloadCsv(`${fileSafe(draft.name)}${draft.week_label ? `-${fileSafe(draft.week_label)}` : ''}.csv`, toCsv(programsToRows([draft])))} title="Download this program as a spreadsheet (same layout as the template)"><Download size={16} /> Download CSV</button>
                 {programs.some(p => p.id === draft.id) && (
                   <button type="button" data-testid="pb-archive" style={btn(false)} onClick={async () => { const res = await setArchived(draft, !draft.archived_at); if (res.ok) { setDraft(null); setMsg(''); } else setMsg("Couldn't update archive status — check connection."); }}>

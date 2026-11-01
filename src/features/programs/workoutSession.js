@@ -87,6 +87,9 @@ export function sessionFromRow(row, maxes = {}) {
     v: 1, programId: row.program_id || null, dayId: row.day_id || null, startedAt: ms(row.started_at) || Date.now(), maxes,
     sets: row.sets || {}, done: row.done || {}, progress: { done: row.items_done || 0, total: row.items_total || 0 },
     finishedAt: ms(row.finished_at), rpe: row.rpe ?? null, minutes: row.minutes ?? null, fromCloud: true,
+    // The other rack's save time: this tablet's saves are stamped later than it even if
+    // this tablet's clock runs slow, so the database keeps them (db/016, v5.15.4).
+    serverUpdatedAt: ms(row.updated_at),
   };
 }
 export function startSession({ athlete, program, day, liftLogs, seasonStartDate, now = Date.now() }) {

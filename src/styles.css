@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Oswald:wght@400;600;700&display=swap');
+/* Manrope / Oswald / Inter load once, from index.html. The @import that was here fetched
+   them a second time and held up this stylesheet (v5.15.4). */
 
 :root {
   /* Colors */

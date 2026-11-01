@@ -198,7 +198,8 @@ export default function EntryScreen({
                 setEditingAthleteId(null);
                 setNewAthlete({ name: '', sport: localSportFilter !== 'All' ? localSportFilter : '', team: '', grade: '', position: '' });
               }}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] whitespace-nowrap rounded-xl bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold tracking-wider transition-all hover:bg-[#d1b87a] shadow-md active:scale-95"
+              // Wraps onto two lines on a phone instead of running past the button (v5.15.4).
+              className="flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] min-w-0 whitespace-normal sm:whitespace-nowrap text-center leading-tight rounded-xl bg-[#b89c5b] text-[#030a14] font-headline-md text-sm uppercase font-bold tracking-wider transition-all hover:bg-[#d1b87a] shadow-md active:scale-95"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-base font-bold">person_add</span>
               <span>+ Add Guest / Trial</span>

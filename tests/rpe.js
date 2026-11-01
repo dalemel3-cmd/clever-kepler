@@ -124,14 +124,14 @@ const SEED_SETTINGS = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10
     const crashed = await page.getByText('Something went wrong.').count();
     check('reports renders without crashing', crashed === 0, page.errors[0] || '');
 
-    const text = await page.locator('body').innerText();
     // Rpe Only has never weighed in. Its last RPE row is today, so any "has a row = active"
-    // logic would report 100% compliance and hide the expired baseline entirely.
-    // The expired-baseline table stamps a status string; an RPE-only athlete has never
-    // weighed in, so they must appear with the "no weight log" status specifically -
-    // just finding their name somewhere on the page proves nothing.
-    check('RPE-only athlete is listed as never weighed in', /Rpe Only \(never\)/i.test(text),
-      'RPE rows are being counted as weigh-in activity');
+    // logic would hide them. Since v5.4.5 the report's "Weigh-in needed" list
+    // (rr-weighin) shows a never-weighed athlete by name alone; one with an old weigh-in
+    // gets " · Nd". So the name must be there with no day count (updated v5.15.4: the old
+    // "(never)" label went with the Expired Baselines table).
+    const needed = await page.getByTestId('rr-weighin').allInnerTexts();
+    check('RPE-only athlete is listed as never weighed in', needed.some(t => /^Rpe Only$/i.test(t.trim())),
+      `RPE rows are being counted as weigh-in activity: ${JSON.stringify(needed)}`);
     await ctx.close();
   }
 

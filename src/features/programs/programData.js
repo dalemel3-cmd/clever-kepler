@@ -110,6 +110,13 @@ export function maxesFor(athleteId, liftLogs = [], maxMap = {}, { seasonStartDat
 
 const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `p_${Date.now()}_${Math.random().toString(36).slice(2)}`);
 export const newSet = (reps = '5', pct = '', tempo = '', lb = '') => ({ reps, pct, tempo, ...(lb ? { lb } : {}) });
+// A copy of a program with new ids for it, its days and its blocks (v5.15.4). Copies used
+// to keep the original's day and block ids, so the tablets and Periodization couldn't tell
+// a session on the copy from one on the original.
+export const copyProgram = (p, name) => {
+  const c = JSON.parse(JSON.stringify(p));
+  return { ...c, id: uid(), name, days: (c.days || []).map(d => ({ ...d, id: uid(), blocks: (d.blocks || []).map(b => ({ ...b, id: uid() })) })) };
+};
 export const newBlock = (code = '1a') => ({ id: uid(), code, name: '', note: '', maxKey: '', rx: '', sets: [], velocity: '' });
 export const newDay = (date = '', focus = '') => ({ id: uid(), date, focus, warmTitle: 'Warm-Up (2 Rounds)', warm: [], blocks: [newBlock('1a')], finTitle: 'Core', fin: [] });
 export const newProgram = (liftTypes = []) => ({ id: uid(), name: 'New program', week_label: 'Week 1', phase: 'Strength + Power', sport: '', days: [newDay('', 'Lower'), newDay('', 'Upper')], max_map: defaultMaxMap(liftTypes) });

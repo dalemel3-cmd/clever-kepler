@@ -90,15 +90,8 @@ const logs = [
     await ctx.close();
   }
 
-  {
-    const { ctx, page } = await newPage({ athletes: athletes.slice(0, 2) });
-    await page.goto(`${APP}/#reports`); await page.waitForTimeout(1500);
-    await page.getByRole('button', { name: /CUSTOM BUILDER/ }).click(); await page.waitForTimeout(800);
-    const dropsPanel = page.locator('div').filter({ hasText: /TOP WEIGHT DROPS/ }).last();
-    const txt = (await dropsPanel.innerText().catch(() => '(not found)')).replace(/\n/g, ' | ').slice(0, 400);
-    console.log(`[C:LEADERBOARD] Top Drops panel: ${txt}`);
-    await ctx.close();
-  }
+  // C. (removed v5.15.4) probed the Reports "Custom Builder" Top Weight Drops panel; that
+  // builder was removed in v5.4.5, so the probe timed out and stopped the rest of the file.
 
   // ---------- D. hard network failure (fetch rejects): does save queue survive? ----------
   {

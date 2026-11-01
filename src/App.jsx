@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Users, Plus, CheckCircle, RefreshCw, Grid, Activity, Settings } from 'lucide-react';
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import { reportDataError } from './errorReporting';
-import { allowFetch } from './utils/fetchBrake';
+import { allowFetch, fetchAllRows } from './utils/fetchBrake';
 import './styles.css';
 import { AppSidebar } from './components/AppSidebar';
 import { AppHeader } from './components/AppHeader';
@@ -1030,11 +1030,14 @@ export default function App() {
       const windowStart = new Date();
       windowStart.setDate(windowStart.getDate() - effectiveWindowDays());
 
-      const { data, error } = await supabase
+      // Paged (v5.15.4): a window past 1,000 check-ins came back cut short, and the change
+      // probe's exact count then never matched data.length, so every probe re-downloaded.
+      const { data, error } = await fetchAllRows(() => supabase
         .from('weigh_ins')
         .select(WEIGH_IN_COLS)
         .gte('created_at', windowStart.toISOString())
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('id'));
       if (!error && data) {
         onlineData = data;
         // Keep the heartbeat's change-probe in sync with what we just pulled (same
@@ -1139,8 +1142,8 @@ export default function App() {
     const from = new Date(Date.now() - days * 86400000).toISOString();
     const to = new Date(Date.now() - base * 86400000).toISOString();
     try {
-      const { data, error } = await supabase.from('weigh_ins').select(WEIGH_IN_COLS)
-        .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false });
+      const { data, error } = await fetchAllRows(() => supabase.from('weigh_ins').select(WEIGH_IN_COLS)
+        .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false }).order('id'));
       if (error) { reportDataError(error, 'weigh_ins:history'); return; }
       extraReportWindowDays.current = days;
       setReportHistory(data || []);
@@ -1363,7 +1366,12 @@ export default function App() {
     let cloudIds = new Set();
     let cloudKeys = new Set();
     try {
-      const { data: cloudRows } = await supabase.from('weigh_ins').select('id,athlete_id,created_at');
+      // Paged (v5.15.4): checked against only the first 1,000 rows, older check-ins
+      // looked new and could be uploaded twice.
+      if (!allowFetch('weigh_ins:recovery', { max: 2, windowMs: 60000 })) { setRecoverySyncing(false); showToast('Recovery is already running. Try again in a minute.', 'info'); return; }
+      const { data: cloudRows, error: cloudErr } = await fetchAllRows(() => supabase.from('weigh_ins').select('id,athlete_id,created_at').order('created_at', { ascending: false }).order('id'));
+      // Without the cloud's list every recovered row would look new; stop rather than duplicate.
+      if (cloudErr) { setRecoverySyncing(false); showToast("Couldn't check what's already saved. Try again with a connection.", 'error'); return; }
       (cloudRows || []).forEach(r => {
         if (r.id) cloudIds.add(r.id);
         if (r.athlete_id && r.created_at) cloudKeys.add(`${r.athlete_id}_${new Date(r.created_at).getTime()}`);
@@ -2101,7 +2109,9 @@ export default function App() {
   const exportToCSV = async () => {
     try {
       let dataToExport = [];
-      const { data, error } = await supabase.from('weigh_ins').select('*').order('created_at', { ascending: false });
+      if (!allowFetch('weigh_ins:export', { max: 3, windowMs: 60000 })) { showToast('Export is already running. Try again in a minute.', 'info'); return; }
+      // Paged (v5.15.4): the export stopped at 1,000 rows.
+      const { data, error } = await fetchAllRows(() => supabase.from('weigh_ins').select('id,athlete_name,sport,weight_lbs,sleep_hrs,created_at').order('created_at', { ascending: false }).order('id'));
       
       if (!error && data && data.length > 0) {
         dataToExport = data;
@@ -2202,7 +2212,8 @@ export default function App() {
     showToast(`Baseline marker updated: ${weightVal} lbs (${dateStr}).`);
     fetchReportData();
     if (typeof selectedProfileId !== 'undefined' && selectedProfileId) {
-      fetchProfileData(selectedProfileId);
+      // force: the 60 s profile cache still has the old marker (v5.15.4).
+      fetchProfileData(selectedProfileId, true);
     }
   };
 
@@ -2384,30 +2395,35 @@ export default function App() {
 
   const fetchProfileDataRef = React.useRef(null);
   const profileCacheRef = React.useRef(new Map());
+  const profileRequestRef = React.useRef(null);
   const fetchProfileData = async (id, force = false) => {
+    profileRequestRef.current = id;
     const cached = !force ? profileCacheRef.current.get(id) : null;
     if (cached && (Date.now() - cached.at < 60000)) {
       setProfileData(cached.data);
       return;
     }
-    if (navigator.onLine && !allowFetch('weigh_ins:profile', { max: 15, windowMs: 60000 })) return;
-    // Instantly pre-populate from local reportData for snappy zero-delay transitions
+    // Instantly pre-populate from local reportData for snappy zero-delay transitions.
+    // Always replace what's shown, even with nothing and even when the brake below stops
+    // the fetch: returning first left the previous athlete's history on screen under this
+    // athlete's name (v5.15.4).
     const localData = reportData
       .filter(r => r.athlete_id === id)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    if (localData.length > 0) {
-      setProfileData(localData);
-    }
+    setProfileData(localData);
+    if (navigator.onLine && !allowFetch('weigh_ins:profile', { max: 15, windowMs: 60000 })) return;
     
     try {
       // Fetch newest-first then flip back to ascending: with ascending+limit the query
       // returned the OLDEST 180 rows, so profiles froze once an athlete passed 180 logs.
-      const { data, error } = await supabase
-        .from('weigh_ins')
-        .select(WEIGH_IN_COLS)
-        .eq('athlete_id', id)
-        .order('created_at', { ascending: false })
-        .limit(settingsRef.current.profileHistoryLimit);
+      // Paged only when the History Limit setting is over 1,000 (it goes up to 10,000; v5.15.4).
+      const histLimit = settingsRef.current.profileHistoryLimit;
+      const query = () => supabase.from('weigh_ins').select(WEIGH_IN_COLS).eq('athlete_id', id).order('created_at', { ascending: false }).order('id');
+      const { data: allRows, error } = histLimit <= 1000 ? await query().limit(histLimit) : await fetchAllRows(query, { maxPages: Math.ceil(histLimit / 1000) });
+      // A slow reply for an athlete the coach has already left must not replace the one
+      // now on screen (v5.15.4).
+      if (profileRequestRef.current !== id) return;
+      const data = allRows ? allRows.slice(0, histLimit) : null;
       if (error) reportDataError(error, 'weigh_ins:profile-fetch');
       let pData = data ? [...data].reverse() : localData;
       try {

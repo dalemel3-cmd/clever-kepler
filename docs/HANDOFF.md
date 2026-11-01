@@ -4332,11 +4332,81 @@ go on topic branches; `main` only on "push it"), budgets and the weekly report f
 weekly scheduled task (Sundays 19:23 Central) runs the four agents and sends the owner one
 report. The daily error check is unchanged. The first review ran on 2026-11-01.
 
-## 149. Next up
+## 149. Health-review fixes (v5.15.4)
 
-- **`tests/rpe.js` [RPE-B] fails on main too** (found while testing v5.15.0, not caused by it):
-  "RPE-only athlete is listed as never weighed in -> RPE rows are being counted as weigh-in
-  activity". Check whether the Reports compliance list or the test's expectation is stale.
+The first weekly review (§148) found these; the owner approved fixing them all and the
+database change.
+
+**History stopped at 1,000 rows (P1, live).** PostgREST returns at most 1,000 rows per
+request. lift_logs (1,218) and performance_tests (1,492) had passed it, so every device's
+daily full refresh replaced its cache with only the newest 1,000:
+- lifts before 2026-09-17 and July–August tests were missing from maxes, PRs, Progress Cards
+  and trends;
+- the CSV export stopped at 1,000 of 2,501 check-ins;
+- the recovery upload checked duplicates against 1,000 rows;
+- a weigh-in window over 1,000 rows would have made the change probe's exact count never
+  match `data.length`, so it would re-download every probe.
+
+`fetchAllRows(build, {maxPages})` in `fetchBrake.js` pages with `.range()` (ordered by
+`created_at` then `id`), de-duplicates by id, and stops on a short page, on a page bigger
+than asked (server ignored the range) or on a page with nothing new. It's used by
+`loadHistoryTable`, the weigh-in window and history fetches, CSV export and recovery (both
+now braked; recovery stops rather than risk duplicates if it can't read the cloud list),
+profile history (the setting goes to 10,000), `fetchAllSessions` (up to 10,000) and
+`rpeHistory`.
+
+**Rack session saves (`sessionCloud.js`).**
+- A change queued while a save was in flight (Finish mid-save) is now sent right after.
+- A Postgres row error (22xxx/23xxx) sends rows one at a time. A foreign-key error retries
+  without `program_id` (program deleted while the tablet was offline). A row that still
+  fails is set aside in `hpd_ws_failed` and reported, and the rest still save. Connection
+  errors keep the queue as before.
+- `db/016` (applied): a BEFORE UPDATE trigger ignores a save older (`updated_at`) than the
+  stored row, so a tablet reconnecting late can't overwrite a newer save from another rack.
+  Verified in a rolled-back transaction. It also adds an index on `workout_sessions(program_id)`
+  and `search_path=''` on `sync_athlete_metadata`.
+
+**Periodization.**
+- `completedFrom` matches on `program_id|day_id`. Without a program id it falls back to the
+  day id, preferring the copy dated that day.
+- Duplicate uses `copyProgram()` (new program, day and block ids). Earlier copies kept the
+  original's day ids; none exist in production.
+- `prescribedSets` gives a set with a manual `lb` no %.
+
+**Smaller fixes.**
+- `fetchProfileData` shows the athlete's local rows (or none) before the brake check, so a
+  braked fetch can't leave the previous athlete's history on screen. The baseline-marker
+  refresh forces past the 60 s cache.
+- The icon font is loaded with `icon_names=` (43 icons, alphabetical; ~52 KB instead of
+  ~4 MB, icons ~4 s sooner on a throttled iPad). `tests/icon-font-subset.js` fails if an
+  icon in `src/` is missing from the list. The duplicate Google Fonts `@import` in
+  `styles.css` is gone.
+- "+ Add Guest / Trial" wraps on phones (it was clipped at 390 px).
+- `useTodaysWorkouts` skips its 10-minute poll when hidden or 10pm–5am Central and
+  catches up when the screen comes back.
+- `tests/rpe.js` [RPE-B] now checks the "Weigh-in needed" list (`rr-weighin`), and
+  `tests/data-integrity.js` drops the removed Custom Builder probe.
+
+**Pre-release review** (`hpd-reviewer` on the diff) led to:
+- `db/017` (applied): the trigger now fires on insert too and replaces a future
+  `updated_at` with the database's time. Without it, a tablet whose clock ran ahead would
+  lock that athlete/day against every later save. For a slow clock: a session picked up
+  from another rack carries `serverUpdatedAt`, and `sessionRow` stamps saves after it.
+  Verified in a rolled-back transaction.
+- Profile history uses `.limit()` when the setting is ≤ 1,000 (paging only above), and a
+  reply for an athlete the coach has already left is ignored (`profileRequestRef`).
+- The CSV export selects only the columns it writes.
+- The Periodization fallback tries program name + week before date.
+
+Tests:
+- New: `tests/history-paging.js` (18; Supabase faked in memory via
+  `tests/lib/fake-supabase-hook.mjs`) and `tests/icon-font-subset.js` (5).
+- Full suite on the build: 80 of 81 files passed. `tooltip-units` missed a chart-bar
+  hover once (passes on rerun, twice); `polish`, `rpe`, `data-integrity` and `tap-targets`
+  pass now. After the review fixes, the profile, sync, offline, tablet, programs, Progress
+  Card and boot suites were rerun: all pass.
+
+## 150. Next up
 
 - **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
   prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity

@@ -25,6 +25,32 @@ export function allowFetch(key, { max = 6, windowMs = 60000 } = {}) {
   return true;
 }
 
+// PostgREST returns at most 1,000 rows per request (Supabase's max-rows), and a longer
+// result comes back cut short with no error. By 2026-11 lift_logs (1,218) and
+// performance_tests (1,492) had passed it, so the daily full refresh quietly dropped the
+// oldest history (v5.15.4, docs/HANDOFF.md §149). Any read that can pass 1,000 rows pages
+// through here. `build()` returns a fresh, ordered query; pages are requested until one
+// comes back short. Rows are de-duplicated by id (an insert during paging shifts the
+// next page by one row).
+export const PAGE_ROWS = 1000;
+export async function fetchAllRows(build, { maxPages = 50 } = {}) {
+  const rows = [];
+  const seen = new Set();
+  for (let p = 0; p < maxPages; p++) {
+    const { data, error } = await build().range(p * PAGE_ROWS, p * PAGE_ROWS + PAGE_ROWS - 1);
+    if (error) return { data: null, error };
+    const before = rows.length;
+    for (const r of data || []) {
+      if (r?.id != null) { if (seen.has(r.id)) continue; seen.add(r.id); }
+      rows.push(r);
+    }
+    // Done on a short page. Also stop if the server ignored the range (sent more than a
+    // page) or a page brought nothing new, rather than asking again up to maxPages times.
+    if (!data || data.length !== PAGE_ROWS || rows.length === before) break;
+  }
+  return { data: rows, error: null };
+}
+
 // Test hook so a Playwright run can inspect / reset the brake.
 if (typeof window !== 'undefined') window.__hpdFetchBrake = { hits, reset: () => { hits.clear(); reported.clear(); } };
 
@@ -43,12 +69,12 @@ export async function loadHistoryTable({ table, columns, cached, stampKey, onFul
   if (!allowFetch(`${table}:${incremental ? 'delta' : 'full'}`, { max: 4, windowMs: 60000 })) return { skipped: true };
   if (incremental) {
     const since = new Date(new Date(newest).getTime() - 120000).toISOString();
-    const { data, error } = await supabase.from(table).select(columns).gt('created_at', since).order('created_at', { ascending: false });
+    const { data, error } = await fetchAllRows(() => supabase.from(table).select(columns).gt('created_at', since).order('created_at', { ascending: false }).order('id'));
     if (error) return { error };
     onDelta(data || []);
     return { mode: 'delta', count: (data || []).length };
   }
-  const { data, error } = await supabase.from(table).select(columns).order('created_at', { ascending: false });
+  const { data, error } = await fetchAllRows(() => supabase.from(table).select(columns).order('created_at', { ascending: false }).order('id'));
   if (error) return { error };
   try { localStorage.setItem(stampKey, String(Date.now())); } catch { /* ignore */ }
   onFull(data || []);
