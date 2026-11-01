@@ -78,7 +78,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 
 ## 4. Tests
 
-76 standalone scripts in `tests/`: `node tests/<name>.js`, each printing `N passed, M failed`.
+79 standalone scripts in `tests/`: `node tests/<name>.js`, each printing `N passed, M failed`.
 
 - **Browser tests** drive the **built** app with Playwright against
   `npx vite preview --port 4173 --strictPort`. They stub Supabase completely
@@ -118,7 +118,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 3. Add a row to `VERSIONING.md`.
 4. In `docs/HANDOFF.md`, replace the trailing `## N. Next up` with `## N. <what changed>
    (vX.Y.Z)`, then a new `## N+1. Next up` that carries the open list forward. The last
-   numbered section is currently **§147**, and **§148 is Next up**.
+   numbered section is currently **§148**, and **§149 is Next up**.
 5. Commit with a plain message (what and why), push your branch, and give the owner the
    preview URL.
 6. Merge or push to `main` **only after the owner says "push it"**. Fast-forward only; don't
@@ -270,7 +270,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
    per-week planned intensity (hollow dot), actual intensity from logged sets ÷ max, or time
    under tension for capacity blocks. Waiting on the owner's choice.
 2. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
-3. Older open items are in `docs/HANDOFF.md` §148 (Next up): leaked-password protection and
+3. Older open items are in `docs/HANDOFF.md` §149 (Next up): leaked-password protection and
    a "Forgot password" link, grades for athletes missing them, the Cheer & Dance jump
    technique, PPS/RSI test types, and a nicer Vercel domain.
 4. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
@@ -282,6 +282,9 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 - A **daily error check** runs as a Claude Code scheduled task around 14:10 UTC. It queries
   `app_errors` and only messages the owner when something is new. If you check errors
   yourself, compare against §10.
+- A **weekly health review** (Sunday evening Central) runs the agent team in
+  `.claude/agents/` (reliability, QA, performance, code review) and sends the owner one
+  report. Roles, cadence, budgets and what agents may do: `docs/OPS.md`.
 - Supabase Free plan watch-outs: 5 GB egress per month, pausing after inactivity, no
   backups. Usage dropped to about 0.1–0.3 GB/month after the v5.8 usage guards; keep it
   there.
@@ -289,7 +292,10 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 
 ## 13. Docs index
 
-- `docs/HANDOFF.md`: full change history (§1–§147) and the live Next-up list (§148).
+- `docs/HANDOFF.md`: full change history (§1–§148) and the live Next-up list (§149).
+- `docs/OPS.md`: the operations playbook (agent team, cadence, budgets, rules).
+- `.claude/agents/`: the agent role briefs (`hpd-qa`, `hpd-reliability`, `hpd-performance`,
+  `hpd-reviewer`).
 - `VERSIONING.md`: one row per release.
 - `docs/RUNBOOK.md`: the owner's runbook.
 - `docs/PROJECT_HANDOFF.md`: older summary (v5.7.5). This file supersedes it.

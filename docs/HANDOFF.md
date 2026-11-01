@@ -4317,7 +4317,22 @@ growth back before it would shrink the page. A full card (all metrics) settles a
 and fit 1; with metrics switched off the charts reach 104 px. The worst case (every metric,
 est. 1RM, long note) still shrinks to fit as before. Test: `tests/progress-card.js` (40).
 
-## 148. Next up
+## 148. Agent team and operations playbook (no app change)
+
+The owner asked for agents that work like software developers to keep the app running at its
+best. Added four role briefs in `.claude/agents/` (Claude Code loads them for any session in
+this repo; other tools can read them):
+- `hpd-reliability`: production health, read-only.
+- `hpd-qa`: full test suite plus triage.
+- `hpd-performance`: bundle, load time and request budgets.
+- `hpd-reviewer`: diff review against §8 of AGENTS.md, read-only.
+
+`docs/OPS.md` holds the playbook: cadence, rules (production is read-only for agents; fixes
+go on topic branches; `main` only on "push it"), budgets and the weekly report format. A
+weekly scheduled task (Sundays 19:23 Central) runs the four agents and sends the owner one
+report. The daily error check is unchanged. The first review ran on 2026-11-01.
+
+## 149. Next up
 
 - **`tests/rpe.js` [RPE-B] fails on main too** (found while testing v5.15.0, not caused by it):
   "RPE-only athlete is listed as never weighed in -> RPE rows are being counted as weigh-in
