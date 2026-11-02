@@ -1,10 +1,11 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, Download, X } from 'lucide-react';
-import { buildBodyWeightReport, BW_PERIODS, BW_SORTS } from './bodyWeightData';
+import { buildBodyWeightReport, BW_PERIODS, BW_SORTS, addDays } from './bodyWeightData';
+import { getCentralDateString } from '../../utils/athleteData';
 
-// Body Weight report (v5.9.0, docs/HANDOFF.md §133): the last 7 / 14 / 28 days of
-// weigh-ins for a team - start, latest, change, vs baseline, range and a trend line per
+// Body Weight report (v5.9.0, docs/HANDOFF.md §133): the last 7 / 14 / 28 days (or custom
+// From-To dates, v5.15.5) of weigh-ins for a team - start, latest, change, vs baseline, range and a trend line per
 // athlete - plus who hasn't weighed in. Prints on US Letter; two CSV downloads (the
 // summary table, and every weigh-in in the period). Styling matches the Readiness Report.
 const C = {
@@ -68,7 +69,7 @@ function Doc({ data, team, showSport }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold700 }}>Human Performance · {team}</div>
               <h1 style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 600, fontSize: 48, lineHeight: 1.02, textTransform: 'uppercase', color: C.navy900 }}>Body Weight</h1>
-              <div data-testid="bw-subline" style={{ fontSize: 14, color: C.muted }}>Last {data.days} days · {range} · {data.rows.length} of {data.rosterCount} athlete{data.rosterCount === 1 ? '' : 's'} weighed in</div>
+              <div data-testid="bw-subline" style={{ fontSize: 14, color: C.muted }}>{data.periodText} · {range} · {data.rows.length} of {data.rosterCount} athlete{data.rosterCount === 1 ? '' : 's'} weighed in</div>
             </div>
             <img src="/hp-logo.png" alt="Shiloh Christian Human Performance" style={{ height: 88, flexShrink: 0, margin: '6px -12px 0 0' }} />
           </div>
@@ -84,7 +85,7 @@ function Doc({ data, team, showSport }) {
           </p>
 
           {data.rows.length === 0 ? (
-            <p style={{ padding: 24, textAlign: 'center', color: C.muted }}>No weigh-ins for this team in the last {data.days} days.</p>
+            <p style={{ padding: 24, textAlign: 'center', color: C.muted }}>No weigh-ins for this team {data.custom ? `from ${range}` : `in the last ${data.days} days`}.</p>
           ) : (
             <table style={table}>
               <thead><tr style={theadRow}>
@@ -118,7 +119,7 @@ function Doc({ data, team, showSport }) {
           {data.missing.length > 0 && (
             <section data-testid="bw-missing" style={{ marginTop: 22, breakInside: 'avoid' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingBottom: 4, borderBottom: `2px solid ${C.navy900}` }}>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 18, textTransform: 'uppercase', color: C.navy900 }}>Not weighed in · last {data.days} days</span>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 18, textTransform: 'uppercase', color: C.navy900 }}>Not weighed in · {data.custom ? range : `last ${data.days} days`}</span>
                 <span style={{ fontSize: 12, color: C.muted }}>{data.missing.length} athlete{data.missing.length === 1 ? '' : 's'}</span>
               </div>
               <div style={{ columnCount: showSport ? 3 : 4, columnGap: 16, fontSize: 12, lineHeight: 1.7, paddingTop: 6 }}>
@@ -146,14 +147,31 @@ const fx = (n, dp = 1) => (n == null ? '' : Number(n).toFixed(dp));
 const read = (k, ok, d) => { try { const v = localStorage.getItem(k); return ok(v) ? v : d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { /* ignore */ } };
 
-export default function BodyWeightReport({ athletes, reportData, settings, initialSport, onClose }) {
+const ymd = /^\d{4}-\d{2}-\d{2}$/;
+
+export default function BodyWeightReport({ athletes, reportData, settings, initialSport, onClose, ensureReportWindow }) {
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
   const [sport, setSport] = React.useState(() => (initialSport && initialSport !== 'ALL' && sports.includes(initialSport) ? initialSport : 'ALL'));
-  const [days, setDays] = React.useState(() => Number(read('hpd_bw_period', v => BW_PERIODS.includes(Number(v)), 7)));
+  // Period: 7 / 14 / 28 days, or 'custom' From-To dates (v5.15.5). All remembered on the device.
+  const [period, setPeriod] = React.useState(() => { const v = read('hpd_bw_period', v => v === 'custom' || BW_PERIODS.includes(Number(v)), 7); return v === 'custom' ? 'custom' : Number(v); });
+  const today = getCentralDateString();
+  const [from, setFrom] = React.useState(() => read('hpd_bw_from', v => ymd.test(v || ''), addDays(today, -27)));
+  const [to, setTo] = React.useState(() => read('hpd_bw_to', v => ymd.test(v || ''), today));
+  const custom = period === 'custom';
+  const days = custom ? 0 : period;
   const [sort, setSort] = React.useState(() => read('hpd_bw_sort', v => BW_SORTS.some(([k]) => k === v), 'name'));
-  const pickDays = (d) => { setDays(d); save('hpd_bw_period', d); };
+  const pickDays = (d) => { setPeriod(d); save('hpd_bw_period', d); };
+  const pickFrom = (v) => { setFrom(v); if (ymd.test(v)) save('hpd_bw_from', v); };
+  const pickTo = (v) => { setTo(v); if (ymd.test(v)) save('hpd_bw_to', v); };
   const pickSort = (s) => { setSort(s); save('hpd_bw_sort', s); };
-  const data = React.useMemo(() => buildBodyWeightReport({ athletes, reportData, settings, sport, days, sort }), [athletes, reportData, settings, sport, days, sort]);
+  const range = React.useMemo(() => (custom && ymd.test(from) ? { from, to: ymd.test(to) ? to : '' } : null), [custom, from, to]);
+  const data = React.useMemo(() => buildBodyWeightReport({ athletes, reportData, settings, sport, days: days || 7, range, sort }), [athletes, reportData, settings, sport, days, range, sort]);
+  // Custom dates further back than the check-ins already loaded: load that history once.
+  React.useEffect(() => {
+    if (!range || !ensureReportWindow) return;
+    const back = Math.round((new Date(`${today}T12:00:00Z`) - new Date(`${range.from}T12:00:00Z`)) / 86400000) + 1;
+    if (back > 0) ensureReportWindow(back);
+  }, [range, today, ensureReportWindow]);
   const team = sport === 'ALL' ? 'All Sports' : sport;
   const showSport = sport === 'ALL';
 
@@ -168,13 +186,13 @@ export default function BodyWeightReport({ athletes, reportData, settings, initi
     const blob = new Blob([rows.map(r => r.map(csvCell).join(',')).join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `body-weight-${kind}-${team.replace(/\W+/g, '-').toLowerCase()}-last-${days}-days-${data.to}.csv`;
+    a.download = `body-weight-${kind}-${team.replace(/\W+/g, '-').toLowerCase()}-${data.custom ? `${data.from}-to-${data.to}` : `last-${data.days}-days-${data.to}`}.csv`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   const summaryCsv = () => {
     const rows = [['Athlete', 'Sport', 'Pos', 'Baseline lb', 'Start lb', 'Start date', 'Latest lb', 'Latest date', 'Change lb', 'Change %', 'vs Baseline lb', 'vs Baseline %', 'Low lb', 'High lb', 'Avg lb', 'Weigh-ins', 'Period']];
-    const period = `Last ${days} days (${data.from} to ${data.to})`;
+    const period = data.custom ? `${data.from} to ${data.to}` : `Last ${data.days} days (${data.from} to ${data.to})`;
     data.rows.forEach(r => rows.push([r.name, r.sport, r.pos, fx(r.baseW), fx(r.start.w), r.start.day, fx(r.latest.w), r.latest.day, fx(r.change), fx(r.changePct), fx(r.vsBase), fx(r.vsBasePct), fx(r.low), fx(r.high), fx(r.avg), r.count, period]));
     data.missing.forEach(m => rows.push([m.name, m.sport, '', '', '', '', '', '', '', '', '', '', '', '', '', 0, period]));
     download('summary', rows);
@@ -207,14 +225,26 @@ export default function BodyWeightReport({ athletes, reportData, settings, initi
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={label}>Period</span>
           <div style={{ display: 'flex', gap: 6 }}>
-            {BW_PERIODS.map(d => (
-              <button key={d} type="button" data-testid={`bw-period-${d}`} aria-pressed={days === d} onClick={() => pickDays(d)}
-                style={{ ...field, minWidth: 64, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${days === d ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: days === d ? 'rgba(184,156,91,0.18)' : 'transparent', color: days === d ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
-                {d} days
+            {[...BW_PERIODS, 'custom'].map(d => (
+              <button key={d} type="button" data-testid={`bw-period-${d}`} aria-pressed={period === d} onClick={() => pickDays(d)}
+                style={{ ...field, minWidth: 64, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${period === d ? 'var(--color-accent)' : 'rgba(255,255,255,0.2)'}`, background: period === d ? 'rgba(184,156,91,0.18)' : 'transparent', color: period === d ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+                {d === 'custom' ? 'Custom' : `${d} days`}
               </button>
             ))}
           </div>
         </div>
+        {custom && (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="bw-from" style={label}>From</label>
+              <input id="bw-from" data-testid="bw-from" type="date" className="input-glass" style={field} value={from} max={to || today} onChange={e => pickFrom(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label htmlFor="bw-to" style={label}>To</label>
+              <input id="bw-to" data-testid="bw-to" type="date" className="input-glass" style={field} value={to} min={from || undefined} max={today} onChange={e => pickTo(e.target.value)} />
+            </div>
+          </>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label htmlFor="bw-sort" style={label}>Sort</label>
           <select id="bw-sort" className="input-glass" style={field} value={sort} onChange={e => pickSort(e.target.value)}>

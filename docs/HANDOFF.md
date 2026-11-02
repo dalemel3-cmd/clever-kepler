@@ -4406,7 +4406,23 @@ Tests:
   pass now. After the review fixes, the profile, sync, offline, tablet, programs, Progress
   Card and boot suites were rerun: all pass.
 
-## 150. Next up
+## 150. Body Weight report: custom dates (v5.15.5)
+
+The owner asked for a custom time range on the Body Weight report. Next to 7 / 14 / 28
+days there is now Custom (`bw-period-custom`), with From / To date inputs (`bw-from`,
+`bw-to`). `buildBodyWeightReport` takes `range: {from, to}`:
+- To is capped at today, and an empty To means today.
+- A From after To is pulled back to To.
+- `days` / `dayList` span the dates, and `periodText` is "N days" (not "Last N days").
+
+For an athlete who didn't weigh in, "days since" now counts to the end of the period, using
+their last weigh-in up to then. The subline, the empty message, the "Not weighed in" heading
+and the CSV file name and Period column show the dates. A From older than what's loaded
+calls `ensureReportWindow(daysBack)` (passed from ReportsScreen; fetches once per wider
+window, braked). The choice is remembered in `hpd_bw_period='custom'`, `hpd_bw_from` and
+`hpd_bw_to`. Test: `tests/body-weight-report.js` (36).
+
+## 151. Next up
 
 - **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
   prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity

@@ -1,6 +1,6 @@
 # HPD App — agent handoff (for Google Antigravity and any other coding agent)
 
-Current as of **v5.15.4, 2026-11-01**. Read this whole file before
+Current as of **v5.15.5, 2026-11-02**. Read this whole file before
 changing anything. `docs/HANDOFF.md` has the full history (one `## N.` section per change,
 with the reasoning); `VERSIONING.md` has one row per release.
 
@@ -117,7 +117,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 3. Add a row to `VERSIONING.md`.
 4. In `docs/HANDOFF.md`, replace the trailing `## N. Next up` with `## N. <what changed>
    (vX.Y.Z)`, then a new `## N+1. Next up` that carries the open list forward. The last
-   numbered section is currently **§149**, and **§150 is Next up**.
+   numbered section is currently **§150**, and **§151 is Next up**.
 5. Commit with a plain message (what and why), push your branch, and give the owner the
    preview URL.
 6. Merge or push to `main` **only after the owner says "push it"**. Fast-forward only; don't
@@ -273,7 +273,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
    per-week planned intensity (hollow dot), actual intensity from logged sets ÷ max, or time
    under tension for capacity blocks. Waiting on the owner's choice.
 2. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
-3. Older open items are in `docs/HANDOFF.md` §150 (Next up): leaked-password protection and
+3. Older open items are in `docs/HANDOFF.md` §151 (Next up): leaked-password protection and
    a "Forgot password" link, grades for athletes missing them, the Cheer & Dance jump
    technique, PPS/RSI test types, and a nicer Vercel domain.
 4. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
@@ -295,7 +295,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 
 ## 13. Docs index
 
-- `docs/HANDOFF.md`: full change history (§1–§149) and the live Next-up list (§150).
+- `docs/HANDOFF.md`: full change history (§1–§150) and the live Next-up list (§151).
 - `docs/OPS.md`: the operations playbook (agent team, cadence, budgets, rules).
 - `.claude/agents/`: the agent role briefs (`hpd-qa`, `hpd-reliability`, `hpd-performance`,
   `hpd-reviewer`).

@@ -1,5 +1,6 @@
 // Data for the Body Weight report (v5.9.0, docs/HANDOFF.md §133). Pure functions.
-// For the last 7 / 14 / 28 days: each athlete's first and latest weigh-in in the period,
+// For the last 7 / 14 / 28 days, or custom From-To dates (v5.15.5): each athlete's first
+// and latest weigh-in in the period,
 // the change between them, where they sit against their baseline, the low/high, and the
 // day-by-day series for the trend line. Post-practice and RPE-only rows are left out
 // (same rule as the Readiness Report); the weigh-in CSV keeps post-practice rows, labeled.
@@ -15,10 +16,15 @@ const dayOf = (r) => getCentralDateString(new Date(r.created_at));
 export const addDays = (ymd, n) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const daysBetween = (a, b) => Math.round((new Date(`${b}T12:00:00Z`) - new Date(`${a}T12:00:00Z`)) / 86400000);
 
-export function buildBodyWeightReport({ athletes = [], reportData = [], settings = {}, sport = 'ALL', days = 7, sort = 'name', now = Date.now() }) {
-  const to = getCentralDateString(new Date(now));
-  const from = addDays(to, -(days - 1));
-  const dayList = Array.from({ length: days }, (_, i) => addDays(from, i));
+export function buildBodyWeightReport({ athletes = [], reportData = [], settings = {}, sport = 'ALL', days = 7, range = null, sort = 'name', now = Date.now() }) {
+  const today = getCentralDateString(new Date(now));
+  // Custom dates: From-To, To no later than today (an empty To means today); From after
+  // To is pulled back to To. Otherwise the last `days` days.
+  const custom = !!range?.from;
+  const to = custom && range.to && range.to < today ? range.to : today;
+  const from = custom ? (range.from <= to ? range.from : to) : addDays(to, -(days - 1));
+  const span = daysBetween(from, to) + 1;
+  const dayList = Array.from({ length: span }, (_, i) => addDays(from, i));
   const threshold = Number(settings.dehydrationThreshold) || 2;
   const roster = sport === 'ALL' ? athletes : athletes.filter(a => (a.sport || 'General') === sport);
   const ids = new Set(roster.map(a => a.id));
@@ -49,7 +55,8 @@ export function buildBodyWeightReport({ athletes = [], reportData = [], settings
     }
     const series = [...byDay.entries()].sort((x, y) => x[0].localeCompare(y[0])).map(([day, w]) => ({ day, w }));
     if (!series.length) {
-      const last = logs.filter(isRealWeighIn).pop();
+      // Last weigh-in up to the end of the period (a custom period can end in the past).
+      const last = logs.filter(r => isRealWeighIn(r) && dayOf(r) <= to).pop();
       missing.push({ id: a.id, name, sport: a.sport || '', daysAgo: last ? daysBetween(dayOf(last), to) : null });
       continue;
     }
@@ -79,7 +86,8 @@ export function buildBodyWeightReport({ athletes = [], reportData = [], settings
 
   const changed = rows.filter(r => r.change != null);
   return {
-    days, from, to, dayList, rows, missing, weighIns,
+    days: span, custom, periodText: custom ? `${span} day${span === 1 ? '' : 's'}` : `Last ${span} days`,
+    from, to, dayList, rows, missing, weighIns,
     rosterCount: roster.length,
     belowBaseCount: rows.filter(r => r.belowBase).length,
     avgChange: changed.length ? changed.reduce((s, r) => s + r.change, 0) / changed.length : null,

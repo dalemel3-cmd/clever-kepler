@@ -115,7 +115,7 @@ export default function ReportsScreen({
       )}
       {bodyWeightOpen && (
         <React.Suspense fallback={null}>
-          <BodyWeightReport athletes={athletes} reportData={reportData} settings={settings} initialSport={sport} onClose={() => setBodyWeightOpen(false)} />
+          <BodyWeightReport athletes={athletes} reportData={reportData} settings={settings} initialSport={sport} ensureReportWindow={ensureReportWindow} onClose={() => setBodyWeightOpen(false)} />
         </React.Suspense>
       )}
       {progressCardsOpen && (

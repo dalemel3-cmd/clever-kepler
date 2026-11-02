@@ -36,6 +36,7 @@ const SEED = { dehydrationThreshold: 2, dataWindowDays: 30 };
   const browser = await chromium.launch(LAUNCH_OPTS);
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 }, acceptDownloads: true });
   const page = await ctx.newPage();
+  const historyGets = [];
   await stubAuth(page);
   await page.addInitScript((s) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('hpd_settings', JSON.stringify(s)); } }, SEED);
   await page.route(SUPA, async (route) => {
@@ -47,6 +48,7 @@ const SEED = { dehydrationThreshold: 2, dataWindowDays: 30 };
     if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: h, body: '[{"approved":true}]' });
     if (url.includes('/rest/v1/athletes') && method === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
     if (url.includes('/rest/v1/weigh_ins') && method === 'GET') {
+      if (url.includes('created_at=lt.')) historyGets.push(decodeURIComponent(url));
       // The live sync gets everything; the separate older-history request gets nothing extra.
       const body = url.includes('created_at=lt.') ? '[]' : JSON.stringify(logs);
       return route.fulfill({ status: 200, headers: { ...h, 'content-range': `*/${logs.length}`, 'access-control-expose-headers': 'content-range' }, body });
@@ -104,6 +106,26 @@ const SEED = { dehydrationThreshold: 2, dataWindowDays: 30 };
   const wLines = wcsv.text.split('\n');
   check('weigh-ins CSV: every weigh-in in 28 days incl. post-practice, no RPE rows', /^Date,Time,Athlete,Sport,Pos,Weight lb,Type/.test(wLines[0]) && wLines.some(l => /Down Dan.*192\.0,Post-practice/.test(l)) && !wLines.some(l => /,0\.0,(Weigh-in|Post-practice),/.test(l)) && wLines.length - 1 === 12, `${wLines.length - 1} rows`);
   check('weigh-ins CSV: vs baseline per row', wLines.some(l => /Down Dan,Football,WR,195\.0,Weigh-in,200\.0,-5\.0,-2\.5/.test(l)), wLines.filter(l => /Down Dan/.test(l)).join(' | '));
+
+  // v5.15.5: custom From-To dates.
+  console.log('\n[Custom range]');
+  const cd = (k) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date(Date.now() - k * 86400000));
+  await page.getByTestId('bw-period-custom').click(); await page.waitForTimeout(200);
+  check('Custom shows From and To dates', await page.getByTestId('bw-from').count() === 1 && await page.getByTestId('bw-to').count() === 1);
+  await page.getByTestId('bw-from').fill(cd(13)); await page.getByTestId('bw-to').fill(cd(4)); await page.waitForTimeout(300);
+  const subl = await page.getByTestId('bw-subline').innerText();
+  check('subline names the custom period (10 days and the dates)', /^10 days · \w{3} \d{1,2} – \w{3} \d{1,2}, \d{4}/.test(subl) && !/Last/.test(subl), subl);
+  check('only weigh-ins inside the dates: Dan 199.0 -> 197.0 (−2.0), Owen 189.0', /199\.0 lb[\s\S]*197\.0 lb[\s\S]*−2\.0 lb/.test(await row('Down Dan')) && /189\.0 lb/.test(await row('Old Owen')) && (await rows()).length === 2, JSON.stringify(await rows()));
+  const miss = await missing();
+  check('not weighed in during the dates: Gus, Ollie (21d before the end), Ned (never)', miss.length === 3 && miss.some(m => /Gain Gus · 21d/.test(m)) && miss.some(m => /Never Ned · never/.test(m)), JSON.stringify(miss));
+  check('not-weighed-in heading shows the dates', /NOT WEIGHED IN · \w{3} \d{1,2} – /i.test(await page.getByTestId('bw-missing').innerText()));
+  const csum = await grab('bw-csv-summary');
+  check('summary CSV named by the dates, period column too', csum.name === `body-weight-summary-football-${cd(13)}-to-${cd(4)}.csv` && csum.text.includes(`${cd(13)} to ${cd(4)}`), csum.name);
+  check('custom dates remembered', (await page.evaluate(() => [localStorage.getItem('hpd_bw_period'), localStorage.getItem('hpd_bw_from')])).join() === `custom,${cd(13)}`);
+  const before = historyGets.length;
+  await page.getByTestId('bw-from').fill(cd(120)); await page.waitForTimeout(800);
+  check('a From date before the loaded history loads that history once', historyGets.length === before + 1, `${before} -> ${historyGets.length}`);
+  await page.getByTestId('bw-period-28').click(); await page.waitForTimeout(200);
 
   await page.emulateMedia({ media: 'print' });
   check('print shows only the report', await page.locator('.bw-print-root').isVisible() && !(await page.locator('#root').isVisible()));
