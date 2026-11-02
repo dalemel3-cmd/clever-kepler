@@ -122,9 +122,22 @@ const SEED = { dehydrationThreshold: 2, dataWindowDays: 30 };
   const csum = await grab('bw-csv-summary');
   check('summary CSV named by the dates, period column too', csum.name === `body-weight-summary-football-${cd(13)}-to-${cd(4)}.csv` && csum.text.includes(`${cd(13)} to ${cd(4)}`), csum.name);
   check('custom dates remembered', (await page.evaluate(() => [localStorage.getItem('hpd_bw_period'), localStorage.getItem('hpd_bw_from')])).join() === `custom,${cd(13)}`);
+  // v5.15.6: a date input reports each partial year while it's typed ("0002-...", "0202-...").
+  const subBefore = await page.getByTestId('bw-subline').innerText();
   const before = historyGets.length;
-  await page.getByTestId('bw-from').fill(cd(120)); await page.waitForTimeout(800);
-  check('a From date before the loaded history loads that history once', historyGets.length === before + 1, `${before} -> ${historyGets.length}`);
+  for (const y of ['0002', '0020', '0202']) { await page.getByTestId('bw-from').fill(`${y}-10-15`); await page.waitForTimeout(80); }
+  await page.waitForTimeout(900);
+  check('half-typed years are ignored: same report, no download, not saved', (await page.getByTestId('bw-subline').innerText()) === subBefore && historyGets.length === before && (await page.evaluate(() => localStorage.getItem('hpd_bw_from'))) === cd(13), `${historyGets.length - before} downloads, saved ${await page.evaluate(() => localStorage.getItem('hpd_bw_from'))}`);
+  await page.getByTestId('bw-to').focus(); await page.waitForTimeout(100);
+  check('leaving the box puts the last good date back', (await page.getByTestId('bw-from').inputValue()) === cd(13), await page.getByTestId('bw-from').inputValue());
+  await page.getByTestId('bw-from').fill(''); await page.waitForTimeout(200);
+  check('clearing From keeps the custom period (not "Last 7 days")', (await page.getByTestId('bw-subline').innerText()) === subBefore, await page.getByTestId('bw-subline').innerText());
+  for (const k of [100, 110, 130]) { await page.getByTestId('bw-from').fill(cd(k)); await page.waitForTimeout(100); }
+  await page.waitForTimeout(1200);
+  check('From stepped back quickly: one history download once it settles', historyGets.length === before + 1, `${historyGets.length - before} downloads`);
+  check('that download reaches past From (60-day margin for "days since")', (() => { const m = (historyGets[historyGets.length - 1] || '').match(/created_at=gte\.(\d{4}-\d{2}-\d{2})/); return !!m && m[1] <= cd(185); })(), historyGets[historyGets.length - 1]);
+  await page.getByTestId('bw-from').fill(cd(800)); await page.waitForTimeout(900);
+  check('a From over two years back is ignored', (await page.evaluate(() => localStorage.getItem('hpd_bw_from'))) === cd(130) && historyGets.length === before + 1);
   await page.getByTestId('bw-period-28').click(); await page.waitForTimeout(200);
 
   await page.emulateMedia({ media: 'print' });

@@ -1135,19 +1135,25 @@ export default function App() {
   const fetchReportDataRef = React.useRef(fetchReportData);
   fetchReportDataRef.current = fetchReportData;
   const [reportHistory, setReportHistory] = useState([]);
+  // The widest window asked for so far, loaded or still loading (v5.15.6): a narrower
+  // request is skipped, and a narrower reply landing after a wider request is dropped, so
+  // the history never shrinks. A failed request lets a later one try again.
+  const requestedReportWindowDays = React.useRef(0);
   const ensureReportWindow = React.useCallback(async (days) => {
     const base = settingsRef.current.dataWindowDays;
-    if (days <= base || days <= extraReportWindowDays.current) return;
+    if (days <= base || days <= extraReportWindowDays.current || days <= requestedReportWindowDays.current) return;
     if (!navigator.onLine || !allowFetch('weigh_ins:history', { max: 3, windowMs: 60000 })) return;
+    requestedReportWindowDays.current = days;
     const from = new Date(Date.now() - days * 86400000).toISOString();
     const to = new Date(Date.now() - base * 86400000).toISOString();
     try {
       const { data, error } = await fetchAllRows(() => supabase.from('weigh_ins').select(WEIGH_IN_COLS)
         .gte('created_at', from).lt('created_at', to).order('created_at', { ascending: false }).order('id'));
-      if (error) { reportDataError(error, 'weigh_ins:history'); return; }
+      if (error) { reportDataError(error, 'weigh_ins:history'); if (requestedReportWindowDays.current === days) requestedReportWindowDays.current = extraReportWindowDays.current; return; }
+      if (days < requestedReportWindowDays.current || days <= extraReportWindowDays.current) return;
       extraReportWindowDays.current = days;
       setReportHistory(data || []);
-    } catch { /* offline: reports use the normal window */ }
+    } catch { if (requestedReportWindowDays.current === days) requestedReportWindowDays.current = extraReportWindowDays.current; /* offline: reports use the normal window */ }
   }, []);
   // Live window + one-time older history, for the screens that asked for it.
   const reportDataWithHistory = React.useMemo(() => {

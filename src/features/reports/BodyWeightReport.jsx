@@ -33,10 +33,10 @@ const dash = <span style={{ color: C.faint }}>—</span>;
 
 // Weigh-ins across the period (x = day), with the baseline as a dashed gold line. The
 // y-axis spans at least 2 lb so normal day-to-day noise doesn't look like a cliff.
-function Trend({ series, dayList, baseW }) {
+function Trend({ series, dayList, dayIndex, baseW }) {
   const W = 88, H = 24, P = 3;
   const n = dayList.length;
-  const idx = new Map(dayList.map((d, i) => [d, i]));
+  const idx = dayIndex;
   const vals = series.map(p => p.w).concat(baseW != null ? [baseW] : []);
   let lo = Math.min(...vals), hi = Math.max(...vals);
   if (hi - lo < 2) { const mid = (hi + lo) / 2; lo = mid - 1; hi = mid + 1; }
@@ -53,6 +53,7 @@ function Trend({ series, dayList, baseW }) {
 
 function Doc({ data, team, showSport }) {
   const today = new Date().toLocaleDateString('en-US');
+  const dayIndex = React.useMemo(() => new Map(data.dayList.map((d, i) => [d, i])), [data.dayList]);
   const range = `${niceDay(data.from, { month: 'short', day: 'numeric' })} – ${niceDay(data.to, { month: 'short', day: 'numeric', year: 'numeric' })}`;
   const t = data.threshold;
   return (
@@ -110,7 +111,7 @@ function Doc({ data, team, showSport }) {
                   </td>
                   <td style={td('right', { whiteSpace: 'nowrap', color: C.muted })}>{r.count > 1 ? `${r.low.toFixed(1)}–${r.high.toFixed(1)}` : '—'}</td>
                   <td style={td('right', { color: C.muted })}>{r.count}</td>
-                  <td style={td('left', { padding: '4px 6px' })}><Trend series={r.series} dayList={data.dayList} baseW={r.baseW} /></td>
+                  <td style={td('left', { padding: '4px 6px' })}><Trend series={r.series} dayList={data.dayList} dayIndex={dayIndex} baseW={r.baseW} /></td>
                 </tr>
               ))}</tbody>
             </table>
@@ -148,6 +149,12 @@ const read = (k, ok, d) => { try { const v = localStorage.getItem(k); return ok(
 const save = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { /* ignore */ } };
 
 const ymd = /^\d{4}-\d{2}-\d{2}$/;
+// Custom dates are limited to the last two years (v5.15.6). A date input reports every
+// partial year while it's typed ("0002-", "0020-", "0202-"), each a valid date; taken as
+// the period, one meant a 739,000-day report (the tab froze) and a download of every
+// weigh-in ever. A date outside the window is ignored, never used or saved.
+const CUSTOM_MAX_DAYS = 730;
+const HISTORY_PAD_DAYS = 60; // extra history before From, so "days since" is right for a past period
 
 export default function BodyWeightReport({ athletes, reportData, settings, initialSport, onClose, ensureReportWindow }) {
   const sports = React.useMemo(() => Array.from(new Set(athletes.map(a => a.sport || 'General'))).sort(), [athletes]);
@@ -155,23 +162,31 @@ export default function BodyWeightReport({ athletes, reportData, settings, initi
   // Period: 7 / 14 / 28 days, or 'custom' From-To dates (v5.15.5). All remembered on the device.
   const [period, setPeriod] = React.useState(() => { const v = read('hpd_bw_period', v => v === 'custom' || BW_PERIODS.includes(Number(v)), 7); return v === 'custom' ? 'custom' : Number(v); });
   const today = getCentralDateString();
-  const [from, setFrom] = React.useState(() => read('hpd_bw_from', v => ymd.test(v || ''), addDays(today, -27)));
-  const [to, setTo] = React.useState(() => read('hpd_bw_to', v => ymd.test(v || ''), today));
+  const earliest = addDays(today, -CUSTOM_MAX_DAYS);
+  const okDate = (v) => ymd.test(v || '') && v >= earliest && v <= today;
+  // The applied dates (always valid) and what's in the inputs (may be half-typed).
+  const [from, setFrom] = React.useState(() => read('hpd_bw_from', okDate, addDays(today, -27)));
+  const [to, setTo] = React.useState(() => read('hpd_bw_to', okDate, today));
+  const [fromInput, setFromInput] = React.useState(from);
+  const [toInput, setToInput] = React.useState(to);
   const custom = period === 'custom';
   const days = custom ? 0 : period;
   const [sort, setSort] = React.useState(() => read('hpd_bw_sort', v => BW_SORTS.some(([k]) => k === v), 'name'));
   const pickDays = (d) => { setPeriod(d); save('hpd_bw_period', d); };
-  const pickFrom = (v) => { setFrom(v); if (ymd.test(v)) save('hpd_bw_from', v); };
-  const pickTo = (v) => { setTo(v); if (ymd.test(v)) save('hpd_bw_to', v); };
+  const pickFrom = (v) => { setFromInput(v); if (okDate(v)) { setFrom(v); save('hpd_bw_from', v); } };
+  const pickTo = (v) => { setToInput(v); if (okDate(v)) { setTo(v); save('hpd_bw_to', v); } };
   const pickSort = (s) => { setSort(s); save('hpd_bw_sort', s); };
-  const range = React.useMemo(() => (custom && ymd.test(from) ? { from, to: ymd.test(to) ? to : '' } : null), [custom, from, to]);
+  const range = React.useMemo(() => (custom ? { from, to } : null), [custom, from, to]);
   const data = React.useMemo(() => buildBodyWeightReport({ athletes, reportData, settings, sport, days: days || 7, range, sort }), [athletes, reportData, settings, sport, days, range, sort]);
-  // Custom dates further back than the check-ins already loaded: load that history once.
+  // Custom dates further back than the check-ins already loaded: once the dates settle,
+  // load that history (plus a margin for "days since") in one request.
+  const histFrom = range ? data.from : null;
   React.useEffect(() => {
-    if (!range || !ensureReportWindow) return;
-    const back = Math.round((new Date(`${today}T12:00:00Z`) - new Date(`${range.from}T12:00:00Z`)) / 86400000) + 1;
-    if (back > 0) ensureReportWindow(back);
-  }, [range, today, ensureReportWindow]);
+    if (!histFrom || !ensureReportWindow) return undefined;
+    const back = Math.round((new Date(`${today}T12:00:00Z`) - new Date(`${histFrom}T12:00:00Z`)) / 86400000) + 1 + HISTORY_PAD_DAYS;
+    const t = setTimeout(() => ensureReportWindow(back), 600);
+    return () => clearTimeout(t);
+  }, [histFrom, today, ensureReportWindow]);
   const team = sport === 'ALL' ? 'All Sports' : sport;
   const showSport = sport === 'ALL';
 
@@ -237,11 +252,11 @@ export default function BodyWeightReport({ athletes, reportData, settings, initi
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label htmlFor="bw-from" style={label}>From</label>
-              <input id="bw-from" data-testid="bw-from" type="date" className="input-glass" style={field} value={from} max={to || today} onChange={e => pickFrom(e.target.value)} />
+              <input id="bw-from" data-testid="bw-from" type="date" className="input-glass" style={field} value={fromInput} min={earliest} max={to || today} onChange={e => pickFrom(e.target.value)} onBlur={() => setFromInput(from)} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label htmlFor="bw-to" style={label}>To</label>
-              <input id="bw-to" data-testid="bw-to" type="date" className="input-glass" style={field} value={to} min={from || undefined} max={today} onChange={e => pickTo(e.target.value)} />
+              <input id="bw-to" data-testid="bw-to" type="date" className="input-glass" style={field} value={toInput} min={from || earliest} max={today} onChange={e => pickTo(e.target.value)} onBlur={() => setToInput(to)} />
             </div>
           </>
         )}

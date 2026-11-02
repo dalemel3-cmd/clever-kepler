@@ -4422,7 +4422,33 @@ calls `ensureReportWindow(daysBack)` (passed from ReportsScreen; fetches once pe
 window, braked). The choice is remembered in `hpd_bw_period='custom'`, `hpd_bw_from` and
 `hpd_bw_to`. Test: `tests/body-weight-report.js` (36).
 
-## 151. Next up
+## 151. Body Weight custom dates: safe while typing (v5.15.6)
+
+The pre-release review of v5.15.5 (finished after it was pushed) found:
+- **Partial years froze the tab and over-downloaded.** A date input reports each partial
+  year while it's typed ("0002-10-15", "0020-…", "0202-…"), and each is a valid date. Taken
+  as the period, "0002-10-15" made a 739,266-day report (about 20 s of work per bad value)
+  and called `ensureReportWindow(~739k)`, downloading every weigh-in. Such dates were also
+  saved and restored.
+- **Quick changes lost history.** Stepping From back quickly fired several history loads;
+  the brake refused the widest, and a narrower reply landing last replaced a wider one.
+- **Clearing From** fell back to a "Last 7 days" report.
+- **"never"** could be wrong for a past period, because history loaded only back to From.
+
+Fixes:
+- **`BodyWeightReport.jsx`:** custom dates must be within the last 730 days, up to today
+  (`okDate`); this applies to input and to restore. The inputs show what's typed
+  (`fromInput`/`toInput`), the report uses the last valid dates, and blur snaps back.
+- **History load:** waits 600 ms after the dates settle, uses the clamped `data.from`, and
+  adds 60 days.
+- **Trend sparkline:** the day index is built once per report.
+- **`App.jsx` `ensureReportWindow`:** tracks the widest window requested
+  (`requestedReportWindowDays`), skips narrower requests, drops a narrower reply after a
+  wider request, and resets on failure.
+
+Test: `tests/body-weight-report.js` (41).
+
+## 152. Next up
 
 - **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
   prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity
