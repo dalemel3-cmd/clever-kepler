@@ -79,6 +79,20 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   check('brake skips a 5th roster download inside a minute', of('athletes').length === 0, `athletes=${of('athletes').length}`);
   await page.waitForTimeout(20000);
   check('...and runs one catch-up download ~20s later', of('athletes').length === 1, `athletes=${of('athletes').length}`);
+  // v5.15.7: athlete changes from another device are applied from the realtime row: no
+  // roster download, even for several edits in a row.
+  await page.goto(`${APP}/#athletes`); await page.waitForTimeout(2500);
+  reqs.length = 0;
+  await page.evaluate((id) => { for (let i = 0; i < 6; i++) window.__hpdOnAthletesChange({ eventType: 'UPDATE', new: { id, name: `Renamed ${i}`, sport: 'Football', position: 'QB' }, old: { id } }); }, uuid(1));
+  await page.evaluate((id) => window.__hpdOnAthletesChange({ eventType: 'INSERT', new: { id, name: 'New Kid', sport: 'Football', position: '' }, old: {} }), uuid(2));
+  await page.waitForTimeout(800);
+  let roster = await page.locator('main').innerText();
+  check('6 athlete edits + a new athlete from another device: applied, no roster download', of('athletes').length === 0 && /Renamed 5/i.test(roster) && !/Renamed 4/i.test(roster) && /New Kid/i.test(roster), `athletes=${of('athletes').length}`);
+  await page.evaluate((id) => window.__hpdOnAthletesChange({ eventType: 'DELETE', new: {}, old: { id } }), uuid(2));
+  await page.waitForTimeout(600);
+  roster = await page.locator('main').innerText();
+  check('a deleted athlete disappears, still no download', of('athletes').length === 0 && !/New Kid/i.test(roster));
+  check('the roster cache on the device follows', await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_roster') || '[]').map(a => a.name).join(',')) === 'Renamed 5');
   // Realtime: a check-in from another device is applied directly - no re-download.
   await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2500);
   reqs.length = 0;

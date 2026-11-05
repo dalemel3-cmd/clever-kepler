@@ -623,10 +623,42 @@ export default function App() {
     // Test hook (tests/usage-guards.js drives realtime rows through this).
     window.__hpdApplyWeighInChange = applyWeighInChange;
 
-    // One roster download per burst of athlete changes: a team baseline update writes
-    // every athlete row, and each arrives as its own realtime event (v5.8.1).
+    // Athlete changes from other devices are applied from the realtime row itself
+    // (v5.15.7): editing a few athletes in a row used to re-download the whole roster
+    // each time and trip the 4-a-minute brake. Rows are batched for 250 ms (a team
+    // baseline update writes every athlete row, each its own event) into one update. An
+    // event without a usable row falls back to one roster download per burst (v5.8.1).
     let athletesBurst = null;
-    const onAthletesChange = () => {
+    let athleteRows = [];
+    let athleteRowsTimer = null;
+    const flushAthleteRows = () => {
+      athleteRowsTimer = null;
+      const batch = athleteRows; athleteRows = [];
+      if (!batch.length) return;
+      let cloudMap = {};
+      try { cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}'); } catch { /* ignore */ }
+      setAthletes(prev => {
+        let next = prev;
+        for (const p of batch) {
+          if (p.eventType === 'DELETE') { next = next.filter(a => a.id !== p.old.id); continue; }
+          const d = decodeAthlete(p.new, cloudMap);
+          next = next.some(a => a.id === d.id) ? next.map(a => (a.id === d.id ? { ...a, ...d } : a)) : [...next, d];
+        }
+        next = [...next].sort((x, y) => String(x.name || '').localeCompare(String(y.name || '')));
+        try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch { /* ignore */ }
+        return next;
+      });
+      try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch { /* ignore */ }
+    };
+    const onAthletesChange = (payload) => {
+      const ev = payload?.eventType;
+      const usable = (ev === 'INSERT' || ev === 'UPDATE') ? !!(payload.new?.id && 'name' in payload.new && 'position' in payload.new)
+        : ev === 'DELETE' ? !!payload.old?.id : false;
+      if (usable) {
+        athleteRows.push(payload);
+        if (!athleteRowsTimer) athleteRowsTimer = setTimeout(flushAthleteRows, 250);
+        return;
+      }
       clearTimeout(athletesBurst);
       athletesBurst = setTimeout(() => { athletesBurst = null; fetchAthletes(); }, 1500);
     };
@@ -765,7 +797,9 @@ export default function App() {
       lastFocusRefreshAt = Date.now();
       pollIdleStreak.current = 0;
       fetchReportDataRef.current(true);
-      fetchAthletes();
+      // The roster only changes by push while realtime is up (v5.15.7): re-download it on
+      // return when the socket is down or the copy is over 5 minutes old.
+      if (!realtimeHealthy.current || Date.now() - lastAthletesFetchAt.current > 300000) fetchAthletes();
     };
     window.addEventListener('focus', handleFocusRefresh);
     document.addEventListener('visibilitychange', handleFocusRefresh);
@@ -1513,6 +1547,33 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  // One roster row from the database -> what the app keeps (baseline metadata unpacked
+  // from `position`, blank names made safe). Shared by the full download and the realtime
+  // updates; records a cloud baseline in `cloudMap` (shiloh_baselines_map).
+  const decodeAthlete = (a, cloudMap) => {
+    const meta = parseAthleteMeta(a.position);
+    let bw = a.baseline_weight;
+    let bd = a.baseline_date;
+    let lid = a.baseline_log_id;
+    if (meta.bw !== undefined) {
+      bw = meta.bw;
+      bd = meta.bd || bd;
+      lid = meta.lid || lid;
+      cloudMap[a.id] = { log_id: lid || 'cloud_' + a.id, weight_lbs: bw, date_str: bd || new Date().toISOString() };
+    }
+    return {
+      ...a,
+      // A null/blank name used to crash the Entry & Profiles screens (name.split on null)
+      name: (a.name && String(a.name).trim()) || 'Unnamed Athlete',
+      position: meta.pos || '',
+      raw_position: a.position || '',
+      baseline_weight: bw,
+      baseline_date: bd,
+      baseline_log_id: lid
+    };
+  };
+  const lastAthletesFetchAt = React.useRef(0);
+
   const fetchAthletes = async () => {
     try {
       if (!navigator.onLine) throw new Error('Offline');
@@ -1524,29 +1585,9 @@ export default function App() {
       }
       const { data, error } = await supabase.from('athletes').select('*').order('name', { ascending: true });
       if (!error && data) {
+        lastAthletesFetchAt.current = Date.now();
         const cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
-        const decodedAthletes = data.map(a => {
-          const meta = parseAthleteMeta(a.position);
-          let bw = a.baseline_weight;
-          let bd = a.baseline_date;
-          let lid = a.baseline_log_id;
-          if (meta.bw !== undefined) {
-            bw = meta.bw;
-            bd = meta.bd || bd;
-            lid = meta.lid || lid;
-            cloudMap[a.id] = { log_id: lid || 'cloud_' + a.id, weight_lbs: bw, date_str: bd || new Date().toISOString() };
-          }
-          return {
-            ...a,
-            // A null/blank name used to crash the Entry & Profiles screens (name.split on null)
-            name: (a.name && String(a.name).trim()) || 'Unnamed Athlete',
-            position: meta.pos || '',
-            raw_position: a.position || '',
-            baseline_weight: bw,
-            baseline_date: bd,
-            baseline_log_id: lid
-          };
-        });
+        const decodedAthletes = data.map(a => decodeAthlete(a, cloudMap));
         try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch {}
         setAthletes(decodedAthletes);
         localStorage.setItem('shiloh_roster', JSON.stringify(decodedAthletes));

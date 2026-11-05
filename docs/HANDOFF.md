@@ -4448,7 +4448,28 @@ Fixes:
 
 Test: `tests/body-weight-report.js` (41).
 
-## 152. Next up
+## 152. Roster updates without re-downloading (v5.15.7)
+
+The daily error check found `Fetch brake tripped: athletes called 5x in 60s` on 2026-11-03
+(Athletes page, v5.15.6). Every realtime `athletes` event (debounced 1.5 s) and every return
+to the app (at most every 30 s) re-downloaded the whole roster. Editing a few athletes a
+minute passed the 4-a-minute brake (the brake then caught up 20 s later, so nothing was
+lost). The owner asked for the improvement.
+
+`App.jsx`:
+- Realtime INSERT/UPDATE/DELETE rows are queued for 250 ms and applied in one `setAthletes`
+  through `decodeAthlete()`, the same decoding `fetchAthletes` now uses. A row is merged over
+  the existing athlete, the list is sorted by name, and `shiloh_roster` and
+  `shiloh_baselines_map` are updated.
+- An event without a usable row (no id / name / position, or an unknown type) falls back to
+  the old one-download-per-burst.
+- The focus/visibility refresh re-downloads the roster only when realtime is down or the
+  last roster download (`lastAthletesFetchAt`) is over 5 minutes old.
+
+Test: `tests/usage-guards.js` (19: 6 edits + an insert applied with no download, a delete,
+the device cache).
+
+## 153. Next up
 
 - **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
   prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity
