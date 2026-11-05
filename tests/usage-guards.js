@@ -93,6 +93,25 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   roster = await page.locator('main').innerText();
   check('a deleted athlete disappears, still no download', of('athletes').length === 0 && !/New Kid/i.test(roster));
   check('the roster cache on the device follows', await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_roster') || '[]').map(a => a.name).join(',')) === 'Renamed 5');
+  // v5.15.8: a baseline set on another device reaches this device's baselines map (alarms read it).
+  await page.evaluate((id) => window.__hpdOnAthletesChange({ eventType: 'UPDATE', new: { id, name: 'Renamed 5', sport: 'Football', position: JSON.stringify({ pos: 'QB', bw: 181.5, bd: '2026-11-01', lid: 'log-x' }) }, old: { id } }), uuid(1));
+  await page.waitForTimeout(600);
+  const bmap = await page.evaluate((id) => JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}')[id], uuid(1));
+  check('a realtime baseline change updates the baselines map', bmap?.weight_lbs === 181.5 && bmap?.log_id === 'log-x', JSON.stringify(bmap));
+  // Coming back with realtime up: flipping windows doesn't re-download the roster; returning
+  // after the screen was hidden over a minute (an iPad asleep) does.
+  reqs.length = 0;
+  await page.evaluate(() => {
+    window.__hpdSetRealtimeHealthy(true);
+    const real = Date.now.bind(Date); window.__off = 40000; Date.now = () => real() + window.__off;
+    window.dispatchEvent(new Event('focus'));
+  });
+  await page.waitForTimeout(800);
+  check('realtime up, switching back from another window: no roster download', of('athletes').length === 0, `athletes=${of('athletes').length}`);
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.evaluate(() => { window.__off += 70000; Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForTimeout(800);
+  check('realtime up, back after the screen was off over a minute: one roster download', of('athletes').length === 1, `athletes=${of('athletes').length}`);
   // Realtime: a check-in from another device is applied directly - no re-download.
   await page.goto(`${APP}/#dashboard`); await page.waitForTimeout(2500);
   reqs.length = 0;

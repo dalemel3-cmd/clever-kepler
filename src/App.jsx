@@ -637,18 +637,20 @@ export default function App() {
       if (!batch.length) return;
       let cloudMap = {};
       try { cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}'); } catch { /* ignore */ }
+      // Decode here, not inside the state updater: React runs a queued updater at the next
+      // render, after the map below had already been saved (v5.15.8).
+      const ops = batch.map(p => (p.eventType === 'DELETE' ? { del: p.old.id } : { d: decodeAthlete(p.new, cloudMap) }));
+      try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch { /* ignore */ }
       setAthletes(prev => {
         let next = prev;
-        for (const p of batch) {
-          if (p.eventType === 'DELETE') { next = next.filter(a => a.id !== p.old.id); continue; }
-          const d = decodeAthlete(p.new, cloudMap);
-          next = next.some(a => a.id === d.id) ? next.map(a => (a.id === d.id ? { ...a, ...d } : a)) : [...next, d];
+        for (const op of ops) {
+          if (op.del) { next = next.filter(a => a.id !== op.del); continue; }
+          next = next.some(a => a.id === op.d.id) ? next.map(a => (a.id === op.d.id ? { ...a, ...op.d } : a)) : [...next, op.d];
         }
         next = [...next].sort((x, y) => String(x.name || '').localeCompare(String(y.name || '')));
         try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch { /* ignore */ }
         return next;
       });
-      try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch { /* ignore */ }
     };
     const onAthletesChange = (payload) => {
       const ev = payload?.eventType;
@@ -663,6 +665,8 @@ export default function App() {
       athletesBurst = setTimeout(() => { athletesBurst = null; fetchAthletes(); }, 1500);
     };
     window.__hpdOnAthletesChange = onAthletesChange;
+    // Test hook: tests block the realtime socket, so they set its health directly.
+    window.__hpdSetRealtimeHealthy = (v) => { realtimeHealthy.current = !!v; };
 
     // Device-to-device broadcast (iPad <-> PC). Named so tests can drive it.
     const onDeviceSync = (payload) => {
@@ -713,7 +717,12 @@ export default function App() {
         .subscribe((status) => {
           // Channel health drives the poll cadence: when the WebSocket is alive the
           // poll is only a slow safety net; when the school WiFi blocks it, we probe fast.
+          const was = realtimeHealthy.current;
           realtimeHealthy.current = status === 'SUBSCRIBED';
+          // Back after a drop: changes made meanwhile aren't replayed, so catch the roster
+          // up once (braked) - weigh-ins catch up through the change probe (v5.15.8).
+          if (realtimeHealthy.current && !was && realtimeEverUp.current) fetchAthletes();
+          if (realtimeHealthy.current) realtimeEverUp.current = true;
         });
     } catch (e) {
       console.warn("Realtime UltraSync warning:", e);
@@ -791,15 +800,20 @@ export default function App() {
     // focus and visibilitychange both fire when a tab or app comes back, so this runs once
     // per return - and at most every 30s for someone flipping between apps (v5.8.1).
     let lastFocusRefreshAt = 0;
+    let hiddenAt = 0;
     const handleFocusRefresh = () => {
-      if (document.hidden) return;
+      if (document.hidden) { if (!hiddenAt) hiddenAt = Date.now(); return; }
+      const wasAway = hiddenAt && Date.now() - hiddenAt > 60000;
+      hiddenAt = 0;
       if (Date.now() - lastFocusRefreshAt < 30000) return;
       lastFocusRefreshAt = Date.now();
       pollIdleStreak.current = 0;
       fetchReportDataRef.current(true);
       // The roster only changes by push while realtime is up (v5.15.7): re-download it on
-      // return when the socket is down or the copy is over 5 minutes old.
-      if (!realtimeHealthy.current || Date.now() - lastAthletesFetchAt.current > 300000) fetchAthletes();
+      // return when the socket is down, the copy is over 5 minutes old, or the screen was
+      // hidden over a minute (an iPad asleep misses pushes and the socket still reads
+      // healthy until its heartbeat fails, v5.15.8). Flipping between windows doesn't.
+      if (!realtimeHealthy.current || wasAway || Date.now() - lastAthletesFetchAt.current > 300000) fetchAthletes();
     };
     window.addEventListener('focus', handleFocusRefresh);
     document.addEventListener('visibilitychange', handleFocusRefresh);
@@ -841,6 +855,7 @@ export default function App() {
       window.removeEventListener('focus', handleFocusRefresh);
       document.removeEventListener('visibilitychange', handleFocusRefresh);
       clearTimeout(athletesBurst);
+      clearTimeout(athleteRowsTimer);
     };
   }, [effectiveWindowDays]); // stable (ref-backed useCallback) - listed only to satisfy the lint rule
 
@@ -1573,6 +1588,8 @@ export default function App() {
     };
   };
   const lastAthletesFetchAt = React.useRef(0);
+  const realtimeEverUp = React.useRef(false);
+  const pickBaseline = (a) => ({ baseline_weight: a.baseline_weight, baseline_date: a.baseline_date, baseline_log_id: a.baseline_log_id, raw_position: a.raw_position });
 
   const fetchAthletes = async () => {
     try {
@@ -2233,9 +2250,13 @@ export default function App() {
     const targetAthlete = athletesAll.find(a => a.id === athleteId);
     const updatedMeta = targetAthlete ? encodeAthleteMeta(targetAthlete.raw_position || targetAthlete.position || '', weightVal, dateStr, logId) : '';
 
-    const nextAthletes = athletesAll.map(a => a.id === athleteId ? { ...a, baseline_weight: Number(weightVal), baseline_date: dateStr, baseline_log_id: logId, raw_position: updatedMeta } : a);
-    setAthletes(nextAthletes);
-    try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch {}
+    // Updater form (v5.15.8): change just this athlete in the current list, so a realtime
+    // change from another device that landed during the awaits above isn't undone.
+    setAthletes(prev => {
+      const next = prev.map(a => a.id === athleteId ? { ...a, baseline_weight: Number(weightVal), baseline_date: dateStr, baseline_log_id: logId, raw_position: updatedMeta } : a);
+      try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch {}
+      return next;
+    });
     try {
       if (isValidUuid(athleteId) && targetAthlete) {
         await supabase.from('athletes').update({ position: updatedMeta }).eq('id', athleteId);
@@ -2317,8 +2338,14 @@ export default function App() {
       }
       return a;
     }));
-    setAthletes(nextAthletes);
-    try { localStorage.setItem('shiloh_roster', JSON.stringify(nextAthletes)); } catch {}
+    // Apply only the changed baselines to the current list (v5.15.8): the awaits above can
+    // take seconds, and replacing the whole list undid realtime changes from meanwhile.
+    const changedById = new Map(nextAthletes.filter((a, i) => a !== athletesAll[i]).map(a => [a.id, a]));
+    setAthletes(prev => {
+      const next = prev.map(a => (changedById.has(a.id) ? { ...a, ...pickBaseline(changedById.get(a.id)) } : a));
+      try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch {}
+      return next;
+    });
 
     // 3. Broadcast real-time team baseline synchronization across network terminals
     try {
@@ -2409,7 +2436,8 @@ export default function App() {
       
       if (createdAthlete) {
         setAthletes(prev => {
-          const next = [...prev, createdAthlete];
+          // The realtime echo of this insert can land first on slow Wi-Fi (v5.15.8).
+          const next = prev.some(a => a.id === createdAthlete.id) ? prev : [...prev, createdAthlete];
           try {
             localStorage.setItem('shiloh_roster', JSON.stringify(next));
           } catch {}

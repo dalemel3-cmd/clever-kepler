@@ -4469,7 +4469,31 @@ lost). The owner asked for the improvement.
 Test: `tests/usage-guards.js` (19: 6 edits + an insert applied with no download, a delete,
 the device cache).
 
-## 153. Next up
+## 153. Live roster updates: review fixes (v5.15.8)
+
+The pre-release review of v5.15.7 finished after it was pushed. Fixes:
+- **Baselines map missed realtime baselines.** `decodeAthlete` ran inside the `setAthletes`
+  updater, which React 19 runs at the next render, after `shiloh_baselines_map` had been
+  saved. `getAthleteBaseline` reads the map first, so alarms used the old baseline. The batch
+  is now decoded first, the map saved, and the decoded rows then applied.
+- **Changes missed while asleep.** realtime-js doesn't notice a dead socket until its
+  heartbeat fails, and missed changes aren't replayed. Now:
+  - The focus refresh also downloads the roster when the page was hidden for over 60 s
+    (`hiddenAt`).
+  - The channel downloads it once when it goes back to SUBSCRIBED after a drop
+    (`realtimeEverUp`).
+  - Switching windows without hiding still doesn't download.
+- **Whole-list replaces.** Set baseline marker and Sync All Baselines replaced the roster
+  with a list built before their awaits, which could undo a realtime change. Both now update
+  the current list by id (`pickBaseline`).
+- **Duplicates.** `handleCreateAthlete` skips adding an athlete whose realtime echo arrived
+  first.
+- **Cleanup.** It clears the 250 ms batch timer.
+
+Test hook `window.__hpdSetRealtimeHealthy`. Test: `tests/usage-guards.js` (22: baselines
+map, window switch vs screen off for a minute, with realtime up).
+
+## 154. Next up
 
 - **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
   prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity
