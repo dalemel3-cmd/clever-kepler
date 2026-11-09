@@ -1,6 +1,6 @@
 # HPD App — agent handoff (for Google Antigravity and any other coding agent)
 
-Current as of **v5.15.9, 2026-11-09**. Read this whole file before
+Current as of **v5.16.0, 2026-11-09**. Read this whole file before
 changing anything. `docs/HANDOFF.md` has the full history (one `## N.` section per change,
 with the reasoning); `VERSIONING.md` has one row per release.
 
@@ -99,7 +99,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 - **Load timing:** `tests/perf/load-timing.mjs` (iPad profile, throttled, Supabase stubbed)
   for the weekly performance review; see `.claude/agents/hpd-performance.md`.
 - `tests/lib/make-xlsx.js` builds real .xlsx files for upload tests.
-- **Known failures: none** (v5.15.4: the full suite, 81 files, passes). `tooltip-units`
+- **Known failures: none** (v5.16.0: the full suite, 81 files, passes). `tooltip-units`
   can miss a chart-bar hover while the chart animates; rerun once before treating it as real.
 - Run the area's tests after a change:
   - **Programs:** `program-builder`, `program-template-periodization`, `program-grid`,
@@ -123,7 +123,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 3. Add a row to `VERSIONING.md`.
 4. In `docs/HANDOFF.md`, replace the trailing `## N. Next up` with `## N. <what changed>
    (vX.Y.Z)`, then a new `## N+1. Next up` that carries the open list forward. The last
-   numbered section is currently **§154**, and **§155 is Next up**.
+   numbered section is currently **§155**, and **§156 is Next up**.
 5. Commit with a plain message (what and why), push your branch, and give the owner the
    preview URL.
 6. Merge or push to `main` **only after the owner says "push it"**. Fast-forward only; don't
@@ -210,7 +210,10 @@ They inject `@page` only while open, and are sized for US Letter.
   - "Has another rack saved since?" compares **server time with server time**: the stamp
     the database kept for this tablet's last save (`hpd_ws_acked`) or for the rack it took
     over from (`savedElsewhere()`, v5.15.9). Never compare with the tablet's own clock.
-    Save stamps strictly increase per session (`queueSessionSave`).
+    Save stamps strictly increase per session (`queueSessionSave`). A save still queued on
+    the tablet doesn't hide the server's copy (`serverCopy()`, v5.16.0), except after a
+    send that failed on the connection (`sendFailed`, marked per session) or while its save
+    is in flight (`inFlight`): in both, the server copy may be the tablet's own.
   - The timer stops at the cap (`workoutTimerCapMin`, default 60).
 - **Periodization:**
   - Counts every exercise: text prescriptions like "3x 8 ea" count as sets × reps; holds
@@ -242,6 +245,9 @@ They inject `@page` only while open, and are sized for US Letter.
     (`tests/icon-font-subset.js`).
   - The focus refresh is throttled.
   - Saves apply the returned row.
+  - Google Fonts are cached by the service worker under `google-fonts-css-v2` /
+    `google-fonts-files`; the stylesheet links need `crossorigin` (opaque copies fail a CORS
+    load). Renaming a cache needs the old one deleted (`main.jsx`).
   - Realtime handlers are debounced. Weigh-in and athlete rows are applied from the
     realtime payload, not by re-downloading the table.
   - The change probe compares the server's count and newest time with what the device has
@@ -291,7 +297,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
    per-week planned intensity (hollow dot), actual intensity from logged sets ÷ max, or time
    under tension for capacity blocks. Waiting on the owner's choice.
 2. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
-3. Older open items are in `docs/HANDOFF.md` §155 (Next up): leaked-password protection and
+3. Older open items are in `docs/HANDOFF.md` §156 (Next up): leaked-password protection and
    a "Forgot password" link, grades for athletes missing them, the Cheer & Dance jump
    technique, PPS/RSI test types, and a nicer Vercel domain.
 4. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
@@ -313,7 +319,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 
 ## 13. Docs index
 
-- `docs/HANDOFF.md`: full change history (§1–§154) and the live Next-up list (§155).
+- `docs/HANDOFF.md`: full change history (§1–§155) and the live Next-up list (§156).
 - `docs/OPS.md`: the operations playbook (agent team, cadence, budgets, rules).
 - `.claude/agents/`: the agent role briefs (`hpd-qa`, `hpd-reliability`, `hpd-performance`,
   `hpd-reviewer`).

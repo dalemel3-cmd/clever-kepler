@@ -4552,7 +4552,62 @@ Test hooks `window.__hpdProbe`, `window.__hpdOnRealtimeStatus`. Tests:
 first connect late, history retry), `tests/history-paging.js` (28: same-millisecond save,
 clock set back, clock ahead).
 
-## 155. Next up
+## 155. v5.15.9 review fixes (v5.16.0)
+
+The pre-release review of v5.15.9 finished after it was pushed. Nothing in it could lose a
+check-in. Fixes:
+- **Baselines map after a roster download.** A live change that arrived during a roster
+  download was put back on the roster but not into `shiloh_baselines_map`, so alarms (which
+  read the map first) used the old baseline until the next download. Late changes keep
+  their raw row and are decoded into the map before it is saved.
+- **Rack: a queued save hid another rack's newer one.** A rack tablet with a save still
+  queued showed its own copy and never looked at the server's, so after the athlete moved
+  to another rack and back, its next set wrote over the other rack's sets. Rows merged from
+  the queue now carry the server's copy (`server`), `savedElsewhere()` compares that, and
+  the panel takes over from it and drops the queued save (`discardPendingSave`). Exception:
+  after a send that failed on the connection (it may still have reached the database, so
+  the server copy may be the tablet's own), the queued save is kept (`sendFailed`, marked
+  per session so it covers a newer change queued behind the failed send, carried to later
+  saves of that session, never sent to the database). The same goes for a session whose
+  save is in flight right now (`inFlight`): the database may hold it before the reply.
+- **Team sync re-flagged rows.** Sync All Baselines cleared the rows it was about to flag
+  again; now it leaves them (`not id in`) and flags only rows not flagged yet
+  (`is_baseline not true`). A sync that changes nothing sends no updates.
+- **Change probe and a late reply.** An older weigh-in reply landing after a newer one set
+  `cloudWindowRef`; it is now set only from the reply that is shown, and cleared when the
+  device's own copy is shown instead (download failed), so the next probe downloads.
+- **Font stylesheets.** They were loaded without `crossorigin`, so the service worker
+  couldn't tell an error or a school filter page from the real stylesheet and could cache
+  it. They now load with `crossorigin`, and only 200 responses are cached. The cache is
+  renamed `google-fonts-css-v2`: the v5.15.9 copies would fail a `crossorigin` load and show
+  the icons as words for one launch. `main.jsx` deletes the old cache (about 7 MB of storage
+  quota per entry).
+- **Test fixed:** `save-no-refetch`'s fake server always answered the change probe with 0
+  rows, which only matched v5.15.8's fingerprint; it now counts the saved rows like the real
+  server and checks that the probe ran. The app was right: it counts its own saves.
+
+Accepted as is: a change made between the boot roster download and a first live connect
+less than 10 s later waits for the next roster refresh.
+
+The second review (of v5.16.0) found the per-session marking and in-flight cases and the
+font cache rename before release.
+
+Tests: `tests/usage-guards.js` (33: baselines map after an in-flight download, team sync
+filters on the Groups screen), `tests/history-paging.js` (37: queued save vs another rack,
+failed send, a change queued behind a lost reply, a save in flight; the last two fail
+without the fix), `tests/save-no-refetch.js` (5).
+
+## 156. Next up
+
+- **A late save from a fast-clock rack can beat a newer one.** db/017 sets a
+  `workout_sessions.updated_at` from the future to the time the save arrives. A queued save
+  from a tablet whose clock runs ahead by `skew`, sent late, is stamped
+  min(change time + skew, send time), so it overwrites another rack's save made less than
+  `skew` after the change. Saves sent at once are fine, and late saves from correct or slow
+  clocks are skipped as intended. Needs a database change (owner go-ahead).
+- **Two racks' copies of one session aren't merged.** When an athlete logs on two racks and
+  one rack's save is older, newer-wins drops that rack's sets from the session (the
+  lift_logs rows stay). Merging the `sets`/`done` maps would keep both.
 
 - **Old app copies still running.** The review found a copy from before v5.8.0 (no request
   brake) still open on a weight-room device (an iPad on iPadOS 17.6; iPads report as Macs)

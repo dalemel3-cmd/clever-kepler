@@ -40,12 +40,32 @@ export function ackedSaveAt(athleteId, sessionDate, dayId) {
 // stamp for this tablet's last save, or the other rack's it took over from (v5.15.9): a
 // tablet clock running ahead used to make its own save look later than another rack's.
 // Only a session this tablet never saved or restored falls back to its own clock.
+// A save still queued here hides the server's copy in `row`; its `server` copy is compared
+// instead (v5.16.0), so a newer save from another rack still wins. Take over from
+// serverCopy(row), and drop the queued save with discardPendingSave().
 export function savedElsewhere(row, s, athleteId, sessionDate) {
-  if (!row || !s || row.pendingHere) return false;
+  const src = serverCopy(row);
+  if (!src || !s) return false;
   const known = Math.max(ackedSaveAt(athleteId, sessionDate, String(s.dayId ?? '')) || 0, s.serverUpdatedAt || 0);
-  const t = Date.parse(row.updated_at);
+  const t = Date.parse(src.updated_at);
   return known ? t > known : t > (s.savedAt || 0) + 1000;
 }
+export const serverCopy = (row) => (row?.pendingHere ? row.server || null : row || null);
+export function discardPendingSave(athleteId, sessionDate, dayId) {
+  const p = readPending();
+  const k = `${athleteId}|${sessionDate}|${dayId}`;
+  if (p[k]) { delete p[k]; writePending(p); }
+}
+// A send that failed on the connection may still have reached the database, so the server's
+// copy may be this tablet's own: such a session keeps the tablet's queued save (v5.16.0).
+// Marked by session, not by stamp: a newer change queued behind the failed send is the
+// one waiting now, and the server may hold the failed one.
+const markSendFailed = (rows) => {
+  const p = readPending();
+  for (const r of rows) { const q = p[keyOf(r)]; if (q) q.sendFailed = true; }
+  writePending(p);
+};
+const inFlight = new Set(); // sessions in the save being sent now: the server may hold it, unacked
 const lastStamp = new Map(); // key -> ms of the last save queued on this tablet
 
 // The database row for a tablet session.
@@ -77,7 +97,7 @@ export function queueSessionSave(row) {
   const prev = Math.max(Date.parse(p[k]?.updated_at || '') || 0, lastStamp.get(k) || 0, Date.parse(readAcked()[k] || '') || 0);
   const t = Math.max(Date.parse(row.updated_at) || 0, prev + 1);
   lastStamp.set(k, t);
-  p[k] = { ...row, updated_at: new Date(t).toISOString() };
+  p[k] = { ...row, updated_at: new Date(t).toISOString(), ...(p[k]?.sendFailed ? { sendFailed: true } : {}) };
   writePending(p);
   clearTimeout(timer);
   timer = setTimeout(() => { flushSessions(); }, 1500);
@@ -122,29 +142,30 @@ async function saveOneByOne(rows) {
 export function flushSessions() {
   if (flushing) return flushing;
   flushing = (async () => {
-    const rows = Object.values(readPending());
+    const rows = Object.values(readPending()).map(({ sendFailed, ...r }) => r); // eslint-disable-line no-unused-vars
     if (!rows.length) return { ok: true, count: 0 };
     if (typeof navigator !== 'undefined' && navigator.onLine === false) { scheduleRetry(); return { ok: false, offline: true }; }
     if (!allowFetch('workout_sessions:save', { max: 30, windowMs: 60000 })) { scheduleRetry(); return { ok: false }; }
     let done = rows;
+    for (const r of rows) inFlight.add(keyOf(r));
     try {
       const error = await saveRows(rows);
-      if (error && !isRowError(error)) { reportDataError(error, 'workout_sessions:save'); scheduleRetry(); return { ok: false, error }; }
+      if (error && !isRowError(error)) { reportDataError(error, 'workout_sessions:save'); markSendFailed(rows); scheduleRetry(); return { ok: false, error }; }
       if (error) {
         const res = await saveOneByOne(rows);
         done = res.done;
-        if (res.error) { reportDataError(res.error, 'workout_sessions:save'); dropSent(done); scheduleRetry(); return { ok: false, error: res.error }; }
+        if (res.error) { reportDataError(res.error, 'workout_sessions:save'); dropSent(done); markSendFailed(rows.filter(r => !done.includes(r))); scheduleRetry(); return { ok: false, error: res.error }; }
       }
-    } catch { scheduleRetry(); return { ok: false }; }
+    } catch { markSendFailed(rows); scheduleRetry(); return { ok: false }; }
     dropSent(done);
     return { ok: true, count: done.length };
   })().then((res) => {
-    flushing = null;
+    flushing = null; inFlight.clear();
     // A change made while that save was in flight (e.g. Finish tapped mid-save) is still
     // queued and nothing else would send it until the next change: send it now (v5.15.4).
     if (res?.ok && res.count && pendingSessionCount()) { clearTimeout(timer); timer = setTimeout(() => { flushSessions(); }, 1500); }
     return res;
-  }, (e) => { flushing = null; throw e; });
+  }, (e) => { flushing = null; inFlight.clear(); throw e; });
   return flushing;
 }
 
@@ -168,7 +189,8 @@ export async function fetchAthleteSessions(athleteId, since) {
     // Rows still waiting on this tablet are newer than what the server has.
     const p = readPending();
     // Marked (v5.15.9) so the rack doesn't take its own unsent save for another rack's.
-    const out = (data || []).map(r => p[keyOf(r)] ? { ...r, ...p[keyOf(r)], pendingHere: true } : r);
+    const maybeOwn = (k) => p[k].sendFailed || inFlight.has(k);
+    const out = (data || []).map(r => (p[keyOf(r)] ? { ...r, ...p[keyOf(r)], pendingHere: true, server: maybeOwn(keyOf(r)) ? null : r } : r));
     for (const r of Object.values(p)) if (r.athlete_id === athleteId && r.session_date >= since && !out.some(x => keyOf(x) === keyOf(r))) out.push({ ...r, pendingHere: true });
     return out;
   } catch { return null; }

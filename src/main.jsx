@@ -29,6 +29,10 @@ try {
 // old worker had already cached. registerSW() here wires up the real
 // check-for-update-and-reload behavior: on finding a new service worker it
 // activates it immediately and reloads the page once it takes control.
+// v5.15.9 kept the Google Fonts stylesheets as opaque copies in this cache (about 7 MB of
+// storage quota each); v5.16.0 uses google-fonts-css-v2 (vite.config.js).
+try { if (typeof caches !== 'undefined') caches.delete('google-fonts-css').catch(() => {}); } catch { /* ignore */ }
+
 registerSW({
   immediate: true,
   onRegisteredSW(_swUrl, registration) {

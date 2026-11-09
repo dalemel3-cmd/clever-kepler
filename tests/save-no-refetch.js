@@ -16,7 +16,7 @@ const athletes = [1, 2, 3].map(n => ({ id: uuid(n), name: `Saver ${n}`, sport: '
 (async () => {
   const browser = await chromium.launch(LAUNCH_OPTS);
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' })).newPage();
-  const posts = []; const gets = [];
+  const posts = []; const gets = []; const saved = [];
   await stubAuth(page);
   await page.route(SUPA, async (route) => {
     const req = route.request(); const url = req.url(); const m = req.method();
@@ -27,8 +27,18 @@ const athletes = [1, 2, 3].map(n => ({ id: uuid(n), name: `Saver ${n}`, sport: '
     if (m === 'GET') gets.push(decodeURIComponent(url));
     if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify([{ approved: true }]) });
     if (url.includes('/rest/v1/athletes') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
-    if (url.includes('/rest/v1/weigh_ins') && m === 'POST') { const b = req.postDataJSON(); const rows = Array.isArray(b) ? b : [b]; posts.push(...rows); return route.fulfill({ status: 201, headers: h, body: JSON.stringify(rows.map((r, i) => ({ ...r, id: uuid(800 + posts.length + i) }))) }); }
-    // Row count like PostgREST sends it, so the change probe sees "no change".
+    if (url.includes('/rest/v1/weigh_ins') && m === 'POST') {
+      const b = req.postDataJSON(); const rows = Array.isArray(b) ? b : [b]; posts.push(...rows);
+      const out = rows.map((r, i) => ({ ...r, id: uuid(800 + posts.length + i), created_at: r.created_at || new Date().toISOString() }));
+      saved.push(...out);
+      return route.fulfill({ status: 201, headers: h, body: JSON.stringify(out) });
+    }
+    // The change probe's tiny query, answered like the real server: the saved rows' count and
+    // newest time (v5.16.0; it always said 0, which only matched the old fingerprint).
+    if (url.includes('/rest/v1/weigh_ins') && m === 'GET' && /select=created_at&/.test(decodeURIComponent(url))) {
+      const newest = [...saved].sort((x, y) => Date.parse(y.created_at) - Date.parse(x.created_at))[0];
+      return route.fulfill({ status: 200, headers: { ...h, 'content-range': saved.length ? `0-0/${saved.length}` : '*/0', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify(newest ? [{ created_at: newest.created_at }] : []) });
+    }
     if (url.includes('/rest/v1/weigh_ins')) return route.fulfill({ status: 200, headers: { ...h, 'content-range': '*/0', 'access-control-expose-headers': 'content-range' }, body: '[]' });
     return route.fulfill({ status: 200, headers: h, body: '[]' });
   });
@@ -45,6 +55,8 @@ const athletes = [1, 2, 3].map(n => ({ id: uuid(n), name: `Saver ${n}`, sport: '
 
   check('three check-ins saved', posts.length === 3, String(posts.length));
   check('no full 30-day re-download after the saves', fullWeighIns() === before, `before=${before} after=${fullWeighIns()}`);
+  const probes = gets.filter(u => u.includes('/rest/v1/weigh_ins?') && /select=created_at&/.test(u)).length;
+  check('...with the change probe running meanwhile (it counts this device\'s own saves)', probes >= 1, `probes=${probes}`);
   const rows = await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_reports') || '[]'));
   const mine = rows.filter(r => /^Saver /.test(r.athlete_name || ''));
   check('each check-in shows once', mine.length === 3, JSON.stringify(mine.map(r => r.id)));

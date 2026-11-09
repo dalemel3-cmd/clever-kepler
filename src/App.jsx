@@ -658,7 +658,7 @@ export default function App() {
       try { cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}'); } catch { /* ignore */ }
       // Decode here, not inside the state updater: React runs a queued updater at the next
       // render, after the map below had already been saved (v5.15.8).
-      const ops = batch.map(({ p, t }) => (p.eventType === 'DELETE' ? { t, del: p.old.id } : { t, d: decodeAthlete(p.new, cloudMap) }));
+      const ops = batch.map(({ p, t }) => (p.eventType === 'DELETE' ? { t, del: p.old.id } : { t, raw: p.new, d: decodeAthlete(p.new, cloudMap) }));
       try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch { /* ignore */ }
       const keep = Date.now() - 120000;
       athleteOpsRef.current = [...athleteOpsRef.current.filter(o => o.t >= keep), ...ops];
@@ -1102,6 +1102,7 @@ export default function App() {
     const requestId = ++fetchReportRequestId.current;
     if (!isBackground) setReportLoading(true);
     let onlineData = [];
+    let freshWindow = null;
     try {
       if (!navigator.onLine) throw new Error('Offline');
       const windowStart = new Date();
@@ -1117,9 +1118,9 @@ export default function App() {
         .order('id'));
       if (!error && data) {
         onlineData = data;
-        // Keep the heartbeat's change-probe in sync with what we just pulled (same
-        // 30-day window, newest-first), and mark the cloud as freshly reachable.
-        cloudWindowRef.current = new Map(data.map(r => [r.id, Date.parse(r.created_at)]));
+        // What the heartbeat's change probe compares with (same window); set below, once
+        // this reply is known to be the newest (v5.16.0). Mark the cloud as reachable.
+        freshWindow = new Map(data.map(r => [r.id, Date.parse(r.created_at)]));
         lastCloudSyncAtRef.current = Date.now();
         setCloudStatus(prev => (prev === 'live' ? prev : 'live'));
         // One-time per session: push any classifications this device recorded locally (before
@@ -1184,6 +1185,9 @@ export default function App() {
     // If a newer fetchReportData call has started since this one began, this response
     // is stale (e.g. slow network response landing after a faster subsequent poll) — drop it.
     if (requestId !== fetchReportRequestId.current) return;
+    // An older reply landing late used to set this; showing the device's copy instead
+    // (download failed) clears it, so the next probe downloads (v5.16.0).
+    cloudWindowRef.current = freshWindow;
 
     // Unchanged-data fingerprint: the 5s heartbeat used to setState + rewrite localStorage
     // with an identical dataset every cycle, re-rendering the whole app nonstop. The
@@ -1651,8 +1655,10 @@ export default function App() {
         athletesLandedFrom.current = sentAt;
         const cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
         const decodedAthletes = data.map(a => decodeAthlete(a, cloudMap));
-        try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch {}
         const late = athleteOpsRef.current.filter(o => o.t >= sentAt);
+        // Their baselines too, over the download's older copy (alarms read the map first) (v5.16.0).
+        for (const o of late) if (o.raw) decodeAthlete(o.raw, cloudMap);
+        try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch {}
         const roster = late.length ? applyAthleteOps(decodedAthletes, late) : decodedAthletes;
         setAthletes(roster);
         if (roster.length) localStorage.setItem('shiloh_roster', JSON.stringify(roster));
@@ -2348,6 +2354,7 @@ export default function App() {
     }
 
     const targetLogIds = new Set(selectedLogs.map(x => x.id));
+    const targetUuids = Array.from(targetLogIds).filter(isValidUuid); // offline copies have no row yet
     const sportAthleteIds = new Set(athletes.filter(a => (a.sport || '').toLowerCase() === sportName.toLowerCase()).map(a => a.id));
 
     // 1. Persist indestructible baseline map across all selected athletes
@@ -2365,10 +2372,14 @@ export default function App() {
       if (sportAthleteIds.size > 0) {
         // Only rows still flagged (v5.15.9): clearing every check-in the team has rewrote
         // ~1,500 rows per sync, and each sent its own realtime update to every open device.
-        await supabase.from('weigh_ins').update({ is_baseline: false }).in('athlete_id', Array.from(sportAthleteIds)).eq('is_baseline', true);
+        // Not the rows about to be flagged, and only unflagged ones get flagged (v5.16.0): a
+        // sync that changes nothing sends no updates.
+        let clear = supabase.from('weigh_ins').update({ is_baseline: false }).in('athlete_id', Array.from(sportAthleteIds)).eq('is_baseline', true);
+        if (targetUuids.length) clear = clear.not('id', 'in', `(${targetUuids.join(',')})`);
+        await clear;
       }
-      if (targetLogIds.size > 0) {
-        await supabase.from('weigh_ins').update({ is_baseline: true }).in('id', Array.from(targetLogIds));
+      if (targetUuids.length > 0) {
+        await supabase.from('weigh_ins').update({ is_baseline: true }).in('id', targetUuids).not('is_baseline', 'is', true);
       }
     } catch (e) {
       console.warn("Could not sync bulk baseline flags to cloud weigh_ins rows:", e);

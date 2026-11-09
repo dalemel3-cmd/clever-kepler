@@ -143,6 +143,73 @@ const row = (extra) => ({ athlete_id: 'a1', session_date: '2026-11-02', day_id: 
   C.queueSessionSave(row({ athlete_id: 'b7', items_done: 3 }));
   await C.flushSessions();
   check('a skipped save leaves the remembered stamp alone', C.ackedSaveAt('b7', '2026-11-02', 'd1') === serverNow);
+
+  // B8 (v5.16.0). A save still queued on rack A (sets 1-3) no longer hides rack B's newer one
+  // (sets 1-6): A used to keep its own copy and then write over B's sets.
+  store.clear();
+  fake.onUpsert = (t, rs) => ({ data: rs.map(r => ({ athlete_id: r.athlete_id, session_date: r.session_date, day_id: r.day_id, updated_at: r.updated_at })) });
+  C.queueSessionSave(row({ athlete_id: 'b8', items_done: 1 }));
+  await C.flushSessions();
+  const s1 = C.ackedSaveAt('b8', '2026-11-02', 'd1');
+  C.queueSessionSave(row({ athlete_id: 'b8', items_done: 3 })); // not sent yet
+  fake.tables.workout_sessions = [{ athlete_id: 'b8', session_date: '2026-11-02', day_id: 'd1', items_done: 6, updated_at: new Date(s1 + 300000).toISOString() }];
+  const m8 = (await C.fetchAthleteSessions('b8', '2026-11-01')).find(x => x.day_id === 'd1');
+  check('the save queued here is what the list shows', m8?.pendingHere && m8.items_done === 3, JSON.stringify(m8));
+  check('another rack\'s newer save wins over one still queued here', C.savedElsewhere(m8, { dayId: 'd1', savedAt: Date.now() }, 'b8', '2026-11-02') === true && C.serverCopy(m8)?.items_done === 6);
+  C.discardPendingSave('b8', '2026-11-02', 'd1');
+  check('...and the queued save is dropped', C.pendingSessionCount() === 0);
+  fake.tables.workout_sessions = [{ athlete_id: 'b8', session_date: '2026-11-02', day_id: 'd1', items_done: 1, updated_at: new Date(s1).toISOString() }];
+  C.queueSessionSave(row({ athlete_id: 'b8', items_done: 4 }));
+  const own = (await C.fetchAthleteSessions('b8', '2026-11-01')).find(x => x.day_id === 'd1');
+  check('a queued save over this tablet\'s own last save is kept', C.savedElsewhere(own, { dayId: 'd1', savedAt: Date.now() }, 'b8', '2026-11-02') === false);
+  C.discardPendingSave('b8', '2026-11-02', 'd1');
+
+  // A send that failed on the connection may have landed: the server copy may be its own.
+  store.clear();
+  fake.onUpsert = () => ({ error: { message: 'Failed to fetch' } });
+  C.queueSessionSave(row({ athlete_id: 'b9', items_done: 2 }));
+  await C.flushSessions();
+  fake.tables.workout_sessions = [{ athlete_id: 'b9', session_date: '2026-11-02', day_id: 'd1', items_done: 2, updated_at: new Date(Date.now() + 1000).toISOString() }];
+  const m9 = (await C.fetchAthleteSessions('b9', '2026-11-01')).find(x => x.day_id === 'd1');
+  check('after a failed send the queued save is kept', m9?.pendingHere && C.savedElsewhere(m9, { dayId: 'd1', savedAt: Date.now() }, 'b9', '2026-11-02') === false);
+  const sent = [];
+  fake.onUpsert = (t, rs) => { sent.push(...rs); return null; };
+  C.queueSessionSave(row({ athlete_id: 'b9', items_done: 3 }));
+  check('the failed-send mark carries over to the next save', JSON.parse(store.get('hpd_ws_pending'))['b9|2026-11-02|d1']?.sendFailed === true);
+  await C.flushSessions();
+  check('the mark is never sent to the database', sent.length === 1 && !('sendFailed' in sent[0]) && C.pendingSessionCount() === 0, JSON.stringify(sent));
+
+  // B10 (v5.16.0 review). Set 3's save reaches the database but its reply is lost, and set 4
+  // is logged while it hangs: the server copy is the tablet's own, so set 4 must be kept.
+  store.clear();
+  fake.onUpsert = (t, rs) => ({ data: rs.map(r => ({ athlete_id: r.athlete_id, session_date: r.session_date, day_id: r.day_id, updated_at: r.updated_at })) });
+  C.queueSessionSave(row({ athlete_id: 'b10', items_done: 2 }));
+  await C.flushSessions(); // sets 1-2 saved and acked
+  fake.delay = 400;
+  fake.onUpsert = (t, rs) => { fake.tables.workout_sessions = rs.map(r => ({ ...r })); return { error: { message: 'Load failed' } }; };
+  C.queueSessionSave(row({ athlete_id: 'b10', items_done: 3, updated_at: new Date(Date.now() + 5).toISOString() }));
+  await sleep(1650); // set 3's save is in flight
+  C.queueSessionSave(row({ athlete_id: 'b10', items_done: 4, updated_at: new Date(Date.now() + 1).toISOString() }));
+  await sleep(600); // ...and its reply is lost
+  fake.delay = 0;
+  const m10 = (await C.fetchAthleteSessions('b10', '2026-11-01')).find(x => x.day_id === 'd1');
+  check('a newer change queued behind a lost reply is kept (the server copy is its own)', m10?.items_done === 4 && C.savedElsewhere(m10, { dayId: 'd1', savedAt: Date.now() }, 'b10', '2026-11-02') === false, JSON.stringify({ items: m10?.items_done, failed: m10?.sendFailed }));
+  C.discardPendingSave('b10', '2026-11-02', 'd1');
+
+  // B11. While a save is in flight, the database may already hold it before the reply comes.
+  store.clear();
+  fake.onUpsert = (t, rs) => ({ data: rs.map(r => ({ athlete_id: r.athlete_id, session_date: r.session_date, day_id: r.day_id, updated_at: r.updated_at })) });
+  C.queueSessionSave(row({ athlete_id: 'b11', items_done: 4 }));
+  await C.flushSessions(); // an earlier save, acked
+  fake.delay = 600;
+  C.queueSessionSave(row({ athlete_id: 'b11', items_done: 5, updated_at: new Date(Date.now() + 5).toISOString() }));
+  await sleep(1700); // in flight
+  const sentRow = JSON.parse(store.get('hpd_ws_pending'))['b11|2026-11-02|d1'];
+  fake.tables.workout_sessions = [{ ...sentRow }];
+  fake.delay = 0; // the fetch answers at once; the save still hangs
+  const m11 = (await C.fetchAthleteSessions('b11', '2026-11-01')).find(x => x.day_id === 'd1');
+  check('a save still in flight is not taken for another rack\'s', C.savedElsewhere(m11, { dayId: 'd1', savedAt: Date.now() }, 'b11', '2026-11-02') === false);
+  await sleep(700);
   fake.onUpsert = (t, rs) => { for (const r of rs) server.set(keyOf(r), r); return null; };
 }
 
