@@ -34,17 +34,20 @@ export default defineConfig({
         // Google Fonts kept by the service worker (v5.15.9): a rack iPad on slow school WiFi
         // waited on the icon font at every launch, and offline the icons showed as words.
         // The stylesheets are served from the cache and refreshed behind it; the font
-        // files have versioned URLs, so a cached one never changes.
+        // files have versioned URLs, so a cached one never changes. Only real 200s are kept
+        // (v5.16.0): index.html loads the stylesheets with crossorigin, so an error or a
+        // school filter page can be told apart and is never cached (an opaque reply could
+        // be either, and costs ~7 MB of storage quota each in Chrome).
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'google-fonts-css', expiration: { maxEntries: 10, maxAgeSeconds: 30 * 24 * 3600 }, cacheableResponse: { statuses: [0, 200] } },
+            options: { cacheName: 'google-fonts-css', expiration: { maxEntries: 10, maxAgeSeconds: 30 * 24 * 3600 }, cacheableResponse: { statuses: [200] } },
           },
           {
             urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
             handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts-files', expiration: { maxEntries: 30, maxAgeSeconds: 365 * 24 * 3600 }, cacheableResponse: { statuses: [0, 200] } },
+            options: { cacheName: 'google-fonts-files', expiration: { maxEntries: 30, maxAgeSeconds: 365 * 24 * 3600 }, cacheableResponse: { statuses: [200] } },
           },
         ],
       },

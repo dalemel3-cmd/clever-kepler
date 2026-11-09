@@ -21,21 +21,28 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   const reqs = [];
   let athletesDelay = 0; // ms the roster reply is held (v5.15.9 in-flight test)
   let probeReply = null; // { n, latest }: what the change probe's tiny query answers
+  let athletesBody = [{ id: uuid(1), name: 'A', sport: 'Football' }];
+  let wiRows = null; // weigh-ins the full download returns (team sync test)
+  const patches = [];
   await page.route(SUPA, async (r) => {
     const u = r.request().url(), m = r.request().method(); const H = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
     if (m === 'OPTIONS') return r.fulfill({ status: 200, headers: { ...H, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (u.includes('/realtime/')) return r.abort();
     if (isAuthRoute(u)) return fulfillAuth(r, u, H);
     if (m === 'GET') reqs.push(decodeURIComponent(u));
+    if (m === 'PATCH') patches.push(decodeURIComponent(u));
     if (u.includes('/rest/v1/coaches')) return r.fulfill({ status: 200, headers: H, body: '[{"approved":true}]' });
     if (u.includes('/rest/v1/athletes')) {
       if (athletesDelay) await new Promise(res => setTimeout(res, athletesDelay));
-      return r.fulfill({ status: 200, headers: H, body: JSON.stringify([{ id: uuid(1), name: 'A', sport: 'Football' }]) }).catch(() => {});
+      return r.fulfill({ status: 200, headers: H, body: JSON.stringify(m === 'GET' ? athletesBody : []) }).catch(() => {});
     }
     if (u.includes('/rest/v1/lift_logs')) return r.fulfill({ status: 200, headers: H, body: JSON.stringify([lift]) });
     // Row count like PostgREST sends it, so the change probe sees "no change".
     if (u.includes('/rest/v1/weigh_ins') && probeReply && /select=created_at&/.test(decodeURIComponent(u))) {
       return r.fulfill({ status: 200, headers: { ...H, 'content-range': `0-0/${probeReply.n}`, 'access-control-expose-headers': 'content-range' }, body: JSON.stringify(probeReply.latest ? [{ created_at: probeReply.latest }] : []) });
+    }
+    if (u.includes('/rest/v1/weigh_ins') && wiRows && m === 'GET' && /select=id,created_at,athlete_id/.test(decodeURIComponent(u)) && !/created_at=lt\./.test(decodeURIComponent(u))) {
+      return r.fulfill({ status: 200, headers: { ...H, 'content-range': `0-${wiRows.length - 1}/${wiRows.length}`, 'access-control-expose-headers': 'content-range' }, body: JSON.stringify(wiRows) });
     }
     if (u.includes('/rest/v1/weigh_ins')) return r.fulfill({ status: 200, headers: { ...H, 'content-range': '*/0', 'access-control-expose-headers': 'content-range' }, body: '[]' });
     return r.fulfill({ status: 200, headers: H, body: '[]' });
@@ -175,11 +182,16 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   await page.goto(`${APP}/#athletes`); await page.reload(); await page.waitForTimeout(2500);
   await page.evaluate(() => window.__hpdFetchBrake.reset());
   reqs.length = 0; athletesDelay = 2000;
+  // The download carries the athlete's old baseline; the live change brings a new one.
+  athletesBody = [{ id: uuid(1), name: 'A', sport: 'Football', position: JSON.stringify({ pos: 'WR', bw: 180, bd: '2026-10-01', lid: 'log-old' }) }];
   await page.evaluate(() => window.__hpdOnAthletesChange()); // no usable row: one roster download in 1.5 s
   await page.waitForTimeout(2000);
-  await page.evaluate((id) => window.__hpdOnAthletesChange({ eventType: 'UPDATE', new: { id, name: 'Moved Mid Download', sport: 'Football', position: 'WR' }, old: { id } }), uuid(1));
+  await page.evaluate((id) => window.__hpdOnAthletesChange({ eventType: 'UPDATE', new: { id, name: 'Moved Mid Download', sport: 'Football', position: JSON.stringify({ pos: 'WR', bw: 186, bd: '2026-11-09', lid: 'log-late' }) }, old: { id } }), uuid(1));
   await page.waitForTimeout(2500);
   athletesDelay = 0;
+  athletesBody = [{ id: uuid(1), name: 'A', sport: 'Football' }];
+  const lateMap = await page.evaluate((id) => JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}')[id], uuid(1));
+  check('...and so does its baseline in the baselines map (alarms read it)', lateMap?.log_id === 'log-late' && lateMap?.weight_lbs === 186, JSON.stringify(lateMap));
   roster = await page.locator('main').innerText();
   check('a change that arrives while a roster download is in flight survives it', of('athletes').length === 1 && /Moved Mid Download/i.test(roster) && await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_roster') || '[]').map(a => a.name).join(',')) === 'Moved Mid Download', `athletes=${of('athletes').length} | ${roster.slice(0, 200)}`);
 
@@ -208,6 +220,23 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   check('history skipped by the brake: no request yet', histNow() === 0, JSON.stringify(of('weigh_ins')));
   await page.waitForTimeout(20000);
   check('...and loaded once about 20 s later', histNow() === 1, JSON.stringify(of('weigh_ins')));
+  // v5.16.0: Sync All Baselines doesn't clear the rows it is about to flag, and flags only
+  // rows not flagged yet, so a sync that changes nothing sends no realtime updates.
+  wiRows = [
+    { ...row, id: uuid(91), weight_lbs: 182, is_baseline: false, created_at: new Date(Date.now() - 2 * 86400000).toISOString() },
+    { ...row, id: uuid(92), weight_lbs: 181, is_baseline: true, created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+  ];
+  await page.goto(`${APP}/#groups`); await page.reload(); await page.waitForTimeout(3000);
+  patches.length = 0;
+  await page.getByRole('button', { name: /Set All of FOOTBALL To/i }).click();
+  await page.getByRole('button', { name: 'Sync All Baselines' }).click();
+  await page.waitForTimeout(1500);
+  const wiPatches = patches.filter(u => u.includes('/rest/v1/weigh_ins?'));
+  const clearP = wiPatches.find(u => /is_baseline=eq\.true/.test(u));
+  const flagP = wiPatches.find(u => /id=in\./.test(u) && !/athlete_id=in\./.test(u));
+  check('team sync clears only flagged rows, never the ones it is about to flag', !!clearP && /athlete_id=in\./.test(clearP) && /id=not\.in\.\(/.test(clearP) && clearP.includes(uuid(91)), JSON.stringify(wiPatches));
+  check('...and flags only rows not flagged yet', !!flagP && /is_baseline=not\.is\.true/.test(flagP) && flagP.includes(uuid(91)), JSON.stringify(wiPatches));
+  wiRows = null;
   console.log(`\n${pass} passed, ${fail} failed`);
   await browser.close(); process.exit(fail ? 1 : 0);
 })();

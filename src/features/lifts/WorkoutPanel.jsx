@@ -2,7 +2,7 @@ import React from 'react';
 import { Check, Minus, Plus, Undo2, Timer, ChevronDown, ChevronUp } from 'lucide-react';
 import { estimate1RM } from './liftRanking';
 import { buildWorkoutDay, capOf, doneItems, elapsedMinutes, readSession, sameDay, sessionFromRow, startSession, timerCapped, totalItems, writeSession } from '../programs/workoutSession';
-import { fetchAthleteSessions, queueSessionSave, savedElsewhere, sessionRow } from '../programs/sessionCloud';
+import { discardPendingSave, fetchAthleteSessions, queueSessionSave, savedElsewhere, serverCopy, sessionRow } from '../programs/sessionCloud';
 import { weekWindow } from '../programs/useTodaysWorkouts';
 
 // Today's workout on the rack tablet (v5.10.0, docs/HANDOFF.md §134). Shows the athlete's
@@ -64,7 +64,9 @@ export default function WorkoutPanel({ athlete, choices, liftLogs, settings, add
         const s = readSession(athlete.id, today);
         const r = (rows || []).find(x => x.session_date === today && s && x.day_id === s.dayId);
         if (savedElsewhere(r, s, athlete.id, today)) {
-          const next = sessionFromRow(r, s.maxes);
+          // Another rack's newer save wins over one still queued here (v5.16.0).
+          if (r.pendingHere) discardPendingSave(athlete.id, today, r.day_id);
+          const next = sessionFromRow(serverCopy(r), s.maxes);
           writeSession(athlete.id, today, next);
           setSession(next);
         }
