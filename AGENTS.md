@@ -1,6 +1,6 @@
 # HPD App — agent handoff (for Google Antigravity and any other coding agent)
 
-Current as of **v5.15.8, 2026-11-05**. Read this whole file before
+Current as of **v5.15.9, 2026-11-09**. Read this whole file before
 changing anything. `docs/HANDOFF.md` has the full history (one `## N.` section per change,
 with the reasoning); `VERSIONING.md` has one row per release.
 
@@ -92,6 +92,12 @@ npm run lint         # oxlint; a few existing warnings, no errors
 - **Setup on your machine:** `npm i --no-save playwright && npx playwright install chromium`.
   Playwright isn't in `package.json`, and `npm install` removes it.
   `CHROMIUM_PATH=/path/to/chrome` overrides the browser.
+- **Claude cloud container:** `CHROMIUM_PATH=/opt/pw-browsers/chromium` (a link to the
+  installed build). Playwright there is global only, which ES modules can't see: run
+  `node --import ./tests/lib/pw-resolve.mjs tests/x.js` if a test fails with
+  `ERR_MODULE_NOT_FOUND`.
+- **Load timing:** `tests/perf/load-timing.mjs` (iPad profile, throttled, Supabase stubbed)
+  for the weekly performance review; see `.claude/agents/hpd-performance.md`.
 - `tests/lib/make-xlsx.js` builds real .xlsx files for upload tests.
 - **Known failures: none** (v5.15.4: the full suite, 81 files, passes). `tooltip-units`
   can miss a chart-bar hover while the chart animates; rerun once before treating it as real.
@@ -117,7 +123,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 3. Add a row to `VERSIONING.md`.
 4. In `docs/HANDOFF.md`, replace the trailing `## N. Next up` with `## N. <what changed>
    (vX.Y.Z)`, then a new `## N+1. Next up` that carries the open list forward. The last
-   numbered section is currently **§153**, and **§154 is Next up**.
+   numbered section is currently **§154**, and **§155 is Next up**.
 5. Commit with a plain message (what and why), push your branch, and give the owner the
    preview URL.
 6. Merge or push to `main` **only after the owner says "push it"**. Fast-forward only; don't
@@ -201,6 +207,10 @@ They inject `@page` only while open, and are sized for US Letter.
   - The session lives in `localStorage` (`hpd_workout_<athleteId>_<date>`) and is saved to
     `workout_sessions` (batched; queued offline in `hpd_ws_pending`). It is restored on
     another rack.
+  - "Has another rack saved since?" compares **server time with server time**: the stamp
+    the database kept for this tablet's last save (`hpd_ws_acked`) or for the rack it took
+    over from (`savedElsewhere()`, v5.15.9). Never compare with the tablet's own clock.
+    Save stamps strictly increase per session (`queueSessionSave`).
   - The timer stops at the cap (`workoutTimerCapMin`, default 60).
 - **Periodization:**
   - Counts every exercise: text prescriptions like "3x 8 ea" count as sets × reps; holds
@@ -234,6 +244,13 @@ They inject `@page` only while open, and are sized for US Letter.
   - Saves apply the returned row.
   - Realtime handlers are debounced. Weigh-in and athlete rows are applied from the
     realtime payload, not by re-downloading the table.
+  - The change probe compares the server's count and newest time with what the device has
+    (`cloudWindowRef`: the full download plus realtime rows since), so a check-in that
+    arrived live doesn't trigger a full download (v5.15.9).
+  - A roster download re-applies live athlete changes that arrived after it was sent
+    (`athleteOpsRef`); an empty or not-yet-loaded roster is never saved over `shiloh_roster`.
+  - Baseline flag updates touch only rows still flagged (`.eq('is_baseline', true)`): each
+    rewritten row is a realtime update to every device.
 
 ## 9. Owner preferences and standing decisions
 
@@ -274,7 +291,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
    per-week planned intensity (hollow dot), actual intensity from logged sets ÷ max, or time
    under tension for capacity blocks. Waiting on the owner's choice.
 2. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
-3. Older open items are in `docs/HANDOFF.md` §154 (Next up): leaked-password protection and
+3. Older open items are in `docs/HANDOFF.md` §155 (Next up): leaked-password protection and
    a "Forgot password" link, grades for athletes missing them, the Cheer & Dance jump
    technique, PPS/RSI test types, and a nicer Vercel domain.
 4. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
@@ -296,7 +313,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 
 ## 13. Docs index
 
-- `docs/HANDOFF.md`: full change history (§1–§153) and the live Next-up list (§154).
+- `docs/HANDOFF.md`: full change history (§1–§154) and the live Next-up list (§155).
 - `docs/OPS.md`: the operations playbook (agent team, cadence, budgets, rules).
 - `.claude/agents/`: the agent role briefs (`hpd-qa`, `hpd-reliability`, `hpd-performance`,
   `hpd-reviewer`).

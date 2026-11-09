@@ -12,8 +12,9 @@ const athletes = [
   { id: uuid(1), name: 'Amy Alpha', sport: 'WSOC' }, { id: uuid(2), name: 'Bea Beta', sport: 'WSOC' },
   { id: uuid(3), name: 'Cal Gamma', sport: 'WSOC' }, { id: uuid(4), name: 'Dan Delta', sport: 'Football' },
 ];
-const yday = new Date(Date.now() - 86400000);
-const logs = [{ id: uuid(50), athlete_id: uuid(3), sport: 'WSOC', weight_lbs: 0, sleep_hrs: 0, rpe: 6, session_minutes: 80, session_label: 'Practice', session_type: 'rpe', created_at: new Date(yday.setHours(17)).toISOString() }];
+// Yesterday on the Central calendar (v5.15.9: the UTC date ran a day ahead from 6 pm Central).
+const ydayCentral = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date(Date.now() - 86400000));
+const logs = [{ id: uuid(50), athlete_id: uuid(3), sport: 'WSOC', weight_lbs: 0, sleep_hrs: 0, rpe: 6, session_minutes: 80, session_label: 'Practice', session_type: 'rpe', created_at: new Date(`${ydayCentral}T17:00:00Z`).toISOString() }];
 const SEED = { enableRpe: true, rpeTrackDuration: true, rpeScaleMax: 10, rpeMaxMinutes: 240, rpeSessionLabels: ['Practice', 'Lift'] };
 (async () => {
   const browser = await chromium.launch(LAUNCH_OPTS);

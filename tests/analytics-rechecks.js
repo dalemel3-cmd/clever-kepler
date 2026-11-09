@@ -9,8 +9,11 @@ const LAUNCH_OPTS = process.env.CHROMIUM_PATH ? { executablePath: process.env.CH
 const APP = process.env.APP_URL || 'http://127.0.0.1:4173';
 const SUPA = '**/cwfpjlomlvkburugolky.supabase.co/**';
 const uuid = (n) => `${String(n).padStart(8, '0')}-0000-4000-8000-${String(n).padStart(12, '0')}`;
-// Noon Central-ish (17:00 UTC) N days ago, so every weigh-in lands on its own day.
-const at = (d) => { const t = new Date(Date.now() - d * 864e5); t.setUTCHours(17, 0, 0, 0); return t.toISOString(); };
+// Noon Central-ish (17:00 UTC) on the Central date N days ago, so every weigh-in lands on
+// its own day. Anchored to the Central date (v5.15.9): the UTC date is already tomorrow from
+// 6 pm Central, which put day 0 in the future and failed the run every evening.
+const central = (t) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(t);
+const at = (d) => new Date(`${central(new Date(Date.now() - d * 864e5))}T17:00:00Z`).toISOString();
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) { pass++; console.log(`  PASS  ${name}`); } else { fail++; console.log(`  FAIL  ${name}${detail ? ` -> ${detail}` : ''}`); } };
 

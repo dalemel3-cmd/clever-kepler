@@ -19,16 +19,24 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   await stubAuth(page);
   await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('hpd_settings', JSON.stringify({ enableLiftTracker: true, enableSpeedPower: true, dataWindowDays: 30 })); } });
   const reqs = [];
-  await page.route(SUPA, (r) => {
+  let athletesDelay = 0; // ms the roster reply is held (v5.15.9 in-flight test)
+  let probeReply = null; // { n, latest }: what the change probe's tiny query answers
+  await page.route(SUPA, async (r) => {
     const u = r.request().url(), m = r.request().method(); const H = { 'access-control-allow-origin': '*', 'content-type': 'application/json' };
     if (m === 'OPTIONS') return r.fulfill({ status: 200, headers: { ...H, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     if (u.includes('/realtime/')) return r.abort();
     if (isAuthRoute(u)) return fulfillAuth(r, u, H);
     if (m === 'GET') reqs.push(decodeURIComponent(u));
     if (u.includes('/rest/v1/coaches')) return r.fulfill({ status: 200, headers: H, body: '[{"approved":true}]' });
-    if (u.includes('/rest/v1/athletes')) return r.fulfill({ status: 200, headers: H, body: JSON.stringify([{ id: uuid(1), name: 'A', sport: 'Football' }]) });
+    if (u.includes('/rest/v1/athletes')) {
+      if (athletesDelay) await new Promise(res => setTimeout(res, athletesDelay));
+      return r.fulfill({ status: 200, headers: H, body: JSON.stringify([{ id: uuid(1), name: 'A', sport: 'Football' }]) }).catch(() => {});
+    }
     if (u.includes('/rest/v1/lift_logs')) return r.fulfill({ status: 200, headers: H, body: JSON.stringify([lift]) });
     // Row count like PostgREST sends it, so the change probe sees "no change".
+    if (u.includes('/rest/v1/weigh_ins') && probeReply && /select=created_at&/.test(decodeURIComponent(u))) {
+      return r.fulfill({ status: 200, headers: { ...H, 'content-range': `0-0/${probeReply.n}`, 'access-control-expose-headers': 'content-range' }, body: JSON.stringify(probeReply.latest ? [{ created_at: probeReply.latest }] : []) });
+    }
     if (u.includes('/rest/v1/weigh_ins')) return r.fulfill({ status: 200, headers: { ...H, 'content-range': '*/0', 'access-control-expose-headers': 'content-range' }, body: '[]' });
     return r.fulfill({ status: 200, headers: H, body: '[]' });
   });
@@ -145,6 +153,61 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   await page.waitForTimeout(300);
   got = await rows();
   check('realtime then broadcast: shown once, as the real row', got.length === 1 && got[0].id === r2.id, JSON.stringify(got.map(r => r.id)));
+
+  // v5.15.9 (docs/HANDOFF.md §154)
+  // A check-in that arrived live is counted by the change probe: no full re-download of the
+  // 30-day window on every device after every check-in.
+  await page.reload(); await page.waitForTimeout(2500);
+  const fullWi = () => of('weigh_ins').filter(u => /select=id,created_at,athlete_id/.test(u) && !/created_at=lt\./.test(u)).length;
+  const live1 = { ...row, id: uuid(81), created_at: new Date(Date.now() - 60000).toISOString() };
+  await page.evaluate((r) => window.__hpdApplyWeighInChange({ eventType: 'INSERT', new: r, old: {} }), live1);
+  reqs.length = 0;
+  probeReply = { n: 1, latest: live1.created_at };
+  await page.evaluate(() => window.__hpdProbe()); await page.waitForTimeout(800);
+  check('probe after a live check-in: nothing new, no full download', fullWi() === 0 && of('weigh_ins').length >= 1, JSON.stringify(of('weigh_ins')));
+  probeReply = { n: 2, latest: new Date().toISOString() };
+  await page.evaluate(() => window.__hpdProbe()); await page.waitForTimeout(800);
+  check('probe sees a check-in that did not arrive live: a full download', fullWi() >= 1, JSON.stringify(of('weigh_ins')));
+  probeReply = null;
+
+  // A roster download already sent when an athlete change arrives live can't include it:
+  // the change is put back on top of the download instead of being undone.
+  await page.goto(`${APP}/#athletes`); await page.reload(); await page.waitForTimeout(2500);
+  await page.evaluate(() => window.__hpdFetchBrake.reset());
+  reqs.length = 0; athletesDelay = 2000;
+  await page.evaluate(() => window.__hpdOnAthletesChange()); // no usable row: one roster download in 1.5 s
+  await page.waitForTimeout(2000);
+  await page.evaluate((id) => window.__hpdOnAthletesChange({ eventType: 'UPDATE', new: { id, name: 'Moved Mid Download', sport: 'Football', position: 'WR' }, old: { id } }), uuid(1));
+  await page.waitForTimeout(2500);
+  athletesDelay = 0;
+  roster = await page.locator('main').innerText();
+  check('a change that arrives while a roster download is in flight survives it', of('athletes').length === 1 && /Moved Mid Download/i.test(roster) && await page.evaluate(() => JSON.parse(localStorage.getItem('shiloh_roster') || '[]').map(a => a.name).join(',')) === 'Moved Mid Download', `athletes=${of('athletes').length} | ${roster.slice(0, 200)}`);
+
+  // Realtime connecting: right after load (the roster was just downloaded) no extra download;
+  // a first connect that comes late, or a reconnect, catches the roster up once.
+  await page.reload(); await page.waitForTimeout(1500);
+  reqs.length = 0;
+  await page.evaluate(() => window.__hpdOnRealtimeStatus('SUBSCRIBED')); await page.waitForTimeout(600);
+  check('realtime connects right after load: no second roster download', of('athletes').length === 0, `athletes=${of('athletes').length}`);
+  await page.reload(); await page.waitForTimeout(1500);
+  reqs.length = 0;
+  await page.evaluate(() => { const real = Date.now.bind(Date); Date.now = () => real() + 15000; window.__hpdOnRealtimeStatus('SUBSCRIBED'); });
+  await page.waitForTimeout(600);
+  check('realtime connects for the first time well after load: one roster catch-up', of('athletes').length === 1, `athletes=${of('athletes').length}`);
+  reqs.length = 0;
+  await page.evaluate(() => { window.__hpdOnRealtimeStatus('CHANNEL_ERROR'); const real = Date.now; Date.now = () => real() + 15000; window.__hpdOnRealtimeStatus('SUBSCRIBED'); });
+  await page.waitForTimeout(600);
+  check('...and after a drop, one more', of('athletes').length === 1, `athletes=${of('athletes').length}`);
+
+  // Reports asking for older history while the brake is full: loaded ~20 s later, not never.
+  await page.goto(`${APP}/#dashboard`); await page.reload(); await page.waitForTimeout(2500);
+  reqs.length = 0;
+  await page.evaluate(() => { const t = Date.now() - 50000; window.__hpdFetchBrake.hits.set('weigh_ins:history', [t, t, t]); location.hash = '#reports'; });
+  await page.waitForTimeout(2500);
+  const histNow = () => of('weigh_ins').filter(u => /created_at=lt\./.test(u)).length;
+  check('history skipped by the brake: no request yet', histNow() === 0, JSON.stringify(of('weigh_ins')));
+  await page.waitForTimeout(20000);
+  check('...and loaded once about 20 s later', histNow() === 1, JSON.stringify(of('weigh_ins')));
   console.log(`\n${pass} passed, ${fail} failed`);
   await browser.close(); process.exit(fail ? 1 : 0);
 })();

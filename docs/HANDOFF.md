@@ -4493,7 +4493,74 @@ The pre-release review of v5.15.7 finished after it was pushed. Fixes:
 Test hook `window.__hpdSetRealtimeHealthy`. Test: `tests/usage-guards.js` (22: baselines
 map, window switch vs screen off for a minute, with realtime up).
 
-## 154. Next up
+## 154. Weekly health review fixes (v5.15.9)
+
+From the first weekly health review (2026-11-09, `docs/OPS.md`). No database change.
+
+**Less database traffic**
+- **Change probe counts live check-ins.** The probe compared the server's count and newest
+  time with a fingerprint taken at the last full download, so every check-in made every
+  open device download the whole 30-day window again at its next probe. `cloudWindowRef`
+  (id → created_at) is now set by the full download and kept current by realtime weigh-in
+  rows; a check-in that arrived live no longer looks like a change.
+- **Baseline updates touch only flagged rows.** Clearing the old baseline flag rewrote
+  every check-in of the athlete (or of the whole team in Sync All Baselines, ~1,500 rows),
+  and each rewrite was a realtime update sent to every device. All four updates now add
+  `.eq('is_baseline', true)`.
+
+**Timing fixes (from the v5.15.8 review)**
+- **Roster change during a roster download.** A download already sent can't include a
+  change that arrives live while it's in flight, so the change was undone when it landed.
+  Live changes from the last 2 minutes (`athleteOpsRef`) are put back on top of a download
+  sent before them (`applyAthleteOps`, shared with the live path). A download sent before
+  the one on screen is dropped.
+- **Offline roster copy.** A live change that arrived before the first roster load
+  replaced the saved roster (`shiloh_roster`) with that one athlete. Neither path saves an
+  empty or not-yet-loaded roster now.
+- **Late first connect.** The reconnect catch-up skipped the first connect, so a device
+  whose live updates connected minutes after loading missed changes made in between. The
+  status handler (`onRealtimeStatus`) now catches up on any connect, unless a roster
+  download was sent in the last 10 s.
+- **Report history skipped by the brake.** Trying several Body Weight date ranges quickly
+  could hit the history brake, and the report stayed on the normal window. One retry runs
+  20 s later for the widest range asked.
+- **Rack clock ahead.** A rack tablet compared another rack's save time (server clock) with
+  its own save time (its clock). Running a few minutes fast, it ignored the other rack's
+  newer save. The save now returns the stamp the database kept (`hpd_ws_acked`, newest 200
+  sessions), and `savedElsewhere()` compares server time with server time. A save still
+  queued on the tablet is marked `pendingHere` so the tablet doesn't take over its own
+  unsent save.
+- **Rack save stamps strictly increase.** Two saves in the same millisecond tied, and the
+  second was dropped from the queue as already sent. A clock set back made later saves look
+  older, and the database skipped them. `queueSessionSave` stamps each save after the last
+  one for that session.
+
+**Other**
+- **Fonts cached by the service worker.** Google Fonts stylesheets (stale-while-revalidate)
+  and font files (cache-first, 1 year): the icon font no longer waits on school WiFi at
+  each launch, and offline the icons no longer show as words.
+- **Tests fixed for evenings.** `analytics-rechecks` and `rpe-team-log` built dates from the
+  UTC day, which is already tomorrow from 6 pm Central; they failed every evening. Both now
+  use the Central date.
+- **Test tooling.** `tests/lib/pw-resolve.mjs` lets tests import a globally installed
+  Playwright (`node --import ./tests/lib/pw-resolve.mjs tests/x.js`), and
+  `tests/perf/load-timing.mjs` is the iPad load-timing script from the weekly review. The
+  QA and performance briefs point at `/opt/pw-browsers/chromium`.
+
+Test hooks `window.__hpdProbe`, `window.__hpdOnRealtimeStatus`. Tests:
+`tests/usage-guards.js` (30: probe after a live check-in, change during a roster download,
+first connect late, history retry), `tests/history-paging.js` (28: same-millisecond save,
+clock set back, clock ahead).
+
+## 155. Next up
+
+- **Old app copies still running.** The review found a copy from before v5.8.0 (no request
+  brake) still open on a weight-room device (an iPad on iPadOS 17.6; iPads report as Macs)
+  that downloaded the full lift and test tables about 50 times in a minute on 11/2 and once
+  each on 11/4, with a second copy open alongside. Fully close the home-screen app and any
+  Safari tab on each device, then check the sidebar shows the current version.
+- **Probe on wake (owner decision).** Waking iPads could run the cheap change probe before
+  deciding on a full download.
 
 - **Intensity for non-% weeks:** the coach asked about August capacity weeks that have no `%`
   prescribed. Options proposed: a per-week planned intensity (hollow dot), actual intensity

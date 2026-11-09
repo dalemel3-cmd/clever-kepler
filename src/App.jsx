@@ -79,6 +79,17 @@ const getFirstName = (fullName) => {
   return parts[0];
 };
 
+// Realtime athlete changes ({ del: id } or { d: decoded athlete }) applied in order to a
+// roster, kept sorted by name (v5.15.7; shared with the roster download in v5.15.9).
+const applyAthleteOps = (list, ops) => {
+  let next = list;
+  for (const op of ops) {
+    if (op.del) { next = next.filter(a => a.id !== op.del); continue; }
+    next = next.some(a => a.id === op.d.id) ? next.map(a => (a.id === op.d.id ? { ...a, ...op.d } : a)) : [...next, op.d];
+  }
+  return [...next].sort((x, y) => String(x.name || '').localeCompare(String(y.name || '')));
+};
+
 export default function App() {
   // App State
   const [screen, setScreenState] = useState(() => {
@@ -190,7 +201,11 @@ export default function App() {
 
   // Adaptive cloud sync state (see the heartbeat below): probe fingerprint of the
   // cloud table, realtime channel health, and idle backoff bookkeeping.
-  const probeFingerprint = React.useRef('');
+  // The live window as the cloud has it (id -> created_at ms): set by each full download
+  // and kept current by realtime rows, so the change probe compares against what this
+  // device already has (v5.15.9). Before, the fingerprint only changed on a full download,
+  // so every check-in from any device made the next probe re-download the whole window.
+  const cloudWindowRef = React.useRef(null);
   const realtimeHealthy = React.useRef(false);
   const pollIdleStreak = React.useRef(0);
   const lastPollActionAt = React.useRef(0);
@@ -596,6 +611,10 @@ export default function App() {
       if (type === 'DELETE' && !oldId) return;
       if (type !== 'DELETE' && !row?.id) return;
       lastCloudSyncAtRef.current = Date.now();
+      if (cloudWindowRef.current) {
+        if (type === 'DELETE') cloudWindowRef.current.delete(oldId);
+        else cloudWindowRef.current.set(row.id, Date.parse(row.created_at));
+      }
       setReportData(prev => {
         let next;
         if (type === 'DELETE') {
@@ -639,16 +658,15 @@ export default function App() {
       try { cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}'); } catch { /* ignore */ }
       // Decode here, not inside the state updater: React runs a queued updater at the next
       // render, after the map below had already been saved (v5.15.8).
-      const ops = batch.map(p => (p.eventType === 'DELETE' ? { del: p.old.id } : { d: decodeAthlete(p.new, cloudMap) }));
+      const ops = batch.map(({ p, t }) => (p.eventType === 'DELETE' ? { t, del: p.old.id } : { t, d: decodeAthlete(p.new, cloudMap) }));
       try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch { /* ignore */ }
+      const keep = Date.now() - 120000;
+      athleteOpsRef.current = [...athleteOpsRef.current.filter(o => o.t >= keep), ...ops];
       setAthletes(prev => {
-        let next = prev;
-        for (const op of ops) {
-          if (op.del) { next = next.filter(a => a.id !== op.del); continue; }
-          next = next.some(a => a.id === op.d.id) ? next.map(a => (a.id === op.d.id ? { ...a, ...op.d } : a)) : [...next, op.d];
-        }
-        next = [...next].sort((x, y) => String(x.name || '').localeCompare(String(y.name || '')));
-        try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch { /* ignore */ }
+        const next = applyAthleteOps(prev, ops);
+        // Not over the saved roster while none is loaded yet: one changed athlete would
+        // replace the whole offline copy (v5.15.9). The download re-applies these.
+        if (prev.length) { try { localStorage.setItem('shiloh_roster', JSON.stringify(next)); } catch { /* ignore */ } }
         return next;
       });
     };
@@ -657,7 +675,7 @@ export default function App() {
       const usable = (ev === 'INSERT' || ev === 'UPDATE') ? !!(payload.new?.id && 'name' in payload.new && 'position' in payload.new)
         : ev === 'DELETE' ? !!payload.old?.id : false;
       if (usable) {
-        athleteRows.push(payload);
+        athleteRows.push({ p: payload, t: Date.now() });
         if (!athleteRowsTimer) athleteRowsTimer = setTimeout(flushAthleteRows, 250);
         return;
       }
@@ -705,6 +723,18 @@ export default function App() {
     };
     window.__hpdOnDeviceSync = onDeviceSync;
 
+    const onRealtimeStatus = (status) => {
+      // Channel health drives the poll cadence: when the WebSocket is alive the
+      // poll is only a slow safety net; when the school WiFi blocks it, we probe fast.
+      const was = realtimeHealthy.current;
+      realtimeHealthy.current = status === 'SUBSCRIBED';
+      // Live (again): changes made while it was down aren't replayed, so catch the roster
+      // up once (braked) - weigh-ins catch up through the change probe (v5.15.8). Also on
+      // a first connect that came late, unless a roster download was just sent (v5.15.9).
+      if (realtimeHealthy.current && !was && Date.now() - athletesRequestAt.current > 10000) fetchAthletes();
+    };
+    window.__hpdOnRealtimeStatus = onRealtimeStatus; // test hook (tests/usage-guards.js)
+
     try {
       channel = supabase
         .channel('shiloh_ultrasync_bus', { config: { broadcast: { ack: false, self: false } } })
@@ -714,16 +744,7 @@ export default function App() {
           applyWeighInChange(payload);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'athletes' }, onAthletesChange)
-        .subscribe((status) => {
-          // Channel health drives the poll cadence: when the WebSocket is alive the
-          // poll is only a slow safety net; when the school WiFi blocks it, we probe fast.
-          const was = realtimeHealthy.current;
-          realtimeHealthy.current = status === 'SUBSCRIBED';
-          // Back after a drop: changes made meanwhile aren't replayed, so catch the roster
-          // up once (braked) - weigh-ins catch up through the change probe (v5.15.8).
-          if (realtimeHealthy.current && !was && realtimeEverUp.current) fetchAthletes();
-          if (realtimeHealthy.current) realtimeEverUp.current = true;
-        });
+        .subscribe(onRealtimeStatus);
     } catch (e) {
       console.warn("Realtime UltraSync warning:", e);
     }
@@ -744,26 +765,33 @@ export default function App() {
         if (error) throw error;
         lastCloudSyncAtRef.current = Date.now();
         const latestTs = data && data[0] ? data[0].created_at : '';
+        // What this device has for the same window (full download + realtime rows since).
+        let haveN = 0, haveLatest = 0;
+        if (cloudWindowRef.current) {
+          const ws = windowStart.getTime();
+          for (const t of cloudWindowRef.current.values()) if (t >= ws) { haveN++; if (t > haveLatest) haveLatest = t; }
+        }
+        const sameLatest = cloudWindowRef.current && (latestTs ? Date.parse(latestTs) === haveLatest : haveLatest === 0);
         if (count == null) {
           // Count header unreadable (e.g. proxy stripping CORS expose-headers):
           // fall back to newest-timestamp comparison so we degrade to slightly
           // weaker change detection instead of full-fetching on every probe.
-          const prevTs = (probeFingerprint.current.split('|')[1]) || '';
-          if (latestTs && latestTs === prevTs) {
+          if (latestTs && sameLatest) {
             pollIdleStreak.current += 1;
             return;
           }
-        } else if (`${count}|${latestTs}` === probeFingerprint.current) {
+        } else if (sameLatest && count === haveN) {
           pollIdleStreak.current += 1; // unchanged - stretch the next poll
           return;
         }
         pollIdleStreak.current = 0;
-        fetchReportDataRef.current(true); // refreshes probeFingerprint from the full result
+        fetchReportDataRef.current(true); // refreshes cloudWindowRef from the full result
       } catch (e) {
         // Server unreachable: leave the fingerprint alone so recovery triggers a fetch.
         console.warn("Cloud probe failed:", e);
       }
     };
+    window.__hpdProbe = probeCloudForChanges; // test hook (tests/usage-guards.js)
 
     // Adaptive UltraSync Heartbeat (replaces the fixed 5s full-table poll):
     //  - realtime WebSocket healthy -> 60s safety-net probes (changes arrive via push)
@@ -1054,7 +1082,7 @@ export default function App() {
         const logId = baselineMap[athleteId]?.log_id;
         const row = logId && rowById.get(logId);
         if (row && !row.is_baseline) {
-          await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId).neq('id', logId);
+          await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId).eq('is_baseline', true).neq('id', logId);
           await supabase.from('weigh_ins').update({ is_baseline: true }).eq('id', logId);
         }
       }
@@ -1091,7 +1119,7 @@ export default function App() {
         onlineData = data;
         // Keep the heartbeat's change-probe in sync with what we just pulled (same
         // 30-day window, newest-first), and mark the cloud as freshly reachable.
-        probeFingerprint.current = `${data.length}|${data[0] ? data[0].created_at : ''}`;
+        cloudWindowRef.current = new Map(data.map(r => [r.id, Date.parse(r.created_at)]));
         lastCloudSyncAtRef.current = Date.now();
         setCloudStatus(prev => (prev === 'live' ? prev : 'live'));
         // One-time per session: push any classifications this device recorded locally (before
@@ -1188,10 +1216,19 @@ export default function App() {
   // request is skipped, and a narrower reply landing after a wider request is dropped, so
   // the history never shrinks. A failed request lets a later one try again.
   const requestedReportWindowDays = React.useRef(0);
-  const ensureReportWindow = React.useCallback(async (days) => {
+  const reportWindowRetry = React.useRef({ timer: null, days: 0 });
+  const ensureReportWindow = React.useCallback(async function load(days) {
     const base = settingsRef.current.dataWindowDays;
     if (days <= base || days <= extraReportWindowDays.current || days <= requestedReportWindowDays.current) return;
-    if (!navigator.onLine || !allowFetch('weigh_ins:history', { max: 3, windowMs: 60000 })) return;
+    if (!navigator.onLine) return;
+    if (!allowFetch('weigh_ins:history', { max: 3, windowMs: 60000 })) {
+      // Skipped by the brake (a coach trying several date ranges): load the widest one
+      // asked for a little later, or the report stays on the normal window (v5.15.9).
+      const r = reportWindowRetry.current;
+      r.days = Math.max(r.days, days);
+      if (!r.timer) r.timer = setTimeout(() => { const d = r.days; r.timer = null; r.days = 0; load(d); }, 20000);
+      return;
+    }
     requestedReportWindowDays.current = days;
     const from = new Date(Date.now() - days * 86400000).toISOString();
     const to = new Date(Date.now() - base * 86400000).toISOString();
@@ -1588,7 +1625,11 @@ export default function App() {
     };
   };
   const lastAthletesFetchAt = React.useRef(0);
-  const realtimeEverUp = React.useRef(false);
+  const athletesRequestAt = React.useRef(0); // when the latest roster download was sent
+  const athletesLandedFrom = React.useRef(0); // send time of the download now on screen
+  // Realtime athlete changes applied in the last 2 minutes, re-applied over a roster
+  // download sent before they arrived (that download can't include them) (v5.15.9).
+  const athleteOpsRef = React.useRef([]);
   const pickBaseline = (a) => ({ baseline_weight: a.baseline_weight, baseline_date: a.baseline_date, baseline_log_id: a.baseline_log_id, raw_position: a.raw_position });
 
   const fetchAthletes = async () => {
@@ -1600,14 +1641,21 @@ export default function App() {
         if (!athletesRetry.current) athletesRetry.current = setTimeout(() => { athletesRetry.current = null; fetchAthletes(); }, 20000);
         return;
       }
+      const sentAt = Date.now();
+      athletesRequestAt.current = sentAt;
       const { data, error } = await supabase.from('athletes').select('*').order('name', { ascending: true });
       if (!error && data) {
         lastAthletesFetchAt.current = Date.now();
+        // A download sent earlier than the one already shown is older: drop it.
+        if (sentAt < athletesLandedFrom.current) return;
+        athletesLandedFrom.current = sentAt;
         const cloudMap = JSON.parse(localStorage.getItem('shiloh_baselines_map') || '{}');
         const decodedAthletes = data.map(a => decodeAthlete(a, cloudMap));
         try { localStorage.setItem('shiloh_baselines_map', JSON.stringify(cloudMap)); invalidateAthleteDataCache('shiloh_baselines_map'); } catch {}
-        setAthletes(decodedAthletes);
-        localStorage.setItem('shiloh_roster', JSON.stringify(decodedAthletes));
+        const late = athleteOpsRef.current.filter(o => o.t >= sentAt);
+        const roster = late.length ? applyAthleteOps(decodedAthletes, late) : decodedAthletes;
+        setAthletes(roster);
+        if (roster.length) localStorage.setItem('shiloh_roster', JSON.stringify(roster));
       } else {
         throw error;
       }
@@ -1936,7 +1984,7 @@ export default function App() {
       // Only one weigh-in per athlete should carry the active baseline marker -
       // clear it off any other rows now that this one (or none) is the current baseline.
       if (cloudPayload.is_baseline && insertedId && isValidUuid(targetAthId)) {
-        await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', targetAthId).neq('id', insertedId);
+        await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', targetAthId).eq('is_baseline', true).neq('id', insertedId);
       }
 
       // v5.8.1: put the saved row in place (it replaces the optimistic copy) instead of
@@ -2239,7 +2287,7 @@ export default function App() {
     // (not just this one) sees which log is the active baseline marker.
     try {
       if (isValidUuid(athleteId)) {
-        await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId).neq('id', logId);
+        await supabase.from('weigh_ins').update({ is_baseline: false }).eq('athlete_id', athleteId).eq('is_baseline', true).neq('id', logId);
         await supabase.from('weigh_ins').update({ is_baseline: true }).eq('id', logId);
       }
     } catch (e) {
@@ -2315,7 +2363,9 @@ export default function App() {
     // 1b. Persist the baseline flag on the weigh_ins rows themselves so every device sees it.
     try {
       if (sportAthleteIds.size > 0) {
-        await supabase.from('weigh_ins').update({ is_baseline: false }).in('athlete_id', Array.from(sportAthleteIds));
+        // Only rows still flagged (v5.15.9): clearing every check-in the team has rewrote
+        // ~1,500 rows per sync, and each sent its own realtime update to every open device.
+        await supabase.from('weigh_ins').update({ is_baseline: false }).in('athlete_id', Array.from(sportAthleteIds)).eq('is_baseline', true);
       }
       if (targetLogIds.size > 0) {
         await supabase.from('weigh_ins').update({ is_baseline: true }).in('id', Array.from(targetLogIds));

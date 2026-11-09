@@ -13,10 +13,12 @@ You are the performance engineer for the HPD app: a React 19 + Vite PWA used on 
    chunks with sizes (raw and gzip). Budgets: main entry ≤ 250 KB gzip, any lazy chunk
    ≤ 150 KB gzip, total precache ≤ 2.5 MB. Flag new or grown chunks against the last
    report and name the import that caused it.
-2. **Load**: with Playwright against the production URL (read-only page loads only, no
-   sign-in needed for the boot timing), on an iPad viewport (1024×1366) with network
-   throttled (~10 Mbps, 40 ms RTT) and 4× CPU slowdown: time to first paint of the shell
-   and time to the app mounting. Budget: mounted ≤ 3 s. Use port 4176 for any local preview.
+2. **Load**: `tests/perf/load-timing.mjs` against a local preview of the build (port 4176:
+   `APP_URL=http://127.0.0.1:4176 RUNS=3 node tests/perf/load-timing.mjs`; Supabase is
+   stubbed). It uses an iPad viewport (1024×1366), ~10 Mbps / 40 ms network and 4× CPU
+   slowdown, and prints medians for first paint, app mounted, roster shown and icon font
+   loaded. Budget: mounted ≤ 3 s. Compare with the last report. For production, read-only
+   page loads only (no sign-in). Browser and Playwright setup: as in `hpd-qa.md` step 3.
 3. **Rendering**: run `tests/stress.js` and `tests/entry-perf.js`, and note timings.
 4. **Requests**: grep for Supabase calls outside `allowFetch()` / `loadHistoryTable()`,
    for `select('*')` on big tables, and for effects that refetch on every render or focus.

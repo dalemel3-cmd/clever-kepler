@@ -99,6 +99,51 @@ const row = (extra) => ({ athlete_id: 'a1', session_date: '2026-11-02', day_id: 
   const restored = sessionFromRow({ day_id: 'd1', updated_at: new Date(Date.now() + 120000).toISOString(), sets: {}, done: {} });
   const stamped = C.sessionRow({ athlete: { id: 'a1' }, program: { id: 'p' }, day: { id: 'd1' }, session: restored, today: '2026-11-02' });
   check('a slow-clock tablet stamps saves after the rack it took over from', Date.parse(stamped.updated_at) > restored.serverUpdatedAt, `${stamped.updated_at} vs ${new Date(restored.serverUpdatedAt).toISOString()}`);
+
+  // v5.15.9 (docs/HANDOFF.md §154)
+  // B5. A change made during a save, stamped in the same millisecond as the save in flight,
+  // used to be dropped as already sent.
+  store.clear(); server.clear(); fake.delay = 400;
+  fake.onUpsert = (t, rs) => { for (const r of rs) server.set(keyOf(r), r); return null; };
+  const same = new Date().toISOString();
+  C.queueSessionSave(row({ athlete_id: 'b5', items_done: 1, updated_at: same }));
+  await sleep(1650);
+  C.queueSessionSave(row({ athlete_id: 'b5', items_done: 2, updated_at: same }));
+  await sleep(3200);
+  check('a change stamped in the same millisecond as the save in flight still goes up', server.get('b5|2026-11-02|d1')?.items_done === 2 && C.pendingSessionCount() === 0, JSON.stringify(server.get('b5|2026-11-02|d1')));
+  fake.delay = 0;
+
+  // B6. The tablet clock is set back a minute between two saves.
+  store.clear();
+  const t0 = Date.now();
+  C.queueSessionSave(row({ athlete_id: 'b6', items_done: 1, updated_at: new Date(t0).toISOString() }));
+  C.queueSessionSave(row({ athlete_id: 'b6', items_done: 2, updated_at: new Date(t0 - 60000).toISOString() }));
+  const b6 = JSON.parse(store.get('hpd_ws_pending'))['b6|2026-11-02|d1'];
+  check('a save after the clock was set back is still stamped after the last one', Date.parse(b6.updated_at) > t0 && b6.items_done === 2, b6.updated_at);
+  await C.flushSessions();
+
+  // B7. A tablet whose clock runs 5 minutes ahead: the database sets its stamps back to now
+  // (db/016). Another rack saves 1 minute later; this tablet must see that save as newer.
+  store.clear(); server.clear();
+  const serverNow = Date.now(), ahead = serverNow + 5 * 60000;
+  fake.onUpsert = (t, rs) => ({ data: rs.map(r => ({ athlete_id: r.athlete_id, session_date: r.session_date, day_id: r.day_id, updated_at: new Date(Math.min(Date.parse(r.updated_at), serverNow)).toISOString() })) });
+  C.queueSessionSave(row({ athlete_id: 'b7', items_done: 2, updated_at: new Date(ahead).toISOString() }));
+  await C.flushSessions();
+  check('the stamp the database kept is remembered', C.ackedSaveAt('b7', '2026-11-02', 'd1') === serverNow, String(C.ackedSaveAt('b7', '2026-11-02', 'd1')));
+  const mine = { dayId: 'd1', savedAt: ahead };
+  const other = { athlete_id: 'b7', session_date: '2026-11-02', day_id: 'd1', updated_at: new Date(serverNow + 60000).toISOString() };
+  check('a clock-ahead tablet sees another rack\'s later save (was ignored for 5 minutes)', C.savedElsewhere(other, mine, 'b7', '2026-11-02') === true);
+  check('...but not its own last save', C.savedElsewhere({ ...other, updated_at: new Date(serverNow).toISOString() }, mine, 'b7', '2026-11-02') === false);
+  check('...nor its own save still waiting to go up', C.savedElsewhere({ ...other, pendingHere: true }, mine, 'b7', '2026-11-02') === false);
+  check('a rack it took over from counts as known', C.savedElsewhere(other, { dayId: 'd1', serverUpdatedAt: serverNow + 60000 }, 'nobody', '2026-11-02') === false);
+  check('a session never saved here falls back to the tablet clock', C.savedElsewhere(other, { dayId: 'd1', savedAt: serverNow }, 'nobody', '2026-11-02') === true && C.savedElsewhere(other, { dayId: 'd1', savedAt: ahead }, 'nobody', '2026-11-02') === false);
+  check('a pending row restored here is not taken for the server\'s clock', sessionFromRow({ ...other, pendingHere: true }).serverUpdatedAt === null);
+  // A save the database skipped (older than another rack's) is left out of the reply.
+  fake.onUpsert = () => ({ data: [] });
+  C.queueSessionSave(row({ athlete_id: 'b7', items_done: 3 }));
+  await C.flushSessions();
+  check('a skipped save leaves the remembered stamp alone', C.ackedSaveAt('b7', '2026-11-02', 'd1') === serverNow);
+  fake.onUpsert = (t, rs) => { for (const r of rs) server.set(keyOf(r), r); return null; };
 }
 
 console.log('\n[C] Periodization and Duplicate');

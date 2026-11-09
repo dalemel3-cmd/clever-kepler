@@ -16,7 +16,10 @@ and §8 (behaviour you must not break) are binding.
    background. `tap-targets.js` is hard-wired to 4173; everything else honours `APP_URL`.
 3. Run each `tests/*.js` one at a time with a timeout (e.g. `timeout 400 node tests/x.js`),
    with `APP_URL=http://127.0.0.1:4173` and, in the Claude cloud container,
-   `CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. Record the
+   `CHROMIUM_PATH=/opt/pw-browsers/chromium` (a link to whichever build is installed; the
+   versioned folder name changes). If `import 'playwright'` fails with
+   `ERR_MODULE_NOT_FOUND` (Playwright installed only globally), run
+   `node --import ./tests/lib/pw-resolve.mjs tests/x.js` instead. Record the
    `N passed, M failed` line and the FAIL lines.
 4. Stop the preview server by PID when done (find it with `ps aux | awk '/vite preview/ && !/awk/'`).
    Never `pkill -f` broadly: it can kill your own shell.

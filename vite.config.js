@@ -31,6 +31,22 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         cleanupOutdatedCaches: true,
+        // Google Fonts kept by the service worker (v5.15.9): a rack iPad on slow school WiFi
+        // waited on the icon font at every launch, and offline the icons showed as words.
+        // The stylesheets are served from the cache and refreshed behind it; the font
+        // files have versioned URLs, so a cached one never changes.
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'google-fonts-css', expiration: { maxEntries: 10, maxAgeSeconds: 30 * 24 * 3600 }, cacheableResponse: { statuses: [0, 200] } },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: { cacheName: 'google-fonts-files', expiration: { maxEntries: 30, maxAgeSeconds: 365 * 24 * 3600 }, cacheableResponse: { statuses: [0, 200] } },
+          },
+        ],
       },
       includeAssets: ['logo1.png', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png', 'og-image.png'],
       manifest: {
