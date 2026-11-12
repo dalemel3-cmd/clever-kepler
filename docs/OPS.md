@@ -47,6 +47,18 @@ Code review (this week's commits): verdict + findings
 Recommended next (owner decision needed marked ⚑)
 ```
 
+## Backups (free; the database plan has none of its own)
+
+- **Nightly, automatic:** `backups.snapshots` in the database (`db/018_nightly_snapshots.sql`,
+  14 nights plus the 1st of each month for about 6 months). Undoes a bad edit or delete made
+  in the app. `select * from backups.restore_missing('<date>')` puts back rows deleted
+  since that night and leaves existing rows alone; restoring is a production write and
+  needs the owner's go-ahead. The weekly reliability review checks that last night's
+  snapshot exists: `select max(taken_on) from backups.snapshots`.
+- **Monthly, by the owner:** Settings > Offline data recovery > Download full backup, kept
+  outside the app. Covers losing the whole project.
+- Everything stays free: don't propose a paid plan.
+
 ## Budgets
 
 - Main entry bundle ≤ 250 KB gzip; any lazy chunk ≤ 150 KB gzip; precache ≤ 2.5 MB.

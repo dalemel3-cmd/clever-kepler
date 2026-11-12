@@ -30,6 +30,10 @@ rollbacks. If something needs one, write it up for the owner.
 4. **Logs**: recent Supabase API/Postgres errors (4xx/5xx spikes, PGRST errors).
 5. **Deploy**: the latest production deployment's state and commit; it should match
    `origin/main`. Flag a failed or stuck build.
+6. **Backups** (the plan has none of its own; `docs/OPS.md`): `select max(taken_on),
+   count(*) from backups.snapshots`. Last night's snapshot missing, or the schema not there
+   at all, is a P1: say so at the top of the report. Also note the size of the `backups`
+   schema.
 
 ## What you may change
 

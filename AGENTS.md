@@ -1,6 +1,6 @@
 # HPD App — agent handoff (for Google Antigravity and any other coding agent)
 
-Current as of **v5.16.0, 2026-11-09**. Read this whole file before
+Current as of **v5.16.1, 2026-11-11**. Read this whole file before
 changing anything. `docs/HANDOFF.md` has the full history (one `## N.` section per change,
 with the reasoning); `VERSIONING.md` has one row per release.
 
@@ -78,10 +78,18 @@ npm run lint         # oxlint; a few existing warnings, no errors
 
 ## 4. Tests
 
-81 standalone scripts in `tests/`: `node tests/<name>.js`, each printing `N passed, M failed`.
+82 standalone scripts in `tests/`: `node tests/<name>.js`, each printing `N passed, M failed`.
+
+- **All of them:** `npm test` (`tests/run-all.mjs`; needs the preview server below). Options:
+  `-- --jobs 3`, `-- --shard 2/4`, or name filters (`-- usage-guards auth`). A failed file
+  is rerun once on its own. GitHub runs this on every push to `preview-cleanup` and `main`
+  (`.github/workflows/tests.yml`): a red X on a commit means do not release it.
+- **A new browser test must call `stubAuth(page)`** (or `page.routeWebSocket` itself):
+  `page.route` does not see WebSockets, and without it the realtime socket goes to the real
+  project.
 
 - **Browser tests** drive the **built** app with Playwright against
-  `npx vite preview --port 4173 --strictPort`. They stub Supabase completely
+  `npx vite preview --host 127.0.0.1 --port 4173 --strictPort`. They stub Supabase completely
   (`tests/lib/auth-stub.js` plus per-test `page.route` stubs), so they never touch the
   real database. Most honour `APP_URL=http://127.0.0.1:<port>`; `tap-targets.js` is hard-wired
   to 4173.
@@ -99,7 +107,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 - **Load timing:** `tests/perf/load-timing.mjs` (iPad profile, throttled, Supabase stubbed)
   for the weekly performance review; see `.claude/agents/hpd-performance.md`.
 - `tests/lib/make-xlsx.js` builds real .xlsx files for upload tests.
-- **Known failures: none** (v5.16.0: the full suite, 81 files, passes). `tooltip-units`
+- **Known failures: none** (v5.16.1: the full suite, 82 files, passes). `tooltip-units`
   can miss a chart-bar hover while the chart animates; rerun once before treating it as real.
 - Run the area's tests after a change:
   - **Programs:** `program-builder`, `program-template-periodization`, `program-grid`,
@@ -123,7 +131,7 @@ npm run lint         # oxlint; a few existing warnings, no errors
 3. Add a row to `VERSIONING.md`.
 4. In `docs/HANDOFF.md`, replace the trailing `## N. Next up` with `## N. <what changed>
    (vX.Y.Z)`, then a new `## N+1. Next up` that carries the open list forward. The last
-   numbered section is currently **§155**, and **§156 is Next up**.
+   numbered section is currently **§156**, and **§157 is Next up**.
 5. Commit with a plain message (what and why), push your branch, and give the owner the
    preview URL.
 6. Merge or push to `main` **only after the owner says "push it"**. Fast-forward only; don't
@@ -266,6 +274,7 @@ They inject `@page` only while open, and are sized for US Letter.
 - Lifts display as the set ("225 × 3"); est. 1RM is an optional toggle. High-rep sets still
   count toward est. 1RM and PRs.
 - Roster spellings: Ryleigh McClure, Anna McDowell. Wyatt Fryer is a TE.
+- **Everything stays free.** The owner pays for nothing: no paid plans, add-ons or services.
 - Workflow phrases: "push it" = deploy to `main`. "Check the errors" = query `app_errors`
   for rows newer than the last check.
 
@@ -297,7 +306,7 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
    per-week planned intensity (hollow dot), actual intensity from logged sets ÷ max, or time
    under tension for capacity blocks. Waiting on the owner's choice.
 2. Optional: split front and back squat in the Periodization main lifts (offered, not asked).
-3. Older open items are in `docs/HANDOFF.md` §156 (Next up): leaked-password protection and
+3. Older open items are in `docs/HANDOFF.md` §157 (Next up): leaked-password protection and
    a "Forgot password" link, grades for athletes missing them, the Cheer & Dance jump
    technique, PPS/RSI test types, and a nicer Vercel domain.
 4. Sustainability: deactivate Supabase's legacy anon key now that the publishable key is in
@@ -315,11 +324,16 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 - Supabase Free plan watch-outs: 5 GB egress per month, pausing after inactivity, no
   backups. Usage dropped to about 0.1–0.3 GB/month after the v5.8 usage guards; keep it
   there.
+- **Backups (free, v5.16.1):** Settings > Offline data recovery > Download full backup
+  (monthly, kept outside the app; on an iPad it saves through the share sheet), and nightly
+  snapshots in `backups.snapshots` (`db/018_nightly_snapshots.sql`;
+  `backups.restore_missing('<date>')` puts back deleted rows) once the owner has had it
+  applied. The owner pays for nothing: don't propose paid plans or services.
 - Rack iPads run the PWA in Lift Kiosk mode. After a deploy, reload each iPad once.
 
 ## 13. Docs index
 
-- `docs/HANDOFF.md`: full change history (§1–§155) and the live Next-up list (§156).
+- `docs/HANDOFF.md`: full change history (§1–§156) and the live Next-up list (§157).
 - `docs/OPS.md`: the operations playbook (agent team, cadence, budgets, rules).
 - `.claude/agents/`: the agent role briefs (`hpd-qa`, `hpd-reliability`, `hpd-performance`,
   `hpd-reviewer`).

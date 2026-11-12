@@ -1,0 +1,44 @@
+# Runs the whole test suite on every push to the preview branch and to main (v5.16.1,
+# docs/HANDOFF.md §156). Free on GitHub. The tests answer every database request
+# themselves and need no secrets; the step below also makes the real database unreachable
+# from the test machine, so nothing a test does can arrive at a live device.
+# A red X on a commit means do not release it.
+name: Tests
+on:
+  push:
+    branches: [preview-cleanup, main]
+  workflow_dispatch:
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  suite:
+    name: Tests (part ${{ matrix.shard }} of 4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Not in package.json on purpose. Pinned to the version the suite is known to pass on.
+      - name: Install Playwright
+        run: npm i --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      - run: npm run lint
+        if: matrix.shard == 1
+      - run: npm run build
+      - name: Cut the test machine off from the real database
+        run: echo "127.0.0.1 cwfpjlomlvkburugolky.supabase.co" | sudo tee -a /etc/hosts
+      - name: Serve the build
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 --strictPort > preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
+      - run: npm test -- --shard ${{ matrix.shard }}/4

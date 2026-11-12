@@ -4597,7 +4597,100 @@ filters on the Groups screen), `tests/history-paging.js` (37: queued save vs ano
 failed send, a change queued behind a lost reply, a save in flight; the last two fail
 without the fix), `tests/save-no-refetch.js` (5).
 
-## 156. Next up
+## 156. Free protection: backups and automatic tests (v5.16.1)
+
+From an audit the owner asked for ("what did I get wrong, what can be better"). The owner
+will not pay for anything, so everything here is free. The audit's other findings are the
+top of Next up (§157).
+
+- **Full backup download.** Settings > Offline data recovery > Download full backup saves
+  every row of `athletes`, `weigh_ins`, `lift_logs`, `performance_tests`, `programs`,
+  `workout_sessions` and `alert_status` as one JSON file (`src/utils/fullBackup.js`,
+  `FullBackupRow.jsx`). The database is on Supabase's free plan, which has no automatic
+  backups: until now the records existed in one place.
+  - Each table is counted first and nothing is saved unless every row came back. An empty
+    roster is refused too (signed out, or access rules changed).
+  - Rows are read 1,000 at a time **by id** (`id > last`), not by position: a check-in
+    added or deleted mid-copy shifts positions and a row could be skipped unnoticed.
+  - **iPad and iPhone:** a download link can silently do nothing in a home-screen app
+    (WebKit bug 275288), so the file goes through the share sheet from a second tap ("Save
+    backup file"), and only counts as saved when the sheet says so. Elsewhere it is a
+    normal download. Stubbed in the test; **not yet tried on a real iPad.**
+  - The row shows when this device last saved one, amber after 30 days. The file is a
+    safety copy: Data Recovery's import does not read it. Four tries a minute at most.
+- **Nightly snapshots in the database: `db/018_nightly_snapshots.sql`.** One JSON value per
+  table per night in `backups.snapshots` (pg_cron, 08:20 UTC), 14 nights plus each month's
+  earliest for about 6 months, about 130 KB a night. Not readable through the API. It
+  undoes mistakes made in the app; the download above covers losing the project.
+  - The day's first snapshot is never overwritten, so a re-run after something went wrong
+    can't replace the good copy.
+  - `select * from backups.restore_missing('<date>')` puts back rows deleted since that
+    night, parents first (the app's Delete Athlete removes the athlete and every child
+    row), and leaves existing rows alone. It does not undo an edit; the file's header shows
+    how to read old values.
+  - Tested on a local Postgres 16 built from production's real columns, keys and triggers:
+    counts, a re-run after damage, retention, a deleted athlete and 300 more check-ins
+    restored identical with a later edit and a new row left alone, API roles denied. The
+    pg_cron lines could not be run locally.
+  - **Applied to production only on the owner's go-ahead; check
+    `select max(taken_on) from backups.snapshots` to see.**
+- **Tests on every push.** `npm test` (`tests/run-all.mjs`) runs every `tests/*.js`, reruns
+  a failed file once on its own, and exits 1 on a failure (`--jobs N`, `--shard i/n`, name
+  filters). `.github/workflows/tests.yml` runs it in 4 parts on every push to
+  `preview-cleanup` and `main`. The repository is public, so GitHub Actions is free. A red
+  X on a commit means do not release it. Before this the suite only ran when someone ran it
+  by hand.
+- **Tests can no longer reach the real project.** `page.route` does not see WebSockets, so
+  on an open network every test's realtime socket went to production (only the fake
+  sign-in token being refused kept a test's broadcast from live iPads). `stubAuth` now
+  closes that socket (`page.routeWebSocket`), and the workflow points the project's host
+  at 127.0.0.1.
+- **Not possible free:** Supabase's leaked-password protection is a Pro-plan feature. Use a
+  long, unique password instead.
+
+The pre-release review found the iPad download, the skipped-row paging, the overwritten
+snapshot, the restore order and the live sockets; all fixed before release.
+
+Test: `tests/full-backup.js` (17: all tables, 2,345 rows in 3 pages by id, a change
+mid-copy, a failed table / short copy / empty answer save nothing, the brake, the iPad
+share-sheet flow with cancel).
+
+## 157. Next up
+
+**From the 2026-11-11 audit, most useful first:**
+1. **Apply `db/018`** (nightly snapshots) once the owner says go. Then download a full
+   backup once a month. **Try the download on a real iPad home-screen app** (two taps,
+   "Save to Files"): it has only been tested with the share sheet stubbed.
+2. **Make the GitHub repository private** (owner: GitHub > Settings > General > Change
+   visibility). It is public, and these docs name a few students with their team and
+   publish the shared coach login's email. Then change that login's password to a long,
+   unique one. A private repository gets 2,000 free Actions minutes a month; a full run is
+   about 50, so run the suite on `preview-cleanup` only if that gets tight.
+3. **Ship slower.** 146 versions in 15 weeks went straight to production, and three
+   releases in two weeks were pushed before their review finished, each needing a fix
+   release. One release a week, outside training hours, after the review and a green run.
+4. **Count what gets used.** Nothing records which screens are opened. A small daily count
+   per screen in the database (no third party) would have shown that rack-tablet workouts
+   have never been used: 0 `workout_sessions`, 2 lifts with `source = 'kiosk'` against
+   1,415 typed in.
+5. **Rack tablets: pilot or park.** Run them with one team for two weeks before any more
+   work on multi-rack syncing.
+6. **Sleep.** Every stored value is the old pre-filled 8.0 (blank since Oct 1). Make it a
+   required tap at check-in, or remove it.
+7. **One home for a baseline.** It lives in the athlete's `position` JSON, the
+   `weigh_ins.is_baseline` flag, each device's `shiloh_baselines_map` and the `baseline_*`
+   columns; the last three releases each fixed a baseline bug.
+8. **A kiosk login that can only add entries.** Every signed-in device can edit and delete
+   all athlete data, including the iPads athletes use.
+9. **Reports the data supports today** (checked against production on 11/11): team progress
+   since first test; athletes outside their own normal jump range (a flat 5% flag is noise:
+   a typical athlete varies 4-5% test to test); pound-for-pound strength for Football.
+   Not supported: sleep, training load vs jumps (RPE is logged for lifting only).
+10. **Smaller:** RPE rows in their own table (they sit in `weigh_ins` with weight 0); a
+    "max test" marker so training sets don't read as lost strength; split `App.jsx` (3,300
+    lines, 72 pieces of state) gradually; grades for 111 of 192 athletes.
+
+**Earlier items:**
 
 - **A late save from a fast-clock rack can beat a newer one.** db/017 sets a
   `workout_sessions.updated_at` from the future to the time the save arrives. A queued save

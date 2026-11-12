@@ -22,6 +22,9 @@ export const FAKE_SESSION = {
  * the first goto; it re-applies on every navigation and reload.
  */
 export async function stubAuth(page) {
+  // page.route does not see WebSockets, so the realtime socket used to go out to the real
+  // project whenever the network allowed it (v5.16.1). Closed at once, like a blocked one.
+  if (typeof page.routeWebSocket === 'function') await page.routeWebSocket(/supabase\.co\/realtime\//, (ws) => { ws.close(); });
   await page.addInitScript((session) => {
     try {
       localStorage.setItem('hpd_auth', JSON.stringify(session));

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Check, Smartphone, CheckCircle, Download, Sliders, Minus, Plus, Database, Upload, Wifi, Zap, Users, Activity, RefreshCw, Trash2, Shield, Lock, AlertTriangle, RotateCcw, ChevronDown } from 'lucide-react';
 import { getAppHost } from '../../settings';
 import CoachAccessCard from './CoachAccessCard';
+import FullBackupRow from './FullBackupRow';
 
 // A comma-separated list field (Lift Types, Session Labels, etc.) needs its own text
 // buffer, separate from the parsed array in settings. Deriving the input's `value`
@@ -646,6 +647,8 @@ export default function SettingsScreen({
             <Database size={16} /> OPEN DATA RECOVERY
           </button>
         </div>
+
+        <FullBackupRow showToast={showToast} />
       </div>
 
       {/* Card 5: Athlete Record Merge Studio */}
