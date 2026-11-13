@@ -172,7 +172,8 @@ const newPage = async (browser) => {
     // Height follows the row count (3 athletes here), so a short board isn't mostly empty.
     check('PNG is 1080 wide and sized to its rows', buf.readUInt32BE(16) === 1080 && buf.readUInt32BE(20) > 700 && buf.readUInt32BE(20) < 1100, `${buf.readUInt32BE(16)}x${buf.readUInt32BE(20)}`);
     check('filename names the lift', /^Leaderboard_Squat_/.test(download.suggestedFilename()), download.suggestedFilename());
-    fs.writeFileSync('/tmp/claude-0/leaderboard-test.png', buf);
+    // For a look by eye, only when asked (a fixed path failed the first GitHub run, v5.16.1).
+    if (process.env.SHOT_DIR) fs.writeFileSync(`${process.env.SHOT_DIR}/leaderboard-test.png`, buf);
     check('no page errors', page.errors.length === 0, page.errors.join(' | '));
   }
 

@@ -135,7 +135,7 @@ const ends = (d) => {
   check('footer explains speed', /lower = faster · dashed line = trend/.test(await page.getByTestId('pc-speed-note').innerText()));
   check('header legend unchanged (one line)', /up = better$/m.test(await page.getByTestId('progress-card').innerText()));
   check('card still fits one page', (await page.getByTestId('progress-card').getAttribute('data-fit')) !== 'overflow', await page.getByTestId('progress-card').getAttribute('data-fit'));
-  await page.getByTestId('progress-card').screenshot({ path: '/tmp/claude-0/-home-user-MoneyMase/9587e7dc-3753-5d82-8e64-81fff61e380c/scratchpad/pc_speed_trend.png' }).catch(() => {});
+  if (process.env.SHOT_DIR) await page.getByTestId('progress-card').screenshot({ path: `${process.env.SHOT_DIR}/pc_speed_trend.png` }).catch(() => {});
 
   console.log('\n[F] Printable leaderboard');
   await page.goto(`${APP}/#lifts`); await page.waitForTimeout(2500);

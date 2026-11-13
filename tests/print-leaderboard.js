@@ -122,7 +122,7 @@ const tests = [
   check('Player 01 most recent 1.30 with its date', /1\.30\s*\n?\s*\d{1,2}\/\d{1,2}/.test(rec[1] || ''), JSON.stringify(rec));
   check('best date shown', await pages.nth(0).getByTestId('lb-best-date').count() >= 2);
   check('headers read Initial (date) / Best (date)', /INITIAL \(DATE\)/i.test(await pages.nth(0).innerText()) && /BEST \(DATE\)/i.test(await pages.nth(0).innerText()));
-  await pages.nth(0).screenshot({ path: '/tmp/claude-0/-home-user-MoneyMase/9587e7dc-3753-5d82-8e64-81fff61e380c/scratchpad/lb_initial.png' });
+  if (process.env.SHOT_DIR) await pages.nth(0).screenshot({ path: `${process.env.SHOT_DIR}/lb_initial.png` });
 
   console.log('\n[D2] Column toggles');
   await page.getByTestId('lb-col-week').click(); await page.waitForTimeout(300);
@@ -160,7 +160,7 @@ const tests = [
     const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
     check('PNG is 1632x2112 (2x Letter)', w === 1632 && h === 2112, `${w}x${h}`);
     check('file name names metric and team', /Leaderboard_Squat_Football/.test(downloads[0].suggestedFilename()), downloads[0].suggestedFilename());
-    await (await import('fs')).promises.writeFile('/tmp/claude-0/-home-user-MoneyMase/9587e7dc-3753-5d82-8e64-81fff61e380c/scratchpad/lb_p1.png', buf);
+    if (process.env.SHOT_DIR) await (await import('fs')).promises.writeFile(`${process.env.SHOT_DIR}/lb_p1.png`, buf);
   }
 
   console.log('\n[G] Also opens from Jumps & Sprints');
