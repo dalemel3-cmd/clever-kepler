@@ -327,8 +327,8 @@ egress and speed pass, and 44 px checkboxes / no sideways scroll on #entry and #
 - **Backups (free, v5.16.1):** Settings > Offline data recovery > Download full backup
   (monthly, kept outside the app; on an iPad it saves through the share sheet), and nightly
   snapshots in `backups.snapshots` (`db/018_nightly_snapshots.sql`;
-  `backups.restore_missing('<date>')` puts back deleted rows) once the owner has had it
-  applied. The owner pays for nothing: don't propose paid plans or services.
+  `backups.restore_missing('<date>')` puts back deleted rows; applied 2026-11-13). The
+  owner pays for nothing: don't propose paid plans or services.
 - Rack iPads run the PWA in Lift Kiosk mode. After a deploy, reload each iPad once.
 
 ## 13. Docs index

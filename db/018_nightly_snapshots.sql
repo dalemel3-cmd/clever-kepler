@@ -3,7 +3,7 @@
 -- The project is on Supabase's free plan, which has no automatic backups: until this, a bad
 -- bulk edit or delete could not be undone. Every night at 08:20 UTC (2:20 am Central, 3:20
 -- in summer) each table is copied into backups.snapshots as one JSON value per table
--- (Postgres compresses it; about 130 KB a night against the plan's 500 MB).
+-- (Postgres compresses it; about 750 KB a night in Nov 2026, against the plan's 500 MB).
 -- Kept: the last 14 nights, plus the earliest snapshot of each month for about 6 months.
 -- The first snapshot of a day is never overwritten, so running take_snapshot() again
 -- after something went wrong cannot replace last night's good copy with the damaged one.

@@ -4620,8 +4620,9 @@ top of Next up (§157).
     safety copy: Data Recovery's import does not read it. Four tries a minute at most.
 - **Nightly snapshots in the database: `db/018_nightly_snapshots.sql`.** One JSON value per
   table per night in `backups.snapshots` (pg_cron, 08:20 UTC), 14 nights plus each month's
-  earliest for about 6 months, about 130 KB a night. Not readable through the API. It
-  undoes mistakes made in the app; the download above covers losing the project.
+  earliest for about 6 months, about 750 KB a night (roughly 15 MB in all, of the plan's
+  500 MB). Not readable through the API. It undoes mistakes made in the app; the download
+  above covers losing the project.
   - The day's first snapshot is never overwritten, so a re-run after something went wrong
     can't replace the good copy.
   - `select * from backups.restore_missing('<date>')` puts back rows deleted since that
@@ -4632,8 +4633,13 @@ top of Next up (§157).
     counts, a re-run after damage, retention, a deleted athlete and 300 more check-ins
     restored identical with a later edit and a new row left alone, API roles denied. The
     pg_cron lines could not be run locally.
-  - **Applied to production only on the owner's go-ahead; check
-    `select max(taken_on) from backups.snapshots` to see.**
+  - **Applied to production 2026-11-13** on the owner's go-ahead (migration
+    `018_nightly_snapshots`). Checked afterwards: the first snapshot matches the live row
+    counts for all 8 tables (199 athletes, 2,704 check-ins, 1,464 lifts, 1,700 tests, 20
+    programs), the job `hpd-nightly-snapshot` is active, and `anon` / `authenticated` have
+    no rights on the schema, the table or the functions. The advisor adds one INFO note,
+    "RLS enabled, no policy" on `backups.snapshots`: intended (nothing reads it through
+    the API).
 - **Tests on every push.** `npm test` (`tests/run-all.mjs`) runs every `tests/*.js`, reruns
   a failed file once on its own, and exits 1 on a failure (`--jobs N`, `--shard i/n`, name
   filters). `.github/workflows/tests.yml` runs it in 4 parts on every push to
@@ -4658,9 +4664,9 @@ share-sheet flow with cancel).
 ## 157. Next up
 
 **From the 2026-11-11 audit, most useful first:**
-1. **Apply `db/018`** (nightly snapshots) once the owner says go. Then download a full
-   backup once a month. **Try the download on a real iPad home-screen app** (two taps,
-   "Save to Files"): it has only been tested with the share sheet stubbed.
+1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a
+   full backup once a month. **Try the download on a real iPad home-screen app** (two
+   taps, "Save to Files"): it has only been tested with the share sheet stubbed.
 2. **Make the GitHub repository private** (owner: GitHub > Settings > General > Change
    visibility). It is public, and these docs name a few students with their team and
    publish the shared coach login's email. Then change that login's password to a long,
