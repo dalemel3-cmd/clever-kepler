@@ -119,7 +119,14 @@ const park = (rows) => {
 // Drop what went up (or was set aside), unless it changed again while saving.
 const dropSent = (rows) => {
   const now = readPending();
-  for (const r of rows) if (now[keyOf(r)]?.updated_at === r.updated_at) delete now[keyOf(r)];
+  for (const r of rows) {
+    const q = now[keyOf(r)];
+    if (!q) continue;
+    if (q.updated_at === r.updated_at) delete now[keyOf(r)];
+    // Acknowledged, so the server holds this tablet's own acked save: the newer change queued
+    // behind it is not "maybe on the server" (v5.16.2 review). A lost reply never gets here.
+    else delete q.sendFailed;
+  }
   writePending(now);
 };
 
@@ -148,6 +155,9 @@ export function flushSessions() {
     if (!allowFetch('workout_sessions:save', { max: 30, windowMs: 60000 })) { scheduleRetry(); return { ok: false }; }
     let done = rows;
     for (const r of rows) inFlight.add(keyOf(r));
+    // Marked on disk before sending (v5.16.2): a reload mid-send forgets `inFlight`, and the
+    // server may already hold this save. Sent and acknowledged, dropSent clears it.
+    markSendFailed(rows);
     try {
       const error = await saveRows(rows);
       if (error && !isRowError(error)) { reportDataError(error, 'workout_sessions:save'); markSendFailed(rows); scheduleRetry(); return { ok: false, error }; }

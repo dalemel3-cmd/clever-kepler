@@ -730,8 +730,9 @@ export default function App() {
       realtimeHealthy.current = status === 'SUBSCRIBED';
       // Live (again): changes made while it was down aren't replayed, so catch the roster
       // up once (braked) - weigh-ins catch up through the change probe (v5.15.8). Also on
-      // a first connect that came late, unless a roster download was just sent (v5.15.9).
-      if (realtimeHealthy.current && !was && Date.now() - athletesRequestAt.current > 10000) fetchAthletes();
+      // a first connect that came late, unless a roster download was just sent (v5.15.9; 30 s
+      // since v5.16.2, so a flapping connection stays under the 4-a-minute brake).
+      if (realtimeHealthy.current && !was && Date.now() - athletesRequestAt.current > 30000) fetchAthletes();
     };
     window.__hpdOnRealtimeStatus = onRealtimeStatus; // test hook (tests/usage-guards.js)
 

@@ -18,6 +18,7 @@ export default function FullBackupRow({ showToast }) {
   const finish = async (file, total) => {
     const res = await saveBackupFile(file);
     if (!res.saved) {
+      if (res.unsupported) { showToast("This device can't save the backup file from here. Open the app in Safari, or use a laptop, and try again.", 'error'); return; }
       showToast(res.cancelled ? 'Not saved yet. Tap Save backup file and choose where to keep it.' : "Couldn't save the file. Tap Save backup file to try again.", 'info');
       return;
     }

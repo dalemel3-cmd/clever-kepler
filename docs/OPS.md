@@ -50,7 +50,7 @@ Recommended next (owner decision needed marked ⚑)
 ## Backups (free; the database plan has none of its own)
 
 - **Nightly, automatic:** `backups.snapshots` in the database (`db/018_nightly_snapshots.sql`,
-  14 nights plus the 1st of each month for about 6 months). Undoes a bad edit or delete made
+  14 nights plus each month's earliest night for about 6 months). Undoes a bad edit or delete made
   in the app. `select * from backups.restore_missing('<date>')` puts back rows deleted
   since that night and leaves existing rows alone; restoring is a production write and
   needs the owner's go-ahead. The weekly reliability review checks that last night's

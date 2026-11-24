@@ -4661,7 +4661,29 @@ Test: `tests/full-backup.js` (17: all tables, 2,345 rows in 3 pages by id, a cha
 mid-copy, a failed table / short copy / empty answer save nothing, the brake, the iPad
 share-sheet flow with cancel).
 
-## 157. Next up
+## 157. Reconnect guard, backup and save-marker fixes (v5.16.2)
+
+From the 11/22 weekly review (no urgent findings; these were its small items).
+
+- **Roster catch-up after a reconnect waits 30 s** since the last roster download (was 10 s,
+  `App.jsx` `onRealtimeStatus`). A flapping connection could trip the 4-a-minute athletes
+  brake, which is what the 11/19 `fetch-brake` error was; harmless, but noisy.
+- **A reload mid-save no longer forgets the save may have landed.** `flushSessions` now marks
+  its pending rows `sendFailed` on disk before sending (`sessionCloud.js`); `dropSent` clears
+  the mark once the server acknowledges, and clears it on a newer queued change too. Before, only the in-memory `inFlight` set knew, so
+  a reload during a slow send could drop the newest set as "another rack's".
+- **The iPad backup never claims a save it did not make.** If the share sheet cannot take
+  files, `saveBackupFile` returns `unsupported` and the screen says so, instead of falling
+  back to a download link that may do nothing in a home-screen app and marking it saved.
+- **Docs:** OPS.md says the snapshots keep each month's earliest night (not the 1st).
+- Tests: `usage-guards.js` (34: a reconnect inside 30 s adds no roster download; the
+  earlier cases moved to +35 s / +70 s), `history-paging.js` (the in-flight mark is on disk
+  and gone once acked, and a change queued behind an acknowledged send does not keep it), `full-backup.js` (share sheet that cannot take files).
+- Left alone (reviewed, accepted): `restore_missing` fills later-added columns with NULL and
+  would bring back a merged-away athlete; test hooks (`__hpdProbe`, `__hpdOnRealtimeStatus`)
+  ship in production; GitHub Actions are pinned to major versions, not commits.
+
+## 158. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

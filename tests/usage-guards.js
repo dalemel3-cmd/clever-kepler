@@ -203,13 +203,17 @@ const lift = { id: uuid(5), athlete_id: uuid(1), athlete_name: 'A', sport: 'Foot
   check('realtime connects right after load: no second roster download', of('athletes').length === 0, `athletes=${of('athletes').length}`);
   await page.reload(); await page.waitForTimeout(1500);
   reqs.length = 0;
-  await page.evaluate(() => { const real = Date.now.bind(Date); Date.now = () => real() + 15000; window.__hpdOnRealtimeStatus('SUBSCRIBED'); });
+  await page.evaluate(() => { const real = Date.now.bind(Date); Date.now = () => real() + 35000; window.__hpdOnRealtimeStatus('SUBSCRIBED'); });
   await page.waitForTimeout(600);
   check('realtime connects for the first time well after load: one roster catch-up', of('athletes').length === 1, `athletes=${of('athletes').length}`);
   reqs.length = 0;
-  await page.evaluate(() => { window.__hpdOnRealtimeStatus('CHANNEL_ERROR'); const real = Date.now; Date.now = () => real() + 15000; window.__hpdOnRealtimeStatus('SUBSCRIBED'); });
+  await page.evaluate(() => { window.__hpdOnRealtimeStatus('CHANNEL_ERROR'); const real = Date.now; Date.now = () => real() + 70000; window.__hpdOnRealtimeStatus('SUBSCRIBED'); });
   await page.waitForTimeout(600);
   check('...and after a drop, one more', of('athletes').length === 1, `athletes=${of('athletes').length}`);
+  reqs.length = 0;
+  await page.evaluate(() => { window.__hpdOnRealtimeStatus('CHANNEL_ERROR'); const real = Date.now; Date.now = () => real() + 20000; window.__hpdOnRealtimeStatus('SUBSCRIBED'); });
+  await page.waitForTimeout(600);
+  check('a reconnect within 30 s of the last roster download adds none (v5.16.2)', of('athletes').length === 0, `athletes=${of('athletes').length}`);
 
   // Reports asking for older history while the brake is full: loaded ~20 s later, not never.
   await page.goto(`${APP}/#dashboard`); await page.reload(); await page.waitForTimeout(2500);

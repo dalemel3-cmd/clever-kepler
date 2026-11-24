@@ -209,7 +209,24 @@ const row = (extra) => ({ athlete_id: 'a1', session_date: '2026-11-02', day_id: 
   fake.delay = 0; // the fetch answers at once; the save still hangs
   const m11 = (await C.fetchAthleteSessions('b11', '2026-11-01')).find(x => x.day_id === 'd1');
   check('a save still in flight is not taken for another rack\'s', C.savedElsewhere(m11, { dayId: 'd1', savedAt: Date.now() }, 'b11', '2026-11-02') === false);
+  check('a save in flight is marked on disk, so a reload mid-send still knows the server may hold it (v5.16.2)', sentRow?.sendFailed === true);
   await sleep(700);
+  check('...and the mark is gone once the send is acknowledged', JSON.parse(store.get('hpd_ws_pending') || '{}')['b11|2026-11-02|d1'] === undefined);
+  // B12 (v5.16.2 review). A change queued while a send is in flight, and that send is
+  // acknowledged: the newer change must not keep the "maybe on the server" mark.
+  store.clear();
+  fake.onUpsert = (t, rs) => ({ data: rs.map(r => ({ athlete_id: r.athlete_id, session_date: r.session_date, day_id: r.day_id, updated_at: r.updated_at })) });
+  C.queueSessionSave(row({ athlete_id: 'b12', items_done: 1 }));
+  await C.flushSessions();
+  fake.delay = 600;
+  C.queueSessionSave(row({ athlete_id: 'b12', items_done: 2, updated_at: new Date(Date.now() + 5).toISOString() }));
+  await sleep(1700); // in flight
+  C.queueSessionSave(row({ athlete_id: 'b12', items_done: 3, updated_at: new Date(Date.now() + 1).toISOString() }));
+  fake.delay = 0;
+  await sleep(900); // the first send is acknowledged
+  const q12 = JSON.parse(store.get('hpd_ws_pending') || '{}')['b12|2026-11-02|d1'];
+  check('a change queued behind an acknowledged send does not keep the failed-send mark', q12?.items_done === 3 && q12.sendFailed === undefined, JSON.stringify(q12));
+  C.discardPendingSave('b12', '2026-11-02', 'd1');
   fake.onUpsert = (t, rs) => { for (const r of rs) server.set(keyOf(r), r); return null; };
 }
 

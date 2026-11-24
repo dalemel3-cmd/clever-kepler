@@ -159,6 +159,13 @@ async function route(page) {
   const shared = await p2.evaluate(() => window.__shares[1]);
   check('iPad: saved through the share sheet as a .json file, then it counts', /^hpd-full-backup-\d{4}-\d{2}-\d{2}\.json$/.test(shared?.name || '') && shared.type === 'application/json' && shared.size > 100000 && /today/.test(await p2.getByTestId('full-backup-age').innerText()) && /DOWNLOAD FULL BACKUP/i.test(await btn2.innerText()) && /Backup saved: 2,358 records/.test(await p2.locator('body').innerText()), JSON.stringify(shared));
 
+  // v5.16.2: a share sheet that can't take files must not end in a "saved" mark with no file.
+  await p2.evaluate(() => { localStorage.removeItem('hpd_last_full_backup_at'); navigator.canShare = () => false; window.__shares.length = 0; });
+  await btn2.click(); await p2.waitForTimeout(1500);
+  const before = await p2.evaluate(() => window.__shares.length);
+  if (/SAVE BACKUP FILE/i.test(await btn2.innerText())) { await btn2.click(); await p2.waitForTimeout(500); }
+  check('iPad: share sheet that cannot take files = not saved, no download link, says so', await p2.evaluate(() => localStorage.getItem('hpd_last_full_backup_at') === null && window.__shares.length === 0) && /can't save the backup file/.test(await p2.locator('body').innerText()) && ipadDownloads === 0, String(before));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   await browser.close(); process.exit(fail ? 1 : 0);
 })();

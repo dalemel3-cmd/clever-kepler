@@ -72,7 +72,10 @@ export function needsShareSheet() {
 
 // Resolves { saved, cancelled }. Call it directly from a tap.
 export async function saveBackupFile(file) {
-  if (needsShareSheet() && navigator.canShare({ files: [file] })) {
+  if (needsShareSheet()) {
+    // Never fall back to a download link here: on a home-screen app it can do nothing, and the
+    // backup would be marked saved with no file (v5.16.2).
+    if (!navigator.canShare({ files: [file] })) return { saved: false, cancelled: false, unsupported: true };
     try { await navigator.share({ files: [file] }); } catch (e) { return { saved: false, cancelled: e?.name === 'AbortError' }; }
     markSaved();
     return { saved: true, via: 'share' };
