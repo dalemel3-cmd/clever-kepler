@@ -4683,7 +4683,34 @@ From the 11/22 weekly review (no urgent findings; these were its small items).
   would bring back a merged-away athlete; test hooks (`__hpdProbe`, `__hpdOnRealtimeStatus`)
   ship in production; GitHub Actions are pinned to major versions, not commits.
 
-## 158. Next up
+## 158. Bulk edit shows who changes (v5.16.3)
+
+The owner found 28 football sets logged as "Squat" instead of "Front Squat" (each iPad has its
+own lift list, so some had no Front Squat button) and asked to see who a bulk edit changes.
+
+- **Data fix (owner go-ahead, production write, 11/24):** the 28 football `lift_logs` rows of
+  11/16 logged as Squat were set to Front Squat (weights and reps untouched). Cooper Croft's and
+  Elijah Campbell's were left, because both also log Belt Squat. Last night's snapshot
+  (`backups.snapshots`, 11/23) holds the old labels. WSOC (20 sets, 10/23), softball (10) and
+  baseball (3) Squat sets were left: those teams may log Squat on purpose.
+- **Lifts > Bulk Edit Lift Type** (`LiftScreen.jsx`) now has: Team chips (only teams with sets
+  that day; defaults to All); a "Who will change" list with a tick, name, team and weight x
+  reps per set (all ticked, scrolls, Select all / Clear); a count and button that follow the
+  ticks; a hint ("Also has Belt Squat sets") for athletes who log a similar lift (same last
+  word) that is neither the old nor the new label; the confirm lists who is left out; after a
+  change the panel stays open with an Undo for 60 seconds. The update itself is unchanged
+  (`bulkUpdateLiftType` sets only `lift_type` on the chosen ids).
+- Not done from the sketch: a "Last 7 days" date shortcut (the date is still one day).
+- **Still open:** how each iPad gets its lift list (`settings.liftTypes`, per device). Until
+  every iPad shows Front Squat for football, athletes will keep choosing Squat.
+- Review fixes (before shipping): the list is one row per athlete (unticking leaves all of that
+  athlete's sets); unticked athletes stay unticked after a change; a failed save says the
+  sets show the new label on this screen only and keeps Undo; Undo skips sets someone has
+  changed again; the team chip falls back to All; the id list is sent in chunks of 100;
+  44 px buttons and `role="status"` on the result.
+- Test: `tests/bulk-edit-who.js` (13).
+
+## 159. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

@@ -134,36 +134,93 @@ export default function LiftScreen({
   const [bulkFromType, setBulkFromType] = React.useState('');
   const [bulkToType, setBulkToType] = React.useState('');
   const [bulkSaving, setBulkSaving] = React.useState(false);
+  const [bulkSport, setBulkSport] = React.useState('All');
+  const [bulkSkip, setBulkSkip] = React.useState(() => new Set()); // athlete ids unticked in the list
+  const [bulkResult, setBulkResult] = React.useState(null); // { ids, from, to, error, undone }
+  const bulkDayLogs = React.useMemo(() => (liftLogs || []).filter(l =>
+    l.created_at && getCentralDateString(new Date(l.created_at)) === bulkDate
+  ), [liftLogs, bulkDate]);
+  // Teams that have sets on that day (of the chosen lift once one is picked).
+  const bulkSports = React.useMemo(() => [...new Set(bulkDayLogs.filter(l => !bulkFromType || l.lift_type === bulkFromType).map(l => l.sport).filter(Boolean))].sort(), [bulkDayLogs, bulkFromType]);
+  // A team chip that no longer has sets (after a change) falls back to All.
+  const bulkSportNow = bulkSport !== 'All' && !bulkSports.includes(bulkSport) ? 'All' : bulkSport;
   const bulkMatches = React.useMemo(() => {
     if (!bulkFromType) return [];
-    return (liftLogs || []).filter(l =>
-      l.lift_type === bulkFromType &&
-      l.created_at && getCentralDateString(new Date(l.created_at)) === bulkDate
-    );
-  }, [liftLogs, bulkFromType, bulkDate]);
+    return bulkDayLogs.filter(l => l.lift_type === bulkFromType && (bulkSportNow === 'All' || l.sport === bulkSportNow));
+  }, [bulkDayLogs, bulkFromType, bulkSportNow]);
+  // One row per athlete: unticking someone leaves all of their sets alone.
+  const bulkGroups = React.useMemo(() => {
+    const m = new Map();
+    for (const l of bulkMatches) {
+      if (!m.has(l.athlete_id)) m.set(l.athlete_id, { id: l.athlete_id, name: l.athlete_name, sport: l.sport, sets: [] });
+      m.get(l.athlete_id).sets.push(l);
+    }
+    return [...m.values()].sort((x, y) => String(x.name || '').localeCompare(String(y.name || '')));
+  }, [bulkMatches]);
+  const bulkChosen = React.useMemo(() => bulkMatches.filter(l => !bulkSkip.has(l.athlete_id)), [bulkMatches, bulkSkip]);
+  // Each athlete's lift types, built once, for the "Also has Belt Squat sets" hint: a similar
+  // lift (same last word) that is neither this one nor the one being changed to.
+  const bulkTypesByAthlete = React.useMemo(() => {
+    const m = new Map();
+    for (const x of liftLogs || []) { if (!m.has(x.athlete_id)) m.set(x.athlete_id, new Set()); m.get(x.athlete_id).add(x.lift_type); }
+    return m;
+  }, [liftLogs]);
+  const bulkHint = (athleteId) => {
+    const tail = String(bulkFromType).trim().split(/\s+/).pop().toLowerCase();
+    if (!tail) return '';
+    const others = [...(bulkTypesByAthlete.get(athleteId) || [])].filter(t => t !== bulkFromType && t !== bulkToType && String(t).toLowerCase().endsWith(tail));
+    return others.length ? `Also has ${others.join(', ')} sets` : '';
+  };
+  const resetBulkPick = () => { setBulkSkip(new Set()); setBulkResult(null); };
   const openBulkEdit = () => {
     setBulkDate(todayStr);
     setBulkFromType('');
     setBulkToType('');
+    setBulkSport('All');
+    resetBulkPick();
     setBulkEditOpen(true);
   };
   const closeBulkEdit = () => setBulkEditOpen(false);
   const handleBulkReassign = () => {
-    if (!bulkMatches.length || !bulkToType || bulkToType === bulkFromType) return;
+    if (!bulkChosen.length || !bulkToType || bulkToType === bulkFromType) return;
+    const left = bulkGroups.filter(g => bulkSkip.has(g.id)).map(g => g.name).filter(Boolean);
+    const ids = bulkChosen.map(l => l.id);
+    const from = bulkFromType, to = bulkToType;
     setConfirmModal({
       isOpen: true,
       title: 'Reassign Lift Type',
-      message: `Change ${bulkMatches.length} logged set${bulkMatches.length !== 1 ? 's' : ''} from "${bulkFromType}" to "${bulkToType}" on ${bulkDate}? Weights and reps are kept exactly as recorded - only the lift type changes.`,
+      message: `Change ${ids.length} logged set${ids.length !== 1 ? 's' : ''} from "${from}" to "${to}" on ${bulkDate}? Weights and reps are kept exactly as recorded - only the lift type changes.${left.length ? ` Left as ${from}: ${left.join(', ')}.` : ''}`,
       isDanger: false,
       actionText: 'Reassign',
       onConfirm: async () => {
         setBulkSaving(true);
-        await bulkUpdateLiftType(bulkMatches.map(l => l.id), bulkToType);
+        const res = await bulkUpdateLiftType(ids, to);
         setBulkSaving(false);
-        setBulkEditOpen(false);
+        // On a failure the sets already show the new label on this screen but were not saved:
+        // keep the ids so Undo (or a retry) still works. The unticked athletes stay unticked.
+        setBulkResult({ ids, from, to, at: Date.now(), error: res?.ok === false });
       },
     });
   };
+  // Undo within a minute: the same sets go back to the label they had, unless someone has
+  // since changed one of them to something else.
+  const handleBulkUndo = async () => {
+    if (!bulkResult?.ids || Date.now() - bulkResult.at >= 60000) return;
+    const now = new Map((liftLogs || []).map(l => [l.id, l.lift_type]));
+    const ids = bulkResult.ids.filter(id => now.get(id) === bulkResult.to);
+    if (!ids.length) { setBulkResult({ ...bulkResult, stale: true }); return; }
+    setBulkSaving(true);
+    const res = await bulkUpdateLiftType(ids, bulkResult.from);
+    setBulkSaving(false);
+    setBulkResult(res?.ok === false ? { ...bulkResult, error: true, undoing: true } : { undone: true, n: ids.length, from: bulkResult.from });
+  };
+  const bulkCanUndo = !!bulkResult?.ids && Date.now() - bulkResult.at < 60000;
+  const [, setBulkTick] = React.useState(0);
+  React.useEffect(() => {
+    if (!bulkResult?.ids) return undefined;
+    const t = setTimeout(() => setBulkTick(n => n + 1), 60500);
+    return () => clearTimeout(t);
+  }, [bulkResult]);
 
   // Kiosk mode's "rack": whoever has selected their own name this session, shown as
   // small boxes so returning to log a second/third set doesn't mean re-finding your
@@ -1300,32 +1357,57 @@ export default function LiftScreen({
               <input
                 type="date"
                 value={bulkDate}
-                onChange={e => setBulkDate(e.target.value)}
+                onChange={e => { setBulkDate(e.target.value); setBulkSport('All'); resetBulkPick(); }}
                 className="w-full h-12 px-4 rounded-xl bg-surface-container-highest text-on-surface font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary border border-transparent"
               />
             </div>
+
+            {bulkSports.length > 1 && (
+              <div data-testid="bulk-sports">
+                <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Team</label>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => { setBulkSport('All'); resetBulkPick(); }}
+                    className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${bulkSportNow === 'All' ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
+                  >
+                    {'All'}
+                  </button>
+                  {bulkSports.map(sp => (
+                    <React.Fragment key={sp}>
+                  <button
+                    type="button"
+                    onClick={() => { setBulkSport(sp); resetBulkPick(); }}
+                    className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${bulkSportNow === sp ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
+                  >
+                    {sp}
+                  </button>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Currently logged as</label>
               <div className="flex gap-2 flex-wrap">
                 {liftTypes.map(lt => (
+                  <React.Fragment key={lt}>
                   <button
-                    key={lt}
                     type="button"
-                    onClick={() => setBulkFromType(lt)}
+                    onClick={() => { setBulkFromType(lt); if (bulkToType === lt) setBulkToType(''); setBulkSport('All'); resetBulkPick(); }}
                     className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${bulkFromType === lt ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
                   >
                     {lt}
                   </button>
+                  </React.Fragment>
                 ))}
               </div>
             </div>
 
-            {bulkFromType && (
+            {bulkFromType && bulkMatches.length === 0 && (
               <div className="px-4 py-3 rounded-xl bg-surface-container-highest text-on-surface-variant font-label-md text-label-md">
-                {bulkMatches.length === 0
-                  ? `No "${bulkFromType}" sets logged on ${bulkDate}.`
-                  : `${bulkMatches.length} set${bulkMatches.length !== 1 ? 's' : ''} logged as "${bulkFromType}" on ${bulkDate}.`}
+                {`No "${bulkFromType}" sets logged on ${bulkDate}${bulkSport !== 'All' ? ` for ${bulkSport}` : ''}.`}
               </div>
             )}
 
@@ -1334,26 +1416,72 @@ export default function LiftScreen({
                 <label className="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-2">Change to</label>
                 <div className="flex gap-2 flex-wrap">
                   {liftTypes.filter(lt => lt !== bulkFromType).map(lt => (
-                    <button
-                      key={lt}
-                      type="button"
-                      onClick={() => setBulkToType(lt)}
-                      className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${bulkToType === lt ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
-                    >
-                      {lt}
-                    </button>
+                    <React.Fragment key={lt}>
+                  <button
+                    type="button"
+                    onClick={() => { setBulkToType(lt); setBulkResult(null); }}
+                    className={`px-4 py-2 rounded-xl font-label-md text-label-md transition-colors ${bulkToType === lt ? 'bg-primary-container text-on-primary-container font-bold border-2 border-primary' : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high border border-transparent'}`}
+                  >
+                    {lt}
+                  </button>
+                    </React.Fragment>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {bulkFromType && bulkMatches.length > 0 && (
+              <div data-testid="bulk-who">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Who will change</label>
+                  <span data-testid="bulk-count" className="font-label-sm text-label-sm text-on-surface-variant">{bulkGroups.filter(g => !bulkSkip.has(g.id)).length} of {bulkGroups.length} athletes selected ({bulkChosen.length} set{bulkChosen.length === 1 ? '' : 's'})</span>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <button type="button" onClick={() => setBulkSkip(new Set())} className="px-3 rounded-lg bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm" style={{ minHeight: '44px' }}>Select all</button>
+                  <button type="button" onClick={() => setBulkSkip(new Set(bulkGroups.map(g => g.id)))} className="px-3 rounded-lg bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm" style={{ minHeight: '44px' }}>Select none</button>
+                </div>
+                <div className="rounded-xl bg-surface-container-highest" style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                  {bulkGroups.map(g => {
+                    const on = !bulkSkip.has(g.id);
+                    const hint = bulkHint(g.id);
+                    const sets = g.sets.length === 1 ? `${g.sets[0].weight_lbs} × ${g.sets[0].reps}` : `${g.sets.length} sets: ${g.sets.map(x => `${x.weight_lbs}×${x.reps}`).join(', ')}`;
+                    return (
+                      <label key={g.id} data-testid="bulk-row" className="flex items-center gap-3 px-4 py-2 cursor-pointer" style={{ minHeight: '44px' }}>
+                        <input type="checkbox" checked={on} onChange={() => setBulkSkip(prev => { const n = new Set(prev); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n; })} />
+                        <span className="flex-1 min-w-0">
+                          <span className="block font-body-md text-body-md text-on-surface">{g.name}</span>
+                          {hint && <span className="block font-label-sm text-label-sm" style={{ color: '#fbbf24' }}>{hint}</span>}
+                        </span>
+                        <span className="font-label-sm text-label-sm text-on-surface-variant">{g.sport}</span>
+                        <span className="font-label-md text-label-md text-on-surface text-right">{sets}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {bulkResult && (
+              <div data-testid="bulk-result" role="status" className="px-4 py-3 rounded-xl bg-surface-container-highest text-on-surface font-label-md text-label-md flex items-center justify-between gap-3">
+                <span>
+                  {bulkResult.stale ? 'Those sets were changed again by someone else, so nothing was put back.'
+                    : bulkResult.undone ? `Put ${bulkResult.n} set${bulkResult.n === 1 ? '' : 's'} back to "${bulkResult.from}".`
+                    : bulkResult.error ? "Couldn't save to the database. The sets show the new label on this screen only. Tap Undo or try again once you are online."
+                    : `Changed ${bulkResult.ids.length} set${bulkResult.ids.length === 1 ? '' : 's'} to "${bulkResult.to}".`}
+                </span>
+                {bulkCanUndo && !bulkResult.undone && !bulkResult.stale && (
+                  <button type="button" data-testid="bulk-undo" onClick={handleBulkUndo} disabled={bulkSaving} className="px-4 rounded-lg bg-primary text-on-primary font-label-md text-label-md" style={{ minHeight: '44px' }}>Undo</button>
+                )}
               </div>
             )}
 
             <button
               type="button"
               onClick={handleBulkReassign}
-              disabled={bulkSaving || !bulkFromType || !bulkToType || bulkMatches.length === 0}
-              className={`h-12 rounded-xl font-headline-md text-headline-md uppercase flex items-center justify-center gap-2 transition-all ${bulkSaving || !bulkFromType || !bulkToType || bulkMatches.length === 0 ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary hover:bg-primary-fixed text-on-primary shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}
+              disabled={bulkSaving || !bulkFromType || !bulkToType || bulkChosen.length === 0}
+              className={`h-12 rounded-xl font-headline-md text-headline-md uppercase flex items-center justify-center gap-2 transition-all ${bulkSaving || !bulkFromType || !bulkToType || bulkChosen.length === 0 ? 'bg-primary-container/50 text-on-primary-container/50 cursor-not-allowed' : 'bg-primary hover:bg-primary-fixed text-on-primary shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}
             >
-              {bulkSaving ? 'Reassigning...' : `Reassign ${bulkMatches.length || ''} Set${bulkMatches.length === 1 ? '' : 's'}`}
+              {bulkSaving ? 'Reassigning...' : `Reassign ${bulkChosen.length || ''} Set${bulkChosen.length === 1 ? '' : 's'}`}
             </button>
           </div>
         </div>,

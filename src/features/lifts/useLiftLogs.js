@@ -182,8 +182,11 @@ export function useLiftLogs() {
     const cloudIds = ids.filter(id => !queue.isQueued(id));
     if (!cloudIds.length) return { ok: true, count: ids.length };
     try {
-      const { error } = await supabase.from('lift_logs').update({ lift_type: newLiftType }).in('id', cloudIds);
-      if (error) throw error;
+      // In chunks: a long id list in one request can exceed the URL limit.
+      for (let i = 0; i < cloudIds.length; i += 100) {
+        const { error } = await supabase.from('lift_logs').update({ lift_type: newLiftType }).in('id', cloudIds.slice(i, i + 100));
+        if (error) throw error;
+      }
       return { ok: true, count: ids.length };
     } catch (e) {
       reportDataError(e, 'lift_logs:write');
