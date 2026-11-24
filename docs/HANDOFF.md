@@ -4821,7 +4821,14 @@ export or API that we found, so the plan is the CSV the owner downloads from Tit
 - **Not built (ideas):** GPS vs RPE/readiness; a session type (practice, game); a Unit-to-athlete
   list if Titan ever exports a unit number instead of a name; position-group averages.
 
-## 163. Next up
+## 163. GPS charts are daily (v5.16.8)
+
+The owner asked for the athlete charts on Performance > GPS to be daily, not weekly. The three
+charts (distance, speed band, top speed) now show one point per session day for the 28 days up to
+the chosen day (days with no session are left out). The weekly table and the "week of ... vs
+the earlier weeks' average" line stay. Test: `tests/gps.js` (12) expects Daily titles.
+
+## 164. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

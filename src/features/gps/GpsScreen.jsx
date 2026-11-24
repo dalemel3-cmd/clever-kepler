@@ -44,18 +44,19 @@ const Chart = ({ k, title, color, unit, chart }) => (
   </div>
 );
 
-function AthleteDetail({ totals }) {
+function AthleteDetail({ totals, daily }) {
   const have = totals.filter(w => w.days);
   if (!have.length) return <div style={{ padding: '16px', color: 'var(--color-text-muted)' }}>No GPS sessions for this athlete in the last 8 weeks.</div>;
-  const chart = totals.map(w => ({ week: longDate(w.week), distance: w.distance_yd == null ? null : Math.round(w.distance_yd), fast: w.high_speed_yd == null ? null : Math.round(w.high_speed_yd), top: w.top_speed_mph }));
+  // The charts are daily: one point per session day (days with no session are left out).
+  const chart = daily.map(s => ({ week: longDate(s.session_date), distance: s.distance_yd == null ? null : Math.round(Number(s.distance_yd)), fast: s.high_speed_yd == null ? null : Math.round(Number(s.high_speed_yd)), top: s.top_speed_mph == null ? null : Number(s.top_speed_mph) }));
   const last = totals[totals.length - 1];
   const avg = recentAverage(totals, 'distance_yd');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: '16px' }}>
-        <Chart chart={chart} k="distance" title="Weekly distance (yd)" color="#60a5fa" unit="yd" />
-        <Chart chart={chart} k="fast" title="Weekly speed band (yd)" color="#fbbf24" unit="yd" />
-        <Chart chart={chart} k="top" title="Top speed of the week (mph)" color="#34d399" unit="mph" />
+        <Chart chart={chart} k="distance" title="Daily distance (yd)" color="#60a5fa" unit="yd" />
+        <Chart chart={chart} k="fast" title="Daily speed band (yd)" color="#fbbf24" unit="yd" />
+        <Chart chart={chart} k="top" title="Daily top speed (mph)" color="#34d399" unit="mph" />
       </div>
       {last.distance_yd != null && avg != null && (
         <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
@@ -77,7 +78,7 @@ function AthleteDetail({ totals }) {
             ))}
           </tbody>
         </table>
-        <div style={{ ...label, textTransform: 'none', letterSpacing: 0, fontWeight: 600, marginTop: '6px' }}>Weekly totals; top speed is the week's highest.</div>
+        <div style={{ ...label, textTransform: 'none', letterSpacing: 0, fontWeight: 600, marginTop: '6px' }}>Charts: each session day, last 28 days. Table: weekly totals; top speed is the week's highest.</div>
       </div>
     </div>
   );
@@ -149,6 +150,12 @@ export default function GpsScreen({ athletes }) {
   };
 
   const totalsFor = (id) => weeklyTotals(sessions || [], id, 8, dayNow || today);
+  // This athlete's session days, oldest first: the 28 days up to the chosen day.
+  const dailyFor = (id) => {
+    const end = dayNow || today;
+    const start = new Date(Date.parse(`${end}T00:00:00Z`) - 27 * 86400000).toISOString().slice(0, 10);
+    return (sessions || []).filter(s => s.athlete_id === id && s.session_date >= start && s.session_date <= end).sort((a, b) => (a.session_date < b.session_date ? -1 : 1));
+  };
 
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -244,7 +251,7 @@ export default function GpsScreen({ athletes }) {
                       {COLS.map(c => <td key={c.key} style={td}>{fmt(r[c.key], c.d)}</td>)}
                     </tr>
                     {openId === r.athlete_id && (
-                      <tr><td colSpan={COLS.length + 1} style={{ padding: '0 0 12px' }}><AthleteDetail totals={totalsFor(r.athlete_id)} /></td></tr>
+                      <tr><td colSpan={COLS.length + 1} style={{ padding: '0 0 12px' }}><AthleteDetail totals={totalsFor(r.athlete_id)} daily={dailyFor(r.athlete_id)} /></td></tr>
                     )}
                   </React.Fragment>
                 ))}

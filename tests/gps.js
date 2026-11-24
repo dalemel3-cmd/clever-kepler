@@ -69,7 +69,7 @@ const FILE = [HEAD,
   check('the latest day is shown with football athletes only, biggest distance first', await rows.count() === 2 && /ANN ALPHA/.test(await rows.nth(0).innerText()) && /6,?000/.test(await rows.nth(0).innerText()), await rows.first().innerText());
   await rows.nth(0).click(); await page.waitForTimeout(700);
   const t = await page.locator('main').innerText();
-  check('tapping a row shows weekly trends and the weekly table', /Weekly distance/i.test(t) && /Weekly speed band/i.test(t) && /Week of/i.test(t));
+  check('tapping a row shows daily charts and the weekly table', /Daily distance/i.test(t) && /Daily speed band/i.test(t) && /Daily top speed/i.test(t) && !/Weekly distance/i.test(t) && /Week of/i.test(t));
 
   console.log('\n[B] Upload: checked before saving');
   await page.getByLabel('Titan CSV file').setInputFiles({ name: 'titan.csv', mimeType: 'text/csv', buffer: Buffer.from(FILE) });
