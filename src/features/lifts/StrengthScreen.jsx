@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dumbbell, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Dumbbell, ChevronDown, ChevronUp, Search, Pencil } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { initialsFor } from '../../utils/athleteData';
 import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth, useMoreColumns, MoreColumnsToggle } from '../../components/DeepDiveUi';
@@ -11,7 +11,59 @@ import { buildStrengthRows, strengthFlags, latestBodyWeights, prHistory } from '
 // staff see who is progressing, who has plateaued, and each athlete's PR history.
 const GOLD = '#b89c5b';
 
-function AthleteDetail({ row, lift, allLogs, onOpenProfile }) {
+// One recent set, edited in place (v5.16.4): lift type, weight and reps. No delete here: removing a PR
+// set changes the PR, so deleting stays on the Lifts screen. The date is not editable.
+function EditSetRow({ l, liftTypes, onSave, onCancel }) {
+  const [type, setType] = React.useState(l.lift_type);
+  const [w, setW] = React.useState(String(l.weight_lbs ?? ''));
+  const [r, setR] = React.useState(String(l.reps ?? ''));
+  const [saving, setSaving] = React.useState(false);
+  const bad = !type || !/^\d+(\.\d+)?$/.test(w.trim()) || !(Number(w) > 0 && Number(w) <= 2000) || !/^\d+$/.test(r.trim()) || !(Number(r) > 0 && Number(r) <= 100);
+  const input = { height: '44px', padding: '0 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(0,0,0,0.3)', color: 'var(--white)', fontSize: '14px', fontWeight: 700 };
+  const save = async () => {
+    if (bad || saving) return;
+    const patch = { lift_type: type, weight_lbs: Number(w), reps: Number(r) };
+    if (patch.lift_type === l.lift_type && patch.weight_lbs === Number(l.weight_lbs) && patch.reps === Number(l.reps)) { onCancel(); return; } // nothing changed
+    setSaving(true);
+    const res = await onSave(l.id, patch); // on a failure the parent puts the old values back and says so
+    setSaving(false);
+    if (res?.ok !== false) onCancel();
+  };
+  return (
+    <tr data-testid="strength-edit-row" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <td colSpan={100} style={{ padding: '8px 6px' }}>
+        <form onSubmit={e => { e.preventDefault(); save(); }} onKeyDown={e => { if (e.key === 'Escape') onCancel(); }} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+          <select aria-label="Edit lift type" value={type} onChange={e => setType(e.target.value)} style={{ ...input, minWidth: '130px' }}>
+            {[...new Set([...liftTypes, l.lift_type])].map(t => <option key={t} value={t} style={optionStyle}>{t}</option>)}
+          </select>
+          <input aria-label="Edit weight" autoFocus inputMode="decimal" value={w} onChange={e => setW(e.target.value)} style={{ ...input, width: '84px' }} />
+          <span style={{ color: 'var(--color-text-muted)' }}>lb ×</span>
+          <input aria-label="Edit reps" inputMode="numeric" value={r} onChange={e => setR(e.target.value)} style={{ ...input, width: '64px' }} />
+          <div style={{ display: 'flex', gap: '8px' }}>
+          <button type="submit" disabled={bad || saving} style={{ height: '44px', padding: '0 16px', borderRadius: '8px', border: '1px solid var(--color-accent)', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', cursor: bad || saving ? 'not-allowed' : 'pointer', opacity: bad || saving ? 0.5 : 1 }}>{saving ? 'Saving…' : 'Save'}</button>
+          <button type="button" onClick={onCancel} style={{ height: '44px', padding: '0 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </form>
+      </td>
+    </tr>
+  );
+}
+
+function AthleteDetail({ row, lift, allLogs, onOpenProfile, liftTypes = [], onEditLift }) {
+  const [editingId, setEditingId] = React.useState(null);
+  const [editError, setEditError] = React.useState('');
+  // A failed save must not leave unsaved numbers in the PRs and charts: the old values go back
+  // on this screen at once, and the message sits here so it survives the row moving.
+  const saveEdit = async (id, patch) => {
+    setEditError('');
+    const orig = allLogs.find(x => x.id === id);
+    const res = await onEditLift(id, patch);
+    if (res?.ok === false) {
+      if (orig) await onEditLift(id, { lift_type: orig.lift_type, weight_lbs: orig.weight_lbs, reps: orig.reps });
+      setEditError("Couldn't save that change, so the set was left as it was. Try again; if it keeps failing, check your connection.");
+    }
+    return res;
+  };
   const chart = row.weeks.map(w => ({ week: w.weeksAgo === 0 ? 'This wk' : `${w.weeksAgo}w ago`, best: w.best == null ? null : Math.round(w.best), sets: w.sets }));
   // PR for every lift this athlete has logged, not just the one being ranked.
   const byLift = new Map();
@@ -63,6 +115,7 @@ function AthleteDetail({ row, lift, allLogs, onOpenProfile }) {
           </div>
         ))}
         <span style={{ ...label, marginTop: '8px' }}>Recent {lift} sets</span>
+        {editError && <div role="alert" style={{ color: '#fbbf24', fontSize: '12px', fontWeight: 700 }}>{editError}</div>}
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
@@ -71,17 +124,26 @@ function AthleteDetail({ row, lift, allLogs, onOpenProfile }) {
                 <th style={{ padding: '4px 6px', fontWeight: 700 }}>Set</th>
                 <th style={{ padding: '4px 6px', fontWeight: 700 }}>Est. 1RM</th>
                 <th style={{ padding: '4px 6px', fontWeight: 700 }}>% of PR</th>
+                {onEditLift && <th style={{ padding: '4px 6px' }}><span className="sr-only" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Edit</span></th>}
               </tr>
             </thead>
             <tbody>
               {recent.map(l => {
                 const est = Math.round(estimate1RM(Number(l.weight_lbs), Number(l.reps)));
+                if (editingId === l.id && onEditLift) return <EditSetRow key={l.id} l={l} liftTypes={liftTypes} onSave={saveEdit} onCancel={() => setEditingId(null)} />;
                 return (
                   <tr key={l.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '6px', color: 'var(--color-text-muted)' }}>{shortDate(l.created_at)}</td>
                     <td style={{ padding: '6px', fontWeight: 700 }}>{l.weight_lbs} × {l.reps}{prIds.has(l.id) && <span style={{ marginLeft: '6px', color: GOLD, fontSize: '11px', fontWeight: 800 }}>PR</span>}</td>
                     <td style={{ padding: '6px' }}>{est}</td>
                     <td style={{ padding: '6px', color: 'var(--color-text-muted)' }}>{Math.round((est / row.pr) * 100)}%</td>
+                    {onEditLift && (
+                      <td style={{ padding: '0 2px', textAlign: 'right' }}>
+                        <button type="button" onClick={() => setEditingId(l.id)} title="Edit this set" aria-label={`Edit set ${shortDate(l.created_at)} ${l.weight_lbs} × ${l.reps}`} style={{ width: '44px', height: '44px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '16px' }}>
+                          <Pencil size={16} aria-hidden="true" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -105,7 +167,7 @@ const SORTS = [
   { id: 'name', label: 'Name (A–Z)', key: null },
 ];
 
-export default function StrengthScreen({ settings, athletes, liftLogs, reportData, setSelectedProfileId, fetchProfileData, setScreen, setProfileEntryScreen }) {
+export default function StrengthScreen({ settings, athletes, liftLogs, updateLift, reportData, setSelectedProfileId, fetchProfileData, setScreen, setProfileEntryScreen }) {
   const liftTypes = settings.liftTypes && settings.liftTypes.length ? settings.liftTypes : ['Bench', 'Squat', 'Deadlift', 'Hang Clean', 'Power Clean'];
   const [lift, setLift] = React.useState(liftTypes[0] || '');
   const [sport, setSport] = React.useState('ALL');
@@ -245,7 +307,7 @@ export default function StrengthScreen({ settings, athletes, liftLogs, reportDat
                         <tr>
                           <td colSpan={more ? 12 : 7} style={{ padding: '0 0 12px' }}>
                             <div style={{ position: 'sticky', left: 0, width: visibleWidth || '100%' }}>
-                              <AthleteDetail row={r} lift={lift} allLogs={liftLogs} onOpenProfile={() => openProfile(r.athlete.id)} />
+                              <AthleteDetail row={r} lift={lift} allLogs={liftLogs} liftTypes={liftTypes} onEditLift={updateLift} onOpenProfile={() => openProfile(r.athlete.id)} />
                             </div>
                           </td>
                         </tr>

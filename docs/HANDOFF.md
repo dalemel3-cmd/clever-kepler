@@ -4710,7 +4710,25 @@ own lift list, so some had no Front Squat button) and asked to see who a bulk ed
   44 px buttons and `role="status"` on the result.
 - Test: `tests/bulk-edit-who.js` (13).
 
-## 159. Next up
+## 159. Edit a set from the Strength screen (v5.16.4)
+
+The owner asked for an edit feature on Performance > Strength > an athlete's expanded row
+(the "Recent <lift> sets" table). Designed with the owner first (sketch, 11/24): edit only.
+
+- Each recent set has a pencil (44 px). It turns that row into a lift type picker, weight and
+  reps with Save and Cancel (`EditSetRow` in `StrengthScreen.jsx`; `updateLift` from
+  `useLiftLogs` passed down from `App.jsx`, the same function the Lifts screen uses).
+- **No delete** here (removing a PR set changes the PR; delete stays on Lifts) and **no date
+  edit** (the Lifts editor doesn't allow it either).
+- Changing the lift type moves the set out of that lift's table. Weight and reps must be
+  above 0 (weight up to 2,000, whole reps up to 100; no 3.5 reps, 1e3 or Infinity). Enter saves,
+  Escape cancels; saving with nothing changed sends nothing.
+- A failed save puts the old values back on this screen at once (so unsaved numbers never feed
+  the PRs and charts), keeps the editor open with what was typed, and shows a message above the
+  table (it survives the row moving when the lift type was changed). Found by the review.
+- Test: `tests/strength-edit.js` (16).
+
+## 160. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a
