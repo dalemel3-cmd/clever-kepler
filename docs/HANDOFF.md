@@ -4792,7 +4792,7 @@ export or API that we found, so the plan is the CSV the owner downloads from Tit
   Distance (yards, 12.5-22.4 mph); GPS Personal Bands Distance (yards, 80% or faster of the
   athlete's own top mph). The sample's names matched 24 of 25 roster names exactly (ignoring
   case); the odd one ("<doubled first word> Mac Kimbrow") is matched by its last two words.
-- **`db/020_gps_sessions.sql` (NOT applied; needs the owner's go-ahead):** `public.gps_sessions`
+- **`db/020_gps_sessions.sql` (APPLIED to production 2026-11-24 on the owner's go-ahead, migration `020_gps_sessions`; verified: RLS on, one policy, anon cannot read or run the backup functions, snapshot function includes gps_sessions, nightly job still active, no new advisor findings):** `public.gps_sessions`
   (athlete_id references athletes, session_date, the six numbers, source 'titan'; unique on
   (athlete_id, session_date) so re-uploading a day replaces it; RLS for approved coaches, anon
   nothing). It also replaces `backups.take_snapshot()` and `backups.restore_missing()` (db/018)
