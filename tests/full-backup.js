@@ -24,6 +24,8 @@ const fresh = () => ({
 });
 let db = fresh();
 const backupGets = [];
+let gpsTransient = false; // a passing PGRST002 "schema cache" error
+let gpsMissing = false; // db/020 not applied yet: the table isn't there
 let broken = null;      // a table whose rows fail to load
 let shortBy = 0;        // rows the check-in copy comes back short of its count
 let changeMidway = false; // delete one check-in and add another between two pages
@@ -38,6 +40,8 @@ async function route(page) {
     if (isAuthRoute(url)) return fulfillAuth(r, url, h);
     if (url.includes('/rest/v1/coaches')) return r.fulfill({ status: 200, headers: h, body: '[{"approved":true}]' });
     const table = (url.match(/\/rest\/v1\/([a-z_]+)\?/) || [])[1];
+    if (table === 'gps_sessions' && gpsMissing) return r.fulfill({ status: 404, headers: h, body: JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.gps_sessions' in the schema cache" }) });
+    if (table === 'gps_sessions' && gpsTransient) return r.fulfill({ status: 503, headers: h, body: JSON.stringify({ code: 'PGRST002', message: 'Could not query the database for the schema cache. Retrying.' }) });
     const rows = db[table];
     if (rows && m === 'HEAD') return r.fulfill({ status: 200, headers: { ...h, 'content-range': rows.length ? `0-0/${rows.length}` : `*/0` }, body: '' });
     if (rows && m === 'GET' && /select=\*/.test(url) && /order=id\.asc/.test(url)) {
@@ -120,6 +124,23 @@ async function route(page) {
   db = fresh();
   check('...and none of those failures counted as a backup', /today/.test(await page.getByTestId('full-backup-age').innerText()) === true && await page.evaluate(() => Date.now() - Number(localStorage.getItem('hpd_last_full_backup_at')) > 5000));
 
+  // v5.16.7: GPS sessions are in the backup once the table exists, and a backup still works before it does.
+  await page.evaluate(() => window.__hpdFetchBrake.reset());
+  db = fresh(); db.gps_sessions = [{ id: uuid(800), athlete_id: uuid(1), session_date: '2026-11-17', distance_yd: 5000 }, { id: uuid(801), athlete_id: uuid(2), session_date: '2026-11-17', distance_yd: 4000 }];
+  const [dlG] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), button.click()]);
+  const withGps = JSON.parse(fs.readFileSync(await dlG.path(), 'utf8'));
+  check('GPS sessions are in the backup with their count', withGps.tables.gps_sessions?.length === 2 && withGps.counts.gps_sessions === 2);
+  await page.waitForTimeout(400); await page.evaluate(() => window.__hpdFetchBrake.reset());
+  gpsMissing = true; db = fresh();
+  const [dlM] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), button.click()]);
+  const noGps = JSON.parse(fs.readFileSync(await dlM.path(), 'utf8'));
+  check('before the GPS table exists the backup still works, without it', noGps.tables.athletes.length > 0 && !('gps_sessions' in noGps.tables));
+
+  await page.waitForTimeout(400); await page.evaluate(() => window.__hpdFetchBrake.reset());
+  gpsMissing = false; gpsTransient = true; db = fresh(); downloads = 0;
+  await button.click(); await page.getByRole('button', { name: /DOWNLOAD FULL BACKUP/i }).waitFor({ timeout: 20000 }); await page.waitForTimeout(300);
+  check('a passing database error on the GPS table refuses the backup (it is not silently left out)', downloads === 0 && /Couldn't read the GPS sessions/.test(await text()), `${downloads} ${(await text()).slice(-300).replace(/\n/g, ' ')}`);
+  gpsTransient = false; db = fresh();
   // The brake: a fifth try inside a minute is skipped.
   await page.evaluate(() => window.__hpdFetchBrake.reset());
   for (let i = 0; i < 4; i++) { await Promise.all([page.waitForEvent('download', { timeout: 20000 }), button.click()]); await page.waitForTimeout(300); }

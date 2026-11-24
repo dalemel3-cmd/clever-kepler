@@ -7,9 +7,11 @@ import { supabase } from '../supabaseClient';
 import { allowFetch } from './fetchBrake';
 import { getCentralDateString } from './athleteData';
 
-export const BACKUP_TABLES = ['athletes', 'weigh_ins', 'lift_logs', 'performance_tests', 'programs', 'workout_sessions', 'alert_status'];
+export const BACKUP_TABLES = ['athletes', 'weigh_ins', 'lift_logs', 'performance_tests', 'programs', 'workout_sessions', 'alert_status', 'gps_sessions'];
+// Tables added later: left out of the file (not an error) while the database doesn't have them yet.
+const OPTIONAL = new Set(['gps_sessions']);
 export const LAST_BACKUP_KEY = 'hpd_last_full_backup_at';
-const LABEL = { athletes: 'athletes', weigh_ins: 'check-ins', lift_logs: 'lifts', performance_tests: 'tests', programs: 'programs', workout_sessions: 'workout sessions', alert_status: 'alert notes' };
+const LABEL = { athletes: 'athletes', weigh_ins: 'check-ins', lift_logs: 'lifts', performance_tests: 'tests', programs: 'programs', workout_sessions: 'workout sessions', alert_status: 'alert notes', gps_sessions: 'GPS sessions' };
 const PAGE = 1000; // Supabase sends at most 1,000 rows a request
 
 // Every row of one table, a page at a time by id. Not by position: a check-in added or
@@ -35,6 +37,7 @@ export async function buildFullBackup({ appVersion = '' } = {}) {
   const tables = {}, counts = {};
   for (const t of BACKUP_TABLES) {
     const head = await supabase.from(t).select('id', { count: 'exact', head: true });
+    if (OPTIONAL.has(t) && head.error && /^(PGRST205|42P01)$/.test(String(head.error.code))) continue;
     if (head.error || head.count == null) return { error: `Couldn't read the ${LABEL[t]}. Nothing was saved; try again.` };
     const rows = await readTable(t);
     if (!rows) return { error: `Couldn't read the ${LABEL[t]}. Nothing was saved; try again.` };

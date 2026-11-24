@@ -4781,7 +4781,47 @@ list for all teams (a per-team list can be added later).
   with an unsaved edit takes another device's newer list.
 - Tests: `tests/shared-lift-types.js` (11).
 
-## 162. Next up
+## 162. Titan GPS (v5.16.7)
+
+The owner asked for Titan GPS data for football (25 units). Titan (a Hudl product) has no public
+export or API that we found, so the plan is the CSV the owner downloads from Titan's dashboard
+("synced data"), uploaded in the app. One row per athlete per day; four days in the sample.
+
+- **Columns (owner-confirmed units):** Date; Player Name; GPS Distance (yards); GPS Top Speed
+  (mi/hr); GPS Accel Zones Count and Decel Zones Count (high-speed, 4-8 m/s²); GPS Speed Bands
+  Distance (yards, 12.5-22.4 mph); GPS Personal Bands Distance (yards, 80% or faster of the
+  athlete's own top mph). The sample's names matched 24 of 25 roster names exactly (ignoring
+  case); the odd one ("<doubled first word> Mac Kimbrow") is matched by its last two words.
+- **`db/020_gps_sessions.sql` (NOT applied; needs the owner's go-ahead):** `public.gps_sessions`
+  (athlete_id references athletes, session_date, the six numbers, source 'titan'; unique on
+  (athlete_id, session_date) so re-uploading a day replaces it; RLS for approved coaches, anon
+  nothing). It also replaces `backups.take_snapshot()` and `backups.restore_missing()` (db/018)
+  so the nightly copy and the restore include `gps_sessions`. Tested on a local Postgres:
+  applying twice is fine, snapshot and restore of deleted GPS rows work, upsert replaces, RLS.
+- **Performance > GPS** (`src/features/gps/GpsScreen.jsx`, `gpsData.js`; no setting needed;
+  football athletes only): day picker, team table sortable by any column, tiles, tap a row for 8
+  weeks of trends (weekly distance, speed band, top speed; Monday-start weeks) and a weekly
+  table with "this week vs the earlier weeks' average". **Upload Titan CSV** shows a check first
+  (rows to save, days, athletes matched, names to match by hand or skip, all-zero rows skipped,
+  duplicate athlete-days) and only saves on Confirm. Saving upserts in chunks of 200 on
+  (athlete_id, session_date).
+- **Backup:** the in-app full backup now includes `gps_sessions`, and still works before the table
+  exists (it is skipped, not an error).
+- No real names in the repo: the tests use made-up names.
+- Review fixes (before shipping): saved rows carry only the columns present in the file (a
+  column Titan leaves out never blanks what is saved; blank and non-numeric cells are counted and
+  shown); every name that is not an exact match stays listed in the preview with its choice, and
+  a name matched by its last two words is shown as a suggestion (names with an apostrophe or
+  hyphen are never guessed; a name two athletes share is never guessed); out-of-range values
+  warn that the units may be wrong; day averages skip empty values; keyboard access and 44 px
+  controls; the backup only skips `gps_sessions` for the codes PGRST205/42P01 (a passing
+  PGRST002 error refuses the backup instead of leaving it out).
+- Tests: `tests/gps-data.js` (21, pure functions), `tests/gps.js` (12), `tests/full-backup.js`
+  (21); `strength-deep-dive` now expects 6 Performance tabs.
+- **Not built (ideas):** GPS vs RPE/readiness; a session type (practice, game); a Unit-to-athlete
+  list if Titan ever exports a unit number instead of a name; position-group averages.
+
+## 163. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

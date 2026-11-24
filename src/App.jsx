@@ -38,6 +38,7 @@ const EntryScreen = lazy(SCREEN_LOADERS.EntryScreen = () => import('./features/e
 const DashboardScreen = lazy(SCREEN_LOADERS.DashboardScreen = () => import('./features/dashboard/DashboardScreen'));
 const ReportsScreen = lazy(SCREEN_LOADERS.ReportsScreen = () => import('./features/reports/ReportsScreen'));
 const PowerScreen = lazy(SCREEN_LOADERS.PowerScreen = () => import('./features/analytics/PowerScreen'));
+const GpsScreen = lazy(SCREEN_LOADERS.GpsScreen = () => import('./features/gps/GpsScreen'));
 const StrengthScreen = lazy(SCREEN_LOADERS.StrengthScreen = () => import('./features/lifts/StrengthScreen'));
 const RpeScreen = lazy(SCREEN_LOADERS.RpeScreen = () => import('./features/rpe/RpeScreen'));
 const AnalyticsScreen = lazy(SCREEN_LOADERS.AnalyticsScreen = () => import('./features/analytics/AnalyticsScreen'));
@@ -3045,6 +3046,10 @@ export default function App() {
                 setScreen={setScreen}
                 setProfileEntryScreen={setProfileEntryScreen}
               />
+            )}
+
+            {screen === 'gps' && (
+              <GpsScreen athletes={athletes} />
             )}
 
             {screen === 'power' && settings.enableSpeedPower && (
