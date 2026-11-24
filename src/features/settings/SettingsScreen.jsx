@@ -302,7 +302,7 @@ export default function SettingsScreen({
               hint: 'Weight-room strength logging (Bench, Squat, Deadlift, etc.), tracked separately from daily weigh-ins. Turn this on to add a Lift Tracker to the sidebar.',
               fields: [
                 { key: 'enableLiftTracker', label: 'Lift Tracker', type: 'toggle', help: 'Off by default. When on, a Lift Tracker screen is added for logging weight-room lifts.' },
-                { key: 'liftTypes', label: 'Lift Types', type: 'list', help: 'Buttons a coach/athlete picks from when logging a lift, comma separated.' },
+                { key: 'liftTypes', label: 'Lift Types', type: 'list', help: 'Buttons a coach/athlete picks from when logging a lift, comma separated. One list for every device: a change is sent to the database when you Save All Settings, and each device picks it up when it opens the app.' },
                 { key: 'workoutTimerCapMin', label: 'Workout Timer Stops At', unit: 'min', step: 5, min: 10, max: 240, help: "Rack tablet workouts are timed from when the athlete opens them. The timer stops here if nobody taps Finish, and the minutes can still be changed before saving the RPE. Set on each tablet." },
               ]
             },

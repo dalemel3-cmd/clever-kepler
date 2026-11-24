@@ -4701,8 +4701,7 @@ own lift list, so some had no Front Squat button) and asked to see who a bulk ed
   change the panel stays open with an Undo for 60 seconds. The update itself is unchanged
   (`bulkUpdateLiftType` sets only `lift_type` on the chosen ids).
 - Not done from the sketch: a "Last 7 days" date shortcut (the date is still one day).
-- **Still open:** how each iPad gets its lift list (`settings.liftTypes`, per device). Until
-  every iPad shows Front Squat for football, athletes will keep choosing Squat.
+- **Still open:** how each iPad gets its lift list: fixed in §161 once db/019 is applied.
 - Review fixes (before shipping): the list is one row per athlete (unticking leaves all of that
   athlete's sets); unticked athletes stay unticked after a change; a failed save says the
   sets show the new label on this screen only and keeps Undo; Undo skips sets someone has
@@ -4749,7 +4748,40 @@ multiple of 5; program maxes stay whole-pound (`programData.js`).
 - Tests: `tests/e1rm-rounding.js` (4, pure functions); expected numbers moved to multiples
   of 5 in `strength-deep-dive`, `workout-tablet`, `progress-card`, `lift-team-log`.
 
-## 161. Next up
+## 161. One lift list for every device (v5.16.6)
+
+Found 11/24: the lift buttons (Settings > Lift Tracker > Lift Types) lived only in each
+device's own browser (`hpd_settings`), and the built-in default has no Front Squat, so football
+athletes on an iPad without it logged Squat (28 sets fixed by hand, §158). The owner chose one
+list for all teams (a per-team list can be added later).
+
+- **`db/019_shared_settings.sql` (NOT applied; needs the owner's go-ahead):** table
+  `public.shared_settings(key, value jsonb, updated_at)`, RLS for approved coaches only (same
+  rule as the data tables; anon has no rights), seeded with key `lift_types` = Bench, Front
+  Squat, Squat, Belt Squat, Deadlift, Hang Clean, Power Clean (the seven types in production's
+  `lift_logs`). Tested on a local Postgres: idempotent; an unapproved user sees nothing, an
+  approved coach reads and updates, anon is refused.
+- **`src/utils/sharedLiftTypes.js`:** the app reads the row when it opens and when it returns
+  to the front (at most every 10 minutes, braked 4 a minute), copies it into this device's
+  settings (so it still works offline) and remembers the cloud copy it saw
+  (`hpd_shared_lift_types`). A device adopts the cloud list the first time or when the cloud's
+  has changed since it last looked; otherwise an unsaved local edit is left alone.
+- **Saving:** Save All Settings sends a changed list to the database, but only from a device that
+  has seen the cloud list (a device that never has could overwrite it). If the send fails the
+  device says the list is saved on this device only.
+- Before the migration is applied the read finds no table and does nothing: devices keep their
+  own lists, so the release is safe to ship first.
+- Also added `.claude/settings.json`: allow rules for the Supabase read tools so the daily error
+  check and weekly review run without a prompt each time. (The tool cannot tell reads from
+  writes; the rule "no production writes without the owner's go-ahead" still applies.) Cloud
+  sessions only read it when they have one repository.
+- Review fixes: Restore Defaults keeps the shared list; Save never sends the built-in default
+  list (an emptied field would otherwise replace everyone's); a failed read is retried on the next
+  return. Known: two coaches saving different lists at once is last-write-wins, and a device
+  with an unsaved edit takes another device's newer list.
+- Tests: `tests/shared-lift-types.js` (11).
+
+## 162. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

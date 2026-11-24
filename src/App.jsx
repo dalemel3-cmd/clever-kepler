@@ -3,6 +3,7 @@ import { Users, Plus, CheckCircle, RefreshCw, Grid, Activity, Settings } from 'l
 import { supabase, clearSignedInBefore } from './supabaseClient';
 import { reportDataError } from './errorReporting';
 import { allowFetch, fetchAllRows } from './utils/fetchBrake';
+import { fetchSharedLiftTypes, saveSharedLiftTypes, adoptDecision, cleanLiftTypes, sameList, cachedSharedLiftTypes } from './utils/sharedLiftTypes';
 import './styles.css';
 import { AppSidebar } from './components/AppSidebar';
 import { AppHeader } from './components/AppHeader';
@@ -583,8 +584,18 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('shiloh_offline_weigh_ins') || '[]').length; } catch { return 0; }
   });
 
+  // One lift list for every device (v5.16.6): copy the cloud's into this device's settings.
+  const sharedLiftTypesAt = React.useRef(0);
+  const syncSharedLiftTypes = React.useCallback(async () => {
+    const cloud = await fetchSharedLiftTypes();
+    if (cloud) sharedLiftTypesAt.current = Date.now(); // a failed read is retried on the next return
+    const { adopt, list } = adoptDecision(cloud, settingsRef.current.liftTypes);
+    if (adopt) updateSettingNow('liftTypes', list);
+  }, [updateSettingNow]);
+
   useEffect(() => {
     fetchAthletes();
+    syncSharedLiftTypes();
 
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
@@ -843,6 +854,7 @@ export default function App() {
       // hidden over a minute (an iPad asleep misses pushes and the socket still reads
       // healthy until its heartbeat fails, v5.15.8). Flipping between windows doesn't.
       if (!realtimeHealthy.current || wasAway || Date.now() - lastAthletesFetchAt.current > 300000) fetchAthletes();
+      if (Date.now() - sharedLiftTypesAt.current > 600000) syncSharedLiftTypes();
     };
     window.addEventListener('focus', handleFocusRefresh);
     document.addEventListener('visibilitychange', handleFocusRefresh);
@@ -933,6 +945,14 @@ export default function App() {
 
   const handleSaveSettings = () => {
     const normalized = saveSettings(settings);
+    // A changed lift list goes to every device (v5.16.6).
+    const cleanList = cleanLiftTypes(normalized.liftTypes);
+    // Only once this device has seen the cloud's list: a device that never has could overwrite it.
+    const seenList = cachedSharedLiftTypes();
+    // Never the built-in defaults: Restore Defaults, or an emptied field, would otherwise replace everyone's list.
+    if (cleanList && seenList && !sameList(cleanList, seenList) && !sameList(cleanList, DEFAULT_SETTINGS.liftTypes)) {
+      saveSharedLiftTypes(cleanList).then(r => { if (!r.ok) showToast?.("Lift Types saved on this device only. Couldn't reach the database; save again once you are online.", 'error'); });
+    }
     setSettings(normalized); // reflect any clamping back into the controls
     configureProgramContext({
       programTimezone: normalized.programTimezone,
@@ -983,7 +1003,9 @@ export default function App() {
       isDanger: false,
       actionText: 'Restore Defaults',
       onConfirm: () => {
-        const normalized = saveSettings(DEFAULT_SETTINGS);
+        // The lift list is shared by every device, so Restore Defaults leaves it alone.
+        const keepLifts = cachedSharedLiftTypes();
+        const normalized = saveSettings(keepLifts ? { ...DEFAULT_SETTINGS, liftTypes: keepLifts } : DEFAULT_SETTINGS);
         setSettings(normalized);
         configureProgramContext({
           programTimezone: normalized.programTimezone,

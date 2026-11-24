@@ -1,7 +1,7 @@
 {
   "name": "clever-kepler",
   "private": true,
-  "version": "5.16.5",
+  "version": "5.16.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
