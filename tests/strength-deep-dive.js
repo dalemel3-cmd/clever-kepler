@@ -75,7 +75,7 @@ const weighIns = [{ id: uuid(900), athlete_id: uuid(1), weight_lbs: 200, sleep_h
   check('3 bench athletes (non-bencher omitted)', await rows.count() === 3, String(await rows.count()));
   const rising = await rows.nth(0).innerText();
   const flat = await rows.nth(1).innerText();
-  check('sorted by PR: Rising Star (265x5 = 309) above Flat Line (275x3 = 303)', /Rising Star/.test(rising) && /309/.test(rising) && /Flat Line/.test(flat) && /303/.test(flat), rising + ' | ' + flat);
+  check('sorted by PR: Rising Star (265x5 = 309, shown 310) above Flat Line (275x3 = 303, shown 305)', /Rising Star/.test(rising) && /310/.test(rising) && /Flat Line/.test(flat) && /305/.test(flat), rising + ' | ' + flat);
   check('Flat Line flagged below PR', /82% of PR/.test(flat), flat);
   check('Rising Star: New PR flag', /Rising Star/.test(rising) && /New PR/.test(rising), rising);
   check('Rising Star: relative strength from weigh-in', /1\.5\d×/.test(rising), rising);

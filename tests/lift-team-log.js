@@ -67,7 +67,7 @@ const lifts = [{ id: uuid(90), athlete_id: uuid(1), athlete_name: 'Ann Adams', l
   check('PR preview vs existing 200', /est\. 215 · PR/.test(await dlg.getByTestId('team-lift-row').nth(0).innerText()));
   await dlg.getByLabel('Ben Brown weight (lbs)').fill('185');
   await dlg.getByLabel('Ben Brown reps').fill('5');
-  check('first-ever lift marked "first", not PR', /est\. 216 · first/.test(await dlg.getByTestId('team-lift-row').nth(1).innerText()), await dlg.getByTestId('team-lift-row').nth(1).innerText());
+  check('first-ever lift marked "first", not PR', /est. 215 · first/.test(await dlg.getByTestId('team-lift-row').nth(1).innerText()), await dlg.getByTestId('team-lift-row').nth(1).innerText());
   await dlg.getByLabel('Cal Cole weight (lbs)').fill('9999');
   check('bad row blocks save', await dlg.getByRole('button', { name: /^Save/ }).isDisabled() && /1 row need/.test(await dlg.innerText()));
   await dlg.getByLabel('Cal Cole weight (lbs)').fill('');

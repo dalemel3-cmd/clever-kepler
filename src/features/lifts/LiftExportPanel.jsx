@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, Download } from 'lucide-react';
-import { estimate1RM, TIMEFRAMES, timeframeBounds, inBounds, describeBounds } from './liftRanking';
+import { estimate1RM, round5, TIMEFRAMES, timeframeBounds, inBounds, describeBounds } from './liftRanking';
 
 // Lift Tracker CSV export with a choice of who, which lift and what time frame.
 // Styled to match the Bulk Edit panel on the same screen.
@@ -62,7 +62,7 @@ export default function LiftExportPanel({ liftLogs, athletes, sports, liftTypes,
       l.athlete_name || '',
       athleteById.get(l.athlete_id)?.sport || l.sport || '',
       l.lift_type, l.weight_lbs, l.reps,
-      Math.round(estimate1RM(Number(l.weight_lbs), Number(l.reps))),
+      round5(estimate1RM(Number(l.weight_lbs), Number(l.reps))),
     ]);
     const whoPart = who === 'athlete' ? slug(athleteById.get(athleteId)?.name || 'Athlete') : who === 'sport' ? slug(sport) : 'All';
     const liftPart = lift === 'ALL' ? 'AllLifts' : slug(lift);

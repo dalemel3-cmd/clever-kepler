@@ -2,7 +2,7 @@
 // docs/HANDOFF.md §106). Pure functions, no React. Ranking follows the handoff:
 // best result per athlete in the period (max, or min when lower is better), ties broken
 // by most recent test then name; Top 10 on page 1, then 22 per continuation page.
-import { estimate1RM, inBounds } from '../lifts/liftRanking';
+import { estimate1RM, round5, inBounds } from '../lifts/liftRanking';
 import { getCentralDateString } from '../../utils/athleteData';
 import { TEST_TYPES, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL } from '../analytics/testVariants';
 import { linearFit } from '../../utils/trendLine';
@@ -129,9 +129,12 @@ export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], pe
   const rows = list.map(({ athlete, points, best }, k) => {
     const bestDay = points.find(p => p.value === best).day;
     const latest = points[points.length - 1].value;
+    // Est. 1RMs show to the nearest 5 lb (v5.16.5); the change is between the shown numbers.
+    const lift5 = metric.kind === 'lift';
+    const shown = (v) => (lift5 ? String(round5(v)) : v.toFixed(metric.decimals));
     const diff = (base) => {
       if (base == null) return { text: '—', tone: 'flat' };
-      const d = +(latest - base).toFixed(metric.decimals);
+      const d = lift5 ? round5(latest) - round5(base) : +(latest - base).toFixed(metric.decimals);
       if (d === 0) return { text: '—', tone: 'flat' };
       const improved = metric.lowerIsBetter ? d < 0 : d > 0;
       return { text: fmtSigned(d, metric.decimals), tone: improved ? 'up' : 'down' };
@@ -148,10 +151,10 @@ export function buildPrintLeaderboard({ metric, athletes = [], liftLogs = [], pe
       name: athlete.name,
       pos: athlete.position || '',
       grad: gradYearFor(athlete.grade, now),
-      value: best.toFixed(metric.decimals),
+      value: shown(best),
       change: first.text, changeTone: first.tone,
-      initial: points[0].value.toFixed(metric.decimals), initialDate: md(points[0].day),
-      recent: latest.toFixed(metric.decimals), recentDate: md(points[points.length - 1].day),
+      initial: shown(points[0].value), initialDate: md(points[0].day),
+      recent: shown(latest), recentDate: md(points[points.length - 1].day),
       bestDate: md(bestDay),
       // Lifts: the set itself; value/initial/recent above stay the est. 1RM.
       bestSet: setOf(athlete.id, bestDay), initialSet: setOf(athlete.id, points[0].day), recentSet: setOf(athlete.id, points[points.length - 1].day),

@@ -1,7 +1,7 @@
 // Per-athlete strength metrics for the Performance > Strength deep-dive tab. Pure
 // functions (no React). Everything is ranked by estimated 1RM from liftRanking, so the
 // numbers agree with the Lift Tracker leaderboard, PNG and CSV.
-import { estimate1RM } from './liftRanking';
+import { estimate1RM, round5 } from './liftRanking';
 import { hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
 
 const DAY = 86400000;
@@ -43,7 +43,7 @@ export function prHistory(logs) {
   let best = -Infinity;
   for (const l of sorted) {
     const v = e1(l);
-    if (v > best) { best = v; prs.push({ ...l, est: Math.round(v) }); }
+    if (v > best) { best = v; prs.push({ ...l, est: round5(v), exact: v }); }
   }
   return prs;
 }
@@ -76,14 +76,15 @@ export function buildStrengthRows(athletes, liftLogs, { lift, windowWeeks = 8, n
     rows.push({
       athlete: a,
       pr: pr.est,
+      prExact: e1(pr), // for sorting: the shown PR is rounded to 5 and would tie
       prSet: pr,
       prDaysAgo: Math.floor((now - t(pr)) / DAY),
       prsInWindow: prs.filter(p => t(p) >= cutoff).length,
-      recentBest: recentBest == null ? null : Math.round(recentBest),
+      recentBest: recentBest == null ? null : round5(recentBest),
       // Best of the later half of the window vs the earlier half.
       change: recentBest != null && earlierBest ? (recentBest - earlierBest) / earlierBest : null,
       pctOfPr: recentBest != null ? recentBest / e1(pr) : null, // exact vs exact: rounded PR skewed the %
-      relative: bw ? pr.est / bw : null,
+      relative: bw ? e1(pr) / bw : null, // exact: the displayed PR is rounded to 5
       bodyWeight: bw,
       sets: inWindow.length,
       volume: inWindow.reduce((s, l) => s + (Number(l.weight_lbs) || 0) * (Number(l.reps) || 0), 0),

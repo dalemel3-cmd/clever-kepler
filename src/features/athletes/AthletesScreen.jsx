@@ -3,7 +3,7 @@ import { Search, X, Plus, ChevronLeft } from 'lucide-react';
 import { isPostPracticeLog, hasWeight, isRpeLog, getAthleteBaseline, getWeeklyWeightDelta, initialsFor } from '../../utils/athleteData';
 import { bestTestFor } from '../profiles/ProfilesScreen';
 import { formatMetric } from '../analytics/SpeedPowerPanel';
-import { estimate1RM } from '../lifts/liftRanking';
+import { estimate1RM, round5 } from '../lifts/liftRanking';
 
 const avatarColors = ['#2c3e6b', '#5b6e3e', '#6b4226', '#3b6e6e', '#6b3a5b', '#3e4e6b', '#6b5b2e', '#4b3e6b', '#2e5b4b', '#6b2e3e'];
 const colorFor = (name) => avatarColors[name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % avatarColors.length];
@@ -359,8 +359,9 @@ export default function AthletesScreen({
           // leaderboard ranks on, so this number can never disagree with that board.
           const bestLift = (liftLogs || []).filter(l => l.athlete_id === a.id).reduce((best, l) => {
             const est = estimate1RM(Number(l.weight_lbs), Number(l.reps));
-            return (!best || est > best.est) ? { est: Math.round(est), liftType: l.lift_type } : best;
+            return (!best || est > best.exact) ? { exact: est, liftType: l.lift_type } : best;
           }, null);
+          if (bestLift) bestLift.est = round5(bestLift.exact);
           const lastActive = logs[0]?.created_at ? new Date(logs[0].created_at).toLocaleDateString() : null;
           const weeklyDelta = getWeeklyWeightDelta(reportData, a.id);
 

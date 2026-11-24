@@ -4728,7 +4728,28 @@ The owner asked for an edit feature on Performance > Strength > an athlete's exp
   table (it survives the row moving when the lift type was changed). Found by the review.
 - Test: `tests/strength-edit.js` (16).
 
-## 160. Next up
+## 160. Estimated maxes shown to the nearest 5 lb (v5.16.5)
+
+The owner asked to round the equation-based est. 1RM to the nearest 5 lb "so it cleans things
+up". Display only: `round5` in `liftRanking.js`. PR detection ("New PR!"), percent of PR,
+relative strength (PR ÷ body weight, × BW) and the Strength screen's PR sort keep the exact
+value (a 301 vs 303 PR still counts, though both can read 300/305, or even "305 (was 305)").
+Lift and print leaderboards still rank on whole-pound integers (as before), not the shown
+multiple of 5; program maxes stay whole-pound (`programData.js`).
+
+- Rounded where an est. 1RM is shown: Strength screen (PR, recent sets, chart, PR history,
+  all-lifts PRs), Lift leaderboard (+ PNG), lift CSV export, printed leaderboard (value, initial,
+  recent; its change is the difference between the shown numbers), progress card (including its "+N lb est." change), readiness
+  report, Athletes screen, the "New PR" messages, team entry panel.
+- Not rounded: program maxes (`programData.js`, they feed prescribed weights), the exact
+  PR comparisons, percent of PR, relative strength.
+- Known and accepted: the print leaderboard change is the difference between the shown
+  numbers, so 303 to 304 reads "—" (a real 1 lb gain) and 301 to 303 reads +5. Ranking is by
+  the whole-pound value, so a row can rank above another with "—" in Change.
+- Tests: `tests/e1rm-rounding.js` (4, pure functions); expected numbers moved to multiples
+  of 5 in `strength-deep-dive`, `workout-tablet`, `progress-card`, `lift-team-log`.
+
+## 161. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

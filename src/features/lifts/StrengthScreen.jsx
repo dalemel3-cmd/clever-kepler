@@ -3,7 +3,7 @@ import { Dumbbell, ChevronDown, ChevronUp, Search, Pencil } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { initialsFor } from '../../utils/athleteData';
 import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth, useMoreColumns, MoreColumnsToggle } from '../../components/DeepDiveUi';
-import { estimate1RM } from './liftRanking';
+import { estimate1RM, round5 } from './liftRanking';
 import { buildStrengthRows, strengthFlags, latestBodyWeights, prHistory } from './liftMetrics';
 
 // Performance > Strength: the in-depth, per-athlete view of the lifts logged in the
@@ -64,7 +64,7 @@ function AthleteDetail({ row, lift, allLogs, onOpenProfile, liftTypes = [], onEd
     }
     return res;
   };
-  const chart = row.weeks.map(w => ({ week: w.weeksAgo === 0 ? 'This wk' : `${w.weeksAgo}w ago`, best: w.best == null ? null : Math.round(w.best), sets: w.sets }));
+  const chart = row.weeks.map(w => ({ week: w.weeksAgo === 0 ? 'This wk' : `${w.weeksAgo}w ago`, best: w.best == null ? null : round5(w.best), sets: w.sets }));
   // PR for every lift this athlete has logged, not just the one being ranked.
   const byLift = new Map();
   for (const l of allLogs) {
@@ -75,7 +75,7 @@ function AthleteDetail({ row, lift, allLogs, onOpenProfile, liftTypes = [], onEd
   const liftPrs = [...byLift.entries()].map(([name, logs]) => {
     const prs = prHistory(logs);
     return { name, pr: prs[prs.length - 1], sets: logs.length };
-  }).sort((a, b) => b.pr.est - a.pr.est);
+  }).sort((a, b) => b.pr.exact - a.pr.exact);
   const recent = [...row.logs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 12);
   const prIds = new Set(row.prs.map(p => p.id));
   return (
@@ -129,14 +129,15 @@ function AthleteDetail({ row, lift, allLogs, onOpenProfile, liftTypes = [], onEd
             </thead>
             <tbody>
               {recent.map(l => {
-                const est = Math.round(estimate1RM(Number(l.weight_lbs), Number(l.reps)));
+                const exact = estimate1RM(Number(l.weight_lbs), Number(l.reps));
+                const est = round5(exact);
                 if (editingId === l.id && onEditLift) return <EditSetRow key={l.id} l={l} liftTypes={liftTypes} onSave={saveEdit} onCancel={() => setEditingId(null)} />;
                 return (
                   <tr key={l.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '6px', color: 'var(--color-text-muted)' }}>{shortDate(l.created_at)}</td>
                     <td style={{ padding: '6px', fontWeight: 700 }}>{l.weight_lbs} × {l.reps}{prIds.has(l.id) && <span style={{ marginLeft: '6px', color: GOLD, fontSize: '11px', fontWeight: 800 }}>PR</span>}</td>
                     <td style={{ padding: '6px' }}>{est}</td>
-                    <td style={{ padding: '6px', color: 'var(--color-text-muted)' }}>{Math.round((est / row.pr) * 100)}%</td>
+                    <td style={{ padding: '6px', color: 'var(--color-text-muted)' }}>{Math.round((exact / estimate1RM(Number(row.prSet.weight_lbs), Number(row.prSet.reps))) * 100)}%</td>
                     {onEditLift && (
                       <td style={{ padding: '0 2px', textAlign: 'right' }}>
                         <button type="button" onClick={() => setEditingId(l.id)} title="Edit this set" aria-label={`Edit set ${shortDate(l.created_at)} ${l.weight_lbs} × ${l.reps}`} style={{ width: '44px', height: '44px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '16px' }}>
@@ -159,7 +160,7 @@ function AthleteDetail({ row, lift, allLogs, onOpenProfile, liftTypes = [], onEd
 }
 
 const SORTS = [
-  { id: 'pr', label: 'PR (est. 1RM)', key: r => r.pr },
+  { id: 'pr', label: 'PR (est. 1RM)', key: r => r.prExact },
   { id: 'relative', label: 'PR ÷ body weight', key: r => r.relative ?? -1 },
   { id: 'change', label: 'Trend (change in window)', key: r => r.change ?? -Infinity },
   { id: 'pctpr', label: 'Recent % of PR (lowest first)', key: r => -(r.pctOfPr ?? Infinity) },

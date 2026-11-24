@@ -5,6 +5,8 @@ import { getCentralDateString } from '../../utils/athleteData';
 // Estimated 1-rep max (Epley). Weight and reps are always stored as the raw set an
 // athlete actually did - this is only used to compare sets logged at different rep
 // counts (245x5 vs 275x3), never stored back on the row itself.
+// Estimated maxes are shown to the nearest 5 lb (v5.16.5); ranking and PR checks keep the exact value.
+export const round5 = (v) => Math.round(v / 5) * 5;
 export const estimate1RM = (weight, reps) => (reps <= 1 ? weight : weight * (1 + reps / 30));
 
 export const RANK_MODES = [
@@ -81,7 +83,7 @@ export function buildLeaderboard(liftLogs, athletes, { lift, sport = 'ALL', rank
       out.display = `${out.value.toFixed(2)}×`;
     } else {
       out.value = rankBy === 'heaviest' ? Number(row.weight_lbs) : est;
-      out.display = String(Math.round(out.value));
+      out.display = String(rankBy === 'heaviest' ? Math.round(out.value) : round5(out.value));
     }
     rows.push(out);
   }

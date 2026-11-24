@@ -138,7 +138,7 @@ const SEED = { enableLiftTracker: true, enableRpe: true, rpeTrackDuration: true,
   check('second athlete: her own weights (175 / 200)', JSON.stringify(await w()) === '["175","200"]', JSON.stringify(await w()));
   await page.getByTestId('wo-weight').nth(1).fill('260');
   await page.getByTestId('wo-log').nth(1).click(); await page.waitForTimeout(800);
-  check('new PR message (260 × 3 beats 250)', /New PR! Squat est\. 1RM 286 \(was 250\)/.test(await page.getByTestId('wo-msg').innerText().catch(() => '')), await page.getByTestId('wo-msg').innerText().catch(() => '(none)'));
+  check('new PR message (260 × 3 beats 250)', /New PR! Squat est. 1RM 285 \(was 250\)/.test(await page.getByTestId('wo-msg').innerText().catch(() => '')), await page.getByTestId('wo-msg').innerText().catch(() => '(none)'));
 
   // Finish: duration timed from when he opened the workout.
   await page.evaluate(({ id, d }) => { const k = `hpd_workout_${id}_${d}`; const s = JSON.parse(localStorage.getItem(k)); s.startedAt = Date.now() - 40 * 60000; localStorage.setItem(k, JSON.stringify(s)); }, { id: uuid(1), d: TODAY });

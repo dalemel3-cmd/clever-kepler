@@ -3,7 +3,7 @@
 // the summary tiles are counted from the same lists, so a tile can never disagree with
 // its section.
 import { computeAcuteChronicLoad, getAthleteBaseline, getCentralDateString, hasSleep, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
-import { estimate1RM } from '../lifts/liftRanking';
+import { estimate1RM, round5 } from '../lifts/liftRanking';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL } from '../analytics/testVariants';
 import { computeSweatDrops } from '../alerts/NegativeSweatDropCards';
 
@@ -161,7 +161,7 @@ export function buildReadinessReport({ athletes, reportData = [], liftLogs = [],
       const day = (l) => getCentralDateString(new Date(l.created_at));
       const e1 = (l) => estimate1RM(Number(l.weight_lbs), Number(l.reps));
       // Show the actual set ("225 × 3"); est. 1RM (what flags/PRs are judged on) optional.
-      const setTxt = (l) => `${+Number(l.weight_lbs).toFixed(1)} × ${Number(l.reps)}${showE1rm ? ` (est. ${Math.round(e1(l))})` : ''}`;
+      const setTxt = (l) => `${+Number(l.weight_lbs).toFixed(1)} × ${Number(l.reps)}${showE1rm ? ` (est. ${round5(e1(l))})` : ''}`;
       const byDay = new Map();
       for (const l of sorted) {
         const d = day(l);

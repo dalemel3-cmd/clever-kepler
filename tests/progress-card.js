@@ -66,7 +66,7 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   check('untested metrics read N/A', metrics.filter(m => /N\/A/.test(m)).length === 7 && /N\/A/.test(metrics[2]) && /Not tested yet/.test(metrics[2]), metrics[2]);
   const fs = metrics.find(m => /^FRONT SQUAT/i.test(m)) || '';
   check('Front Squat shows the set 225 × 3 with PR pill', /225 × 3/.test(fs) && /\bPR\b/.test(fs), fs);
-  check('Front Squat change since first test in est. lb, rank in DB group', /\+44 lb est\. since/.test(fs) && /#3 of 5 Football/.test(fs), JSON.stringify(fs));
+  check('Front Squat change since first test in est. lb, rank in DB group', /\+45 lb est\. since/.test(fs) && /#3 of 5 Football/.test(fs), JSON.stringify(fs));
   const vt = metrics.find(m => /VERTICAL \(HANDS/i.test(m)) || '';
   check('Vertical: +1.5 in since first, no PR (best was earlier)', /\+1\.5 in since/.test(vt) && !/\bPR\b/.test(vt), vt);
   const bench = metrics.find(m => /^BENCH PRESS/i.test(m)) || '';
@@ -111,7 +111,7 @@ const SEED = { enableLiftTracker: true, enableSpeedPower: true, liftTypes: ['Fro
   check('training + × BW toggles hide them', await page.getByTestId('pc-training').count() === 0 && !/× BW/.test(await card.innerText()));
   await page.getByTestId('pc-toggle-training').click(); await page.getByTestId('pc-toggle-xbw').click();
   await page.getByTestId('pc-toggle-e1rm').click();
-  check('est. 1RM toggle adds the estimate', /Est\. 1RM 248 lb/.test(await card.innerText()));
+  check('est. 1RM toggle adds the estimate', /Est. 1RM 250 lb/.test(await card.innerText()));
   await page.getByTestId('pc-toggle-e1rm').click();
   await page.getByTestId('pc-toggle-lifts').click(); await page.waitForTimeout(200);
   const noLifts = await page.getByTestId('pc-metric').allInnerTexts();

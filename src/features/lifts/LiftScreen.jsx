@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog, initialsFor } from '../../utils/athleteData';
 import { useDragScroll, DragScrollBar } from '../../hooks/useDragScroll';
 
-import { estimate1RM, buildLeaderboard, RANK_MODES, TIMEFRAMES, timeframeBounds, describeBounds } from './liftRanking';
+import { estimate1RM, round5, buildLeaderboard, RANK_MODES, TIMEFRAMES, timeframeBounds, describeBounds } from './liftRanking';
 import { renderLeaderboardPng, shareOrDownload } from './leaderboardImage';
 import LiftExportPanel from './LiftExportPanel';
 import LiftTeamEntryPanel from './LiftTeamEntryPanel';
@@ -25,7 +25,7 @@ export function bestLiftFor(logs, athleteId, liftType) {
     const est = estimate1RM(Number(l.weight_lbs), Number(l.reps));
     if (est > bestEst) { bestEst = est; best = l; }
   }
-  return best ? { ...best, estimated1RM: Math.round(bestEst) } : null;
+  return best ? { ...best, estimated1RM: round5(bestEst), exact1RM: bestEst } : null;
 }
 
 const initialsOf = initialsFor;
@@ -357,8 +357,8 @@ export default function LiftScreen({
     const r = parseInt(reps, 10);
     // Checked before saving (the new set would otherwise be its own best).
     const prev = bestLiftFor(liftLogs || [], selectedAthlete.id, liftType);
-    const newEst = Math.round(estimate1RM(w, r));
-    const prNote = prev && newEst > prev.estimated1RM ? ` New PR! Est. 1RM ${newEst} (was ${prev.estimated1RM}).` : '';
+    const newExact = estimate1RM(w, r);
+    const prNote = prev && newExact > prev.exact1RM ? ` New PR! Est. 1RM ${round5(newExact)} (was ${prev.estimated1RM}).` : '';
     const res = await addLift({
       athlete_id: selectedAthlete.id,
       athlete_name: selectedAthlete.name,

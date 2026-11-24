@@ -3,7 +3,7 @@
 // (CARD_METRICS; N/A when untested), each with its per-test-day series, PR, change since
 // first test, team rank and a sparkline; plus focus areas.
 import { getCentralDateString, hasWeight, isPostPracticeLog, isRpeLog } from '../../utils/athleteData';
-import { estimate1RM } from '../lifts/liftRanking';
+import { estimate1RM, round5 } from '../lifts/liftRanking';
 import { TEST_TYPES } from '../analytics/testVariants';
 import { gradYearFor } from '../leaderboard/printLeaderboardData';
 import { displayName } from './readinessData';
@@ -191,10 +191,11 @@ export function buildProgressCard({ athlete, athletes = [], liftLogs = [], perfo
       key: def.key, kind: def.kind, label: def.label, unit: def.unit, lowerIsBetter: def.lowerIsBetter,
       tests: pts.length, firstDay: pts[0].day, lastDay: latest.day,
       latestText: def.kind === 'lift' ? latest.set : latest.value.toFixed(dp),
-      latestE1rm: def.kind === 'lift' ? Math.round(latest.value) : null, bestE1rm: def.kind === 'lift' ? Math.round(best.value) : null, showE1rm,
+      latestE1rm: def.kind === 'lift' ? round5(latest.value) : null, bestE1rm: def.kind === 'lift' ? round5(best.value) : null, showE1rm,
       latestDay: latest.day, latestIsBest: bestIdx === pts.length - 1,
       isPR,
-      delta: pts.length < 2 || +d.toFixed(dp) === 0 ? null : `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(dp)} ${def.unit}${def.kind === 'lift' ? ' est.' : ''}`,
+      // Lifts: the change between the shown (nearest 5 lb) numbers; the tone below uses the exact change.
+      delta: pts.length < 2 ? null : (() => { const dd = def.kind === 'lift' ? round5(latest.value) - round5(pts[0].value) : d; return +dd.toFixed(dp) === 0 ? null : `${dd > 0 ? '+' : '−'}${Math.abs(dd).toFixed(dp)} ${def.unit}${def.kind === 'lift' ? ' est.' : ''}`; })(),
       deltaTone: pts.length < 2 ? 'flat' : better ? 'up' : 'down',
       since: monthOf(pts[0].day),
       rank, rankN: groupBests.length, rankText: groupBests.length > 1 ? `#${rank} of ${groupBests.length} ${groupLabel}` : '',

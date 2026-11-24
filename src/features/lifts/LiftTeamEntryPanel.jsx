@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { getCentralDateString, centralWallTimeToISO, parseWeightInput, cleanDecimalTyping } from '../../utils/athleteData';
-import { estimate1RM } from './liftRanking';
+import { estimate1RM, round5 } from './liftRanking';
 
 // Lift Tracker "Team log": one lift + one date for a whole group, one weight × reps row
 // per athlete, one save. Same idea as Speed & Power's Team Entry - a testing day is
@@ -147,8 +147,8 @@ export default function LiftTeamEntryPanel({ athletes, liftLogs, sports, liftTyp
                 <div className="flex-1 min-w-0">
                   <div className="font-label-md text-label-md text-on-surface truncate">{a.name}</div>
                   <div className="font-label-sm text-label-sm text-on-surface-variant">
-                    {pr ? `Best est. ${Math.round(pr)}` : 'No ' + lift + ' yet'}
-                    {s.est && <span style={{ marginLeft: '8px', color: s.isPr ? '#10b981' : undefined, fontWeight: s.isPr ? 700 : undefined }}>→ est. {Math.round(s.est)}{s.isPr ? ' · PR' : s.isFirst ? ' · first' : ''}</span>}
+                    {pr ? `Best est. ${round5(pr)}` : 'No ' + lift + ' yet'}
+                    {s.est && <span style={{ marginLeft: '8px', color: s.isPr ? '#10b981' : undefined, fontWeight: s.isPr ? 700 : undefined }}>→ est. {round5(s.est)}{s.isPr ? ' · PR' : s.isFirst ? ' · first' : ''}</span>}
                     {s.invalid && <span style={{ marginLeft: '8px', color: '#ef4444', fontWeight: 700 }}>Check weight / reps</span>}
                   </div>
                 </div>

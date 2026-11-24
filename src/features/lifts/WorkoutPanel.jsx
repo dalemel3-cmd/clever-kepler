@@ -1,6 +1,6 @@
 import React from 'react';
 import { Check, Minus, Plus, Undo2, Timer, ChevronDown, ChevronUp } from 'lucide-react';
-import { estimate1RM } from './liftRanking';
+import { estimate1RM, round5 } from './liftRanking';
 import { buildWorkoutDay, capOf, doneItems, elapsedMinutes, readSession, sameDay, sessionFromRow, startSession, timerCapped, totalItems, writeSession } from '../programs/workoutSession';
 import { discardPendingSave, fetchAthleteSessions, queueSessionSave, savedElsewhere, serverCopy, sessionRow } from '../programs/sessionCloud';
 import { weekWindow } from '../programs/useTodaysWorkouts';
@@ -237,8 +237,8 @@ export default function WorkoutPanel({ athlete, choices, liftLogs, settings, add
     setBusy(x => ({ ...x, [key]: false }));
     if (!res?.ok) { setMsg("That set wasn't saved. Check the numbers and try again."); return; }
     update(n => { n.sets[b.id] = { ...(n.sets[b.id] || {}), [s.k]: { w: wn, r: rn, liftId: res.ids?.[0] || null } }; return n; });
-    const est = Math.round(estimate1RM(wn, rn));
-    setMsg(prevBest && est > Math.round(prevBest) ? `New PR! ${b.lift} est. 1RM ${est} (was ${Math.round(prevBest)}).` : res.queued ? 'Saved on this tablet. It uploads when the signal is back.' : '');
+    const est = estimate1RM(wn, rn);
+    setMsg(prevBest && est > prevBest ? `New PR! ${b.lift} est. 1RM ${round5(est)} (was ${round5(prevBest)}).` : res.queued ? 'Saved on this tablet. It uploads when the signal is back.' : '');
   };
   const undoSet = async (b, s) => {
     const key = `${b.id}_${s.k}`;
