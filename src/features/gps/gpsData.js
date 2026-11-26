@@ -234,3 +234,10 @@ export function acuteChronic(sessions, athletes, end, key, loadedFrom = null) {
 
 // Average of the non-empty values (for the Trends sort), or null.
 export const meanOf = (vals) => { const v = vals.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+
+// An athlete's values for `key` in the `days` days before `end` (not including `end`): the
+// baseline the SWC is worked out from (v5.17.1).
+export function priorValues(sessions, athleteId, end, key, days = 28) {
+  const from = isoMinus(end, days);
+  return sessions.filter(s => s.athlete_id === athleteId && s.session_date >= from && s.session_date < end && s[key] != null).map(s => Number(s[key]));
+}

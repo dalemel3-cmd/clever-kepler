@@ -4877,7 +4877,36 @@ for the Trends grid to sort by athlete, largest and smallest.
   reaches before the 120 days the screen loads reads Building; the view buttons wrap on a phone.
 - No database change. Tests: `tests/gps-data.js` (31), `tests/gps.js` (31).
 
-## 166. Next up
+## 166. Smallest worthwhile change and SESOI (v5.17.1)
+
+The owner asked for "small worth while change and smallest effect size of interest", on GPS and
+Jumps & Sprints, with the method: SWC worked out automatically, SESOI set by the coach.
+
+- **`src/utils/swc.js`:** `baselineOf(values, sesoi)` = mean, sample SD, SWC = 0.2 x SD (Hopkins'
+  small effect), the SESOI if set, and threshold = the larger of the two; needs 3 values.
+  `changeVs(latest, base)` = up / down / trivial (within the threshold).
+- **SESOI is shared:** one `shared_settings` row (db/019) under key `sesoi`
+  (`src/utils/sharedSesoi.js`, `useSharedSesoi`), e.g. `{ "distance_yd": 300, "vertical_jump": 1 }`.
+  No database change: the table and its access rule already exist. Edited in a **SWC / SESOI**
+  panel (`src/components/SesoiPanel.jsx`) on both screens, which also explains the two numbers;
+  blank = SWC only.
+- **GPS:** the day table has a **Vs usual** chip for the sorted number: the chosen day against the
+  athlete's own average of the 28 days before it (▲ +n / ▼ −n when past the threshold, "Usual"
+  inside it, a dash under 3 earlier sessions; a tooltip gives usual, SWC, SESOI and the change).
+  The athlete charts draw the usual ± threshold as a grey band. Day-table headers are shorter
+  (Dist, Top mph, Accels, Decels, Band, Personal) so the new column fits.
+- **Jumps & Sprints:** a **Vs usual** column: the latest result against the athlete's previous
+  (up to 10) results of that test and technique: Real gain / Real drop (lower is better for
+  sprints) / Within noise / a dash under 3 earlier results; the detail chart draws the band.
+- Review fixes: saving reads the row first and merges only the numbers changed in the panel, so
+  another device's SESOI is never wiped; the threshold never drops below the measure's step (1
+  count or yd, 0.1 mph, 0.01 s, 0.5 in), so identical earlier values don't make any change look
+  real; Jumps & Sprints uses one value per test day (the day's best); a GPS day with no value
+  shows a dash, not "Usual"; the GPS band never goes below 0; chips carry their figures as
+  aria-labels. Known and accepted: the GPS baseline mixes game and practice days.
+- Tests: `tests/swc.js` (8), `tests/power-swc.js` (6), `tests/gps.js` (35).
+
+## 167. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

@@ -1,11 +1,40 @@
 import React from 'react';
 import { Zap, ChevronDown, ChevronUp, Search } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { initialsFor } from '../../utils/athleteData';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
+import { initialsFor, getCentralDateString } from '../../utils/athleteData';
 import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, pct, shortDate, Chip, Tile, Sparkline, useVisibleWidth, useMoreColumns, MoreColumnsToggle } from '../../components/DeepDiveUi';
 import { TEST_TYPES, TEST_TYPE_BY_KEY, VARIANT_LABEL, UNTAGGED_VARIANT_LABEL, formatMetric } from './testVariants';
 import { buildPowerRows, powerFlags, variantsFor, variantOf, pbHistory, isAsc } from './powerMetrics';
 import { trendSeries } from '../../utils/trendLine';
+import { baselineOf, changeVs } from '../../utils/swc';
+import { useSharedSesoi } from '../../utils/sharedSesoi';
+import SesoiPanel from '../../components/SesoiPanel';
+
+// The latest result against the athlete's usual: their previous (up to 10) results of this test
+// and technique. SWC = 0.2 x the spread of those; a change counts only past the larger of SWC
+// and the coach's SESOI (v5.17.1).
+// One value per test day (the day's best), so several attempts in one session don't shrink the
+// spread; the latest test day's best is compared with the up to 10 test days before it.
+const STEP = { sec: 0.01, in: 0.5 };
+const usualFor = (row, sesoi, testKey, unit) => {
+  const asc = isAsc(testKey);
+  const byDay = new Map();
+  for (const r of row.results) {
+    const d = getCentralDateString(new Date(r.created_at)), v = Number(r.metric);
+    if (!byDay.has(d) || (asc ? v < byDay.get(d) : v > byDay.get(d))) byDay.set(d, v);
+  }
+  const days = [...byDay.keys()].sort();
+  const latest = byDay.get(days[days.length - 1]);
+  const base = baselineOf(days.slice(0, -1).slice(-10).map(d => byDay.get(d)), sesoi, STEP[unit] || 0);
+  return { base, ch: changeVs(latest, base) };
+};
+function usualChip({ base, ch }, testKey, sesoi, unit) {
+  if (!base) return <span title="Needs 3 earlier test days of this test and technique" aria-label="Not enough earlier results" style={{ color: 'var(--color-text-muted)' }}>—</span>;
+  const tip = `Usual ${formatMetric(base.mean, unit)} · SWC ${Number(base.swc).toFixed(unit === 'sec' ? 3 : 2)} ${unit} · SESOI ${sesoi != null ? formatMetric(sesoi, unit) : 'not set'} · change ${ch.diff >= 0 ? '+' : '−'}${formatMetric(Math.abs(ch.diff), unit)}`;
+  if (ch.dir === 'trivial') return <span title={tip} aria-label={`Within noise. ${tip}`}><Chip tone="muted">Within noise</Chip></span>;
+  const better = isAsc(testKey) ? ch.dir === 'down' : ch.dir === 'up';
+  return <span title={tip} aria-label={`${better ? 'Real gain' : 'Real drop'}. ${tip}`}><Chip tone={better ? 'ok' : 'bad'}>{better ? 'Real gain' : 'Real drop'}</Chip></span>;
+}
 
 // Performance > Jumps & Sprints: the in-depth, per-athlete view of Speed & Power
 // results (vertical, board jump, 10yd fly). Analytics keeps its leaderboard for quick
@@ -16,7 +45,7 @@ const GREEN = '#34d399';
 const variantName = (k) => (k === 'untagged' ? UNTAGGED_VARIANT_LABEL : VARIANT_LABEL[k] || k);
 const dec = (unit) => (unit === 'sec' ? 2 : 1);
 
-function AthleteDetail({ row, testKey, variant, allTests, onOpenProfile }) {
+function AthleteDetail({ row, testKey, variant, allTests, onOpenProfile, sesoi }) {
   const tt = TEST_TYPE_BY_KEY[testKey];
   const unit = tt?.unit || '';
   // Sprint times are drawn as they are (faster = lower) with a dashed least-squares trend
@@ -50,6 +79,7 @@ function AthleteDetail({ row, testKey, variant, allTests, onOpenProfile }) {
               <XAxis dataKey="date" tick={axis} tickLine={false} axisLine={false} minTickGap={16} />
               <YAxis tick={axis} tickLine={false} axisLine={false} width={44} domain={['auto', 'auto']} tickFormatter={v => Number(v).toFixed(dec(unit))} />
               <RechartsTooltip contentStyle={tooltipStyle} formatter={(v) => [formatMetric(v, unit), tt?.label || 'Result']} />
+              {(() => { const b = usualFor(row, sesoi, testKey, unit).base; return b ? <ReferenceArea y1={b.mean - b.threshold} y2={b.mean + b.threshold} fill="#94a3b8" fillOpacity={0.22} stroke="none" ifOverflow="extendDomain" /> : null; })()}
               <ReferenceLine y={row.pb} stroke="#b89c5b" strokeDasharray="4 4" />
               <Line type="monotone" dataKey="value" stroke={GREEN} strokeWidth={2.5} dot={{ r: 3 }} />
               {speed && chart.length > 1 && <Line className="trend-line" type="linear" dataKey="trend" stroke="#cbd5e1" strokeWidth={1.5} strokeDasharray="6 4" dot={false} activeDot={false} tooltipType="none" isAnimationActive={false} />}
@@ -57,7 +87,7 @@ function AthleteDetail({ row, testKey, variant, allTests, onOpenProfile }) {
           </ResponsiveContainer>
         </div>
         <span style={{ ...label, textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
-          Gold dashed line: PB.{speed ? ' White dashed line: trend. Lower = faster, so it slopes down as they get faster.' : ''}
+          Gold dashed line: PB. Grey band: the usual of the test days before the latest (each day's best), plus or minus the larger of SWC and SESOI.{speed ? ' White dashed line: trend. Lower = faster, so it slopes down as they get faster.' : ''}
         </span>
       </div>
 
@@ -120,6 +150,7 @@ const PrintLeaderboard = React.lazy(() => import('../leaderboard/PrintLeaderboar
 const PerfReadinessReport = React.lazy(() => import('../reports/PerfReadinessReport'));
 
 export default function PowerScreen({ athletes, performanceTests, liftLogs = [], reportData = [], ensureReportWindow, settings = {}, setSelectedProfileId, fetchProfileData, setScreen, setProfileEntryScreen }) {
+  const [sesoi, saveSesoi] = useSharedSesoi();
   const tests = React.useMemo(() => performanceTests || [], [performanceTests]);
   const [testKey, setTestKey] = React.useState(TEST_TYPES[1]?.key || TEST_TYPES[0].key);
   const variants = React.useMemo(() => variantsFor(tests, testKey), [tests, testKey]);
@@ -189,6 +220,7 @@ export default function PowerScreen({ athletes, performanceTests, liftLogs = [],
           <select aria-label="Sort" value={sortBy} onChange={e => setSortBy(e.target.value)} className="input-glass" style={selectStyle}>
             {SORTS.map(s => <option key={s.id} value={s.id} style={optionStyle}>Sort: {s.label}</option>)}
           </select>
+          <SesoiPanel items={TEST_TYPES.map(t => ({ key: t.key, label: t.label, unit: t.unit }))} values={sesoi} onSave={saveSesoi} />
           <button type="button" onClick={() => setPrintLbOpen(true)} className="input-glass" style={{ ...selectStyle, cursor: 'pointer', textTransform: 'uppercase', color: 'var(--color-accent)' }}>
             Printable leaderboard
           </button>
@@ -257,6 +289,7 @@ export default function PowerScreen({ athletes, performanceTests, liftLogs = [],
                   <th style={th}>PB</th>
                   <th style={th}>Latest</th>
                   <th style={th} title="How far the latest result is from the PB">Off PB</th>
+                  <th style={th} title="Latest result vs the athlete's usual (previous up to 10 results); a change counts only past the larger of SWC and SESOI">Vs usual</th>
                   {more && <th style={th} title="Best result in the window vs the first result in the window">Improved</th>}
                   {more && <th style={th} title="PB vs the average PB of their sport">vs Sport avg</th>}
                   {more && <th style={th}>PBs</th>}
@@ -290,6 +323,7 @@ export default function PowerScreen({ athletes, performanceTests, liftLogs = [],
                         <td style={{ ...td, fontWeight: 800, color: '#b89c5b' }}>{formatMetric(r.pb, unit)} <span style={{ color: 'var(--color-text-muted)', fontSize: '11px', fontWeight: 600 }}>{shortDate(r.pbResult.created_at)}</span></td>
                         <td style={td}>{formatMetric(r.latest, unit)}</td>
                         <td style={{ ...td, color: flags.some(f => f.key === 'down') ? '#ef4444' : undefined }}>{r.offPb > 0 ? `-${(r.offPb * 100).toFixed(1)}%` : 'At PB'}</td>
+                        <td style={td} data-testid="power-vs-usual">{usualChip(usualFor(r, sesoi[testKey], testKey, unit), testKey, sesoi[testKey], unit)}</td>
                         {more && <td style={{ ...td, color: r.change > 0 ? '#10b981' : undefined }}>{pct(r.change)}</td>}
                         {more && <td style={{ ...td, color: r.vsSport == null ? undefined : r.vsSport > 0 ? '#10b981' : '#f59e0b' }}>{pct(r.vsSport)}</td>}
                         {more && <td style={td}>{r.pbsInWindow}</td>}
@@ -300,9 +334,9 @@ export default function PowerScreen({ athletes, performanceTests, liftLogs = [],
                       </tr>
                       {open && (
                         <tr>
-                          <td colSpan={more ? 12 : 8} style={{ padding: '0 0 12px' }}>
+                          <td colSpan={more ? 13 : 9} style={{ padding: '0 0 12px' }}>
                             <div style={{ position: 'sticky', left: 0, width: visibleWidth || '100%' }}>
-                              <AthleteDetail row={r} testKey={testKey} variant={variant} allTests={tests} onOpenProfile={() => openProfile(r.athlete.id)} />
+                              <AthleteDetail row={r} testKey={testKey} variant={variant} allTests={tests} sesoi={sesoi[testKey]} onOpenProfile={() => openProfile(r.athlete.id)} />
                             </div>
                           </td>
                         </tr>

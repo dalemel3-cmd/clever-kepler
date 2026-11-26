@@ -50,6 +50,7 @@ const FILE = [HEAD,
     if (isAuthRoute(url)) return fulfillAuth(route, url, h);
     if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify([{ approved: true }]) });
     if (url.includes('/rest/v1/athletes') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
+    if (url.includes('/rest/v1/shared_settings')) { if (m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify({ value: page.serverSesoi || { distance_yd: 250 } }) }); page.sesoiSaves = [...(page.sesoiSaves || []), req.postDataJSON()]; page.serverSesoi = req.postDataJSON().value; return route.fulfill({ status: 201, headers: h, body: '' }); }
     if (url.includes('/rest/v1/gps_sessions')) {
       if (m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(saved) });
       if (failSave) return route.fulfill({ status: 500, headers: h, body: '{"message":"boom"}' });
@@ -75,6 +76,17 @@ const FILE = [HEAD,
   await page.getByLabel('Sort').selectOption('top_speed_mph'); await page.waitForTimeout(200);
   check('sorting by top speed switches the trend lines to top speed', await page.getByRole('img', { name: /ANN ALPHA: Top speed \(mph\) on each session day/ }).count() === 1);
   await page.getByLabel('Sort').selectOption('distance_yd'); await page.waitForTimeout(200);
+
+  check('a Vs usual column; with fewer than 3 earlier sessions it shows a dash', await page.getByTestId('gps-vs-usual').count() === 2 && (await page.getByTestId('gps-vs-usual').first().innerText()).trim() === '—');
+  await page.getByRole('button', { name: 'SWC / SESOI' }).click(); await page.waitForTimeout(200);
+  check('the SWC / SESOI panel shows the saved SESOI and explains both', await page.getByLabel('SESOI for Distance (yd)').inputValue() === '250' && /0\.2 × the spread/.test(await page.getByTestId('sesoi-panel').innerText()));
+  page.serverSesoi = { distance_yd: 250, vertical_jump: 1 }; // another device saved a jump SESOI meanwhile
+  await page.getByLabel('SESOI for Top speed (mph)').fill('0.5');
+  await page.getByTestId('sesoi-panel').getByRole('button', { name: 'Save' }).click(); await page.waitForTimeout(500);
+  check('Save writes one shared row for every device, keeping a value another device saved meanwhile', (page.sesoiSaves || []).length === 1 && page.sesoiSaves[0].key === 'sesoi' && page.sesoiSaves[0].value.distance_yd === 250 && page.sesoiSaves[0].value.top_speed_mph === 0.5 && page.sesoiSaves[0].value.vertical_jump === 1 && /Saved for every device/.test(await page.getByTestId('sesoi-panel').innerText()), JSON.stringify(page.sesoiSaves));
+  await page.getByLabel('SESOI for Top speed (mph)').fill('-1');
+  check('a SESOI must be above 0', await page.getByTestId('sesoi-panel').getByRole('button', { name: 'Save' }).isDisabled());
+  await page.getByTestId('sesoi-panel').getByRole('button', { name: 'Close' }).click();
 
   console.log('\n[A2] Trends view: the whole team by day');
   await page.getByRole('button', { name: 'Trends' }).click(); await page.waitForTimeout(500);

@@ -1,12 +1,15 @@
 import React from 'react';
 import { Activity, Upload } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceArea } from 'recharts';
 import { supabase } from '../../supabaseClient';
 import { reportDataError } from '../../errorReporting';
 import { allowFetch, fetchAllRows } from '../../utils/fetchBrake';
 import { getCentralDateString } from '../../utils/athleteData';
 import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt as fmt1, Tile, Sparkline, Chip } from '../../components/DeepDiveUi';
-import { parseTitan, buildImport, weeklyTotals, recentAverage, weekStart, windowDays, seriesFor, teamAverage, compact, acuteChronic, meanOf } from './gpsData';
+import { parseTitan, buildImport, weeklyTotals, recentAverage, weekStart, windowDays, seriesFor, teamAverage, compact, acuteChronic, meanOf, priorValues } from './gpsData';
+import { baselineOf, changeVs } from '../../utils/swc';
+import { useSharedSesoi } from '../../utils/sharedSesoi';
+import SesoiPanel from '../../components/SesoiPanel';
 
 // Performance > GPS (v5.16.7, docs/HANDOFF.md §162): football's Titan GPS numbers. A day's table
 // for the team, weekly trends per athlete, and an upload of the Titan "synced data" CSV that
@@ -14,12 +17,12 @@ import { parseTitan, buildImport, weeklyTotals, recentAverage, weekStart, window
 const SPORT = 'Football';
 const HISTORY_DAYS = 120;
 const COLS = [
-  { key: 'distance_yd', head: 'Distance (yd)', d: 0, tip: 'GPS distance in yards' },
-  { key: 'top_speed_mph', head: 'Top speed (mph)', d: 1, tip: 'Top speed in miles per hour' },
-  { key: 'accel_count', head: 'Hi-speed accels', d: 0, tip: 'High-speed accelerations, 4 to 8 m/s²' },
-  { key: 'decel_count', head: 'Hi-speed decels', d: 0, tip: 'High-speed decelerations, 4 to 8 m/s²' },
-  { key: 'high_speed_yd', head: 'Speed band (yd)', d: 0, tip: 'Yards between 12.5 and 22.4 mph' },
-  { key: 'personal_band_yd', head: 'Personal band (yd)', d: 0, tip: 'Yards at 80% or more of the athlete’s own top mph' },
+  { key: 'distance_yd', short: 'Dist (yd)', head: 'Distance (yd)', d: 0, tip: 'GPS distance in yards' },
+  { key: 'top_speed_mph', short: 'Top mph', head: 'Top speed (mph)', d: 1, tip: 'Top speed in miles per hour' },
+  { key: 'accel_count', short: 'Accels', head: 'Hi-speed accels', d: 0, tip: 'High-speed accelerations, 4 to 8 m/s²' },
+  { key: 'decel_count', short: 'Decels', head: 'Hi-speed decels', d: 0, tip: 'High-speed decelerations, 4 to 8 m/s²' },
+  { key: 'high_speed_yd', short: 'Band (yd)', head: 'Speed band (yd)', d: 0, tip: 'Yards between 12.5 and 22.4 mph' },
+  { key: 'personal_band_yd', short: 'Personal (yd)', head: 'Personal band (yd)', d: 0, tip: 'Yards at 80% or more of the athlete’s own top mph' },
 ];
 // Whole numbers get thousands separators (6,440); one decimal stays as is (17.0).
 const fmt = (n, d = 0) => (n == null || Number.isNaN(Number(n)) ? '—' : d ? fmt1(n, d) : Math.round(Number(n)).toLocaleString('en-US'));
@@ -27,7 +30,7 @@ const sel = { ...selectStyle, height: '44px' };
 const longDate = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 const btn = { height: '44px', padding: '0 14px', borderRadius: '10px', border: '1px solid var(--color-accent)', background: 'rgba(184, 156, 91, 0.2)', color: 'var(--color-accent)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' };
 
-const Chart = ({ k, title, color, unit, chart }) => (
+const Chart = ({ k, title, color, unit, chart, band }) => (
   <div style={{ minWidth: 0 }}>
     <span style={label}>{title}</span>
     <div style={{ width: '100%', height: 150 }}>
@@ -37,6 +40,7 @@ const Chart = ({ k, title, color, unit, chart }) => (
           <XAxis dataKey="week" tick={axis} tickLine={false} axisLine={false} />
           <YAxis tick={axis} tickLine={false} axisLine={false} width={44} allowDecimals={false} domain={k === 'top' ? ['dataMin - 1', 'dataMax + 1'] : [0, 'auto']} />
           <RechartsTooltip contentStyle={tooltipStyle} formatter={(v) => [`${v} ${unit}`, title]} />
+          {band && <ReferenceArea y1={band.lo} y2={band.hi} fill="#94a3b8" fillOpacity={0.22} stroke="none" ifOverflow="extendDomain" />}
           <Line type="monotone" dataKey={k} stroke={color} strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
         </LineChart>
       </ResponsiveContainer>
@@ -44,7 +48,7 @@ const Chart = ({ k, title, color, unit, chart }) => (
   </div>
 );
 
-function AthleteDetail({ totals, daily }) {
+function AthleteDetail({ totals, daily, bands = {} }) {
   const have = totals.filter(w => w.days);
   if (!have.length) return <div style={{ padding: '16px', color: 'var(--color-text-muted)' }}>No GPS sessions for this athlete in the last 8 weeks.</div>;
   // The charts are daily: one point per session day (days with no session are left out).
@@ -54,10 +58,11 @@ function AthleteDetail({ totals, daily }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: '16px' }}>
-        <Chart chart={chart} k="distance" title="Daily distance (yd)" color="#60a5fa" unit="yd" />
-        <Chart chart={chart} k="fast" title="Daily speed band (yd)" color="#fbbf24" unit="yd" />
-        <Chart chart={chart} k="top" title="Daily top speed (mph)" color="#34d399" unit="mph" />
+        <Chart chart={chart} band={bands.distance_yd} k="distance" title="Daily distance (yd)" color="#60a5fa" unit="yd" />
+        <Chart chart={chart} band={bands.high_speed_yd} k="fast" title="Daily speed band (yd)" color="#fbbf24" unit="yd" />
+        <Chart chart={chart} band={bands.top_speed_mph} k="top" title="Daily top speed (mph)" color="#34d399" unit="mph" />
       </div>
+      {Object.keys(bands).length > 0 && <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Grey band: the athlete's usual (average of the 28 days before the chosen day) plus or minus the larger of SWC and SESOI. The chosen day outside it is a real change.</div>}
       {last.distance_yd != null && avg != null && (
         <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
           Week of {longDate(last.week)}: {fmt(last.distance_yd)} yd vs {fmt(avg)} yd average of the earlier weeks{avg > 0 ? ` (${Math.round((last.distance_yd / avg - 1) * 100) >= 0 ? '+' : ''}${Math.round((last.distance_yd / avg - 1) * 100)}%)` : ''}. A week that is not finished yet reads low.
@@ -192,6 +197,19 @@ function TrendsView({ sessions, roster, end }) {
 // Acute : chronic (v5.17.0): this week's (and the last two weeks') load against the athlete's
 // own 4-week weekly average, for the chosen GPS number. Same zones as the RPE tab: at or above the
 // spike ratio is a spike, under 0.8 is low. Top speed is a peak, not a load, so it isn't offered.
+// The "Vs usual" chip: the day's value against the athlete's usual (SWC / SESOI, v5.17.1).
+function usualChip(v, col, sesoi) {
+  if (!v || !v.base || !v.ch) return <span title={!v || !v.base ? 'Needs 3 sessions in the 28 days before this day' : 'No value for this number on this day'} aria-label={!v || !v.base ? 'Not enough earlier sessions' : 'No value this day'} style={{ color: 'var(--color-text-muted)' }}>—</span>;
+  const { base, ch } = v;
+  const tip = `Usual ${fmt(base.mean, col.d)} · SWC ${fmt(base.swc, col.d)} · SESOI ${sesoi != null ? fmt(sesoi, col.d) : 'not set'} · change ${ch ? (ch.diff >= 0 ? '+' : '−') + fmt(Math.abs(ch.diff), col.d) : '—'}`;
+  if (ch.dir === 'trivial') return <span title={tip} aria-label={`Usual. ${tip}`}><Chip tone="muted">Usual</Chip></span>;
+  const up = ch.dir === 'up';
+  return <span title={tip} aria-label={`${up ? 'Above' : 'Below'} usual. ${tip}`}><Chip tone={col.key === 'top_speed_mph' && up ? 'ok' : 'warn'}>{up ? '▲ +' : '▼ −'}{fmt(Math.abs(ch.diff), col.d)}</Chip></span>;
+}
+
+// The smallest difference each GPS number can show; the SWC threshold never goes below it.
+const STEP = { distance_yd: 1, top_speed_mph: 0.1, accel_count: 1, decel_count: 1, high_speed_yd: 1, personal_band_yd: 1 };
+
 const LOAD_COLS = COLS.filter(c => c.key !== 'top_speed_mph');
 const acTone = (r, spike) => (r == null ? 'muted' : r >= spike ? 'bad' : r < 0.8 ? 'warn' : 'ok');
 function AcuteChronicView({ sessions, roster, end, spike, loadedFrom }) {
@@ -275,6 +293,7 @@ export default function GpsScreen({ athletes, settings = {} }) {
   const [day, setDay] = React.useState('');
   const [sortBy, setSortBy] = React.useState('distance_yd');
   const [view, setView] = React.useState('day'); // 'day' | 'trends' | 'ac'
+  const [sesoi, saveSesoi] = useSharedSesoi();
   const loadedFrom = React.useMemo(() => new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString().slice(0, 10), []);
   const [openId, setOpenId] = React.useState(null);
   const [preview, setPreview] = React.useState(null); // { fileName, parsed, manual }
@@ -348,6 +367,23 @@ export default function GpsScreen({ athletes, settings = {} }) {
     }
     return m;
   }, [sessions, sparkDates, trendCol.key]);
+  // Each row's change against the athlete's usual for the sorted number (SWC / SESOI, v5.17.1).
+  const vsUsual = React.useMemo(() => {
+    const m = new Map();
+    for (const r of dayRows) {
+      const base = baselineOf(priorValues(sessions || [], r.athlete_id, dayNow, trendCol.key), sesoi[trendCol.key], STEP[trendCol.key]);
+      m.set(r.athlete_id, { base, ch: changeVs(r[trendCol.key], base) });
+    }
+    return m;
+  }, [dayRows, sessions, dayNow, trendCol.key, sesoi]);
+  const bandsFor = (id) => {
+    const out = {};
+    for (const k of ['distance_yd', 'high_speed_yd', 'top_speed_mph']) {
+      const b = baselineOf(priorValues(sessions || [], id, dayNow, k), sesoi[k], STEP[k]);
+      if (b) out[k] = { lo: Math.max(0, +(b.mean - b.threshold).toFixed(1)), hi: +(b.mean + b.threshold).toFixed(1) };
+    }
+    return out;
+  };
   const totalsFor = (id) => weeklyTotals(sessions || [], id, 8, dayNow || today);
   // This athlete's session days, oldest first: the 28 days up to the chosen day.
   const dailyFor = (id) => {
@@ -373,6 +409,7 @@ export default function GpsScreen({ athletes, settings = {} }) {
             {COLS.map(c => <option key={c.key} value={c.key} style={optionStyle}>Sort: {c.head}</option>)}
             <option value="name" style={optionStyle}>Sort: Name (A–Z)</option>
           </select>}
+          <SesoiPanel items={COLS.map(c => ({ key: c.key, label: c.head, unit: c.key === 'top_speed_mph' ? 'mph' : c.key.endsWith('_count') ? 'count' : 'yd' }))} values={sesoi} onSave={saveSesoi} />
           <button type="button" style={btn} onClick={() => fileRef.current?.click()}><Upload size={15} /> Upload Titan CSV</button>
           <input ref={fileRef} type="file" accept=".csv,text/csv" aria-label="Titan CSV file" onChange={onFile} style={{ display: 'none' }} />
         </div>
@@ -450,8 +487,9 @@ export default function GpsScreen({ athletes, settings = {} }) {
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                   <th style={th}>Athlete</th>
-                  {COLS.map(c => <th key={c.key} style={th} title={c.tip}>{c.head}</th>)}
+                  {COLS.map(c => <th key={c.key} style={th} title={`${c.head}: ${c.tip}`}>{c.short}</th>)}
                   <th style={th} title={`${trendCol.head} on each session day in the 28 days up to the chosen day; follows the Sort`}>28-day trend</th>
+                  <th style={th} title={`${trendCol.head} on the chosen day vs the athlete's usual (28 days before); a change counts only past the larger of SWC and SESOI`}>Vs usual</th>
                 </tr>
               </thead>
               <tbody>
@@ -461,9 +499,10 @@ export default function GpsScreen({ athletes, settings = {} }) {
                       <td style={{ ...td, fontWeight: 700 }}>{r.athlete.name}</td>
                       {COLS.map(c => <td key={c.key} style={td}>{fmt(r[c.key], c.d)}</td>)}
                       <td style={td} data-testid="gps-spark"><Sparkline values={sparkValues.get(r.athlete_id) || []} fromZero={trendCol.key !== 'top_speed_mph'} color="#60a5fa" ariaLabel={`${r.athlete.name}: ${trendCol.head} on each session day, last 28 days`} /></td>
+                      <td style={td} data-testid="gps-vs-usual">{usualChip(vsUsual.get(r.athlete_id), trendCol, sesoi[trendCol.key])}</td>
                     </tr>
                     {openId === r.athlete_id && (
-                      <tr><td colSpan={COLS.length + 2} style={{ padding: '0 0 12px' }}><AthleteDetail totals={totalsFor(r.athlete_id)} daily={dailyFor(r.athlete_id)} /></td></tr>
+                      <tr><td colSpan={COLS.length + 3} style={{ padding: '0 0 12px' }}><AthleteDetail totals={totalsFor(r.athlete_id)} daily={dailyFor(r.athlete_id)} bands={bandsFor(r.athlete_id)} /></td></tr>
                     )}
                   </React.Fragment>
                 ))}
@@ -472,7 +511,7 @@ export default function GpsScreen({ athletes, settings = {} }) {
           </div>
         )}
         <div style={{ ...label, textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
-          Units as exported by Titan: yards, mph. Accels and decels are high-speed (4–8 m/s²). Speed band is 12.5–22.4 mph; personal band is 80% or faster of the athlete's own top mph. The 28-day trend line shows the number the table is sorted by, one point per team session day (the dot is the athlete's latest); tap a row for full charts, or switch to Trends for the whole team by day.
+          Units as exported by Titan: yards, mph. Accels and decels are high-speed (4–8 m/s²). Speed band is 12.5–22.4 mph; personal band is 80% or faster of the athlete's own top mph. Vs usual compares the chosen day with the athlete's own average of the 28 days before it; it only shows a change bigger than both the SWC (0.2 × their spread) and your SESOI (SWC / SESOI button). The 28-day trend line shows the number the table is sorted by, one point per team session day (the dot is the athlete's latest); tap a row for full charts, or switch to Trends for the whole team by day.
         </div>
       </div>
     </div>
