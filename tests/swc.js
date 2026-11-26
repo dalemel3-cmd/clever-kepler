@@ -24,5 +24,6 @@ check('no baseline or no latest: no verdict', changeVs(22, null) === null && cha
 const S = (d, v) => ({ athlete_id: 'a', session_date: d, distance_yd: v });
 check('GPS baseline = the 28 days before the day, not the day itself', priorValues([S('2026-10-19', 1), S('2026-10-20', 2), S('2026-11-16', 3), S('2026-11-17', 4)], 'a', '2026-11-17', 'distance_yd').join() === '2,3');
 
+check('only game days (or only practices) when asked', priorValues([S('2026-11-06', 9), S('2026-11-10', 3), S('2026-11-13', 8)], 'a', '2026-11-17', 'distance_yd', 28, d => ['2026-11-06', '2026-11-13'].includes(d)).join() === '9,8');
 console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
 process.exit(fail ? 1 : 0);

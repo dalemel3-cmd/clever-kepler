@@ -4906,7 +4906,27 @@ Jumps & Sprints, with the method: SWC worked out automatically, SESOI set by the
   aria-labels. Known and accepted: the GPS baseline mixes game and practice days.
 - Tests: `tests/swc.js` (8), `tests/power-swc.js` (6), `tests/gps.js` (35).
 
-## 167. Next up
+## 167. GPS: game days vs practice days in the "usual" (v5.17.2)
+
+The owner asked to separate game days from practice days in the GPS usual, "not completely but
+toggle". Titan's export has no session type, so the coach marks game days in the app.
+
+- **Mark game day** button on the GPS header (for the chosen day; `aria-pressed`, shows
+  "★ Game day" when set). Saved for every device in `shared_settings` key `gps_game_days`
+  (`{ dates: [...] }`) through a new generic `useSharedValue` (`src/utils/sharedValue.js`), which
+  re-reads the row and applies the change to that fresh copy. No database change.
+- **Usual from** (day table, remembered on the device): "all days" (as before, the default) or
+  "game vs practice": a game day is compared only with earlier game days in the 28 days before it,
+  a practice day only with practices (`priorValues(..., keepDay)`). Fewer than 3 such days shows a
+  dash. The athlete charts' grey band follows the same choice.
+- Game days carry "· Game" in the Day picker, "★" in the Trends grid header, and the day table
+  title reads "game day". Trends, Acute : Chronic and totals still use every day.
+- Review fixes: saves from one device run one after another (each reads the last one's result),
+  the button is disabled while saving, and a save error clears when the day changes. Two
+  devices marking at the same moment can still lose one mark (rare: one coach marks games).
+- Tests: `tests/swc.js` (9), `tests/gps.js` (39).
+
+## 168. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

@@ -50,7 +50,7 @@ const FILE = [HEAD,
     if (isAuthRoute(url)) return fulfillAuth(route, url, h);
     if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify([{ approved: true }]) });
     if (url.includes('/rest/v1/athletes') && m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
-    if (url.includes('/rest/v1/shared_settings')) { if (m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify({ value: page.serverSesoi || { distance_yd: 250 } }) }); page.sesoiSaves = [...(page.sesoiSaves || []), req.postDataJSON()]; page.serverSesoi = req.postDataJSON().value; return route.fulfill({ status: 201, headers: h, body: '' }); }
+    if (url.includes('/rest/v1/shared_settings')) { if (url.includes('gps_game_days') || (m === 'POST' && req.postDataJSON()?.key === 'gps_game_days')) { if (m === 'POST' && page.failGame) return route.fulfill({ status: 500, headers: h, body: '{"message":"boom"}' }); if (m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify({ value: page.serverGames || { dates: [] } }) }); page.gameSaves = [...(page.gameSaves || []), req.postDataJSON()]; page.serverGames = req.postDataJSON().value; return route.fulfill({ status: 201, headers: h, body: '' }); } if (m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify({ value: page.serverSesoi || { distance_yd: 250 } }) }); page.sesoiSaves = [...(page.sesoiSaves || []), req.postDataJSON()]; page.serverSesoi = req.postDataJSON().value; return route.fulfill({ status: 201, headers: h, body: '' }); }
     if (url.includes('/rest/v1/gps_sessions')) {
       if (m === 'GET') return route.fulfill({ status: 200, headers: h, body: JSON.stringify(saved) });
       if (failSave) return route.fulfill({ status: 500, headers: h, body: '{"message":"boom"}' });
@@ -87,6 +87,19 @@ const FILE = [HEAD,
   await page.getByLabel('SESOI for Top speed (mph)').fill('-1');
   check('a SESOI must be above 0', await page.getByTestId('sesoi-panel').getByRole('button', { name: 'Save' }).isDisabled());
   await page.getByTestId('sesoi-panel').getByRole('button', { name: 'Close' }).click();
+
+  console.log('\n[A1b] Game days and the game-vs-practice usual');
+  await page.getByTestId('gps-game-toggle').click(); await page.waitForTimeout(500);
+  check('marking the chosen day as a game day saves it for every device', (page.gameSaves || []).length === 1 && page.gameSaves[0].key === 'gps_game_days' && page.gameSaves[0].value.dates.join() === '2026-11-17' && await page.getByTestId('gps-game-toggle').getAttribute('aria-pressed') === 'true' && /game day/i.test(await page.locator('main').innerText()), JSON.stringify(page.gameSaves));
+  await page.getByLabel('Usual from').selectOption('type'); await page.waitForTimeout(300);
+  check('with game vs practice, a game day with no earlier games has no usual (dash)', (await page.getByTestId('gps-vs-usual').first().innerText()).trim() === '—');
+  await page.getByTestId('gps-game-toggle').click(); await page.waitForTimeout(500);
+  check('unmarking removes it', page.serverGames.dates.length === 0 && await page.getByTestId('gps-game-toggle').getAttribute('aria-pressed') === 'false');
+  await page.getByLabel('Usual from').selectOption('all'); await page.waitForTimeout(200);
+  page.failGame = true;
+  await page.getByTestId('gps-game-toggle').click(); await page.waitForTimeout(500);
+  check('a failed save says so and leaves the day unmarked', /Couldn't save/.test(await page.locator('main').innerText()) && await page.getByTestId('gps-game-toggle').getAttribute('aria-pressed') === 'false');
+  page.failGame = false;
 
   console.log('\n[A2] Trends view: the whole team by day');
   await page.getByRole('button', { name: 'Trends' }).click(); await page.waitForTimeout(500);

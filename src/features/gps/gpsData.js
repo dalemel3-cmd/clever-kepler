@@ -237,7 +237,8 @@ export const meanOf = (vals) => { const v = vals.filter(x => x != null); return 
 
 // An athlete's values for `key` in the `days` days before `end` (not including `end`): the
 // baseline the SWC is worked out from (v5.17.1).
-export function priorValues(sessions, athleteId, end, key, days = 28) {
+// `keepDay` (v5.17.2): only days it returns true for, e.g. only game days or only practice days.
+export function priorValues(sessions, athleteId, end, key, days = 28, keepDay = null) {
   const from = isoMinus(end, days);
-  return sessions.filter(s => s.athlete_id === athleteId && s.session_date >= from && s.session_date < end && s[key] != null).map(s => Number(s[key]));
+  return sessions.filter(s => s.athlete_id === athleteId && s.session_date >= from && s.session_date < end && s[key] != null && (!keepDay || keepDay(s.session_date))).map(s => Number(s[key]));
 }

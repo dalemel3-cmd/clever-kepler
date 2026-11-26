@@ -9,6 +9,7 @@ import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipS
 import { parseTitan, buildImport, weeklyTotals, recentAverage, weekStart, windowDays, seriesFor, teamAverage, compact, acuteChronic, meanOf, priorValues } from './gpsData';
 import { baselineOf, changeVs } from '../../utils/swc';
 import { useSharedSesoi } from '../../utils/sharedSesoi';
+import { useSharedValue, cleanGameDays } from '../../utils/sharedValue';
 import SesoiPanel from '../../components/SesoiPanel';
 
 // Performance > GPS (v5.16.7, docs/HANDOFF.md §162): football's Titan GPS numbers. A day's table
@@ -94,7 +95,7 @@ const viewBtn = (on) => ({ height: '44px', padding: '0 16px', borderRadius: '10p
 
 // Trends (v5.16.9): every athlete by every session day for one number, shaded light (less) to
 // dark (more) on one hue, with the team average as a line on top. Tap a cell for that day's numbers.
-function TrendsView({ sessions, roster, end }) {
+function TrendsView({ sessions, roster, end, games = new Set() }) {
   const [metric, setMetric] = React.useState('distance_yd');
   const [weeks, setWeeks] = React.useState(4);
   const [picked, setPicked] = React.useState(null); // { athleteId, date }
@@ -152,7 +153,7 @@ function TrendsView({ sessions, roster, end }) {
           <thead>
             <tr>
               <th style={{ ...th, position: 'sticky', left: 0, background: 'var(--navy-900)', zIndex: 1 }}>Athlete</th>
-              {dates.map(d => <th key={d} style={{ ...th, padding: '4px', textAlign: 'center' }}>{shortDay(d)}</th>)}
+              {dates.map(d => <th key={d} style={{ ...th, padding: '4px', textAlign: 'center', color: games.has(d) ? 'var(--color-accent)' : th.color }} title={games.has(d) ? 'Game day' : undefined}>{shortDay(d)}{games.has(d) ? ' ★' : ''}</th>)}
               <th style={{ ...th, padding: '4px 8px' }} title="Average of this athlete's session days in the window">Avg</th>
             </tr>
           </thead>
@@ -294,6 +295,23 @@ export default function GpsScreen({ athletes, settings = {} }) {
   const [sortBy, setSortBy] = React.useState('distance_yd');
   const [view, setView] = React.useState('day'); // 'day' | 'trends' | 'ac'
   const [sesoi, saveSesoi] = useSharedSesoi();
+  // Game days (v5.17.2), marked by a coach for every device; the "usual" can compare game days
+  // with game days and practices with practices (remembered on this device).
+  const [gameDays, saveGameDays] = useSharedValue('gps_game_days', cleanGameDays, { dates: [] });
+  const games = React.useMemo(() => new Set(gameDays.dates), [gameDays]);
+  const [usualMode, setUsualMode] = React.useState(() => { try { return localStorage.getItem('hpd_gps_usual_mode') === 'type' ? 'type' : 'all'; } catch { return 'all'; } });
+  const pickUsualMode = (m) => { setUsualMode(m); try { localStorage.setItem('hpd_gps_usual_mode', m); } catch { /* ignore */ } };
+  const [gameMsg, setGameMsg] = React.useState('');
+  const [gameBusy, setGameBusy] = React.useState(false);
+  const toggleGame = async () => {
+    if (!dayNow || gameBusy) return;
+    setGameBusy(true);
+    const on = !games.has(dayNow);
+    setGameMsg('');
+    const res = await saveGameDays(v => ({ dates: on ? [...new Set([...v.dates, dayNow])].sort() : v.dates.filter(d => d !== dayNow) }));
+    setGameBusy(false);
+    if (!res.ok) setGameMsg("Couldn't save. Check the connection and try again.");
+  };
   const loadedFrom = React.useMemo(() => new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString().slice(0, 10), []);
   const [openId, setOpenId] = React.useState(null);
   const [preview, setPreview] = React.useState(null); // { fileName, parsed, manual }
@@ -368,18 +386,24 @@ export default function GpsScreen({ athletes, settings = {} }) {
     return m;
   }, [sessions, sparkDates, trendCol.key]);
   // Each row's change against the athlete's usual for the sorted number (SWC / SESOI, v5.17.1).
+  // 'type': only earlier days of the same kind as the chosen day (game vs practice).
+  const keepDay = React.useMemo(() => {
+    if (usualMode !== 'type' || !dayNow) return null;
+    const isGame = games.has(dayNow);
+    return (d) => games.has(d) === isGame;
+  }, [usualMode, dayNow, games]);
   const vsUsual = React.useMemo(() => {
     const m = new Map();
     for (const r of dayRows) {
-      const base = baselineOf(priorValues(sessions || [], r.athlete_id, dayNow, trendCol.key), sesoi[trendCol.key], STEP[trendCol.key]);
+      const base = baselineOf(priorValues(sessions || [], r.athlete_id, dayNow, trendCol.key, 28, keepDay), sesoi[trendCol.key], STEP[trendCol.key]);
       m.set(r.athlete_id, { base, ch: changeVs(r[trendCol.key], base) });
     }
     return m;
-  }, [dayRows, sessions, dayNow, trendCol.key, sesoi]);
+  }, [dayRows, sessions, dayNow, trendCol.key, sesoi, keepDay]);
   const bandsFor = (id) => {
     const out = {};
     for (const k of ['distance_yd', 'high_speed_yd', 'top_speed_mph']) {
-      const b = baselineOf(priorValues(sessions || [], id, dayNow, k), sesoi[k], STEP[k]);
+      const b = baselineOf(priorValues(sessions || [], id, dayNow, k, 28, keepDay), sesoi[k], STEP[k]);
       if (b) out[k] = { lo: Math.max(0, +(b.mean - b.threshold).toFixed(1)), hi: +(b.mean + b.threshold).toFixed(1) };
     }
     return out;
@@ -401,13 +425,18 @@ export default function GpsScreen({ athletes, settings = {} }) {
           <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>{SPORT} · Titan{dayNow ? ` · ${longDate(dayNow)}` : ''}</div>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <select aria-label="Day" value={dayNow} onChange={e => { setDay(e.target.value); setOpenId(null); }} className="input-glass" style={sel} disabled={!days.length}>
+          <select aria-label="Day" value={dayNow} onChange={e => { setDay(e.target.value); setOpenId(null); setGameMsg(''); }} className="input-glass" style={sel} disabled={!days.length}>
             {days.length === 0 && <option value="">No days yet</option>}
-            {days.map(d => <option key={d} value={d} style={optionStyle}>{longDate(d)}</option>)}
+            {days.map(d => <option key={d} value={d} style={optionStyle}>{longDate(d)}{games.has(d) ? ' · Game' : ''}</option>)}
           </select>
           {view === 'day' && <select aria-label="Sort" value={sortBy} onChange={e => setSortBy(e.target.value)} className="input-glass" style={sel}>
             {COLS.map(c => <option key={c.key} value={c.key} style={optionStyle}>Sort: {c.head}</option>)}
             <option value="name" style={optionStyle}>Sort: Name (A–Z)</option>
+          </select>}
+          {dayNow && <button type="button" data-testid="gps-game-toggle" aria-pressed={games.has(dayNow)} aria-busy={gameBusy} disabled={gameBusy} onClick={toggleGame} title="Mark the chosen day as a game day (for every device)" style={{ ...btn, ...(games.has(dayNow) ? {} : { border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'var(--color-text-muted)' }) }}>{games.has(dayNow) ? '★ Game day' : 'Mark game day'}</button>}
+          {view === 'day' && <select aria-label="Usual from" value={usualMode} onChange={e => pickUsualMode(e.target.value)} className="input-glass" style={sel}>
+            <option value="all" style={optionStyle}>Usual: all days</option>
+            <option value="type" style={optionStyle}>Usual: game vs practice</option>
           </select>}
           <SesoiPanel items={COLS.map(c => ({ key: c.key, label: c.head, unit: c.key === 'top_speed_mph' ? 'mph' : c.key.endsWith('_count') ? 'count' : 'yd' }))} values={sesoi} onSave={saveSesoi} />
           <button type="button" style={btn} onClick={() => fileRef.current?.click()}><Upload size={15} /> Upload Titan CSV</button>
@@ -454,6 +483,7 @@ export default function GpsScreen({ athletes, settings = {} }) {
         </div>
       )}
 
+      {gameMsg && <div role="alert" style={{ color: '#f87171', fontWeight: 700, fontSize: '13px' }}>{gameMsg}</div>}
       {loadError && <div role="alert" style={{ color: '#f87171', fontWeight: 700, fontSize: '13px' }}>{loadError}</div>}
 
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -466,7 +496,7 @@ export default function GpsScreen({ athletes, settings = {} }) {
 
       <div className="card-glass" style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <h2 style={h3}><Activity size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: '#60a5fa' }} />{view === 'ac' ? 'Acute : chronic load' : view === 'trends' ? 'Team trends' : dayNow ? `${longDate(dayNow)} · team` : 'Team'}</h2>
+          <h2 style={h3}><Activity size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: '#60a5fa' }} />{view === 'ac' ? 'Acute : chronic load' : view === 'trends' ? 'Team trends' : dayNow ? `${longDate(dayNow)} · ${games.has(dayNow) ? 'game day' : 'team'}` : 'Team'}</h2>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} role="group" aria-label="GPS view">
             <button type="button" aria-pressed={view === 'day'} onClick={() => setView('day')} style={viewBtn(view === 'day')}>Day table</button>
             <button type="button" aria-pressed={view === 'trends'} onClick={() => setView('trends')} style={viewBtn(view === 'trends')}>Trends</button>
@@ -474,7 +504,7 @@ export default function GpsScreen({ athletes, settings = {} }) {
           </div>
         </div>
         {sessions !== null && dayNow && view === 'trends' ? (
-          <TrendsView sessions={sessions} roster={roster} end={dayNow} />
+          <TrendsView sessions={sessions} roster={roster} end={dayNow} games={games} />
         ) : sessions !== null && dayNow && view === 'ac' ? (
           <AcuteChronicView sessions={sessions} roster={roster} end={dayNow} spike={Number(settings.rpeLoadSpikeRatio) || 1.3} loadedFrom={loadedFrom} />
         ) : sessions === null ? (
@@ -511,7 +541,7 @@ export default function GpsScreen({ athletes, settings = {} }) {
           </div>
         )}
         <div style={{ ...label, textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
-          Units as exported by Titan: yards, mph. Accels and decels are high-speed (4–8 m/s²). Speed band is 12.5–22.4 mph; personal band is 80% or faster of the athlete's own top mph. Vs usual compares the chosen day with the athlete's own average of the 28 days before it; it only shows a change bigger than both the SWC (0.2 × their spread) and your SESOI (SWC / SESOI button). The 28-day trend line shows the number the table is sorted by, one point per team session day (the dot is the athlete's latest); tap a row for full charts, or switch to Trends for the whole team by day.
+          Units as exported by Titan: yards, mph. Accels and decels are high-speed (4–8 m/s²). Speed band is 12.5–22.4 mph; personal band is 80% or faster of the athlete's own top mph. Vs usual compares the chosen day with the athlete's own average of the 28 days before it (with Usual: game vs practice, only earlier game days for a game day and only practices for a practice; ★ marks game days); it only shows a change bigger than both the SWC (0.2 × their spread) and your SESOI (SWC / SESOI button). The 28-day trend line shows the number the table is sorted by, one point per team session day (the dot is the athlete's latest); tap a row for full charts, or switch to Trends for the whole team by day.
         </div>
       </div>
     </div>
