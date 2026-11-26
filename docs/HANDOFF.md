@@ -4828,7 +4828,30 @@ charts (distance, speed band, top speed) now show one point per session day for 
 the chosen day (days with no session are left out). The weekly table and the "week of ... vs
 the earlier weeks' average" line stay. Test: `tests/gps.js` (12) expects Daily titles.
 
-## 164. Next up
+## 164. GPS: see the whole team without opening each athlete (v5.16.9)
+
+The owner asked for a more streamlined GPS tab ("instead of having to click on every athlete").
+Built options 1 and 2 of the sketch, chosen by the owner:
+
+- **Day table: a 28-day trend line on every row.** It shows the number the table is sorted by
+  (distance by default; switching Sort to top speed switches the lines), one point per team
+  session day in the 28 days up to the chosen day; the dot is the latest. Tapping a row still
+  opens the full charts.
+- **Trends view** (Day table / Trends switch): every athlete by every session day for one number
+  (picker: any of the six) over 2, 4 or 8 weeks, shaded on one blue hue from the grid's lowest
+  (light) to highest (dark) value, with a legend, dashed empty cells where there was no session,
+  a TEAM AVERAGE row and a team-average line chart on top. Tapping a cell shows that athlete-day's
+  six numbers. Cells are 44 px tall buttons with full labels for screen readers; the name column
+  stays put while the grid scrolls sideways.
+- Pure helpers in `gpsData.js`: `windowDays`, `seriesFor`, `teamAverage`, `compact`.
+- Review fixes: bright cells use dark text (white failed contrast above ~0.6 opacity); cells keep
+  the browser focus ring; a picked cell's detail hides when its day leaves the window; the top
+  speed trend line is scaled to its own range (`Sparkline` `fromZero={false}`; other screens keep
+  the old scaling); trend values are worked out once per data change, not per row per render;
+  the Sort menu is hidden in Trends; empty cells are announced as "no session".
+- No database change. Tests: `tests/gps-data.js` (25), `tests/gps.js` (23).
+
+## 165. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

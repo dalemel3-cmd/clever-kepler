@@ -5,8 +5,8 @@ import { supabase } from '../../supabaseClient';
 import { reportDataError } from '../../errorReporting';
 import { allowFetch, fetchAllRows } from '../../utils/fetchBrake';
 import { getCentralDateString } from '../../utils/athleteData';
-import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt as fmt1, Tile } from '../../components/DeepDiveUi';
-import { parseTitan, buildImport, weeklyTotals, recentAverage, weekStart } from './gpsData';
+import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt as fmt1, Tile, Sparkline } from '../../components/DeepDiveUi';
+import { parseTitan, buildImport, weeklyTotals, recentAverage, weekStart, windowDays, seriesFor, teamAverage, compact } from './gpsData';
 
 // Performance > GPS (v5.16.7, docs/HANDOFF.md §162): football's Titan GPS numbers. A day's table
 // for the team, weekly trends per athlete, and an upload of the Titan "synced data" CSV that
@@ -84,6 +84,102 @@ function AthleteDetail({ totals, daily }) {
   );
 }
 
+const shortDay = (iso) => { const [, m, d] = iso.split('-'); return `${Number(m)}/${Number(d)}`; };
+const viewBtn = (on) => ({ height: '44px', padding: '0 16px', borderRadius: '10px', border: `1px solid ${on ? 'var(--color-accent)' : 'rgba(255,255,255,0.15)'}`, background: on ? 'rgba(184, 156, 91, 0.2)' : 'transparent', color: on ? 'var(--color-accent)' : 'var(--color-text-muted)', fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', cursor: 'pointer' });
+
+// Trends (v5.16.9): every athlete by every session day for one number, shaded light (less) to
+// dark (more) on one hue, with the team average as a line on top. Tap a cell for that day's numbers.
+function TrendsView({ sessions, roster, end }) {
+  const [metric, setMetric] = React.useState('distance_yd');
+  const [weeks, setWeeks] = React.useState(4);
+  const [picked, setPicked] = React.useState(null); // { athleteId, date }
+  const col = COLS.find(c => c.key === metric);
+  const dates = React.useMemo(() => windowDays(sessions, end, weeks * 7), [sessions, end, weeks]);
+  const rows = React.useMemo(() => roster
+    .map(a => ({ athlete: a, values: seriesFor(sessions, a.id, dates, metric) }))
+    .filter(r => r.values.some(v => v != null))
+    .sort((x, y) => x.athlete.name.localeCompare(y.athlete.name)), [roster, sessions, dates, metric]);
+  const avgs = React.useMemo(() => teamAverage(sessions, rows.map(r => r.athlete.id), dates, metric), [sessions, rows, dates, metric]);
+  const all = rows.flatMap(r => r.values.filter(v => v != null));
+  const max = all.length ? Math.max(...all) : 0, min = all.length ? Math.min(...all) : 0;
+  // Lowest value in the grid = faint (almost the card), highest = bright blue, so day-to-day
+  // differences show. Bright cells get dark text so the number stays readable.
+  const alpha = (v) => 0.06 + 0.84 * (max > min ? (v - min) / (max - min) : 0.5);
+  const shade = (v) => (v == null ? 'transparent' : `rgba(96, 165, 250, ${alpha(v).toFixed(3)})`);
+  const ink = (v) => (v != null && alpha(v) > 0.6 ? '#0a1120' : 'var(--white)');
+  const pick = picked && dates.includes(picked.date) && sessions.find(s => s.athlete_id === picked.athleteId && s.session_date === picked.date);
+  const pickName = picked && roster.find(a => a.id === picked.athleteId)?.name;
+  const cell = { width: '52px', minWidth: '52px', height: '44px', padding: 0, border: 'none', borderRadius: '6px', color: 'var(--white)', fontSize: '12px', fontWeight: 700, fontVariantNumeric: 'tabular-nums', cursor: 'pointer' };
+  if (!dates.length || !rows.length) return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>No GPS sessions in this window.</div>;
+  return (
+    <div data-testid="gps-trends" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select aria-label="Trend metric" value={metric} onChange={e => { setMetric(e.target.value); setPicked(null); }} className="input-glass" style={sel}>
+          {COLS.map(c => <option key={c.key} value={c.key} style={optionStyle}>{c.head}</option>)}
+        </select>
+        <select aria-label="Trend window" value={weeks} onChange={e => { setWeeks(Number(e.target.value)); setPicked(null); }} className="input-glass" style={sel}>
+          {[2, 4, 8].map(w => <option key={w} value={w} style={optionStyle}>Last {w} weeks</option>)}
+        </select>
+        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{rows.length} athletes · {dates.length} session days up to {longDate(end)}</span>
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <span style={label}>Team average · {col.head}</span>
+        <div style={{ width: '100%', height: 150 }}>
+          <ResponsiveContainer>
+            <LineChart data={dates.map((d, i) => ({ day: shortDay(d), avg: avgs[i] == null ? null : +avgs[i].toFixed(col.d) }))} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
+              <XAxis dataKey="day" tick={axis} tickLine={false} axisLine={false} />
+              <YAxis tick={axis} tickLine={false} axisLine={false} width={44} allowDecimals={false} domain={metric === 'top_speed_mph' ? ['dataMin - 1', 'dataMax + 1'] : [0, 'auto']} />
+              <RechartsTooltip contentStyle={tooltipStyle} formatter={(v) => [fmt(v, col.d), `Team average, ${col.head}`]} />
+              <Line type="monotone" dataKey="avg" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'separate', borderSpacing: '3px' }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, position: 'sticky', left: 0, background: 'var(--navy-900)', zIndex: 1 }}>Athlete</th>
+              {dates.map(d => <th key={d} style={{ ...th, padding: '4px', textAlign: 'center' }}>{shortDay(d)}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.athlete.id} data-testid="gps-trend-row">
+                <td style={{ ...td, fontWeight: 700, position: 'sticky', left: 0, background: 'var(--navy-900)', zIndex: 1 }}>{r.athlete.name}</td>
+                {r.values.map((v, i) => (
+                  <td key={dates[i]} style={{ padding: 0 }}>
+                    {v == null
+                      ? <div role="img" style={{ ...cell, cursor: 'default', border: '1px dashed rgba(255,255,255,0.08)' }} aria-label={`${r.athlete.name}, ${longDate(dates[i])}: no session`} />
+                      : <button type="button" data-testid="gps-cell" onClick={() => setPicked({ athleteId: r.athlete.id, date: dates[i] })} aria-label={`${r.athlete.name}, ${longDate(dates[i])}: ${fmt(v, col.d)} ${col.head}`} title={`${fmt(v, col.d)}`} style={{ ...cell, background: shade(v), color: ink(v), outline: picked && picked.athleteId === r.athlete.id && picked.date === dates[i] ? '2px solid var(--color-accent)' : undefined }}>{compact(v, metric)}</button>}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            <tr data-testid="gps-trend-avg">
+              <td style={{ ...td, fontWeight: 800, color: 'var(--color-accent)', position: 'sticky', left: 0, background: 'var(--navy-900)', zIndex: 1 }}>TEAM AVERAGE</td>
+              {avgs.map((v, i) => <td key={dates[i]} style={{ padding: 0 }}><div style={{ ...cell, cursor: 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', background: shade(v), color: ink(v), border: '1px solid var(--color-accent)' }}>{compact(v, metric)}</div></td>)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+        <span>Less ({fmt(min, col.d)})</span>
+        {[0, 0.25, 0.5, 0.75, 1].map(f => <span key={f} aria-hidden="true" style={{ width: '22px', height: '12px', borderRadius: '3px', background: shade(min + f * (max - min)) }} />)}
+        <span>More ({fmt(max, col.d)})</span>
+        <span>· dashed: no session · k = thousand</span>
+      </div>
+      {pick && (
+        <div data-testid="gps-cell-detail" role="status" style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', fontSize: '13px' }}>
+          <strong>{pickName} · {longDate(pick.session_date)}</strong>{' · '}
+          {COLS.map(c => `${c.head} ${fmt(pick[c.key], c.d)}`).join(' · ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GpsScreen({ athletes }) {
   const roster = React.useMemo(() => athletes.filter(a => a.sport === SPORT), [athletes]);
   const byId = React.useMemo(() => new Map(roster.map(a => [a.id, a])), [roster]);
@@ -91,6 +187,7 @@ export default function GpsScreen({ athletes }) {
   const [loadError, setLoadError] = React.useState('');
   const [day, setDay] = React.useState('');
   const [sortBy, setSortBy] = React.useState('distance_yd');
+  const [view, setView] = React.useState('day'); // 'day' | 'trends'
   const [openId, setOpenId] = React.useState(null);
   const [preview, setPreview] = React.useState(null); // { fileName, parsed, manual }
   const [saving, setSaving] = React.useState(false);
@@ -149,6 +246,20 @@ export default function GpsScreen({ athletes }) {
     if (result.days.length) setDay(result.days[result.days.length - 1]);
   };
 
+  // The team's session days in the 28 days up to the chosen day, for the table's trend lines.
+  const trendCol = COLS.find(c => c.key === sortBy) || COLS[0]; // the trend line shows what the table is sorted by
+  const sparkDates = React.useMemo(() => windowDays(sessions || [], dayNow, 28), [sessions, dayNow]);
+  const sparkValues = React.useMemo(() => {
+    const m = new Map();
+    const idx = new Map(sparkDates.map((d, i) => [d, i]));
+    for (const s of sessions || []) {
+      const i = idx.get(s.session_date);
+      if (i == null || s[trendCol.key] == null) continue;
+      if (!m.has(s.athlete_id)) m.set(s.athlete_id, Array(sparkDates.length).fill(null));
+      m.get(s.athlete_id)[i] = Number(s[trendCol.key]);
+    }
+    return m;
+  }, [sessions, sparkDates, trendCol.key]);
   const totalsFor = (id) => weeklyTotals(sessions || [], id, 8, dayNow || today);
   // This athlete's session days, oldest first: the 28 days up to the chosen day.
   const dailyFor = (id) => {
@@ -170,10 +281,10 @@ export default function GpsScreen({ athletes }) {
             {days.length === 0 && <option value="">No days yet</option>}
             {days.map(d => <option key={d} value={d} style={optionStyle}>{longDate(d)}</option>)}
           </select>
-          <select aria-label="Sort" value={sortBy} onChange={e => setSortBy(e.target.value)} className="input-glass" style={sel}>
+          {view === 'day' && <select aria-label="Sort" value={sortBy} onChange={e => setSortBy(e.target.value)} className="input-glass" style={sel}>
             {COLS.map(c => <option key={c.key} value={c.key} style={optionStyle}>Sort: {c.head}</option>)}
             <option value="name" style={optionStyle}>Sort: Name (A–Z)</option>
-          </select>
+          </select>}
           <button type="button" style={btn} onClick={() => fileRef.current?.click()}><Upload size={15} /> Upload Titan CSV</button>
           <input ref={fileRef} type="file" accept=".csv,text/csv" aria-label="Titan CSV file" onChange={onFile} style={{ display: 'none' }} />
         </div>
@@ -229,8 +340,16 @@ export default function GpsScreen({ athletes }) {
       </div>
 
       <div className="card-glass" style={card}>
-        <h2 style={h3}><Activity size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: '#60a5fa' }} />{dayNow ? `${longDate(dayNow)} · team` : 'Team'}</h2>
-        {sessions === null ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <h2 style={h3}><Activity size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: '#60a5fa' }} />{view === 'trends' ? 'Team trends' : dayNow ? `${longDate(dayNow)} · team` : 'Team'}</h2>
+          <div style={{ display: 'flex', gap: '8px' }} role="group" aria-label="GPS view">
+            <button type="button" aria-pressed={view === 'day'} onClick={() => setView('day')} style={viewBtn(view === 'day')}>Day table</button>
+            <button type="button" aria-pressed={view === 'trends'} onClick={() => setView('trends')} style={viewBtn(view === 'trends')}>Trends</button>
+          </div>
+        </div>
+        {sessions !== null && dayNow && view === 'trends' ? (
+          <TrendsView sessions={sessions} roster={roster} end={dayNow} />
+        ) : sessions === null ? (
           <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading…</div>
         ) : dayRows.length === 0 ? (
           <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>No GPS data yet. Use Upload Titan CSV to add a session.</div>
@@ -241,6 +360,7 @@ export default function GpsScreen({ athletes }) {
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                   <th style={th}>Athlete</th>
                   {COLS.map(c => <th key={c.key} style={th} title={c.tip}>{c.head}</th>)}
+                  <th style={th} title={`${trendCol.head} on each session day in the 28 days up to the chosen day; follows the Sort`}>28-day trend</th>
                 </tr>
               </thead>
               <tbody>
@@ -249,9 +369,10 @@ export default function GpsScreen({ athletes }) {
                     <tr data-testid="gps-row" tabIndex={0} aria-expanded={openId === r.athlete_id} onClick={() => setOpenId(openId === r.athlete_id ? null : r.athlete_id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(openId === r.athlete_id ? null : r.athlete_id); } }} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', background: openId === r.athlete_id ? 'rgba(255,255,255,0.04)' : undefined }}>
                       <td style={{ ...td, fontWeight: 700 }}>{r.athlete.name}</td>
                       {COLS.map(c => <td key={c.key} style={td}>{fmt(r[c.key], c.d)}</td>)}
+                      <td style={td} data-testid="gps-spark"><Sparkline values={sparkValues.get(r.athlete_id) || []} fromZero={trendCol.key !== 'top_speed_mph'} color="#60a5fa" ariaLabel={`${r.athlete.name}: ${trendCol.head} on each session day, last 28 days`} /></td>
                     </tr>
                     {openId === r.athlete_id && (
-                      <tr><td colSpan={COLS.length + 1} style={{ padding: '0 0 12px' }}><AthleteDetail totals={totalsFor(r.athlete_id)} daily={dailyFor(r.athlete_id)} /></td></tr>
+                      <tr><td colSpan={COLS.length + 2} style={{ padding: '0 0 12px' }}><AthleteDetail totals={totalsFor(r.athlete_id)} daily={dailyFor(r.athlete_id)} /></td></tr>
                     )}
                   </React.Fragment>
                 ))}
@@ -260,7 +381,7 @@ export default function GpsScreen({ athletes }) {
           </div>
         )}
         <div style={{ ...label, textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
-          Units as exported by Titan: yards, mph. Accels and decels are high-speed (4–8 m/s²). Speed band is 12.5–22.4 mph; personal band is 80% or faster of the athlete's own top mph. Tap a row for weekly trends.
+          Units as exported by Titan: yards, mph. Accels and decels are high-speed (4–8 m/s²). Speed band is 12.5–22.4 mph; personal band is 80% or faster of the athlete's own top mph. The 28-day trend line shows the number the table is sorted by, one point per team session day (the dot is the athlete's latest); tap a row for full charts, or switch to Trends for the whole team by day.
         </div>
       </div>
     </div>

@@ -45,12 +45,14 @@ export function Tile({ value, text, tone }) {
 // Tiny weekly trend line (oldest -> newest). Null values are skipped, not drawn as 0.
 // `trend` (speed, v5.15.0): scale to the values' own range rather than from zero, and
 // draw a dashed least-squares line, so times getting faster read as a line sloping down.
-export function Sparkline({ values, color = '#a78bfa', ariaLabel, trend = false }) {
+// `fromZero` (default on): scale from 0. Off (GPS top speed, v5.16.9): scale to the values' own range.
+export function Sparkline({ values, color = '#a78bfa', ariaLabel, trend = false, fromZero = true }) {
   const w = 96, h = 28;
   const nums = values.filter(v => v != null);
   const fit = trend ? linearFit(values) : null;
   const ends = fit ? [fit.at(fit.from), fit.at(fit.to)] : [];
-  const max = trend ? Math.max(...nums, ...ends) : Math.max(...nums, 1), min = trend ? Math.min(...nums, ...ends) : Math.min(...nums, 0);
+  const own = trend || !fromZero;
+  const max = own ? Math.max(...nums, ...ends) : Math.max(...nums, 1), min = own ? Math.min(...nums, ...ends) : Math.min(...nums, 0);
   const span = max - min || 1;
   const px = (i) => (i / Math.max(values.length - 1, 1)) * (w - 4) + 2;
   const py = (v) => (max > min ? h - 3 - ((v - min) / span) * (h - 6) : h / 2);

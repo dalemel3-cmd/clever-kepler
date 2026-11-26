@@ -71,6 +71,27 @@ const FILE = [HEAD,
   const t = await page.locator('main').innerText();
   check('tapping a row shows daily charts and the weekly table', /Daily distance/i.test(t) && /Daily speed band/i.test(t) && /Daily top speed/i.test(t) && !/Weekly distance/i.test(t) && /Week of/i.test(t));
 
+  check('each row has a 28-day trend line for the sorted number', await page.getByTestId('gps-spark').count() === 2 && await page.getByRole('img', { name: /ANN ALPHA: Distance \(yd\) on each session day/ }).count() === 1);
+  await page.getByLabel('Sort').selectOption('top_speed_mph'); await page.waitForTimeout(200);
+  check('sorting by top speed switches the trend lines to top speed', await page.getByRole('img', { name: /ANN ALPHA: Top speed \(mph\) on each session day/ }).count() === 1);
+  await page.getByLabel('Sort').selectOption('distance_yd'); await page.waitForTimeout(200);
+
+  console.log('\n[A2] Trends view: the whole team by day');
+  await page.getByRole('button', { name: 'Trends' }).click(); await page.waitForTimeout(500);
+  check('the grid lists every athlete with a session in the window, plus a team average row', await page.getByTestId('gps-trend-row').count() === 2 && await page.getByTestId('gps-trend-avg').count() === 1 && /TEAM AVERAGE/.test(await page.getByTestId('gps-trends').innerText()));
+  check('Ann has a cell for each of her 3 session days (Nov 3, 10, 17), Bo one', await page.getByTestId('gps-trend-row').filter({ hasText: 'ANN ALPHA' }).getByTestId('gps-cell').count() === 3 && await page.getByTestId('gps-trend-row').filter({ hasText: 'BO BRAVO' }).getByTestId('gps-cell').count() === 1);
+  await page.getByTestId('gps-trend-row').filter({ hasText: 'BO BRAVO' }).getByTestId('gps-cell').first().click(); await page.waitForTimeout(200);
+  check('tapping a cell shows that athlete-day', /BO BRAVO · Nov 17/.test(await page.getByTestId('gps-cell-detail').innerText()) && /Top speed \(mph\) 18\.5/.test(await page.getByTestId('gps-cell-detail').innerText()));
+  check('the picked cell keeps a visible outline; others keep the browser focus ring (no outline: none)', await page.evaluate(() => [...document.querySelectorAll('[data-testid="gps-cell"]')].every(b => b.style.outline !== 'none')));
+  check('bright cells use dark text', await page.evaluate(() => [...document.querySelectorAll('[data-testid="gps-cell"]')].some(b => b.style.color === 'rgb(10, 17, 32)')));
+  check('the Sort menu is hidden in Trends', await page.getByLabel('Sort').count() === 0);
+  await page.getByLabel('Trend metric').selectOption('top_speed_mph'); await page.waitForTimeout(200);
+  check('switching the number changes the cells', /18\.5/.test(await page.getByTestId('gps-trend-row').filter({ hasText: 'BO BRAVO' }).innerText()));
+  await page.getByLabel('Trend window').selectOption('2'); await page.waitForTimeout(200);
+  check('changing the window clears a cell detail that is no longer on screen', await page.getByTestId('gps-cell-detail').count() === 0);
+  check('a 2-week window drops the older days', await page.getByTestId('gps-trend-row').filter({ hasText: 'ANN ALPHA' }).getByTestId('gps-cell').count() === 2);
+  await page.getByRole('button', { name: 'Day table' }).click(); await page.waitForTimeout(300);
+
   console.log('\n[B] Upload: checked before saving');
   await page.getByLabel('Titan CSV file').setInputFiles({ name: 'titan.csv', mimeType: 'text/csv', buffer: Buffer.from(FILE) });
   await page.waitForTimeout(500);

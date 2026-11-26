@@ -6,7 +6,7 @@ register('data:text/javascript,' + encodeURIComponent(`
     try { return await next(spec, ctx); }
     catch (e) { if (!/^[.]/.test(spec)) throw e; for (const x of ['.js', '.jsx', '/index.js']) { try { return await next(spec + x, ctx); } catch {} } throw e; }
   }`));
-const { parseTitan, parseCsv, matchAthlete, buildImport, weeklyTotals, weekStart, recentAverage, isoFromUs } = await import('../src/features/gps/gpsData.js');
+const { parseTitan, parseCsv, matchAthlete, buildImport, weeklyTotals, weekStart, recentAverage, isoFromUs, windowDays, seriesFor, teamAverage, compact } = await import('../src/features/gps/gpsData.js');
 
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) { pass++; console.log(`  PASS  ${name}`); } else { fail++; console.log(`  FAIL  ${name}${detail ? ` -> ${detail}` : ''}`); } };
@@ -62,6 +62,14 @@ const t = weeklyTotals([S('2026-11-16', 5000, 16), S('2026-11-18', 3000, 18), S(
 check('4 weeks ending this week; totals, days and the week\'s top speed', t.length === 4 && t[2].week === '2026-11-16' && t[2].distance_yd === 8000 && t[2].days === 2 && t[2].top_speed_mph === 18 && t[2].accel_count === 20 && t[3].distance_yd === 4000, JSON.stringify(t.map(w => [w.week, w.distance_yd])));
 check('empty weeks are empty, not zero; other athletes are left out', t[0].distance_yd === null && t[0].days === 0);
 check('average of the earlier weeks', recentAverage(t, 'distance_yd') === 8000 && recentAverage([{ distance_yd: null }, { distance_yd: 5 }], 'distance_yd') === null);
+
+console.log('\n[E] Team views (v5.16.9)');
+const T = [S('2026-11-03', 4000, 15), S('2026-11-17', 5000, 16), S('2026-11-19', 3000, 17), { ...S('2026-11-17', 6000, 18), athlete_id: 'b' }, { ...S('2026-11-21', 9, 9), athlete_id: 'b' }];
+const wd = windowDays(T, '2026-11-19', 14);
+check('session days in the window, oldest first, nothing after the end day', wd.join() === '2026-11-17,2026-11-19', wd.join());
+check('an athlete\'s value per day, empty where no session', seriesFor(T, 'b', wd, 'distance_yd').join() === '6000,' && seriesFor(T, 'a', wd, 'top_speed_mph').join() === '16,17');
+check('team average per day over who has a value', teamAverage(T, ['a', 'b'], wd, 'distance_yd').join() === '5500,3000' && teamAverage(T, ['a'], ['2026-11-01'], 'distance_yd')[0] === null);
+check('compact cell text', compact(6439.9, 'distance_yd') === '6.4k' && compact(495.6, 'high_speed_yd') === '496' && compact(17.22, 'top_speed_mph') === '17.2' && compact(null, 'x') === '');
 
 console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
 process.exit(fail ? 1 : 0);

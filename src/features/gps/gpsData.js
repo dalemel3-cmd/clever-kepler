@@ -166,3 +166,37 @@ export const recentAverage = (totals, key, n = 4) => {
   const past = totals.slice(0, -1).filter(w => w[key] != null).slice(-n);
   return past.length ? past.reduce((s, w) => s + w[key], 0) / past.length : null;
 };
+
+// ---- team views (v5.16.9) ----------------------------------------------------------------
+const isoMinus = (iso, n) => new Date(utcDay(iso) - n * DAY).toISOString().slice(0, 10);
+
+// The days anyone has a session in the `n` days ending with `end`, oldest first.
+export function windowDays(sessions, end, n) {
+  if (!end) return [];
+  const start = isoMinus(end, n - 1);
+  return [...new Set(sessions.filter(s => s.session_date >= start && s.session_date <= end).map(s => s.session_date))].sort();
+}
+
+// One athlete's value for each of `dates` (null where they have no session that day).
+export function seriesFor(sessions, athleteId, dates, key) {
+  const by = new Map();
+  for (const s of sessions) if (s.athlete_id === athleteId && s[key] != null) by.set(s.session_date, Number(s[key]));
+  return dates.map(d => (by.has(d) ? by.get(d) : null));
+}
+
+// The team's average for each of `dates`, over the athletes who have a value that day.
+export function teamAverage(sessions, athleteIds, dates, key) {
+  const ids = new Set(athleteIds);
+  return dates.map(d => {
+    const v = sessions.filter(s => s.session_date === d && ids.has(s.athlete_id) && s[key] != null).map(s => Number(s[key]));
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  });
+}
+
+// Short text for a grid cell: 6439.9 yd -> "6.4k", 495.6 -> "496", 17.22 mph -> "17.2".
+export function compact(v, key) {
+  if (v == null || Number.isNaN(v)) return '';
+  if (key === 'top_speed_mph') return v.toFixed(1);
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+  return String(Math.round(v));
+}
