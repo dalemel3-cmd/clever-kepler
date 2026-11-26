@@ -4851,7 +4851,33 @@ Built options 1 and 2 of the sketch, chosen by the owner:
   the Sort menu is hidden in Trends; empty cells are announced as "no session".
 - No database change. Tests: `tests/gps-data.js` (25), `tests/gps.js` (23).
 
-## 165. Next up
+## 165. GPS acute : chronic, and sorting the Trends grid (v5.17.0)
+
+The owner asked for "Acute to Chronic work for 7, 14, 28 days on its own tab for player load" and
+for the Trends grid to sort by athlete, largest and smallest.
+
+- **Acute : Chronic view** (third button on the GPS card, beside Day table and Trends;
+  `AcuteChronicView` in `GpsScreen.jsx`, `acuteChronic()` in `gpsData.js`). Titan's export has
+  no "Player Load" column, so load is the GPS number the coach picks: distance (default), the
+  accels, decels, speed band or personal band (top speed is a peak, not a load, so it is not
+  offered). Per athlete, up to the chosen day: totals over 7, 14 and 28 days (inclusive), the
+  weekly average of the 28 days (total / 4), **A:C 7:28** = 7-day total / weekly average and
+  **A:C 14:28** = 14-day total / 2 / weekly average. Zones match the RPE tab: at or above
+  Settings' load-spike ratio (default 1.3) is a Spike, under 0.8 is Low. An athlete with under 3
+  weeks of GPS history is shown as Building and not counted in the tiles. Sort: 7:28 highest,
+  14:28 highest, 7:28 lowest, athlete A-Z.
+- **Trends sort:** Athlete (A-Z), Largest average, Smallest average, by each athlete's average
+  of the chosen number over the window. A new Avg column (the team row shows the average of the
+  athletes' averages) shows what the sort uses.
+- **Differs from the RPE tab on purpose:** the chronic window here is always 28 days (RPE uses
+  Settings' chronic weeks) and an athlete with under 3 weeks of history reads Building instead of
+  a ratio over fewer weeks. Only the spike ratio is shared.
+- Review fixes: the In range tile no longer counts athletes with no ratio (a load of 0 for 4
+  weeks); Building and no-ratio rows sort last in the ratio sorts; a day whose 28-day window
+  reaches before the 120 days the screen loads reads Building; the view buttons wrap on a phone.
+- No database change. Tests: `tests/gps-data.js` (31), `tests/gps.js` (31).
+
+## 166. Next up
 
 **From the 2026-11-11 audit, most useful first:**
 1. **Backups, what is left:** the nightly snapshots are on (11/13). The owner downloads a

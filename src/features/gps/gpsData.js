@@ -200,3 +200,37 @@ export function compact(v, key) {
   if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
   return String(Math.round(v));
 }
+
+// ---- acute : chronic (v5.17.0) -----------------------------------------------------------
+// For each athlete with a session in the 28 days ending `end`: totals of `key` over the last 7,
+// 14 and 28 days (inclusive of `end`), and two ratios against the chronic weekly average
+// (28-day total / 4): 7:28 = 7-day total / weekly average; 14:28 = (14-day total / 2) / weekly
+// average. 1.0 = this week like the last four. `building` = under 3 weeks of history before `end`,
+// so the chronic number is still filling in.
+// `loadedFrom`: the first day the screen loaded; a 28-day window reaching before it is incomplete,
+// so every athlete reads building for such a day.
+export function acuteChronic(sessions, athletes, end, key, loadedFrom = null) {
+  if (!end) return [];
+  const from = (n) => isoMinus(end, n - 1);
+  const f7 = from(7), f14 = from(14), f28 = from(28), f21 = isoMinus(end, 20);
+  const out = [];
+  for (const a of athletes) {
+    let s7 = 0, s14 = 0, s28 = 0, days = 0, first = null;
+    for (const s of sessions) {
+      if (s.athlete_id !== a.id || s.session_date > end) continue;
+      if (first == null || s.session_date < first) first = s.session_date;
+      const v = s[key] == null ? null : Number(s[key]);
+      if (s.session_date < f28 || v == null) continue;
+      days++; s28 += v;
+      if (s.session_date >= f14) s14 += v;
+      if (s.session_date >= f7) s7 += v;
+    }
+    if (!days) continue;
+    const weekly = s28 / 4;
+    out.push({ athlete: a, sum7: s7, sum14: s14, sum28: s28, days, ratio7: weekly > 0 ? s7 / weekly : null, ratio14: weekly > 0 ? (s14 / 2) / weekly : null, building: first > f21 || (loadedFrom != null && f28 < loadedFrom) });
+  }
+  return out;
+}
+
+// Average of the non-empty values (for the Trends sort), or null.
+export const meanOf = (vals) => { const v = vals.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };

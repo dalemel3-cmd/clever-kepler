@@ -6,7 +6,7 @@ register('data:text/javascript,' + encodeURIComponent(`
     try { return await next(spec, ctx); }
     catch (e) { if (!/^[.]/.test(spec)) throw e; for (const x of ['.js', '.jsx', '/index.js']) { try { return await next(spec + x, ctx); } catch {} } throw e; }
   }`));
-const { parseTitan, parseCsv, matchAthlete, buildImport, weeklyTotals, weekStart, recentAverage, isoFromUs, windowDays, seriesFor, teamAverage, compact } = await import('../src/features/gps/gpsData.js');
+const { parseTitan, parseCsv, matchAthlete, buildImport, weeklyTotals, weekStart, recentAverage, isoFromUs, windowDays, seriesFor, teamAverage, compact, acuteChronic, meanOf } = await import('../src/features/gps/gpsData.js');
 
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) { pass++; console.log(`  PASS  ${name}`); } else { fail++; console.log(`  FAIL  ${name}${detail ? ` -> ${detail}` : ''}`); } };
@@ -70,6 +70,19 @@ check('session days in the window, oldest first, nothing after the end day', wd.
 check('an athlete\'s value per day, empty where no session', seriesFor(T, 'b', wd, 'distance_yd').join() === '6000,' && seriesFor(T, 'a', wd, 'top_speed_mph').join() === '16,17');
 check('team average per day over who has a value', teamAverage(T, ['a', 'b'], wd, 'distance_yd').join() === '5500,3000' && teamAverage(T, ['a'], ['2026-11-01'], 'distance_yd')[0] === null);
 check('compact cell text', compact(6439.9, 'distance_yd') === '6.4k' && compact(495.6, 'high_speed_yd') === '496' && compact(17.22, 'top_speed_mph') === '17.2' && compact(null, 'x') === '');
+
+console.log('\n[F] Acute : chronic (v5.17.0)');
+// Ann: 1,000 yd every Monday for 4 weeks, then 2,000 on the last two days. Bo: one session only.
+const AC = ['2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16'].map(d => S(d, 1000, 15)).concat([S('2026-11-21', 2000, 15), S('2026-11-22', 2000, 15), { ...S('2026-11-20', 3000, 15), athlete_id: 'b' }, S('2026-11-23', 99999, 15)]);
+const ac = acuteChronic(AC, [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'z', name: 'Z' }], '2026-11-22', 'distance_yd');
+const A = ac.find(r => r.athlete.id === 'a'), B = ac.find(r => r.athlete.id === 'b');
+check('totals over 7, 14 and 28 days (inclusive of the end day and the 28th day back; nothing after the end)', A.sum7 === 5000 && A.sum14 === 6000 && A.sum28 === 8000, JSON.stringify(A));
+check('7:28 = 7-day total / (28-day total / 4); 14:28 = 14-day total / 2 / that', Math.abs(A.ratio7 - 2.5) < 1e-9 && Math.abs(A.ratio14 - 1.5) < 1e-9);
+check('athletes with under 3 weeks of history are marked building; no sessions = left out', A.building === false && B.building === true && !ac.some(r => r.athlete.id === 'z'));
+check('a day whose 28-day window reaches before the loaded history reads building', acuteChronic(AC, [{ id: 'a', name: 'A' }], '2026-11-22', 'distance_yd', '2026-11-01')[0].building === true);
+const zero = acuteChronic([S('2026-11-01', 0, 15), S('2026-11-20', 0, 15)].map(x => ({ ...x, accel_count: 0 })), [{ id: 'a', name: 'A' }], '2026-11-22', 'accel_count');
+check('a load of 0 for 4 weeks gives no ratio (not "in range")', zero[0].ratio7 === null);
+check('average of non-empty values', meanOf([1, null, 3]) === 2 && meanOf([null]) === null);
 
 console.log(`\n${fail === 0 ? 'ALL PROBES PASSED' : 'PROBES FAILED'}  (${pass} passed, ${fail} failed)`);
 process.exit(fail ? 1 : 0);

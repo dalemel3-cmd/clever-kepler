@@ -5,8 +5,8 @@ import { supabase } from '../../supabaseClient';
 import { reportDataError } from '../../errorReporting';
 import { allowFetch, fetchAllRows } from '../../utils/fetchBrake';
 import { getCentralDateString } from '../../utils/athleteData';
-import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt as fmt1, Tile, Sparkline } from '../../components/DeepDiveUi';
-import { parseTitan, buildImport, weeklyTotals, recentAverage, weekStart, windowDays, seriesFor, teamAverage, compact } from './gpsData';
+import { card, h3, label, optionStyle, selectStyle, axis, grid, th, td, tooltipStyle, fmt as fmt1, Tile, Sparkline, Chip } from '../../components/DeepDiveUi';
+import { parseTitan, buildImport, weeklyTotals, recentAverage, weekStart, windowDays, seriesFor, teamAverage, compact, acuteChronic, meanOf } from './gpsData';
 
 // Performance > GPS (v5.16.7, docs/HANDOFF.md §162): football's Titan GPS numbers. A day's table
 // for the team, weekly trends per athlete, and an upload of the Titan "synced data" CSV that
@@ -93,12 +93,13 @@ function TrendsView({ sessions, roster, end }) {
   const [metric, setMetric] = React.useState('distance_yd');
   const [weeks, setWeeks] = React.useState(4);
   const [picked, setPicked] = React.useState(null); // { athleteId, date }
+  const [order, setOrder] = React.useState('name'); // 'name' | 'high' | 'low' (average over the window)
   const col = COLS.find(c => c.key === metric);
   const dates = React.useMemo(() => windowDays(sessions, end, weeks * 7), [sessions, end, weeks]);
   const rows = React.useMemo(() => roster
-    .map(a => ({ athlete: a, values: seriesFor(sessions, a.id, dates, metric) }))
-    .filter(r => r.values.some(v => v != null))
-    .sort((x, y) => x.athlete.name.localeCompare(y.athlete.name)), [roster, sessions, dates, metric]);
+    .map(a => { const values = seriesFor(sessions, a.id, dates, metric); return { athlete: a, values, avg: meanOf(values) }; })
+    .filter(r => r.avg != null)
+    .sort((x, y) => (order === 'high' ? y.avg - x.avg : order === 'low' ? x.avg - y.avg : 0) || x.athlete.name.localeCompare(y.athlete.name)), [roster, sessions, dates, metric, order]);
   const avgs = React.useMemo(() => teamAverage(sessions, rows.map(r => r.athlete.id), dates, metric), [sessions, rows, dates, metric]);
   const all = rows.flatMap(r => r.values.filter(v => v != null));
   const max = all.length ? Math.max(...all) : 0, min = all.length ? Math.min(...all) : 0;
@@ -119,6 +120,11 @@ function TrendsView({ sessions, roster, end }) {
         </select>
         <select aria-label="Trend window" value={weeks} onChange={e => { setWeeks(Number(e.target.value)); setPicked(null); }} className="input-glass" style={sel}>
           {[2, 4, 8].map(w => <option key={w} value={w} style={optionStyle}>Last {w} weeks</option>)}
+        </select>
+        <select aria-label="Trend sort" value={order} onChange={e => setOrder(e.target.value)} className="input-glass" style={sel}>
+          <option value="name" style={optionStyle}>Sort: Athlete (A–Z)</option>
+          <option value="high" style={optionStyle}>Sort: Largest average</option>
+          <option value="low" style={optionStyle}>Sort: Smallest average</option>
         </select>
         <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{rows.length} athletes · {dates.length} session days up to {longDate(end)}</span>
       </div>
@@ -142,6 +148,7 @@ function TrendsView({ sessions, roster, end }) {
             <tr>
               <th style={{ ...th, position: 'sticky', left: 0, background: 'var(--navy-900)', zIndex: 1 }}>Athlete</th>
               {dates.map(d => <th key={d} style={{ ...th, padding: '4px', textAlign: 'center' }}>{shortDay(d)}</th>)}
+              <th style={{ ...th, padding: '4px 8px' }} title="Average of this athlete's session days in the window">Avg</th>
             </tr>
           </thead>
           <tbody>
@@ -155,11 +162,13 @@ function TrendsView({ sessions, roster, end }) {
                       : <button type="button" data-testid="gps-cell" onClick={() => setPicked({ athleteId: r.athlete.id, date: dates[i] })} aria-label={`${r.athlete.name}, ${longDate(dates[i])}: ${fmt(v, col.d)} ${col.head}`} title={`${fmt(v, col.d)}`} style={{ ...cell, background: shade(v), color: ink(v), outline: picked && picked.athleteId === r.athlete.id && picked.date === dates[i] ? '2px solid var(--color-accent)' : undefined }}>{compact(v, metric)}</button>}
                   </td>
                 ))}
+                <td data-testid="gps-trend-rowavg" style={{ ...td, fontWeight: 800, padding: '0 8px' }}>{compact(r.avg, metric)}</td>
               </tr>
             ))}
             <tr data-testid="gps-trend-avg">
               <td style={{ ...td, fontWeight: 800, color: 'var(--color-accent)', position: 'sticky', left: 0, background: 'var(--navy-900)', zIndex: 1 }}>TEAM AVERAGE</td>
               {avgs.map((v, i) => <td key={dates[i]} style={{ padding: 0 }}><div style={{ ...cell, cursor: 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', background: shade(v), color: ink(v), border: '1px solid var(--color-accent)' }}>{compact(v, metric)}</div></td>)}
+              <td style={{ ...td, fontWeight: 800, color: 'var(--color-accent)', padding: '0 8px' }} title="Average of the athletes' averages">{compact(meanOf(rows.map(r => r.avg)), metric)}</td>
             </tr>
           </tbody>
         </table>
@@ -180,14 +189,93 @@ function TrendsView({ sessions, roster, end }) {
   );
 }
 
-export default function GpsScreen({ athletes }) {
+// Acute : chronic (v5.17.0): this week's (and the last two weeks') load against the athlete's
+// own 4-week weekly average, for the chosen GPS number. Same zones as the RPE tab: at or above the
+// spike ratio is a spike, under 0.8 is low. Top speed is a peak, not a load, so it isn't offered.
+const LOAD_COLS = COLS.filter(c => c.key !== 'top_speed_mph');
+const acTone = (r, spike) => (r == null ? 'muted' : r >= spike ? 'bad' : r < 0.8 ? 'warn' : 'ok');
+function AcuteChronicView({ sessions, roster, end, spike, loadedFrom }) {
+  const [metric, setMetric] = React.useState('distance_yd');
+  const [order, setOrder] = React.useState('ratio7');
+  const col = LOAD_COLS.find(c => c.key === metric);
+  const rows = React.useMemo(() => {
+    const r = acuteChronic(sessions, roster, end, metric, loadedFrom);
+    const key = order === 'low' ? 'ratio7' : order === 'ratio14' ? 'ratio14' : 'ratio7';
+    // Building rows and rows with no ratio go last in the ratio sorts: their numbers aren't real yet.
+    const later = (x) => (x.building || x[key] == null ? 1 : 0);
+    return r.sort((x, y) => (order === 'name' ? 0 : later(x) - later(y) || (order === 'low' ? (x[key] ?? 0) - (y[key] ?? 0) : (y[key] ?? 0) - (x[key] ?? 0))) || x.athlete.name.localeCompare(y.athlete.name));
+  }, [sessions, roster, end, metric, order, loadedFrom]);
+  const ready = rows.filter(r => !r.building && r.ratio7 != null);
+  const spikes = ready.filter(r => r.ratio7 != null && r.ratio7 >= spike).length;
+  const low = ready.filter(r => r.ratio7 != null && r.ratio7 < 0.8).length;
+  const status = (r) => (r.building ? <Chip tone="muted">Building</Chip> : r.ratio7 == null ? <Chip tone="muted">—</Chip> : r.ratio7 >= spike ? <Chip tone="bad">Spike</Chip> : r.ratio7 < 0.8 ? <Chip tone="warn">Low</Chip> : <Chip tone="ok">In range</Chip>);
+  if (!rows.length) return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>No GPS sessions in the 28 days up to {longDate(end)}.</div>;
+  return (
+    <div data-testid="gps-ac" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select aria-label="Load metric" value={metric} onChange={e => setMetric(e.target.value)} className="input-glass" style={sel}>
+          {LOAD_COLS.map(c => <option key={c.key} value={c.key} style={optionStyle}>{c.head}</option>)}
+        </select>
+        <select aria-label="Load sort" value={order} onChange={e => setOrder(e.target.value)} className="input-glass" style={sel}>
+          <option value="ratio7" style={optionStyle}>Sort: 7:28 highest</option>
+          <option value="ratio14" style={optionStyle}>Sort: 14:28 highest</option>
+          <option value="low" style={optionStyle}>Sort: 7:28 lowest</option>
+          <option value="name" style={optionStyle}>Sort: Athlete (A–Z)</option>
+        </select>
+        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Up to {longDate(end)} · {rows.length} athletes</span>
+      </div>
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <Tile value={spikes} text={`7:28 at or above ${spike}`} tone={spikes ? 'bad' : null} />
+        <Tile value={low} text="7:28 under 0.8" tone={low ? 'warn' : null} />
+        <Tile value={ready.length - spikes - low} text="In range" tone="ok" />
+        <Tile value={rows.filter(r => r.building).length} text="Building (under 3 weeks of data)" />
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <th style={th}>Athlete</th>
+              <th style={th} title="Total over the last 7 days">7 days</th>
+              <th style={th} title="Total over the last 14 days">14 days</th>
+              <th style={th} title="Total over the last 28 days">28 days</th>
+              <th style={th} title="28-day total ÷ 4">Weekly avg (28 d)</th>
+              <th style={th} title="7-day total ÷ weekly average of the last 28 days">A:C 7:28</th>
+              <th style={th} title="14-day total ÷ 2 ÷ weekly average of the last 28 days">A:C 14:28</th>
+              <th style={th}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.athlete.id} data-testid="gps-ac-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <td style={{ ...td, fontWeight: 700 }}>{r.athlete.name}</td>
+                <td style={td}>{fmt(r.sum7)}</td>
+                <td style={td}>{fmt(r.sum14)}</td>
+                <td style={td}>{fmt(r.sum28)}</td>
+                <td style={td}>{fmt(r.sum28 / 4)}</td>
+                <td style={td}><Chip tone={r.building ? 'muted' : acTone(r.ratio7, spike)}>{fmt1(r.ratio7, 2)}</Chip></td>
+                <td style={td}><Chip tone={r.building ? 'muted' : acTone(r.ratio14, spike)}>{fmt1(r.ratio14, 2)}</Chip></td>
+                <td style={td}>{status(r)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ ...label, textTransform: 'none', letterSpacing: 0, fontWeight: 600, lineHeight: 1.5 }}>
+        {col.head}, totals over the 7, 14 and 28 days up to the chosen day. A:C 7:28 = last 7 days ÷ the weekly average of the last 28; A:C 14:28 = last 14 days ÷ 2 ÷ that same weekly average. 1.0 = in line with the last four weeks. Spike at or above {spike} (the RPE tab's setting; the chronic window here is always 28 days), low under 0.8. "Building" = under 3 weeks of GPS history, so the 28-day average is still filling in.
+      </div>
+    </div>
+  );
+}
+
+export default function GpsScreen({ athletes, settings = {} }) {
   const roster = React.useMemo(() => athletes.filter(a => a.sport === SPORT), [athletes]);
   const byId = React.useMemo(() => new Map(roster.map(a => [a.id, a])), [roster]);
   const [sessions, setSessions] = React.useState(null); // null = loading
   const [loadError, setLoadError] = React.useState('');
   const [day, setDay] = React.useState('');
   const [sortBy, setSortBy] = React.useState('distance_yd');
-  const [view, setView] = React.useState('day'); // 'day' | 'trends'
+  const [view, setView] = React.useState('day'); // 'day' | 'trends' | 'ac'
+  const loadedFrom = React.useMemo(() => new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString().slice(0, 10), []);
   const [openId, setOpenId] = React.useState(null);
   const [preview, setPreview] = React.useState(null); // { fileName, parsed, manual }
   const [saving, setSaving] = React.useState(false);
@@ -341,14 +429,17 @@ export default function GpsScreen({ athletes }) {
 
       <div className="card-glass" style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <h2 style={h3}><Activity size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: '#60a5fa' }} />{view === 'trends' ? 'Team trends' : dayNow ? `${longDate(dayNow)} · team` : 'Team'}</h2>
-          <div style={{ display: 'flex', gap: '8px' }} role="group" aria-label="GPS view">
+          <h2 style={h3}><Activity size={16} style={{ verticalAlign: '-2px', marginRight: '6px', color: '#60a5fa' }} />{view === 'ac' ? 'Acute : chronic load' : view === 'trends' ? 'Team trends' : dayNow ? `${longDate(dayNow)} · team` : 'Team'}</h2>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} role="group" aria-label="GPS view">
             <button type="button" aria-pressed={view === 'day'} onClick={() => setView('day')} style={viewBtn(view === 'day')}>Day table</button>
             <button type="button" aria-pressed={view === 'trends'} onClick={() => setView('trends')} style={viewBtn(view === 'trends')}>Trends</button>
+            <button type="button" aria-pressed={view === 'ac'} onClick={() => setView('ac')} style={viewBtn(view === 'ac')}>Acute : Chronic</button>
           </div>
         </div>
         {sessions !== null && dayNow && view === 'trends' ? (
           <TrendsView sessions={sessions} roster={roster} end={dayNow} />
+        ) : sessions !== null && dayNow && view === 'ac' ? (
+          <AcuteChronicView sessions={sessions} roster={roster} end={dayNow} spike={Number(settings.rpeLoadSpikeRatio) || 1.3} loadedFrom={loadedFrom} />
         ) : sessions === null ? (
           <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading…</div>
         ) : dayRows.length === 0 ? (

@@ -3049,7 +3049,7 @@ export default function App() {
             )}
 
             {screen === 'gps' && (
-              <GpsScreen athletes={athletes} />
+              <GpsScreen athletes={athletes} settings={settings} />
             )}
 
             {screen === 'power' && settings.enableSpeedPower && (

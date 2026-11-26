@@ -84,13 +84,45 @@ const FILE = [HEAD,
   check('tapping a cell shows that athlete-day', /BO BRAVO · Nov 17/.test(await page.getByTestId('gps-cell-detail').innerText()) && /Top speed \(mph\) 18\.5/.test(await page.getByTestId('gps-cell-detail').innerText()));
   check('the picked cell keeps a visible outline; others keep the browser focus ring (no outline: none)', await page.evaluate(() => [...document.querySelectorAll('[data-testid="gps-cell"]')].every(b => b.style.outline !== 'none')));
   check('bright cells use dark text', await page.evaluate(() => [...document.querySelectorAll('[data-testid="gps-cell"]')].some(b => b.style.color === 'rgb(10, 17, 32)')));
-  check('the Sort menu is hidden in Trends', await page.getByLabel('Sort').count() === 0);
+  check('the Sort menu is hidden in Trends', await page.getByLabel('Sort', { exact: true }).count() === 0);
   await page.getByLabel('Trend metric').selectOption('top_speed_mph'); await page.waitForTimeout(200);
   check('switching the number changes the cells', /18\.5/.test(await page.getByTestId('gps-trend-row').filter({ hasText: 'BO BRAVO' }).innerText()));
   await page.getByLabel('Trend window').selectOption('2'); await page.waitForTimeout(200);
   check('changing the window clears a cell detail that is no longer on screen', await page.getByTestId('gps-cell-detail').count() === 0);
   check('a 2-week window drops the older days', await page.getByTestId('gps-trend-row').filter({ hasText: 'ANN ALPHA' }).getByTestId('gps-cell').count() === 2);
+  await page.getByLabel('Trend window').selectOption('4'); await page.getByLabel('Trend metric').selectOption('distance_yd'); await page.waitForTimeout(200);
+  const order = async () => (await page.getByTestId('gps-trend-row').allInnerTexts()).map(t => t.split(/[\t\n]/)[0].trim());
+  check('trends sort by athlete A–Z by default', (await order()).join() === 'ANN ALPHA,BO BRAVO', (await order()).join());
+  await page.getByLabel('Trend sort').selectOption('high'); await page.waitForTimeout(200);
+  check('largest average first (Ann 5,167 avg vs Bo 4,000)', (await order()).join() === 'ANN ALPHA,BO BRAVO' && /5\.2k/.test(await page.getByTestId('gps-trend-rowavg').first().innerText()), await page.getByTestId('gps-trend-rowavg').first().innerText());
+  await page.getByLabel('Trend sort').selectOption('low'); await page.waitForTimeout(200);
+  check('smallest average first', (await order()).join() === 'BO BRAVO,ANN ALPHA');
+
+  console.log('\n[A3] Acute : chronic');
+  await page.getByRole('button', { name: 'Acute : Chronic' }).click(); await page.waitForTimeout(400);
+  const acr = page.getByTestId('gps-ac-row').filter({ hasText: 'ANN ALPHA' });
+  const acText = (await acr.innerText()).replace(/\s+/g, ' ');
+  check('7, 14 and 28-day totals and both ratios for Ann up to Nov 17', /6,000 11,000 15,500 3,875 1\.55 1\.42/.test(acText), acText);
+  check('short history is marked Building, not flagged', /Building/.test(acText) && await page.getByTestId('gps-ac-row').count() === 2);
+  check('top speed is not offered as a load', !(await page.getByLabel('Load metric').innerText()).includes('Top speed'));
+  await page.getByLabel('Load sort').selectOption('name'); await page.waitForTimeout(200);
+  check('sort by athlete works here too', /ANN ALPHA/.test(await page.getByTestId('gps-ac-row').first().innerText()));
   await page.getByRole('button', { name: 'Day table' }).click(); await page.waitForTimeout(300);
+
+  const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await stubAuth(phone);
+  await phone.addInitScript(() => localStorage.setItem('hpd_settings', JSON.stringify({ enableLiftTracker: true })));
+  await phone.route(SUPA, async (route) => { const h = { 'access-control-allow-origin': '*', 'content-type': 'application/json' }; const req = route.request(); const url = req.url();
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 200, headers: { ...h, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
+    if (url.includes('/realtime/')) return route.abort(); if (isAuthRoute(url)) return fulfillAuth(route, url, h);
+    if (url.includes('/rest/v1/coaches')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify([{ approved: true }]) });
+    if (url.includes('/rest/v1/athletes')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify(athletes) });
+    if (url.includes('/rest/v1/gps_sessions')) return route.fulfill({ status: 200, headers: h, body: JSON.stringify(saved) });
+    return route.fulfill({ status: 200, headers: h, body: '[]' }); });
+  await phone.goto(`${APP}/#gps`); await phone.waitForTimeout(2200);
+  await phone.getByRole('button', { name: 'Acute : Chronic' }).click(); await phone.waitForTimeout(400);
+  check('phone width: the page does not scroll sideways with the three view buttons', await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), String(await phone.evaluate(() => document.documentElement.scrollWidth)));
+  await phone.close();
 
   console.log('\n[B] Upload: checked before saving');
   await page.getByLabel('Titan CSV file').setInputFiles({ name: 'titan.csv', mimeType: 'text/csv', buffer: Buffer.from(FILE) });
